@@ -137,7 +137,7 @@ test('학생·상담기록·지원대학 + 동시 수정 충돌 + 선생님 권�
   // 관리자 백업
   const b = await admin.req('GET', '/api/backup');
   assert.strictEqual(b.status, 200);
-  assert.match(b.headers.get('content-disposition'), /revera-backup-\d+\.db/);
+  assert.match(b.headers.get('content-disposition'), /compass-backup-\d+\.db/);
 
   // 학생 삭제 시 상담기록·지원대학 함께 삭제, 변경로그 기록
   d = await admin.ok('deleteStudent', s.id);

@@ -2,7 +2,7 @@
   "name": "revera-student-manager",
   "version": "1.0.0",
   "private": true,
-  "description": "REVERA 데스크 공용 학생관리 사이트",
+  "description": "REVERA Compass — 데스크 공용 학생관리 사이트",
   "main": "server.js",
   "engines": { "node": ">=20" },
   "scripts": {

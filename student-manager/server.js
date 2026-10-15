@@ -1,6 +1,6 @@
 'use strict';
 /**
- * REVERA 학생관리 — 웹 서버
+ * REVERA Compass (학생관리) — 웹 서버
  *   npm start                (기본 포트 3000, DB 파일 ./data/revera.db)
  * 환경변수: PORT, DB_PATH, ADMIN_EMAIL / ADMIN_PASSWORD(최초 실행 시 관리자 생성),
  *           TRUST_PROXY=1 (HTTPS 프록시 뒤에서 실행할 때), COOKIE_SECURE=1 (HTTPS 전용 쿠키)
@@ -110,11 +110,11 @@ function createApp(store, opts) {
   // 관리자: DB 백업 파일 다운로드
   app.get('/api/backup', requireLogin, async (req, res) => {
     if (req.me.role !== 'admin') return res.status(403).json({ error: '관리자만 백업할 수 있습니다.' });
-    const tmp = path.join(os.tmpdir(), 'revera-backup-' + Date.now() + '.db');
+    const tmp = path.join(os.tmpdir(), 'compass-backup-' + Date.now() + '.db');
     try {
       await store.backup(tmp);
       const stamp = new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 16).replace(/[-:T]/g, '');
-      res.download(tmp, 'revera-backup-' + stamp + '.db', () => fs.unlink(tmp, () => {}));
+      res.download(tmp, 'compass-backup-' + stamp + '.db', () => fs.unlink(tmp, () => {}));
     } catch (e) {
       console.error(e);
       res.status(500).json({ error: '백업에 실패했습니다.' });
@@ -142,7 +142,7 @@ if (require.main === module) {
 
   const port = Number(process.env.PORT) || 3000;
   createApp(store, { trustProxy: !!process.env.TRUST_PROXY, cookieSecure: !!process.env.COOKIE_SECURE })
-    .listen(port, () => console.log(`REVERA 학생관리 실행 중: http://localhost:${port}  (DB: ${dbPath})`));
+    .listen(port, () => console.log(`REVERA Compass 실행 중: http://localhost:${port}  (DB: ${dbPath})`));
 }
 
 module.exports = { createApp };
