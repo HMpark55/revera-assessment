@@ -1,55 +1,101 @@
 'use strict';
 /**
- * 데이터 저장소 (SQLite 파일 1개) + 업무 규칙.
- * 모든 함수는 (me, 입력값) 을 받고, 화면에 필요한 전체 데이터(getAll)를 돌려줍니다.
+ * 데이터 저장소 (SQLite 파일 1개 + 업로드 파일 폴더) + 업무 규칙/권한.
+ *
+ * 역할
+ *   admin(관리자)      : 전체 + 계정 관리 + 변경 기록 + 영구 삭제
+ *   staff(관리팀)      : 전체 학생, 계약 금액, 상담기록, 삭제/복구
+ *   consultant(컨설턴트): 담당 학생만, 상담기록·계약 금액은 볼 수 없음
+ *
+ * 삭제는 모두 "휴지통으로 이동"(deletedAt 기록)이며, 관리자/관리팀이 복구할 수 있습니다.
  */
 const Database = require('better-sqlite3');
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 
 class UserError extends Error {
   constructor(message, status) { super(message); this.status = status || 400; }
 }
 
-const STUDENT_FIELDS = ['name', 'dob', 'school', 'grade', 'curriculum', 'counselor', 'status', 'studentPhone',
-  'parentName', 'parentPhone', 'email', 'tags', 'memo'];
-const NOTE_FIELDS = ['studentId', 'date', 'type', 'content', 'nextAction', 'nextDue', 'done'];
-const APP_FIELDS = ['studentId', 'university', 'major', 'round', 'deadline', 'status', 'essay', 'memo'];
-const TABLE_LABEL = { students: '학생', notes: '상담기록', apps: '지원대학', teachers: '선생님' };
+const ROLES = ['admin', 'staff', 'consultant'];
 
-const SCHEMA = `
-PRAGMA journal_mode = WAL;
-PRAGMA foreign_keys = ON;
-CREATE TABLE IF NOT EXISTS teachers (
-  email TEXT PRIMARY KEY, name TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'teacher',
-  active INTEGER NOT NULL DEFAULT 1, passwordHash TEXT NOT NULL, mustChangePassword INTEGER NOT NULL DEFAULT 1,
-  createdAt TEXT NOT NULL, updatedAt TEXT NOT NULL
-);
-CREATE TABLE IF NOT EXISTS sessions (
-  tokenHash TEXT PRIMARY KEY, email TEXT NOT NULL REFERENCES teachers(email) ON DELETE CASCADE,
-  createdAt TEXT NOT NULL, expiresAt INTEGER NOT NULL
-);
-CREATE TABLE IF NOT EXISTS students (
-  id TEXT PRIMARY KEY, ${STUDENT_FIELDS.map((f) => f + " TEXT NOT NULL DEFAULT ''").join(', ')},
-  createdAt TEXT NOT NULL, createdBy TEXT NOT NULL, updatedAt TEXT NOT NULL, updatedBy TEXT NOT NULL
-);
-CREATE TABLE IF NOT EXISTS notes (
-  id TEXT PRIMARY KEY, studentId TEXT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
-  ${NOTE_FIELDS.slice(1).map((f) => f + " TEXT NOT NULL DEFAULT ''").join(', ')},
-  author TEXT NOT NULL, createdAt TEXT NOT NULL, updatedAt TEXT NOT NULL, updatedBy TEXT NOT NULL
-);
-CREATE TABLE IF NOT EXISTS apps (
-  id TEXT PRIMARY KEY, studentId TEXT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
-  ${APP_FIELDS.slice(1).map((f) => f + " TEXT NOT NULL DEFAULT ''").join(', ')},
-  createdAt TEXT NOT NULL, updatedAt TEXT NOT NULL, updatedBy TEXT NOT NULL
-);
-CREATE TABLE IF NOT EXISTS log (
-  id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, email TEXT NOT NULL, action TEXT NOT NULL,
-  tbl TEXT NOT NULL, targetId TEXT NOT NULL, summary TEXT NOT NULL
-);
-CREATE INDEX IF NOT EXISTS notes_student ON notes(studentId);
-CREATE INDEX IF NOT EXISTS apps_student ON apps(studentId);
-`;
+/** 테이블별 입력 가능한 필드 */
+const TABLES = {
+  students: {
+    label: '학생',
+    fields: ['name', 'dob', 'school', 'grade', 'curriculum', 'counselor', 'status', 'tracks', 'studentPhone',
+      'parentName', 'parentPhone', 'email', 'tags', 'memo', 'driveUrl',
+      'storyTrigger', 'storyProcess', 'storyLink', 'storyConclusion', 'storyStatus'],
+    summary: (r) => r.name,
+  },
+  notes: {
+    label: '상담기록',
+    fields: ['studentId', 'date', 'time', 'place', 'attendees', 'type', 'content', 'nextAction', 'nextDue', 'done'],
+    summary: (r) => [r.date, r.type].join(' '),
+  },
+  contracts: {
+    label: '계약',
+    fields: ['studentId', 'kind', 'tier', 'term', 'packages', 'startMonth', 'signedDate', 'amount', 'paid', 'scope', 'memo'],
+    summary: (r) => [r.kind, r.tier, r.term, r.packages].filter(Boolean).join(' '),
+  },
+  apps: {
+    label: '지원대학',
+    fields: ['studentId', 'university', 'major', 'round', 'deadline', 'status', 'essay', 'memo'],
+    summary: (r) => [r.university, r.round].filter(Boolean).join(' '),
+  },
+  scores: {
+    label: '성적',
+    fields: ['studentId', 'kind', 'subject', 'score', 'detail', 'date', 'memo'],
+    summary: (r) => [r.kind, r.subject, r.score].filter(Boolean).join(' '),
+  },
+  activities: {
+    label: '활동',
+    fields: ['studentId', 'category', 'name', 'role', 'period', 'deadline', 'status', 'memo'],
+    summary: (r) => [r.category, r.name].filter(Boolean).join(' '),
+  },
+  docs: {
+    label: '서류',
+    fields: ['studentId', 'name', 'status', 'due', 'memo'],
+    summary: (r) => [r.name, r.status].filter(Boolean).join(' '),
+  },
+  links: {
+    label: '링크',
+    fields: ['studentId', 'label', 'url'],
+    summary: (r) => r.label || r.url,
+  },
+  files: {
+    label: '파일',
+    fields: ['studentId', 'category', 'name', 'memo'], // 파일 자체는 upload 로만 추가
+    summary: (r) => r.name,
+  },
+};
+const CHILD_TABLES = Object.keys(TABLES).filter((t) => t !== 'students');
+/** 변경 기록에 표시할 항목 이름 */
+const FIELD_LABELS = {
+  name: '이름', dob: '생년월일', school: '학교', grade: '학년', curriculum: '커리큘럼', counselor: '담당 컨설턴트',
+  status: '상태', tracks: '트랙', studentPhone: '학생 연락처', parentName: '학부모 이름', parentPhone: '학부모 연락처',
+  email: '이메일', tags: '태그', memo: '메모', driveUrl: 'Drive 링크', storyTrigger: '스토리①계기', storyProcess: '스토리②탐구',
+  storyLink: '스토리③연결', storyConclusion: '스토리④결론', storyStatus: '스토리 상태', date: '날짜', time: '시간',
+  place: '장소', attendees: '참석자', type: '유형', content: '내용', nextAction: '다음 할 일', nextDue: '할 일 기한',
+  done: '할 일 완료', kind: '종류', tier: '등급', term: '기간', packages: '패키지', startMonth: '시작 연월',
+  signedDate: '계약일', amount: '금액', paid: '납부 상태', scope: '포함 범위', university: '대학', major: '전공',
+  round: '전형', deadline: '마감일', essay: '에세이', subject: '과목', score: '점수', detail: '세부 점수',
+  category: '분류', role: '역할', period: '기간', due: '기한', label: '이름', url: '주소', studentId: '학생',
+};
+/** 관리자/관리팀만 다룰 수 있는 테이블 */
+const MANAGER_ONLY = ['notes', 'contracts'];
+/** 컨설턴트에게 숨기는 계약 필드 */
+const HIDDEN_FOR_CONSULTANT = { contracts: ['amount', 'paid'] };
 
+const UPLOAD_TYPES = {
+  pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp',
+  heic: 'image/heic', gif: 'image/gif',
+  doc: 'application/msword', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  xls: 'application/vnd.ms-excel', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  hwp: 'application/x-hwp',
+};
+const MAX_UPLOAD = 20 * 1024 * 1024;
 const SESSION_DAYS = 14;
 
 /* ---------------- 유틸 ---------------- */
@@ -69,10 +115,15 @@ function now() {
 const newId = () => crypto.randomBytes(6).toString('hex');
 const lower = (s) => String(s || '').trim().toLowerCase();
 const isEmail = (s) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s);
+const isManager = (me) => me.role === 'admin' || me.role === 'staff';
 function clean(v) {
   if (v === null || v === undefined) return '';
   if (typeof v === 'boolean') return v ? 'TRUE' : 'FALSE';
+  if (Array.isArray(v)) return v.map((x) => String(x).trim()).filter(Boolean).join(', ');
   return String(v).replace(/\r\n/g, '\n').slice(0, 20000);
+}
+function checkUrl(u, label) {
+  if (u && !/^https?:\/\/\S+$/i.test(u)) throw new UserError((label || '링크') + '는 http:// 또는 https:// 로 시작해야 합니다.');
 }
 
 function hashPassword(pw) {
@@ -92,18 +143,91 @@ function checkPasswordRule(pw) {
 }
 const sha256 = (s) => crypto.createHash('sha256').update(s).digest('hex');
 
+/* ---------------- 스키마 ---------------- */
+
+const BASE_SCHEMA = `
+PRAGMA journal_mode = WAL;
+PRAGMA foreign_keys = ON;
+CREATE TABLE IF NOT EXISTS teachers (
+  email TEXT PRIMARY KEY, name TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'consultant',
+  active INTEGER NOT NULL DEFAULT 1, passwordHash TEXT NOT NULL, mustChangePassword INTEGER NOT NULL DEFAULT 1,
+  createdAt TEXT NOT NULL, updatedAt TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS sessions (
+  tokenHash TEXT PRIMARY KEY, email TEXT NOT NULL REFERENCES teachers(email) ON DELETE CASCADE,
+  createdAt TEXT NOT NULL, expiresAt INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS students (id TEXT PRIMARY KEY);
+CREATE TABLE IF NOT EXISTS log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, email TEXT NOT NULL, action TEXT NOT NULL,
+  tbl TEXT NOT NULL, targetId TEXT NOT NULL, summary TEXT NOT NULL
+);
+`;
+const META_COLS = ['createdAt', 'createdBy', 'updatedAt', 'updatedBy', 'deletedAt', 'deletedBy'];
+
+/** 없는 열을 추가 (기존 DB를 데이터 손실 없이 새 구조로 올림) */
+function ensureColumns(db, table, cols) {
+  const have = new Set(db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name));
+  for (const c of cols) {
+    if (!have.has(c)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${c} TEXT NOT NULL DEFAULT ''`);
+  }
+}
+
+function migrate(db) {
+  db.exec(BASE_SCHEMA);
+  for (const t of CHILD_TABLES) {
+    db.exec(`CREATE TABLE IF NOT EXISTS ${t} (id TEXT PRIMARY KEY,
+      studentId TEXT NOT NULL REFERENCES students(id) ON DELETE CASCADE)`);
+    db.exec(`CREATE INDEX IF NOT EXISTS ${t}_student ON ${t}(studentId)`);
+  }
+  for (const t of Object.keys(TABLES)) {
+    ensureColumns(db, t, TABLES[t].fields.filter((f) => f !== 'studentId').concat(META_COLS));
+  }
+  ensureColumns(db, 'notes', ['author']);
+  ensureColumns(db, 'files', ['mime', 'size', 'storedName']);
+  // 이전 버전의 'teacher' 역할은 권한이 가장 좁은 컨설턴트로 전환
+  db.prepare(`UPDATE teachers SET role = 'consultant' WHERE role NOT IN ('admin','staff','consultant')`).run();
+  // 이전 버전 데이터의 작성자 정보 보정
+  db.prepare(`UPDATE notes SET createdBy = author WHERE createdBy = '' AND author != ''`).run();
+  for (const t of ['apps']) db.prepare(`UPDATE ${t} SET createdBy = updatedBy WHERE createdBy = ''`).run();
+}
+
 /* ---------------- 저장소 ---------------- */
 
-function openStore(dbPath) {
+function openStore(dbPath, opts) {
+  opts = opts || {};
   const db = new Database(dbPath);
-  db.exec(SCHEMA);
+  migrate(db);
+  const filesDir = opts.filesDir || path.join(path.dirname(dbPath), 'files');
+  fs.mkdirSync(filesDir, { recursive: true });
 
   const tx = (fn) => db.transaction(fn)();
   const log = (email, action, table, id, summary) =>
     db.prepare('INSERT INTO log (at, email, action, tbl, targetId, summary) VALUES (?,?,?,?,?,?)')
-      .run(now(), email, action, TABLE_LABEL[table] || table, String(id), String(summary || '').slice(0, 500));
+      .run(now(), email, action, table, String(id), String(summary || '').slice(0, 500));
   const getTeacher = (email) => db.prepare('SELECT * FROM teachers WHERE email = ?').get(lower(email));
   const getRow = (table, id) => db.prepare(`SELECT * FROM ${table} WHERE id = ?`).get(String(id || ''));
+
+  /* ----- 권한 ----- */
+
+  function canSeeStudent(me, s) {
+    return !!s && !s.deletedAt && (isManager(me) || lower(s.counselor) === me.email);
+  }
+  function requireStudent(me, id) {
+    const s = getRow('students', id);
+    if (!s || s.deletedAt) throw new UserError('존재하지 않거나 삭제된 학생입니다.', 404);
+    if (!canSeeStudent(me, s)) throw new UserError('담당 학생이 아니어서 접근할 수 없습니다.', 403);
+    return s;
+  }
+  function requireManager(me, what) {
+    if (!isManager(me)) throw new UserError((what || '이 작업') + '은(는) 관리자·관리팀만 할 수 있습니다.', 403);
+  }
+  function requireAdmin(me, what) {
+    if (me.role !== 'admin') throw new UserError((what || '이 작업') + '은(는) 관리자만 할 수 있습니다.', 403);
+  }
+  function requireTableAccess(me, table) {
+    if (MANAGER_ONLY.includes(table)) requireManager(me, TABLES[table].label + ' 관리');
+  }
 
   /* ----- 계정 / 로그인 ----- */
 
@@ -142,13 +266,13 @@ function openStore(dbPath) {
   }
   function logout(token) { if (token) db.prepare('DELETE FROM sessions WHERE tokenHash = ?').run(sha256(token)); }
 
-  /** 세션 토큰 → 로그인한 선생님 (없거나 비활성이면 null) */
+  /** 세션 토큰 → 로그인한 사용자 (없거나 비활성이면 null) */
   function authenticate(token) {
     if (!token) return null;
     const row = db.prepare(`SELECT t.*, s.expiresAt FROM sessions s JOIN teachers t ON t.email = s.email
       WHERE s.tokenHash = ?`).get(sha256(token));
     if (!row || !row.active || row.expiresAt < Date.now()) return null;
-    return { email: row.email, name: row.name, role: row.role === 'admin' ? 'admin' : 'teacher',
+    return { email: row.email, name: row.name, role: ROLES.includes(row.role) ? row.role : 'consultant',
       mustChangePassword: !!row.mustChangePassword, token };
   }
 
@@ -169,91 +293,246 @@ function openStore(dbPath) {
 
   /* ----- 조회 ----- */
 
+  function publicRow(table, r, me) {
+    const o = Object.assign({}, r);
+    if (table === 'files') delete o.storedName;
+    if (!isManager(me)) (HIDDEN_FOR_CONSULTANT[table] || []).forEach((k) => delete o[k]);
+    return o;
+  }
+
   function getAll(me) {
-    return {
+    const students = db.prepare("SELECT * FROM students WHERE deletedAt = ''").all().filter((s) => canSeeStudent(me, s));
+    const ids = new Set(students.map((s) => s.id));
+    const out = {
       me: { email: me.email, name: me.name, role: me.role, mustChangePassword: !!me.mustChangePassword },
       teachers: db.prepare('SELECT email, name, role, active FROM teachers ORDER BY name').all()
         .map((t) => ({ email: t.email, name: t.name, role: t.role, active: !!t.active })),
-      students: db.prepare('SELECT * FROM students').all(),
-      notes: db.prepare('SELECT * FROM notes').all(),
-      apps: db.prepare('SELECT * FROM apps').all(),
+      students,
       serverTime: now(),
     };
+    for (const t of CHILD_TABLES) {
+      if (MANAGER_ONLY.includes(t) && t !== 'contracts' && !isManager(me)) { out[t] = []; continue; }
+      out[t] = db.prepare(`SELECT * FROM ${t} WHERE deletedAt = ''`).all()
+        .filter((r) => ids.has(r.studentId)).map((r) => publicRow(t, r, me));
+    }
+    return out;
   }
 
-  /* ----- 저장 공통 ----- */
+  /* ----- 저장 (모든 테이블 공통) ----- */
 
-  function save(table, fields, me, obj, summarize, extraNew) {
+  function validate(table, rec, cur) {
+    const v = (k) => (k in rec ? rec[k] : cur ? cur[k] : '');
+    const need = (k, msg) => { if (!String(v(k) || '').trim()) throw new UserError(msg); };
+    if (table === 'students') need('name', '학생 이름은 필수입니다.');
+    if (table === 'notes' && !String(v('content')).trim() && !String(v('nextAction')).trim()) {
+      throw new UserError('상담 내용 또는 다음 할 일을 입력하세요.');
+    }
+    if (table === 'apps') need('university', '대학명은 필수입니다.');
+    if (table === 'contracts') need('kind', '계약 종류(연간/원서)를 선택하세요.');
+    if (table === 'scores') need('kind', '시험 종류를 선택하세요.');
+    if (table === 'activities') need('name', '활동 이름을 입력하세요.');
+    if (table === 'docs') need('name', '서류 이름을 입력하세요.');
+    if (table === 'links') { need('url', '링크 주소를 입력하세요.'); checkUrl(v('url')); }
+    if (table === 'files') need('name', '파일 이름을 입력하세요.');
+    if (table === 'students') checkUrl(v('driveUrl'), 'Drive 폴더 링크');
+  }
+
+  function save(me, arg) {
+    const table = arg && arg.table;
+    const obj = (arg && arg.obj) || {};
+    if (!TABLES[table]) throw new UserError('알 수 없는 항목입니다.');
+    requireTableAccess(me, table);
+    let result;
     tx(() => {
       const rec = {};
-      fields.forEach((k) => { if (k in obj) rec[k] = clean(obj[k]); });
+      TABLES[table].fields.forEach((k) => { if (k in obj) rec[k] = clean(obj[k]); });
       if ('counselor' in rec) rec.counselor = lower(rec.counselor);
-      if (rec.studentId !== undefined && !getRow('students', rec.studentId)) throw new UserError('존재하지 않는 학생입니다.');
       const t = now();
       if (obj.id) {
         const cur = getRow(table, obj.id);
-        if (!cur) throw new UserError('다른 선생님이 이미 삭제한 항목입니다. 새로고침 해주세요.', 409);
+        if (!cur || cur.deletedAt) throw new UserError('다른 선생님이 이미 삭제한 항목입니다. 새로고침 해주세요.', 409);
+        if (table === 'students') {
+          requireStudent(me, cur.id);
+          if (!isManager(me)) delete rec.counselor; // 컨설턴트는 담당자 변경 불가
+        } else {
+          requireStudent(me, cur.studentId);
+          if (rec.studentId && rec.studentId !== cur.studentId) requireStudent(me, rec.studentId);
+          if (!isManager(me)) (HIDDEN_FOR_CONSULTANT[table] || []).forEach((k) => delete rec[k]);
+        }
         // 동시 수정 방지: 화면을 불러온 뒤 다른 사람이 먼저 저장했으면 거부
         if (obj.updatedAt && obj.updatedAt !== cur.updatedAt) {
           const who = getTeacher(cur.updatedBy);
           throw new UserError('그 사이 ' + (who ? who.name : cur.updatedBy) + ' 님이 먼저 수정했습니다. ' +
             '새로고침 후 다시 입력해주세요.', 409);
         }
+        validate(table, rec, cur);
         const keys = Object.keys(rec);
         db.prepare(`UPDATE ${table} SET ${keys.map((k) => k + ' = @' + k).concat(['updatedAt = @updatedAt', 'updatedBy = @updatedBy']).join(', ')} WHERE id = @id`)
           .run(Object.assign({}, rec, { updatedAt: t, updatedBy: me.email, id: cur.id }));
-        log(me.email, 'update', table, cur.id, summarize(Object.assign({}, cur, rec)));
+        const changed = keys.filter((k) => String(rec[k]) !== String(cur[k] == null ? '' : cur[k]))
+          .map((k) => FIELD_LABELS[k] || k);
+        log(me.email, 'update', table, cur.id, describe(table, Object.assign({}, cur, rec)) +
+          (changed.length ? ' — 변경: ' + changed.join(', ') : ' — 변경 없음'));
+        result = cur.id;
       } else {
-        Object.assign(rec, { id: newId(), createdAt: t, updatedAt: t, updatedBy: me.email }, extraNew || {});
+        if (table === 'students') {
+          requireManager(me, '학생 등록');
+        } else {
+          if (!rec.studentId) throw new UserError('학생이 지정되지 않았습니다.');
+          requireStudent(me, rec.studentId);
+          if (table === 'files') throw new UserError('파일은 업로드로만 추가할 수 있습니다.');
+        }
+        validate(table, rec, null);
+        Object.assign(rec, { id: newId(), createdAt: t, createdBy: me.email, updatedAt: t, updatedBy: me.email });
+        if (table === 'notes') rec.author = me.email;
         const keys = Object.keys(rec);
         db.prepare(`INSERT INTO ${table} (${keys.join(', ')}) VALUES (${keys.map((k) => '@' + k).join(', ')})`).run(rec);
-        log(me.email, 'create', table, rec.id, summarize(rec));
+        log(me.email, 'create', table, rec.id, describe(table, rec));
+        result = rec.id;
       }
     });
-    return getAll(me);
+    const data = getAll(me);
+    data.savedId = result;
+    return data;
   }
 
-  function saveStudent(me, obj) {
-    if (!obj || !String(obj.name || '').trim()) throw new UserError('학생 이름은 필수입니다.');
-    return save('students', STUDENT_FIELDS, me, obj, (r) => r.name, { createdBy: me.email });
-  }
-  function saveNote(me, obj) {
-    if (!obj || !obj.studentId) throw new UserError('학생이 지정되지 않았습니다.');
-    if (!String(obj.content || '').trim() && !String(obj.nextAction || '').trim()) {
-      throw new UserError('상담 내용 또는 다음 할 일을 입력하세요.');
-    }
-    return save('notes', NOTE_FIELDS, me, obj, (r) => r.date + ' ' + r.type, { author: me.email });
-  }
-  function saveApp(me, obj) {
-    if (!obj || !obj.studentId) throw new UserError('학생이 지정되지 않았습니다.');
-    if (!String(obj.university || '').trim()) throw new UserError('대학명은 필수입니다.');
-    return save('apps', APP_FIELDS, me, obj, (r) => r.university + ' ' + (r.round || ''));
+  /** 로그에 남길 설명: "학생명 · 내용" */
+  function describe(table, r) {
+    const s = table === 'students' ? null : getRow('students', r.studentId);
+    return [s ? s.name : '', TABLES[table].summary(r)].filter(Boolean).join(' · ');
   }
 
-  function remove(table, me, id) {
+  /** 삭제 = 휴지통으로 이동 */
+  function remove(me, arg) {
+    const table = arg && arg.table;
+    if (!TABLES[table]) throw new UserError('알 수 없는 항목입니다.');
     tx(() => {
-      const cur = getRow(table, id);
-      if (!cur) throw new UserError('이미 삭제된 항목입니다.', 404);
-      db.prepare(`DELETE FROM ${table} WHERE id = ?`).run(cur.id);
-      log(me.email, 'delete', table, cur.id, JSON.stringify(cur));
+      const cur = getRow(table, arg.id);
+      if (!cur || cur.deletedAt) throw new UserError('이미 삭제된 항목입니다.', 404);
+      if (table === 'students') {
+        requireManager(me, '학생 삭제');
+      } else {
+        requireTableAccess(me, table);
+        requireStudent(me, cur.studentId);
+      }
+      db.prepare(`UPDATE ${table} SET deletedAt = ?, deletedBy = ? WHERE id = ?`).run(now(), me.email, cur.id);
+      log(me.email, 'delete', table, cur.id, describe(table, cur));
     });
     return getAll(me);
   }
-  const deleteNote = (me, id) => remove('notes', me, id);
-  const deleteApp = (me, id) => remove('apps', me, id);
-  function deleteStudent(me, id) {
-    if (me.role !== 'admin') throw new UserError('학생 삭제는 관리자만 할 수 있습니다. 상태를 "종료"로 바꿔주세요.', 403);
-    return remove('students', me, id); // 상담기록·지원대학은 외래키로 함께 삭제
+
+  /** 휴지통에서 복구 (관리자·관리팀) */
+  function restore(me, arg) {
+    requireManager(me, '복구');
+    const table = arg && arg.table;
+    if (!TABLES[table]) throw new UserError('알 수 없는 항목입니다.');
+    tx(() => {
+      const cur = getRow(table, arg.id);
+      if (!cur || !cur.deletedAt) throw new UserError('휴지통에 없는 항목입니다.', 404);
+      if (table !== 'students') {
+        const s = getRow('students', cur.studentId);
+        if (!s) throw new UserError('학생 정보가 영구 삭제되어 복구할 수 없습니다.');
+        if (s.deletedAt) throw new UserError('"' + s.name + '" 학생이 휴지통에 있습니다. 학생을 먼저 복구하세요.');
+      }
+      db.prepare(`UPDATE ${table} SET deletedAt = '', deletedBy = '' WHERE id = ?`).run(cur.id);
+      log(me.email, 'restore', table, cur.id, describe(table, cur));
+    });
+    return getAll(me);
   }
 
-  /* ----- 선생님 관리 (관리자) ----- */
+  /** 영구 삭제 (관리자, 휴지통에 있는 것만) */
+  function purge(me, arg) {
+    requireAdmin(me, '영구 삭제');
+    const table = arg && arg.table;
+    if (!TABLES[table]) throw new UserError('알 수 없는 항목입니다.');
+    const files = [];
+    tx(() => {
+      const cur = getRow(table, arg.id);
+      if (!cur || !cur.deletedAt) throw new UserError('휴지통에 있는 항목만 영구 삭제할 수 있습니다.', 404);
+      if (table === 'students') {
+        db.prepare('SELECT storedName FROM files WHERE studentId = ?').all(cur.id).forEach((f) => files.push(f.storedName));
+        for (const t of CHILD_TABLES) db.prepare(`DELETE FROM ${t} WHERE studentId = ?`).run(cur.id);
+      } else if (table === 'files') {
+        files.push(cur.storedName);
+      }
+      log(me.email, 'purge', table, cur.id, describe(table, cur));
+      db.prepare(`DELETE FROM ${table} WHERE id = ?`).run(cur.id);
+    });
+    files.filter(Boolean).forEach((f) => fs.rm(path.join(filesDir, f), { force: true }, () => {}));
+    return getTrash(me);
+  }
+
+  function getTrash(me) {
+    requireManager(me, '휴지통 보기');
+    const names = {};
+    db.prepare('SELECT id, name, deletedAt FROM students').all().forEach((s) => { names[s.id] = s; });
+    const items = [];
+    for (const t of Object.keys(TABLES)) {
+      db.prepare(`SELECT * FROM ${t} WHERE deletedAt != ''`).all().forEach((r) => {
+        const s = t === 'students' ? r : names[r.studentId];
+        items.push({ table: t, id: r.id, label: TABLES[t].label, summary: TABLES[t].summary(r),
+          studentId: t === 'students' ? r.id : r.studentId, studentName: s ? s.name : '(삭제됨)',
+          studentDeleted: t !== 'students' && !!(s && s.deletedAt),
+          deletedAt: r.deletedAt, deletedBy: r.deletedBy });
+      });
+    }
+    items.sort((a, b) => b.deletedAt.localeCompare(a.deletedAt));
+    return { items };
+  }
+
+  /** 변경 기록 (관리자) */
+  function getLog(me, arg) {
+    requireAdmin(me, '변경 기록 보기');
+    const limit = Math.min(Math.max(Number(arg && arg.limit) || 1000, 1), 5000);
+    const rows = db.prepare('SELECT * FROM log ORDER BY id DESC LIMIT ?').all(limit);
+    rows.forEach((r) => { r.tblLabel = (TABLES[r.tbl] && TABLES[r.tbl].label) || legacyLabel(r.tbl); });
+    return { rows };
+  }
+  function legacyLabel(t) { return { teachers: '계정' }[t] || t; }
+
+  /* ----- 파일 ----- */
+
+  function addFile(me, info) {
+    const s = requireStudent(me, info.studentId);
+    const name = String(info.name || '').replace(/[\\/\r\n]/g, '_').trim().slice(0, 200);
+    const ext = (name.match(/\.([a-z0-9]+)$/i) || [])[1];
+    const type = ext && UPLOAD_TYPES[ext.toLowerCase()];
+    if (!type) throw new UserError('올릴 수 없는 파일 형식입니다. (PDF, 이미지, 워드, 엑셀, 한글 파일만 가능)');
+    if (!info.buffer || !info.buffer.length) throw new UserError('빈 파일입니다.');
+    if (info.buffer.length > MAX_UPLOAD) throw new UserError('파일은 20MB 이하만 올릴 수 있습니다.');
+    const id = newId();
+    const storedName = id + '.' + ext.toLowerCase();
+    fs.writeFileSync(path.join(filesDir, storedName), info.buffer);
+    const t = now();
+    const rec = { id, studentId: s.id, category: clean(info.category) || '성적표', name, memo: '', mime: type,
+      size: String(info.buffer.length), storedName, createdAt: t, createdBy: me.email, updatedAt: t, updatedBy: me.email };
+    try {
+      const keys = Object.keys(rec);
+      db.prepare(`INSERT INTO files (${keys.join(', ')}) VALUES (${keys.map((k) => '@' + k).join(', ')})`).run(rec);
+    } catch (e) {
+      fs.rm(path.join(filesDir, storedName), { force: true }, () => {});
+      throw e;
+    }
+    log(me.email, 'upload', 'files', id, s.name + ' · ' + name);
+    return getAll(me);
+  }
+
+  /** 다운로드용 파일 정보 (권한 확인 포함) */
+  function getFile(me, id) {
+    const f = getRow('files', id);
+    if (!f || f.deletedAt) throw new UserError('파일을 찾을 수 없습니다.', 404);
+    requireStudent(me, f.studentId);
+    return { path: path.join(filesDir, f.storedName), name: f.name, mime: f.mime || 'application/octet-stream' };
+  }
+
+  /* ----- 계정 관리 (관리자) ----- */
 
   function saveTeacher(me, obj) {
-    if (me.role !== 'admin') throw new UserError('관리자만 선생님을 관리할 수 있습니다.', 403);
+    requireAdmin(me, '계정 관리');
     obj = obj || {};
     const email = lower(obj.email);
     if (!isEmail(email)) throw new UserError('이메일 형식이 올바르지 않습니다.');
-    const role = obj.role === 'admin' ? 'admin' : 'teacher';
+    const role = ROLES.includes(obj.role) ? obj.role : 'consultant';
     const active = obj.active === false ? 0 : 1;
     if (email === me.email && (role !== 'admin' || !active)) throw new UserError('본인의 관리자 권한은 해제할 수 없습니다.');
     const password = obj.password ? String(obj.password) : '';
@@ -267,14 +546,16 @@ function openStore(dbPath) {
         if (password) {
           db.prepare('UPDATE teachers SET passwordHash=?, mustChangePassword=1 WHERE email=?').run(hashPassword(password), email);
         }
-        // 비활성화·비밀번호 초기화 시 기존 로그인 즉시 해제
-        if (!active || password) db.prepare('DELETE FROM sessions WHERE email = ?').run(email);
+        // 비활성화·비밀번호 초기화·역할 변경 시 기존 로그인 즉시 해제
+        if (!active || password || role !== found.role) db.prepare('DELETE FROM sessions WHERE email = ?').run(email);
       } else {
-        if (!password) throw new UserError('새 선생님의 임시 비밀번호를 입력하세요 (8자 이상).');
+        if (!password) throw new UserError('새 계정의 임시 비밀번호를 입력하세요 (8자 이상).');
         db.prepare('INSERT INTO teachers VALUES (?,?,?,?,?,?,?,?)').run(email, name, role, active, hashPassword(password), 1, t, t);
       }
+      const roleLabel = { admin: '관리자', staff: '관리팀', consultant: '컨설턴트' }[role];
       log(me.email, found ? 'update' : 'create', 'teachers', email,
-        [name, role, active ? '활성' : '비활성', password ? '비밀번호 초기화' : ''].join(' '));
+        [name, email, roleLabel, active ? '활성' : '비활성', password ? (found ? '비밀번호 초기화' : '임시 비밀번호 설정') : '']
+          .filter(Boolean).join(' · '));
     });
     return getAll(me);
   }
@@ -282,10 +563,10 @@ function openStore(dbPath) {
   async function backup(destPath) { await db.backup(destPath); }
 
   return {
-    db, countTeachers, upsertAdmin, login, logout, authenticate,
-    rpc: { getAll: (me) => getAll(me), saveStudent, saveNote, saveApp, deleteNote, deleteApp, deleteStudent, saveTeacher, changePassword },
+    db, filesDir, countTeachers, upsertAdmin, login, logout, authenticate, addFile, getFile,
+    rpc: { getAll: (me) => getAll(me), save, remove, restore, purge, getTrash, getLog, saveTeacher, changePassword },
     backup, close: () => db.close(),
   };
 }
 
-module.exports = { openStore, UserError };
+module.exports = { openStore, UserError, MAX_UPLOAD };

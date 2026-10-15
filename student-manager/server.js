@@ -9,7 +9,7 @@ const express = require('express');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { openStore, UserError } = require('./lib/store');
+const { openStore, UserError, MAX_UPLOAD } = require('./lib/store');
 
 const COOKIE = 'revera_sid';
 
@@ -101,10 +101,51 @@ function createApp(store, opts) {
     try {
       res.json(fn(req.me, (req.body || {}).arg));
     } catch (e) {
-      if (e instanceof UserError) return res.status(e.status).json({ error: e.message });
-      console.error(e);
-      res.status(500).json({ error: '서버 오류가 발생했습니다. 잠시 후 다시 시도하세요.' });
+      sendError(res, e);
     }
+  });
+
+  const sendError = (res, e) => {
+    if (e instanceof UserError) return res.status(e.status).json({ error: e.message });
+    console.error(e);
+    res.status(500).json({ error: '서버 오류가 발생했습니다. 잠시 후 다시 시도하세요.' });
+  };
+
+  // 파일 업로드: POST /api/files/upload?studentId=..&category=..  (본문 = 파일 그대로, X-File-Name 헤더 = 파일명)
+  app.post('/api/files/upload', requireLogin,
+    express.raw({ type: () => true, limit: MAX_UPLOAD + 1024 }),
+    (req, res) => {
+      if (req.me.mustChangePassword) return res.status(403).json({ error: '먼저 비밀번호를 변경해주세요.' });
+      try {
+        let name = '';
+        try { name = decodeURIComponent(req.get('X-File-Name') || ''); } catch (e) { name = ''; }
+        res.json(store.addFile(req.me, { studentId: req.query.studentId, category: req.query.category, name,
+          buffer: Buffer.isBuffer(req.body) ? req.body : null }));
+      } catch (e) {
+        sendError(res, e);
+      }
+    });
+
+  // 파일 보기/다운로드 (로그인 + 담당 학생 권한 확인)
+  app.get('/api/files/:id', requireLogin, (req, res) => {
+    try {
+      const f = store.getFile(req.me, req.params.id);
+      res.set({
+        'Content-Type': f.mime,
+        'Content-Disposition': (req.query.download ? 'attachment' : 'inline') + "; filename*=UTF-8''" + encodeURIComponent(f.name),
+        // 업로드된 파일이 이 사이트 권한으로 스크립트를 실행하지 못하게 격리
+        'Content-Security-Policy': 'sandbox',
+      });
+      res.sendFile(f.path, (err) => { if (err && !res.headersSent) res.status(404).json({ error: '파일이 서버에 없습니다.' }); });
+    } catch (e) {
+      sendError(res, e);
+    }
+  });
+
+  // 업로드 용량 초과 등 본문 처리 오류
+  app.use('/api', (err, req, res, next) => {
+    if (err && err.type === 'entity.too.large') return res.status(413).json({ error: '파일은 20MB 이하만 올릴 수 있습니다.' });
+    next(err);
   });
 
   // 관리자: DB 백업 파일 다운로드
