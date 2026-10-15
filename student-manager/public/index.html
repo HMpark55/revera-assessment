@@ -4,7 +4,7 @@
 <base target="_top">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>REVERA 학생관리</title>
+<title>REVERA Compass</title>
 <style>
   :root { --navy:#0B1B45; --gold:#C9A227; --bg:#f4f5f8; --card:#fff; --border:#d7d9de; --muted:#6b7280;
           --error:#d9534f; --ok:#1d9e75; --warn:#d98a00; --soft:#eef0f5; }
@@ -125,7 +125,7 @@
 <div id="loading"></div>
 <header class="top">
   <div class="top-in">
-    <div class="brand">REVERA <span>학생관리</span></div>
+    <div class="brand">REVERA <span>Compass</span></div>
     <nav id="nav"></nav>
     <div class="who" id="who" style="display:none"><span id="whoami"></span><button onclick="refresh(true)" title="새로고침">↻ 새로고침</button><button onclick="openPasswordForm()">비밀번호 변경</button><button onclick="logout()">로그아웃</button></div>
   </div>
@@ -190,7 +190,7 @@ function showLogin() {
   S.me = null; closeModal(true);
   $('who').style.display = 'none'; $('nav').innerHTML = '';
   $('app').innerHTML = '<div id="gate"><form class="card login" onsubmit="doLogin(event)">' +
-    '<div class="logo">REVERA <span>학생관리</span></div>' +
+    '<div class="logo">REVERA <span>Compass</span></div>' +
     '<label>이메일</label><input type="email" id="lg-email" autocomplete="username" required>' +
     '<label>비밀번호</label><input type="password" id="lg-pw" autocomplete="current-password" required>' +
     '<button class="btn" type="submit">로그인</button><div class="msg" id="lg-msg"></div>' +
