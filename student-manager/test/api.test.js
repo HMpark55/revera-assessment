@@ -56,6 +56,12 @@ test('로그인 없이는 접근 불가, 잘못된 비밀번호 거부', async (
   assert.ok(!JSON.stringify(d).includes('passwordHash'), '비밀번호 해시는 화면으로 내려가지 않음');
 });
 
+test('상태 확인 엔드포인트', async () => {
+  const r = await client().req('GET', '/healthz');
+  assert.strictEqual(r.status, 200);
+  assert.deepStrictEqual(r.data, { ok: true });
+});
+
 test('CSRF 헤더 없는 요청 차단', async () => {
   const c = client();
   await c.login('admin@revera.test', 'admin-pass-1');

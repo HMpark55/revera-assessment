@@ -30,6 +30,11 @@ function createApp(store, opts) {
   });
   app.use(express.json({ limit: '1mb' }));
 
+  // 클라우드 상태 확인용 (DB 연결까지 확인)
+  app.get('/healthz', (req, res) => {
+    try { store.countTeachers(); res.json({ ok: true }); } catch (e) { res.status(503).json({ ok: false }); }
+  });
+
   const readCookie = (req) => {
     const m = String(req.headers.cookie || '').match(new RegExp('(?:^|;\\s*)' + COOKIE + '=([^;]+)'));
     return m ? decodeURIComponent(m[1]) : '';

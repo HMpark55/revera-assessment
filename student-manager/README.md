@@ -68,16 +68,51 @@ npm start
 - 대신 **학원 밖에서는 접속할 수 없습니다.** 이 PC를 인터넷에 직접 열어두는 것(포트포워딩)은 권장하지 않습니다. HTTPS가 없어서 비밀번호가 암호화되지 않은 채로 전송됩니다.
 - PC가 고장나면 데이터도 잃을 수 있으니 **백업 다운로드를 정기적으로** 해두세요.
 
-### B. 클라우드 (어디서나 접속)
-`Dockerfile`이 포함되어 있어 Docker를 지원하는 서비스라면 대부분 그대로 올릴 수 있습니다. 확인해야 할 점은 아래와 같습니다.
-1. **영구 저장소(볼륨/디스크)를 붙이고 `DB_PATH`를 그 안으로 지정**합니다. Dockerfile 기본값은 `/data/revera.db`이므로 볼륨을 `/data`에 연결하면 됩니다.
-   볼륨이 없으면 재배포할 때마다 **모든 데이터가 사라집니다.**
-2. **HTTPS 주소**로 운영하고, `TRUST_PROXY=1`, `COOKIE_SECURE=1`을 설정합니다.
-3. 처음 한 번 `ADMIN_EMAIL`, `ADMIN_PASSWORD` 환경변수로 관리자를 만듭니다. 로그인한 뒤 비밀번호를 바꾸고, 이 두 환경변수는 지워도 됩니다.
-4. 인스턴스(서버)는 **1개만** 실행합니다. SQLite 파일 하나를 쓰는 구조라 여러 대로 늘리면 데이터가 갈라집니다.
+### B. 클라우드 — Railway (권장, 어디서나 접속)
 
-후보: Railway, Fly.io, Render(유료 플랜의 디스크), 일반 VPS(AWS Lightsail, 국내 클라우드 등).
-각 서비스의 **현재 요금과 볼륨 지원 여부는 직접 확인**해야 합니다. 검색 예: `Railway volume pricing`, `Fly.io volumes pricing`.
+> 아래 버튼 이름과 메뉴 위치는 2026년 10월 기준이며, Railway 화면이 바뀌면 다를 수 있습니다.
+> 요금(공식 문서 기준): Hobby 플랜 **월 $5**이고, 그 $5가 사용량 크레딧으로 포함됩니다. 볼륨은 서비스당 기본 **5GB**입니다.
+> 이 사이트 규모면 $5 안에서 해결될 것으로 예상하지만 실측한 값은 아닙니다. 첫 달에 **Usage** 화면에서 실제 사용량을 확인하세요.
+
+1. **가입**: https://railway.com 에서 GitHub 계정으로 가입하고 **Hobby 플랜**을 결제합니다.
+   무료(Free/Trial) 플랜은 볼륨이 0.5GB이고 사용량 제한이 있어서 운영용으로는 권장하지 않습니다.
+2. **프로젝트 생성**: **New Project → Deploy from GitHub repo**에서 `revera-assessment` 저장소를 고릅니다.
+   GitHub 권한을 묻는 창이 뜨면 이 저장소에 대한 접근을 허용합니다.
+3. **서비스 설정** (생성된 서비스 클릭 → **Settings**)
+   - **Source → Root Directory**: `/student-manager`
+   - **Source → Branch**: 사이트 코드가 있는 브랜치를 고릅니다(main에 합친 뒤라면 `main`).
+   - **Config-as-code → Railway Config File**: `/student-manager/railway.json`
+     설정 파일은 Root Directory를 따라가지 않아서 전체 경로로 적어야 합니다. 이 칸을 비워둬도 Dockerfile을 자동으로 찾아 배포하고, 상태 확인(health check)만 빠집니다.
+4. **볼륨 추가 (가장 중요)**: 프로젝트 화면에서 서비스를 우클릭하거나 **+ Create → Volume**을 눌러 볼륨을 만들고, 이 서비스에 연결합니다.
+   - **Mount path**: `/data`
+   - 이 단계를 빼먹으면 재배포할 때마다 **모든 데이터가 사라집니다.**
+5. **환경변수** (서비스 → **Variables**)
+
+   | 이름 | 값 |
+   |---|---|
+   | `ADMIN_EMAIL` | 원장님 이메일 |
+   | `ADMIN_NAME` | 원장님 이름 |
+   | `ADMIN_PASSWORD` | 처음 비밀번호(8자 이상) |
+   | `TRUST_PROXY` | `1` |
+   | `COOKIE_SECURE` | `1` |
+
+   `PORT`는 Railway가 자동으로 넣어주니 직접 넣지 않습니다.
+6. **주소 만들기**: **Settings → Networking → Generate Domain**을 누르면 `https://xxxx.up.railway.app` 주소가 생깁니다. 이 주소가 사이트입니다.
+   학원 도메인(예: `students.revera.co.kr`)을 쓰려면 같은 화면의 **Custom Domain**에 입력하고, 안내에 나오는 DNS 레코드를 도메인 업체 설정에 추가합니다.
+7. **배포 확인**: **Deployments** 탭에서 배포가 *Success*가 되면, 위 주소로 접속해 `ADMIN_EMAIL` / `ADMIN_PASSWORD`로 로그인합니다.
+8. **마무리 보안 조치**
+   - 로그인한 뒤 바로 **비밀번호 변경**으로 비밀번호를 바꿉니다.
+   - Railway Variables에서 `ADMIN_PASSWORD`를 **삭제**합니다. 관리자는 계정이 하나도 없을 때만 만들어지므로 지워도 문제없습니다.
+   - **선생님 관리**에서 선생님 계정을 추가합니다.
+
+이후 GitHub의 해당 브랜치에 코드가 push되면 Railway가 자동으로 다시 배포하고, 데이터는 볼륨에 그대로 남습니다.
+SQLite 파일을 쓰는 구조라 **Replicas(인스턴스 수)는 1로 유지**하세요.
+
+#### 다른 클라우드를 쓸 경우
+`Dockerfile`을 지원하는 서비스(Fly.io, Render 유료 플랜, 일반 VPS 등)면 같은 방식으로 운영할 수 있습니다. 조건은 세 가지입니다.
+1. 영구 볼륨을 `/data`에 연결합니다.
+2. HTTPS로 운영하면서 `TRUST_PROXY=1`, `COOKIE_SECURE=1`을 설정합니다.
+3. 인스턴스는 1개만 실행합니다.
 
 ## 백업과 복구
 - **백업**: 관리자 화면 **선생님 관리 → 백업 파일 다운로드** (`.db` 파일 1개).
@@ -99,6 +134,7 @@ npm test     # API 자동 테스트 (임시 DB 사용)
 - `lib/store.js`: DB 스키마와 업무 규칙(저장·권한·충돌 검사·로그)
 - `public/index.html`: 화면 (빌드 과정 없는 단일 파일)
 - `scripts/`: 관리자 명령, 데모 데이터
+- `Dockerfile`, `railway.json`: 클라우드 배포 설정 (`/healthz` 상태 확인)
 
 ## 주의
 학생·학부모 연락처 등 **개인정보**를 다룹니다. 개인정보 수집·이용 동의 같은 법적 요건은 학원에서 따로 확인이 필요합니다.
