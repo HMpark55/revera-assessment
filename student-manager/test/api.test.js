@@ -352,7 +352,7 @@ test('기존 데이터 가져오기 (관리자 전용, 같은 이름은 건너�
   assert.strictEqual((await staff.rpc('importData', data)).status, 403);
   assert.strictEqual((await admin.rpc('importData', { students: [] })).status, 400);
   const d = await admin.ok('importData', data);
-  assert.deepStrictEqual(d.importResult, { created: ['가져온학생'], skipped: ['김학생'] });
+  assert.deepStrictEqual(d.importResult, { created: ['가져온학생'], skipped: ['김학생'], appended: [], duplicates: 0 });
   const s = d.students.find((x) => x.name === '가져온학생');
   assert.strictEqual(s.counselor, 'lee@revera.test', '이름으로 담당자 연결');
   assert.strictEqual(s.tracks, '3년특례, 홍콩');
@@ -723,4 +723,48 @@ test('v4: 학교·커리큘럼 목록, 팔로업 답변, 전공 후보 대학, �
   // 관리 사항 칸
   d = await con.saveOk('students', { id: sid, updatedAt: d.students.find((s) => s.id === sid).updatedAt, hopeUnis: 'NUS 1순위', meetingUrl: 'https://docs.google.com/x' });
   assert.strictEqual(d.students.find((s) => s.id === sid).hopeUnis, 'NUS 1순위');
+});
+
+test('v5: 미팅, 기존 학생에 회의록 덧붙여 가져오기(확인 필요·중복 방지), 계정 삭제', async () => {
+  const admin = client();
+  await admin.login('admin@revera.test', 'admin-pass-1');
+  await admin.ok('saveTeacher', { email: 'con10@revera.test', name: '컨설10', role: 'consultant', password: '123456' });
+  const con = client(); await con.login('con10@revera.test', '123456');
+  let d = await admin.saveOk('students', { name: '미팅학생', counselor: 'con10@revera.test', manager: 'admin@revera.test' });
+  const sid = d.savedId;
+
+  // 미팅: 날짜 필수, 지난 날짜는 자동 "완료", 앞으로는 "예정"
+  assert.strictEqual((await con.save('meetings', { studentId: sid, topic: 'x' })).status, 400);
+  assert.strictEqual((await con.save('meetings', { studentId: sid, date: '2026-01-01', status: '몰라' })).status, 400);
+  d = await con.saveOk('meetings', { studentId: sid, date: '2020-01-01', topic: '첫 미팅', content: '내용' });
+  assert.strictEqual(d.meetings.find((m) => m.id === d.savedId).status, '완료');
+  d = await con.saveOk('meetings', { studentId: sid, date: '2099-01-01', topic: '다음 미팅' });
+  assert.strictEqual(d.meetings.find((m) => m.id === d.savedId).status, '예정');
+
+  // 가져오기(덧붙이기): 기존 학생에 회의록 추가 + 확인 필요 표시, 두 번 가져와도 중복 없음
+  const file = { format: 'compass-import-v1', mode: 'append', students: [{ name: '미팅학생', meetings: [
+    { date: '2026-10-11', time: 'PM 1:00', place: '상담실', attendees: '원장님, 학생', writer: '박현모', content: '1. Resume 정리', sourceUrl: 'https://docs.google.com/spreadsheets/d/abc' },
+    { date: '2026-10-10', time: 'PM 5:30', content: '2. 대학 방향', sourceUrl: 'https://docs.google.com/spreadsheets/d/abc' }] }] };
+  d = await admin.ok('importData', file);
+  assert.deepStrictEqual(d.importResult.appended, ['미팅학생 (2건)']);
+  const imp = d.meetings.filter((m) => m.studentId === sid && m.sourceUrl);
+  assert.strictEqual(imp.length, 2);
+  assert.ok(imp.every((m) => m.needsReview === 'TRUE' && m.status === '완료'));
+  d = await admin.ok('importData', file);
+  assert.strictEqual(d.importResult.duplicates, 2);
+  assert.strictEqual(d.meetings.filter((m) => m.studentId === sid && m.sourceUrl).length, 2);
+  // 컨설턴트도 담당 학생 회의록을 보고 확인 완료 처리
+  d = await con.ok('getAll');
+  const m0 = d.meetings.find((m) => m.sourceUrl && m.date === '2026-10-11');
+  assert.strictEqual(m0.content, '1. Resume 정리');
+  d = await con.saveOk('meetings', { id: m0.id, updatedAt: m0.updatedAt, needsReview: false });
+  assert.notStrictEqual(d.meetings.find((m) => m.id === m0.id).needsReview, 'TRUE');
+
+  // 계정 삭제: 관리자만, 본인 불가, 담당은 미정으로
+  assert.strictEqual((await con.rpc('deleteTeacher', { email: 'con10@revera.test' })).status, 403);
+  assert.strictEqual((await admin.rpc('deleteTeacher', { email: 'admin@revera.test' })).status, 400);
+  d = await admin.ok('deleteTeacher', { email: 'con10@revera.test' });
+  assert.ok(!d.teachers.some((t) => t.email === 'con10@revera.test'));
+  assert.strictEqual(d.students.find((s) => s.id === sid).counselor, '');
+  assert.strictEqual((await con.rpc('getAll')).status, 401, '삭제된 계정은 바로 로그아웃');
 });

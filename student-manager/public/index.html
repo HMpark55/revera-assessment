@@ -225,6 +225,15 @@
   .subtabs { display:flex; gap:6px; margin-bottom:12px; }
   .subtabs a { padding:6px 14px; border-radius:16px; border:1px solid var(--border); text-decoration:none; color:var(--navy); cursor:pointer; font-size:.88rem; }
   .subtabs a.on { background:var(--navy); color:#fff; border-color:var(--navy); }
+  .hbtn { background:transparent; border:1px solid #5a6890; color:#fff; border-radius:16px; padding:5px 11px; cursor:pointer; font-size:.82rem; white-space:nowrap; }
+  .mt { border-bottom:1px solid var(--soft); padding:9px 2px; }
+  .mt .h { display:flex; flex-wrap:wrap; gap:6px; align-items:center; cursor:pointer; }
+  .mt .when { font-weight:bold; color:var(--navy); white-space:nowrap; }
+  .mt details { margin-top:4px; } .mt details summary { cursor:pointer; color:var(--muted); font-size:.82rem; }
+  .mt .body { white-space:pre-wrap; font-size:.86rem; background:#fafbfd; border-radius:6px; padding:8px 10px; margin-top:4px; }
+  .pill.rv { background:#fff0e0; color:#a24d00; }
+  .pill.m-예정 { background:#e8f0ff; color:#1f4fbf; } .pill.m-완료 { background:#e6f6ef; color:#0f7a55; } .pill.m-취소 { background:#eee; color:#777; }
+  .latest { font-size:.7rem; color:#0f7a55; margin-left:4px; }
   .notice { background:#fffaf0; border:1px solid #f1e2b0; border-radius:8px; padding:8px 12px; font-size:.85rem; color:#6b5512; margin-bottom:12px; }
 </style>
 </head>
@@ -235,9 +244,10 @@
     <div class="brand">REVERA <span>Compass</span></div>
     <div class="gsearch" id="gs" style="display:none"><input type="search" id="gq" placeholder="🔍" aria-label="검색" autocomplete="off"
       oninput="gsearch()" onfocus="gsearch()" onkeydown="gsKey(event)"><div id="gsr" class="gsr"></div></div>
+    <button class="hbtn" id="rf" style="display:none" onclick="refresh(true)" title="최신 데이터로 새로고침">↻ 새로고침</button>
     <div class="um" id="who" style="display:none"><button type="button" class="um-btn" onclick="this.parentNode.classList.toggle('open')"><span class="av" id="um-av"></span><span id="whoami"></span> ▾</button>
       <div class="um-menu"><div class="um-box"><div class="um-h" id="um-h"></div>
-        <a href="#/me">MY PAGE</a><a onclick="refresh(true)">새로고침</a><a onclick="logout()">LOG OUT</a></div></div></div>
+        <a href="#/me">MY PAGE</a><a onclick="logout()">LOG OUT</a></div></div></div>
   </div>
   <nav id="nav"></nav>
 </header>
@@ -265,7 +275,7 @@ var APP_FINAL = ['제출완료', '대기', '합격', '불합격', '철회'];
 var ESSAY_STATUS = ['', '미착수', '브레인스토밍', '초안', '수정중', '완료'];
 var GRADES = ['G9', 'G10', 'G11', 'G12', 'Y10', 'Y11', 'Y12', 'Y13'];
 var CURRICULA = ['IB', 'AP', 'A-Level', 'IGCSE', '국내 일반고', '국내 특목고', '기타'];
-var SCORE_KINDS = ['SAT', 'ACT', 'TOEFL', 'IELTS', 'AP', 'IB', 'A-Level', 'GPA', 'TOPIK', 'HSK', '기타'];
+var SCORE_KINDS = ['SAT', 'ACT', 'TOEFL', 'IELTS', 'AP', 'IB', 'IB Predicted', 'A-Level', 'GPA', 'TOPIK', 'HSK', '기타'];
 var ACT_CATS = ['리서치', '서머 프로그램', '인턴십', '대회', '에세이 대회', '클럽', '봉사', '기타'];
 var ACT_STATUS = ['계획', '지원 예정', '지원 완료', '진행 중', '완료', '불합격/취소'];
 var ACT_DONE = ['지원 완료', '진행 중', '완료', '불합격/취소'];
@@ -274,7 +284,7 @@ var DOC_DONE = ['수합 완료', '해당 없음'];
 var DOC_PRESETS = ['출입국사실증명서(학생)', '출입국사실증명서(부)', '출입국사실증명서(모)', '재학증명서', '성적증명서', '졸업(예정)증명서', '여권 사본', '가족관계증명서', '추천서'];
 var STORY_STATUS = ['작성 전', '검토 중', '확정'];
 var FILE_CATS = ['성적표', '기타'];
-var CHILD = ['notes', 'contracts', 'payments', 'apps', 'scores', 'activities', 'docs', 'links', 'files', 'followups', 'majorplans', 'schools', 'courses', 'accounts',
+var CHILD = ['notes', 'contracts', 'payments', 'apps', 'scores', 'activities', 'docs', 'links', 'files', 'followups', 'majorplans', 'schools', 'courses', 'accounts', 'meetings',
   'universities', 'unicycles', 'unirounds', 'unimajors'];
 var CATALOG_TABLES = ['universities', 'unicycles', 'unirounds', 'unimajors'];
 var FOLLOWUP_STATUS = ['할 일', '진행 중', '대기', '완료'];
@@ -282,6 +292,8 @@ var FOLLOWUP_CATS = ['서류', '에세이', '원서 접수', '시험', '학교 �
 var TERMS_INTAKE = ['9월', '8월', '3월', '1월'];
 var GRADE_ALL = ['K'].concat([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(function (n) { return 'G' + n; }), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13].map(function (n) { return 'Y' + n; }));
 var MAJOR_STATUS = ['후보', '유력', '최종', '제외'];
+var MEETING_STATUS = ['예정', '완료', '취소'];
+var MEETING_TYPES = ['대면', 'ZOOM', '전화', '위챗'];
 var REPLY_FROM = ['학생', '어머니', '아버지', '학부모', '답장 없음'];
 var ACCOUNT_CATS = ['원서 포털', '시험', '학교 LMS', '기타'];
 /** 자주 쓰는 사이트 (주소는 각 사이트의 대표 주소) */
@@ -337,6 +349,17 @@ var FORMS = {
     { k: 'loginId', l: '아이디' }, { k: 'password', l: '비밀번호', t: 'pw' },
     { k: 'memo', l: '메모 (보안 질문, 등록 완료 여부 등)', t: 'textarea', full: 1 }],
     defaults: function () { return { category: '원서 포털' }; } },
+  meetings: { title: '미팅', fields: [
+    { k: 'date', l: '날짜', t: 'date', req: 1 }, { k: 'time', l: '시간', ph: '예: PM 1:00' },
+    { k: 'status', l: '상태', t: 'select', o: MEETING_STATUS }, { k: 'type', l: '방식', t: 'list', o: MEETING_TYPES },
+    { k: 'place', l: '장소', ph: '예: 상담실, ZOOM' }, { k: 'writer', l: '작성자' },
+    { k: 'attendees', l: '참석자', full: 1, ph: '예: 원장님, 학생, 어머님, 박현모' },
+    { k: 'topic', l: '안건 (한 줄 요약)', full: 1, ph: '예: Science Fair 주제 확정, 지원 대학 방향' },
+    { k: 'content', l: '미팅 내용 (회의록)', t: 'textarea', full: 1, big: 1 },
+    { k: 'nextStep', l: '다음 계획 / 다음 미팅', t: 'textarea', full: 1 },
+    { k: 'sourceUrl', l: '원본 회의록 링크', t: 'url', full: 1, ph: 'https://docs.google.com/...' },
+    { k: 'needsReview', l: '확인', t: 'check', cl: '확인 필요 (가져온 자료 — 내용 확인 후 체크 해제)' }],
+    defaults: function () { return { date: today(), status: '예정', writer: S.me.name }; } },
   fureply: { table: 'followups', title: '학생·학부모 답변 기록', noDelete: 1, fields: [
     { k: 'replyFrom', l: '답변한 사람', t: 'select', o: [''].concat(REPLY_FROM) }, { k: 'replyDate', l: '답변 날짜', t: 'date' },
     { k: 'reply', l: '답변 내용 (위챗·문자 답장 등)', t: 'textarea', full: 1, big: 1 }],
@@ -489,7 +512,7 @@ function load(data) {
   $('whoami').textContent = S.me.name;
   $('um-av').textContent = String(S.me.name || '?').trim().slice(0, 1);
   $('um-h').innerHTML = '<b>' + esc(S.me.name) + '</b> · ' + esc(ROLE_LABEL[S.me.role] || S.me.role) + '<br>' + esc(S.me.email);
-  $('who').style.display = ''; $('gs').style.display = '';
+  $('who').style.display = ''; $('gs').style.display = ''; $('rf').style.display = '';
   render();
   if (S.me.mustChangePassword) openPasswordForm(true);
 }
@@ -510,7 +533,7 @@ function mutate(fn, arg, okMsg) {
 /* ============================== 로그인 ============================== */
 function showLogin() {
   S.me = null; closeModal(true);
-  $('who').style.display = 'none'; $('gs').style.display = 'none'; $('nav').innerHTML = '';
+  $('who').style.display = 'none'; $('gs').style.display = 'none'; $('rf').style.display = 'none'; $('nav').innerHTML = '';
   $('app').innerHTML = '<div id="gate"><form class="card login" onsubmit="doLogin(event)">' +
     '<div class="logo">REVERA <span>Compass</span></div>' +
     '<label>이메일</label><input type="email" id="lg-email" autocomplete="username" required>' +
@@ -697,6 +720,8 @@ function formData(form) {
 
 /** 마감이 있는 항목(지원대학·활동·서류)을 한 목록으로 */
 /** 마감이 있는 항목 (지원대학) */
+/** 오늘 이후 마감만 (대시보드·학생 목록의 "다음 마감") */
+function upcomingDeadlines() { return deadlineItems(false).filter(function (i) { return dayDiff(i.date) >= 0; }); }
 function deadlineItems(includeDone) {
   return S.apps.map(function (a) {
     return { table: 'apps', id: a.id, studentId: a.studentId, kind: a.country || '지원대학', title: a.university,
@@ -718,7 +743,7 @@ function openStudent(id, tab) { UI.tab = tab || ''; go('#/student/' + id); }
 function render() {
   if (!S.me) return;
   var r = route();
-  var work = [['dashboard', '대시보드'], ['students', isMgr() ? '학생' : '담당 학생'], ['followups', '팔로업'], ['materials', '자료 현황'], ['deadlines', '마감일정'], ['unis', '대학 정보'], ['results', '합격 실적']];
+  var work = [['dashboard', '대시보드'], ['students', isMgr() ? '학생' : '담당 학생'], ['followups', '팔로업'], ['meetings', '미팅'], ['materials', '자료 현황'], ['deadlines', '마감일정'], ['unis', '대학 정보'], ['results', '합격 실적']];
   var admin = [];
   if (isMgr()) admin.push(['sales', '매출']);
   if (isMgr()) admin.push(['unilist', '목록 관리']);
@@ -733,7 +758,7 @@ function render() {
   $('who').classList.remove('open');
   var v = { dashboard: viewDashboard, students: viewStudents, student: viewStudent, materials: viewMaterials, deadlines: viewDeadlines,
     unis: viewUnis, uni: viewUni, followups: viewFollowups, search: viewSearch,
-    results: viewResults, sales: viewSales, trash: viewTrash, teachers: viewTeachers, log: viewLog, me: viewMe, unilist: viewLists }[r.view] || viewDashboard;
+    results: viewResults, sales: viewSales, trash: viewTrash, teachers: viewTeachers, log: viewLog, me: viewMe, unilist: viewLists, meetings: viewMeetings }[r.view] || viewDashboard;
   $('app').innerHTML = v(r.id);
   var q = $('q'); if (q && UI._focusQ) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); UI._focusQ = false; }
 }
@@ -741,7 +766,7 @@ function render() {
 /* ============================== 대시보드 ============================== */
 function viewDashboard() {
   var active = S.students.filter(isActive).sort(function (a, b) { return a.name.localeCompare(b.name, 'ko'); });
-  var dl = deadlineItems(false);
+  var dl = upcomingDeadlines();
   var soon = dl.filter(function (i) { return dayDiff(i.date) <= 14; });
   var myFu = openFollowups().filter(function (f) { return f.assignee === S.me.email; });
   var myOver = myFu.filter(function (f) { return f.due && dayDiff(f.due) < 0; });
@@ -758,20 +783,24 @@ function viewDashboard() {
   h += '</div><div class="grid g2">';
   h += '<div class="card"><div class="sec-h"><h3>학생 현황 <span class="muted">' + active.length + '명</span></h3><a href="#/students">전체 →</a></div>' +
     (active.length ? '<div class="scroll-box">' + compactStudentTable(active, dl) + '</div>' : '<div class="empty">' + (isMgr() ? '등록된 학생이 없습니다.' : '배정된 담당 학생이 없습니다.') + '</div>') + '</div>';
-  h += '<div class="card"><div class="sec-h"><h3>내 팔로업 <span class="muted">' + myFu.length + '건</span></h3><a href="#/followups" onclick="UI.fuWho=\'me\'">트래커 →</a></div>' +
-    (myFu.length ? '<div class="scroll-box">' + myFu.map(function (f) { return fuRow(f, true); }).join('') + '</div>' : '<div class="empty">나에게 배정된 남은 일이 없습니다.</div>') + '</div>';
+  UI.dashFu = UI.dashFu || 'all';
+  var fuList = (UI.dashFu === 'me' ? myFu : openFollowups()).slice().sort(function (a, b) { return (a.due || '9999').localeCompare(b.due || '9999'); });
+  h += '<div class="card"><div class="sec-h"><h3>팔로업 <span class="muted">' + fuList.length + '건</span></h3><span class="toolbar" style="margin:0">' +
+    '<select onchange="UI.dashFu=this.value;render()"><option value="all"' + (UI.dashFu === 'all' ? ' selected' : '') + '>모든 선생님</option><option value="me"' + (UI.dashFu === 'me' ? ' selected' : '') + '>내 것만</option></select>' +
+    '<a href="#/followups" onclick="UI.fuWho=' + js(UI.dashFu) + '">트래커 →</a></span></div>' +
+    (fuList.length ? '<div class="scroll-box">' + fuList.map(function (f) { return fuRow(f, true); }).join('') + '</div>' : '<div class="empty">남은 팔로업이 없습니다.</div>') + '</div>';
   h += '</div><div class="grid g2">';
   h += '<div class="card"><h3>다가오는 지원 마감 (30일)</h3><div class="scroll-box sm">' + deadlineTable(dl.filter(function (i) { return dayDiff(i.date) <= 30; }), '30일 안에 마감되는 지원이 없습니다.') + '</div></div>';
+  var upM = upcomingMeetings().filter(function (m) { return dayDiff(m.date) <= 14; });
+  h += '<div class="card"><div class="sec-h"><h3>다가오는 미팅 (14일) <span class="muted">' + upM.length + '건</span></h3><a href="#/meetings">미팅 →</a></div><div class="scroll-box sm">' +
+    (upM.length ? upM.map(function (m) { return meetingItem(m, true, false); }).join('') : '<div class="empty">예정된 미팅이 없습니다.</div>') + '</div></div>';
+  h += '</div>';
   if (isMgr()) {
     var un = unpaidContracts(), rn = renewals();
     h += '<div class="card"><div class="sec-h"><h3>미수금 · 갱신 예정</h3><a href="#/sales">매출 →</a></div><div class="scroll-box sm">' +
       (un.length ? unpaidTable(un, true) : '<div class="empty">미수금이 없습니다.</div>') + (rn.length ? '<div style="margin-top:10px"></div>' + renewalTable(rn) : '') + '</div></div>';
-  } else {
-    var mine = openFollowups().filter(function (f) { return f.assignee !== S.me.email && f.due && dayDiff(f.due) <= 7; });
-    h += '<div class="card"><h3>담당 학생의 다른 팔로업 (7일 내·기한 지남)</h3><div class="scroll-box sm">' +
-      (mine.length ? mine.map(function (f) { return fuRow(f, true); }).join('') : '<div class="empty">없습니다.</div>') + '</div></div>';
   }
-  return h + '</div>';
+  return h;
 }
 function compactStudentTable(list, dl) {
   return '<table class="compact"><thead><tr><th>이름</th><th>프로그램</th><th>진행 상황</th><th>다음 마감</th></tr></thead><tbody>' +
@@ -884,12 +913,12 @@ function viewStudents() {
       S.teachers.map(function (t) { return '<option value="' + esc(t.email) + '"' + (UI.counselor === t.email ? ' selected' : '') + '>' + esc(t.name) + '</option>'; }).join('') +
       '</select>' : '') + '</div>';
   if (!list.length) return h + '<div class="card empty">' + (S.students.length ? '조건에 맞는 학생이 없습니다.' : isMgr() ? '등록된 학생이 없습니다. “+ 학생 등록”으로 시작하세요.' : '배정된 담당 학생이 없습니다.') + '</div>';
-  return h + '<div class="card tbl-wrap">' + studentTable(list, deadlineItems(false)) + '</div>';
+  return h + '<div class="card tbl-wrap">' + studentTable(list, upcomingDeadlines()) + '</div>';
 }
 
 /* ============================== 학생 상세 ============================== */
-var TAB_LABEL = { manage: '관리 사항', followups: '팔로업', notes: '상담기록', contracts: '계약', majors: '전공', apps: '지원대학', scores: '성적', schools: '학력', docs: '서류', profile: '프로필·링크' };
-function tabsForRole() { return ['followups'].concat(isMgr() ? ['notes'] : []).concat(['manage', 'contracts', 'majors', 'apps', 'scores', 'schools', 'docs', 'profile']); }
+var TAB_LABEL = { meetings: '미팅', manage: '관리 사항', followups: '팔로업', notes: '상담기록', contracts: '계약', majors: '전공', apps: '지원대학', scores: '성적', schools: '학력', docs: '서류', profile: '프로필·링크' };
+function tabsForRole() { return ['followups', 'meetings'].concat(isMgr() ? ['notes'] : []).concat(['manage', 'contracts', 'majors', 'apps', 'scores', 'schools', 'docs', 'profile']); }
 
 function viewStudent(id) {
   var s = studentById(id);
@@ -901,7 +930,7 @@ function viewStudent(id) {
   h += '<div class="card"><div class="toolbar" style="margin:0"><div style="margin-right:auto"><h2 style="margin:0">' + esc(s.name) +
     ' <span class="pill s-' + esc(s.status) + '">' + esc(s.status || '-') + '</span> ' + programBadge(s.id) + '</h2>' +
     '<div class="muted" style="margin-top:4px">' + [s.school, s.grade, s.curriculum].filter(Boolean).map(esc).join(' · ') + ' <span class="owners">' + esc(ownersText(s)) + '</span></div>' +
-    '<div style="margin-top:6px">' + tagHtml(tags(s.tracks)) + (countrySummary(s.id) ? ' <span class="muted">지원: ' + esc(countrySummary(s.id)) + '</span>' : '') + majorChip(s) + '</div></div>' +
+    '<div style="margin-top:6px">' + tagHtml(tags(s.tracks)) + (countrySummary(s.id) ? ' <span class="muted">지원: ' + esc(countrySummary(s.id)) + '</span>' : '') + majorChip(s) + meetingLine(s) + '</div></div>' +
     (resume ? '<a class="btn ghost" href="' + esc(resume) + '" target="_blank" rel="noopener">📄 Resume</a>' : '') +
     (drive ? '<a class="btn ghost" href="' + esc(drive) + '" target="_blank" rel="noopener">📁 Drive 폴더</a>' : '') +
     '<button class="btn ghost" onclick="openForm(\'students\',' + js(s.id) + ')">정보 수정</button></div>' +
@@ -911,13 +940,13 @@ function viewStudent(id) {
     '<div class="chks"><span class="muted">자료 현황 ' + checkCount(s) + '/' + CHECK_ITEMS.length + '</span> ' + checkChips(s) + '</div></div>';
   h += '<div class="tabs">' + tabs.map(function (t) {
     var n = t === 'followups' ? openFollowups(id).length : t === 'scores' ? childOf('courses', id).length + childOf('scores', id).length + childOf('files', id).filter(function (f) { return !f.docId; }).length :
-      t === 'manage' ? childOf('accounts', id).length :
+      t === 'manage' ? childOf('accounts', id).length : t === 'meetings' ? childOf('meetings', id).length :
       t === 'majors' ? childOf('majorplans', id).filter(function (m) { return m.status !== '제외'; }).length :
       ['notes', 'contracts', 'apps', 'docs', 'schools'].indexOf(t) >= 0 ? childOf(t, id).length : null;
     return '<a class="' + (UI.tab === t ? 'on' : '') + '" onclick="UI.tab=' + js(t) + ';render()">' + TAB_LABEL[t] + (n ? ' (' + n + ')' : '') + '</a>';
   }).join('') + '</div>';
   return h + { followups: tabFollowups, notes: tabNotes, contracts: tabContracts, scores: tabScores, apps: tabApps,
-    docs: tabDocs, profile: tabProfile, majors: tabMajors, schools: tabSchools, manage: tabManage }[UI.tab](s);
+    docs: tabDocs, profile: tabProfile, majors: tabMajors, schools: tabSchools, manage: tabManage, meetings: tabMeetings }[UI.tab](s);
 }
 function addBtn(table, sid, label) { return '<button class="btn" onclick="openForm(' + js(table) + ',null,' + js(sid) + ')">' + label + '</button>'; }
 function secHead(title, btn) { return '<div class="sec-h"><h3>' + title + '</h3>' + (btn || '') + '</div>'; }
@@ -1077,11 +1106,15 @@ function tabScores(s) {
   });
   var h = courseCard(s);
   h += '<div class="card">' + secHead('시험 점수 <span class="muted">SAT·TOEFL·AP 시험 등</span>', addBtn('scores', s.id, '+ 시험 점수'));
-  h += list.length ? '<div class="tbl-wrap"><table><thead><tr><th>종류</th><th>과목 / 구분</th><th>점수</th><th>세부</th><th>응시일</th><th>메모</th></tr></thead><tbody>' +
+  var seen = {}, cnt = {};
+  list.forEach(function (r) { var k = r.kind + '|' + (r.subject || ''); cnt[k] = (cnt[k] || 0) + 1; });
+  h += list.length ? '<div class="tbl-wrap"><table><thead><tr><th>종류</th><th>과목 / 구분</th><th>점수</th><th>세부</th><th>응시일</th><th>메모</th><th>업데이트</th></tr></thead><tbody>' +
     list.map(function (r) {
+      var k = r.kind + '|' + (r.subject || ''), first = !seen[k]; seen[k] = 1;
       return '<tr class="click" onclick="openForm(\'scores\',' + js(r.id) + ')"><td class="nw"><b>' + esc(r.kind) + '</b></td><td>' + esc(r.subject) + '</td>' +
-        '<td class="nw"><b>' + esc(r.score) + '</b></td><td>' + esc(r.detail) + '</td><td class="nw">' + esc(r.date) + '</td><td class="muted">' + esc(r.memo) + '</td></tr>';
-    }).join('') + '</tbody></table></div>' : '<div class="empty">입력된 시험 점수가 없습니다.</div>';
+        '<td class="nw"><b>' + esc(r.score) + '</b>' + (cnt[k] > 1 && first ? '<span class="latest">최근</span>' : '') + '</td><td>' + esc(r.detail) + '</td><td class="nw">' + esc(r.date) + '</td><td class="muted">' + esc(r.memo) + '</td>' +
+        '<td class="nw muted" style="font-size:.78rem">' + esc(fmtTime(r.updatedAt).slice(2)) + '<br>' + esc(teacherName(r.updatedBy)) + (r.updatedAt !== r.createdAt ? ' 수정' : ' 등록') + '</td></tr>';
+    }).join('') + '</tbody></table></div><div class="muted" style="margin-top:6px;font-size:.78rem">같은 시험을 여러 번 봤거나 Predicted가 바뀌면 덮어쓰지 말고 새 줄로 추가하세요. 응시일 순으로 쌓입니다.</div>' : '<div class="empty">입력된 시험 점수가 없습니다.</div>';
   h += '</div>';
   var files = childOf('files', s.id).filter(function (f) { return !f.docId; }).sort(function (a, b) { return b.createdAt.localeCompare(a.createdAt); });
   h += '<div class="card">' + secHead('성적표·자료 파일',
@@ -1097,6 +1130,71 @@ function tabScores(s) {
     }).join('') + '</tbody></table></div>' : '<div class="empty">올린 파일이 없습니다.</div>';
   return h + '</div>';
 }
+/* ----- 미팅 ----- */
+function upcomingMeetings() {
+  return S.meetings.filter(function (m) { return m.status === '예정' && dayDiff(m.date) >= 0 && studentById(m.studentId); })
+    .sort(function (a, b) { return (a.date + a.time).localeCompare(b.date + b.time); });
+}
+function meetingLine(s) {
+  var ms = childOf('meetings', s.id);
+  var past = ms.filter(function (m) { return m.status === '완료'; }).sort(function (a, b) { return b.date.localeCompare(a.date); })[0];
+  var next = ms.filter(function (m) { return m.status === '예정' && dayDiff(m.date) >= 0; }).sort(function (a, b) { return a.date.localeCompare(b.date); })[0];
+  if (!past && !next) return '';
+  return ' <span class="muted">· 최근 미팅 ' + (past ? esc(past.date.slice(5)) : '-') + ' · 다음 미팅 </span>' + (next ? '<b>' + esc(next.date.slice(5)) + '</b> ' + dday(next.date) : '<span class="muted">-</span>');
+}
+function meetingItem(m, showStudent, open) {
+  var s = studentById(m.studentId);
+  var c = String(m.content || '');
+  return '<div class="mt"><div class="h" onclick="openForm(\'meetings\',' + js(m.id) + ')">' +
+    '<span class="when">' + esc(m.date) + (m.time ? ' ' + esc(m.time) : '') + '</span>' + (m.status === '예정' ? dday(m.date) : '') +
+    '<span class="pill m-' + esc(m.status) + '">' + esc(m.status) + '</span>' +
+    (showStudent && s ? '<a href="#/student/' + esc(s.id) + '" onclick="event.stopPropagation();UI.tab=\'meetings\'"><b>' + esc(s.name) + '</b></a>' : '') +
+    (m.topic ? '<span>' + esc(m.topic) + '</span>' : '') +
+    (m.needsReview === 'TRUE' ? '<span class="pill rv">확인 필요</span>' : '') + '</div>' +
+    '<div class="muted">' + esc([m.type, m.place, m.attendees ? '참석: ' + m.attendees : '', m.writer ? '작성: ' + m.writer : ''].filter(Boolean).join(' · ')) +
+    (safeUrl(m.sourceUrl) ? ' · <a href="' + esc(m.sourceUrl) + '" target="_blank" rel="noopener">원본 ↗</a>' : '') +
+    (m.needsReview === 'TRUE' ? ' <button class="btn ghost sm" onclick="reviewMeeting(' + js(m.id) + ')">✓ 확인 완료</button>' : '') + '</div>' +
+    (c || m.nextStep ? '<details' + (open ? ' open' : '') + '><summary>' + (c ? esc(c.replace(/\s+/g, ' ').slice(0, 90)) + (c.length > 90 ? '…' : '') : '다음 계획') + '</summary>' +
+      (c ? '<div class="body">' + esc(c) + '</div>' : '') + (m.nextStep ? '<div class="body"><b>다음 계획</b>\n' + esc(m.nextStep) + '</div>' : '') + '</details>' : '') + '</div>';
+}
+function reviewMeeting(id) {
+  var m = findRow('meetings', id); if (!m) return;
+  mutate('save', { table: 'meetings', obj: { id: id, updatedAt: m.updatedAt, needsReview: false } }, '확인 완료로 표시했습니다.');
+}
+function tabMeetings(s) {
+  var ms = childOf('meetings', s.id);
+  var up = ms.filter(function (m) { return m.status === '예정'; }).sort(function (a, b) { return (a.date + a.time).localeCompare(b.date + b.time); });
+  var past = ms.filter(function (m) { return m.status !== '예정'; }).sort(function (a, b) { return (b.date + b.time).localeCompare(a.date + a.time); });
+  var rv = ms.filter(function (m) { return m.needsReview === 'TRUE'; }).length;
+  return '<div class="card">' + secHead('예정된 미팅 <span class="muted">' + up.length + '건</span>', addBtn('meetings', s.id, '+ 미팅 추가')) +
+    (up.length ? up.map(function (m) { return meetingItem(m, false, false); }).join('') : '<div class="empty">예정된 미팅이 없습니다.</div>') + '</div>' +
+    '<div class="card">' + secHead('지난 미팅 · 회의록 <span class="muted">' + past.length + '건' + (rv ? ' · 확인 필요 ' + rv + '건' : '') + '</span>') +
+    (past.length ? past.map(function (m, i) { return meetingItem(m, false, i === 0); }).join('') : '<div class="empty">기록된 미팅이 없습니다.</div>') + '</div>';
+}
+function viewMeetings() {
+  UI.mtWhen = UI.mtWhen || 'up'; UI.mtWho = UI.mtWho || 'all';
+  var q = (UI.mtQ || '').toLowerCase();
+  var list = S.meetings.filter(function (m) {
+    var s = studentById(m.studentId); if (!s) return false;
+    if (UI.mtWhen === 'up' && !(m.status === '예정')) return false;
+    if (UI.mtWhen === 'past' && m.status === '예정') return false;
+    if (UI.mtWhen === 'review' && m.needsReview !== 'TRUE') return false;
+    if (UI.mtWho === 'mine' && !isMine(s)) return false;
+    if (q && [s.name, m.topic, m.content, m.attendees, m.writer, m.place].join(' ').toLowerCase().indexOf(q) < 0) return false;
+    return true;
+  }).sort(function (a, b) { var x = (a.date + a.time).localeCompare(b.date + b.time); return UI.mtWhen === 'up' ? x : -x; });
+  var rv = S.meetings.filter(function (m) { return m.needsReview === 'TRUE' && studentById(m.studentId); }).length;
+  var h = '<div class="toolbar"><h2 style="margin:0;margin-right:auto">미팅 <span class="muted">' + list.length + '건</span></h2>' +
+    '<select id="mt-st" style="max-width:160px"><option value="">학생 선택</option>' + S.students.slice().sort(function (a, b) { return a.name.localeCompare(b.name, 'ko'); }).map(function (s) { return '<option value="' + esc(s.id) + '">' + esc(s.name) + '</option>'; }).join('') + '</select>' +
+    '<button class="btn" onclick="var v=$(\'mt-st\').value;if(!v)return toast(\'학생을 먼저 고르세요.\',true);openForm(\'meetings\',null,v)">+ 미팅 추가</button></div>';
+  h += '<div class="toolbar"><input type="text" id="q" class="grow" placeholder="학생·안건·내용·참석자 검색" value="' + esc(UI.mtQ || '') + '" oninput="UI.mtQ=this.value;UI._focusQ=true;render()">' +
+    '<select onchange="UI.mtWhen=this.value;render()">' + [['up', '예정된 미팅'], ['past', '지난 미팅'], ['review', '확인 필요 (' + rv + ')'], ['all', '전체']].map(function (o) {
+      return '<option value="' + o[0] + '"' + (UI.mtWhen === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select>' +
+    '<select onchange="UI.mtWho=this.value;render()"><option value="all"' + (UI.mtWho === 'all' ? ' selected' : '') + '>모든 학생</option><option value="mine"' + (UI.mtWho === 'mine' ? ' selected' : '') + '>내 담당 학생</option></select></div>';
+  if (rv && UI.mtWhen !== 'review') h += '<div class="notice">Google Drive에서 가져온 회의록 중 <b>확인 필요 ' + rv + '건</b>이 있습니다. <a href="javascript:void(0)" onclick="UI.mtWhen=\'review\';render()">확인하러 가기 →</a></div>';
+  return h + '<div class="card">' + (list.length ? list.map(function (m) { return meetingItem(m, true, false); }).join('') : '<div class="empty">해당하는 미팅이 없습니다.</div>') + '</div>';
+}
+
 /* ----- 관리 사항 + 사이트 계정(ID/PW) ----- */
 function tabManage(s) {
   var mt = safeUrl(s.meetingUrl);
@@ -1684,6 +1782,9 @@ function searchAll(q) {
   var dc = S.docs.filter(function (d) { var s = studentById(d.studentId); return s && hit([d.name, d.memo, s.name]); })
     .map(function (d) { var s = studentById(d.studentId); return { title: s.name + ' — ' + d.name, sub: d.status, href: '#/student/' + s.id, tab: 'docs' }; });
   if (dc.length) groups.push({ label: '서류', items: dc });
+  var mts = S.meetings.filter(function (m) { var s = studentById(m.studentId); return s && hit([m.topic, m.content, m.attendees, m.date, s.name]); })
+    .map(function (m) { var s = studentById(m.studentId); return { title: s.name + ' — 미팅 ' + m.date, sub: m.topic || String(m.content || '').slice(0, 60), href: '#/student/' + s.id, tab: 'meetings' }; });
+  if (mts.length) groups.push({ label: '미팅', items: mts });
   if (isMgr()) {
     var nt = S.notes.filter(function (n) { var s = studentById(n.studentId); return s && hit([n.content, n.nextAction, n.attendees, s.name]); })
       .map(function (n) { var s = studentById(n.studentId); var c = String(n.content || n.nextAction); return { title: s.name + ' — 상담기록 ' + n.date, sub: c.length > 60 ? c.slice(0, 60) + '…' : c, href: '#/student/' + s.id, tab: 'notes' }; });
@@ -1870,7 +1971,9 @@ function viewTeachers() {
     '<div class="card"><h3>기존 데이터 가져오기</h3><div class="muted" style="margin-bottom:10px">Compass 가져오기 파일(.json)을 선택하면 학생과 기록을 한 번에 등록합니다. 같은 이름의 학생이 이미 있으면 건너뜁니다.</div>' +
     '<label class="btn ghost" style="cursor:pointer">가져오기 파일 선택<input type="file" hidden accept=".json,application/json" onchange="importFile(this)"></label>' +
     (UI.importResult ? '<div style="margin-top:10px;font-size:.88rem"><b>등록 ' + UI.importResult.created.length + '명</b>: ' + esc(UI.importResult.created.join(', ') || '-') +
-      '<br><b>건너뜀 ' + UI.importResult.skipped.length + '명</b> (이미 있음): ' + esc(UI.importResult.skipped.join(', ') || '-') + '</div>' : '') + '</div></div>';
+      '<br><b>건너뜀 ' + UI.importResult.skipped.length + '명</b> (이미 있음): ' + esc(UI.importResult.skipped.join(', ') || '-') +
+      ((UI.importResult.appended || []).length ? '<br><b>기존 학생에 기록 추가</b>: ' + esc(UI.importResult.appended.join(', ')) : '') +
+      (UI.importResult.duplicates ? '<br><span class="muted">이미 가져온 기록 ' + UI.importResult.duplicates + '건은 건너뜀</span>' : '') + '</div>' : '') + '</div></div>';
   h += '<div class="card tbl-wrap"><table><thead><tr><th>이름</th><th>이메일</th><th>역할</th><th>상태</th><th>담당 학생</th><th></th></tr></thead><tbody>' +
     S.teachers.map(function (t) {
       var cnt = S.students.filter(function (s) { return isActive(s) && (String(s.counselor).toLowerCase() === t.email.toLowerCase() || String(s.manager || '').toLowerCase() === t.email.toLowerCase()); }).length;
@@ -1906,7 +2009,15 @@ function openTeacherForm(email) {
     fld('상태', '<select name="active"><option value="1"' + (t.active ? ' selected' : '') + '>활성</option><option value="0"' + (!t.active ? ' selected' : '') + '>비활성</option></select>') +
     fld(email ? '비밀번호 초기화 (바꿀 때만 입력)' : '비밀번호 (6자 이상)', inp('password', '', 'text', ' autocomplete="off"' + (email ? ' placeholder="비워두면 그대로"' : ' required')), true, !email);
   modal(email ? '계정 수정' : '계정 추가', body,
+    (email && email !== S.me.email ? '<button class="btn danger left" onclick="deleteTeacher(' + js(email) + ')">계정 삭제</button>' : '') +
     '<button class="btn ghost" onclick="closeModal()">취소</button><button class="btn" onclick="submitTeacher()">저장</button>');
+}
+function deleteTeacher(email) {
+  var t = S.teachers.filter(function (x) { return x.email === email; })[0]; if (!t) return;
+  var n = S.students.filter(function (s) { return String(s.counselor).toLowerCase() === email || String(s.manager || '').toLowerCase() === email; }).length;
+  if (!confirm('“' + t.name + '” 계정을 삭제할까요? 되돌릴 수 없습니다.\n' + (n ? '담당 학생 ' + n + '명의 담당자가 “미정”으로 바뀝니다.\n' : '') +
+    '잠시 쉬는 경우라면 삭제 대신 “비활성”을 권장합니다.')) return;
+  mutate('deleteTeacher', { email: email }, '계정을 삭제했습니다.');
 }
 function submitTeacher() {
   var o = formData($('mf'));
