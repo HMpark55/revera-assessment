@@ -140,6 +140,21 @@
   .pill.d-수합 { background:#e6f6ef; color:#0f7a55; }
   .pill.d-해당 { background:#eee; color:#666; }
   .pill.d-요청함 { background:#fff4e0; color:#a56200; }
+  .pill.prog { background:#0B1B45; color:#fff; }
+  .chks { margin-top:10px; padding-top:10px; border-top:1px solid var(--soft); display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+  .chk { font-size:.75rem; padding:2px 9px; border-radius:10px; cursor:pointer; border:1px solid var(--border); }
+  .chk.ok { background:#e6f6ef; color:#0f7a55; border-color:#bfe6d3; }
+  .chk.no { background:#fff; color:#9aa0aa; border-style:dashed; }
+  .cbar { display:inline-block; width:54px; height:6px; background:var(--soft); border-radius:3px; vertical-align:middle; overflow:hidden; }
+  .cbar span { display:block; height:100%; background:var(--ok); }
+  table.mat th.c, table.mat td.c { text-align:center; }
+  .mk { display:inline-block; width:26px; height:26px; line-height:26px; border-radius:50%; cursor:pointer; font-weight:bold; }
+  .mk.ok { background:#e6f6ef; color:#0f7a55; }
+  .mk.no { color:#c4c8cf; }
+  tr.grp td { background:var(--soft); font-weight:bold; color:var(--navy); font-size:.85rem; }
+  .pays { margin-top:10px; padding-top:8px; border-top:1px dashed var(--border); }
+  .form .fh { font-size:.82rem; font-weight:bold; color:var(--navy); border-top:1px solid var(--soft); padding-top:10px; margin-top:4px; }
+  .form .fh:empty { padding-top:0; }
   .notice { background:#fffaf0; border:1px solid #f1e2b0; border-radius:8px; padding:8px 12px; font-size:.85rem; color:#6b5512; margin-bottom:12px; }
 </style>
 </head>
@@ -165,14 +180,16 @@ var CONTRACT_KINDS = ['연간', '원서'];
 var TIERS = ['Standard'];
 var TERMS = ['', '1학기', '1년'];
 var PACKAGES = ['홍콩 패키지', '싱가폴', '한국 3특', '한국 12특', '캐나다', '미국', '영국', '일본', '기타'];
-var PAID = ['미납', '일부 납부', '납부 완료'];
+var CURRENCIES = ['RMB', 'KRW'];
+var PAY_METHODS = ['위챗페이', '알리페이', '계좌이체', '현금', '카드', '기타'];
+var COUNTRIES = ['한국', '홍콩', '싱가폴', '미국', '캐나다', '영국', '일본', '호주', '기타'];
 var NOTE_TYPES = ['대면상담', '학부모상담', '전화', '위챗·문자', '수업', '기타'];
 var PLACES = ['상담실', '온라인', '전화'];
 var APP_ROUNDS = ['ED', 'ED2', 'EA', 'REA', 'RD', 'Rolling', 'UCAS', '홍콩 얼리', '수시', '정시', '3년특례', '12년특례', '기타'];
 var APP_STATUS = ['준비중', '작성중', '제출완료', '대기', '합격', '불합격', '철회'];
 var APP_FINAL = ['제출완료', '대기', '합격', '불합격', '철회'];
 var ESSAY_STATUS = ['', '미착수', '브레인스토밍', '초안', '수정중', '완료'];
-var GRADES = ['G9', 'G10', 'G11', 'G12', '중3', '고1', '고2', '고3', '졸업'];
+var GRADES = ['G9', 'G10', 'G11', 'G12', 'Y10', 'Y11', 'Y12', 'Y13'];
 var CURRICULA = ['IB', 'AP', 'A-Level', 'IGCSE', '국내 일반고', '국내 특목고', '기타'];
 var SCORE_KINDS = ['SAT', 'ACT', 'TOEFL', 'IELTS', 'AP', 'IB', 'A-Level', 'GPA', 'TOPIK', 'HSK', '기타'];
 var ACT_CATS = ['리서치', '서머 프로그램', '인턴십', '대회', '에세이 대회', '클럽', '봉사', '기타'];
@@ -183,27 +200,25 @@ var DOC_DONE = ['수합 완료', '해당 없음'];
 var DOC_PRESETS = ['출입국사실증명서(학생)', '출입국사실증명서(부)', '출입국사실증명서(모)', '재학증명서', '성적증명서', '졸업(예정)증명서', '여권 사본', '가족관계증명서', '추천서'];
 var STORY_STATUS = ['작성 전', '검토 중', '확정'];
 var FILE_CATS = ['성적표', '기타'];
-var CHILD = ['notes', 'contracts', 'apps', 'scores', 'activities', 'docs', 'links', 'files'];
-
-/** 입력 양식 정의 — t: 입력 종류, o: 선택지, mgr: 관리자·관리팀만 보이는 칸, req: 필수 */
+var CHILD = ['notes', 'contracts', 'payments', 'apps', 'scores', 'activities', 'docs', 'links', 'files'];
 var FORMS = {
   students: { title: '학생 정보', fields: [
     { k: 'name', l: '이름', req: 1 }, { k: 'dob', l: '생년월일', t: 'date' },
-    { k: 'school', l: '학교' }, { k: 'grade', l: '학년', t: 'list', o: GRADES },
+    { k: 'school', l: '학교' }, { k: 'grade', l: '학년', t: 'select', o: [''].concat(GRADES) },
     { k: 'curriculum', l: '커리큘럼', t: 'list', o: CURRICULA }, { k: 'counselor', l: '담당 컨설턴트', t: 'teacher', mgr: 1 },
     { k: 'status', l: '상태', t: 'select', o: STUDENT_STATUS }, { k: 'email', l: '학생 이메일', t: 'email' },
+    { k: 'studentPhone', l: '학생 연락처' }, { k: 'tags', l: '태그 (쉼표로 구분)', ph: '예: 미대, 장학금' },
     { k: 'tracks', l: '트랙 (여러 개 선택 가능)', t: 'multi', o: TRACKS, full: 1 },
-    { k: 'studentPhone', l: '학생 연락처' }, { k: 'parentName', l: '학부모 이름' },
-    { k: 'parentPhone', l: '학부모 연락처' }, { k: 'tags', l: '태그 (쉼표로 구분)', ph: '예: 미대, 장학금' },
+    { k: 'resumeUrl', l: 'Resume (학생별 Google Doc) 링크', t: 'url', full: 1, ph: 'https://docs.google.com/document/d/...' },
     { k: 'driveUrl', l: 'Google Drive 학생 폴더 링크', t: 'url', full: 1, ph: 'https://drive.google.com/drive/folders/...' },
-    { k: 'memo', l: '메모', t: 'textarea', full: 1 }],
+    { h: '학부모 정보 — 아버지' },
+    { k: 'fatherName', l: '이름' }, { k: 'fatherPhone', l: '연락처' }, { k: 'fatherWechat', l: 'WeChat ID' }, { k: 'fatherEmail', l: '이메일', t: 'email' },
+    { h: '학부모 정보 — 어머니' },
+    { k: 'motherName', l: '이름' }, { k: 'motherPhone', l: '연락처' }, { k: 'motherWechat', l: 'WeChat ID' }, { k: 'motherEmail', l: '이메일', t: 'email' },
+    { h: '기타 보호자 (필요할 때만)' },
+    { k: 'parentName', l: '이름 / 관계', ph: '예: 이모 홍길순' }, { k: 'parentPhone', l: '연락처' },
+    { h: '' }, { k: 'memo', l: '메모', t: 'textarea', full: 1 }],
     defaults: function () { return { status: '상담중', counselor: '' }; } },
-  story: { table: 'students', title: '스토리 설계', fields: [
-    { k: 'storyStatus', l: '진행 상태', t: 'select', o: STORY_STATUS },
-    { k: 'storyTrigger', l: '① 계기 — 관심이 어떻게 시작됐는지', t: 'textarea', full: 1 },
-    { k: 'storyProcess', l: '② 탐구 과정 — 학교에서 배우지 않는 것을 스스로 탐구해 온 과정', t: 'textarea', full: 1 },
-    { k: 'storyLink', l: '③ 전공·교수 연결 — 지원 대학의 어떤 전공·연구와 맞닿는지', t: 'textarea', full: 1 },
-    { k: 'storyConclusion', l: '④ 결론 — 그래서 이 학교·이 전공이어야 하는 이유', t: 'textarea', full: 1 }], noDelete: 1 },
   notes: { title: '상담 기록', fields: [
     { k: 'date', l: '날짜', t: 'date', req: 1 }, { k: 'time', l: '시간', ph: '예: PM 1:00' },
     { k: 'place', l: '장소', t: 'list', o: PLACES }, { k: 'type', l: '유형', t: 'select', o: NOTE_TYPES },
@@ -215,16 +230,23 @@ var FORMS = {
   contracts: { title: '계약', fields: [
     { k: 'kind', l: '종류', t: 'select', o: CONTRACT_KINDS, req: 1 }, { k: 'tier', l: '등급', t: 'select', o: TIERS },
     { k: 'term', l: '기간 (연간 컨설팅)', t: 'select', o: TERMS }, { k: 'startMonth', l: '시작 연월', t: 'month' },
+    { k: 'endMonth', l: '종료 연월 (비우면 기간으로 자동 계산)', t: 'month' }, { k: 'signedDate', l: '계약일', t: 'date' },
     { k: 'packages', l: '포함 국가·패키지 (원서 컨설팅)', t: 'multi', o: PACKAGES, full: 1 },
-    { k: 'signedDate', l: '계약일', t: 'date' }, { k: 'paid', l: '납부 상태', t: 'select', o: PAID, mgr: 1 },
-    { k: 'amount', l: '계약 금액 (RMB)', mgr: 1, ph: '예: 30000' },
+    { k: 'currency', l: '통화', t: 'select', o: CURRENCIES, mgr: 1 }, { k: 'amount', l: '계약 금액', mgr: 1, ph: '예: 30000' },
+    { k: 'payDue', l: '잔금 납부 기한', t: 'date', mgr: 1 },
     { k: 'scope', l: '포함 범위 / 특약사항', t: 'textarea', full: 1, ph: '예: HKU+SMU+캐나다 3개 대학. 미국 에세이는 미포함(별도 계약)' },
     { k: 'memo', l: '메모', t: 'textarea', full: 1 }],
-    defaults: function () { return { kind: '원서', tier: 'Standard', startMonth: today().slice(0, 7), paid: '미납' }; } },
+    defaults: function () { return { kind: '원서', tier: 'Standard', startMonth: today().slice(0, 7), currency: 'RMB' }; } },
+  payments: { title: '입금 기록', fields: [
+    { k: 'date', l: '입금일', t: 'date', req: 1 }, { k: 'amount', l: '입금액', req: 1, ph: '예: 15000' },
+    { k: 'currency', l: '통화', t: 'select', o: CURRENCIES }, { k: 'method', l: '입금 방법', t: 'list', o: PAY_METHODS },
+    { k: 'memo', l: '메모', full: 1, ph: '예: 1차 분할 납부' }],
+    defaults: function () { return { date: today() }; } },
   apps: { title: '지원 대학', fields: [
-    { k: 'university', l: '대학', req: 1 }, { k: 'major', l: '전공' },
-    { k: 'round', l: '전형', t: 'list', o: APP_ROUNDS }, { k: 'deadline', l: '마감일', t: 'date' },
-    { k: 'status', l: '진행 상태', t: 'select', o: APP_STATUS }, { k: 'essay', l: '에세이', t: 'select', o: ESSAY_STATUS },
+    { k: 'country', l: '국가', t: 'select', o: [''].concat(COUNTRIES) }, { k: 'university', l: '대학', req: 1 },
+    { k: 'major', l: '전공' }, { k: 'round', l: '전형', t: 'list', o: APP_ROUNDS },
+    { k: 'deadline', l: '마감일', t: 'date' }, { k: 'status', l: '진행 상태', t: 'select', o: APP_STATUS },
+    { k: 'essay', l: '에세이', t: 'select', o: ESSAY_STATUS },
     { k: 'memo', l: '메모 (추천서·장학금 등)', t: 'textarea', full: 1 }],
     defaults: function () { return { status: '준비중' }; } },
   scores: { title: '성적', fields: [
@@ -242,7 +264,7 @@ var FORMS = {
     defaults: function () { return { category: '리서치', status: '계획' }; } },
   docs: { title: '서류', fields: [
     { k: 'name', l: '서류 이름', t: 'list', o: DOC_PRESETS, req: 1 }, { k: 'status', l: '상태', t: 'select', o: DOC_STATUS },
-    { k: 'due', l: '받을 기한', t: 'date' }, { k: 'memo', l: '메모' }],
+    { k: 'memo', l: '메모', full: 1 }],
     defaults: function () { return { status: '요청 전' }; } },
   links: { title: '참고 링크', fields: [
     { k: 'label', l: '이름', ph: '예: 회의록, 주작업문서, 에세이 폴더' },
@@ -388,6 +410,87 @@ function programSummary(sid) {
     return (c.tier === 'Standard' ? 'S' : (c.tier || '').charAt(0)) + c.kind + (c.term ? ' ' + c.term : '');
   }).join(' + ');
 }
+/** 계약으로 판단한 진행 프로그램 */
+function programType(sid) {
+  var cs = childOf('contracts', sid);
+  var a = cs.some(function (c) { return c.kind === '연간'; }), w = cs.some(function (c) { return c.kind === '원서'; });
+  return a && w ? '연간+원서' : a ? '연간만' : w ? '원서만' : '';
+}
+function programBadge(sid) {
+  var t = programType(sid);
+  return t ? '<span class="pill prog">' + t + '</span>' : '<span class="muted">계약 없음</span>';
+}
+function countrySummary(sid) {
+  var m = {};
+  childOf('apps', sid).forEach(function (a) { var c = a.country || '국가 미지정'; m[c] = (m[c] || 0) + 1; });
+  return Object.keys(m).sort(function (a, b) { return COUNTRIES.indexOf(a) - COUNTRIES.indexOf(b); })
+    .map(function (k) { return k + ' ' + m[k]; }).join(' · ');
+}
+/** 자료 현황판 항목 */
+var CHECK_ITEMS = [
+  { k: 'basic', l: '기본정보', tab: 'profile', ok: function (s) { return !!(s.school && s.grade && s.curriculum); } },
+  { k: 'contract', l: '계약', tab: 'contracts', ok: function (s) { return childOf('contracts', s.id).length > 0; } },
+  { k: 'resume', l: 'Resume', tab: 'profile', ok: function (s) { return !!safeUrl(s.resumeUrl); } },
+  { k: 'transcript', l: '성적표', tab: 'scores', ok: function (s) { return childOf('files', s.id).some(function (f) { return f.category === '성적표'; }); } },
+  { k: 'scores', l: '시험 점수', tab: 'scores', ok: function (s) { return childOf('scores', s.id).length > 0; } },
+  { k: 'apps', l: '지원대학', tab: 'apps', ok: function (s) { return childOf('apps', s.id).length > 0; } },
+  { k: 'docs', l: '서류', tab: 'docs', ok: function (s) { var d = childOf('docs', s.id); return d.length > 0 && d.every(function (x) { return DOC_DONE.indexOf(x.status) >= 0; }); } },
+];
+function checks(s) { return CHECK_ITEMS.map(function (c) { return { k: c.k, l: c.l, tab: c.tab, ok: c.ok(s) }; }); }
+function checkCount(s) { return checks(s).filter(function (c) { return c.ok; }).length; }
+function checkBar(s) {
+  var n = checkCount(s), all = CHECK_ITEMS.length;
+  return '<span class="cbar" title="자료 ' + n + '/' + all + '"><span style="width:' + Math.round(n / all * 100) + '%"></span></span> <span class="muted">' + n + '/' + all + '</span>';
+}
+function checkChips(s) {
+  return checks(s).map(function (c) {
+    return '<span class="chk ' + (c.ok ? 'ok' : 'no') + '" onclick="UI.tab=' + js(c.tab) + ';render()">' + (c.ok ? '✓ ' : '') + esc(c.l) + '</span>';
+  }).join('');
+}
+
+/* ----- 금액 ----- */
+function amt(v) { var n = Number(String(v || '').replace(/[^\d.]/g, '')); return isFinite(n) ? n : 0; }
+function money(n, cur) { return esc(cur || 'RMB') + ' ' + Math.round(n).toLocaleString('ko-KR'); }
+function paymentsOf(cid) { return S.payments.filter(function (p) { return p.contractId === cid; }).sort(function (a, b) { return a.date.localeCompare(b.date); }); }
+function contractPay(c) {
+  var cur = c.currency || 'RMB';
+  var paid = paymentsOf(c.id).filter(function (p) { return (p.currency || 'RMB') === cur; }).reduce(function (a, p) { return a + amt(p.amount); }, 0);
+  var total = amt(c.amount);
+  return { cur: cur, total: total, paid: paid, due: Math.max(0, total - paid),
+    status: !total ? '' : paid <= 0 ? '미납' : paid >= total ? '납부 완료' : '일부 납부' };
+}
+function payPill(st) { return st ? '<span class="pill ' + (st === '납부 완료' ? 'p-납부' : st === '미납' ? 'p-미납' : 'd-요청함') + '">' + esc(st) + '</span>' : ''; }
+/** 미수금이 있는 계약 (기한 지난 것 → 기한 가까운 것 순) */
+function unpaidContracts() {
+  return S.contracts.filter(function (c) { return studentById(c.studentId) && contractPay(c).due > 0; }).sort(function (a, b) {
+    var ao = a.payDue && dayDiff(a.payDue) < 0, bo = b.payDue && dayDiff(b.payDue) < 0;
+    if (ao !== bo) return ao ? -1 : 1;
+    return (a.payDue || '9999').localeCompare(b.payDue || '9999') || (a.signedDate || '').localeCompare(b.signedDate || '');
+  });
+}
+/* ----- 연간 계약 갱신 ----- */
+function addMonths(ym, n) { var y = +ym.slice(0, 4), m = +ym.slice(5, 7) - 1 + n; y += Math.floor(m / 12); m = ((m % 12) + 12) % 12; return y + '-' + pad(m + 1); }
+function monthDiff(a, b) { return (+b.slice(0, 4) - +a.slice(0, 4)) * 12 + (+b.slice(5, 7) - +a.slice(5, 7)); }
+/** 종료 연월: 직접 입력값, 없으면 1학기=6개월·1년=12개월로 계산 */
+function contractEnd(c) {
+  if (/^\d{4}-\d{2}/.test(c.endMonth || '')) return c.endMonth.slice(0, 7);
+  if (!/^\d{4}-\d{2}/.test(c.startMonth || '')) return '';
+  var n = c.term === '1학기' ? 6 : c.term === '1년' ? 12 : 0;
+  return n ? addMonths(c.startMonth.slice(0, 7), n - 1) : '';
+}
+/** 두 달 안에 끝나거나 지난달에 끝났는데 다음 연간 계약이 없는 학생 */
+function renewals() {
+  var thisMonth = today().slice(0, 7);
+  return S.contracts.filter(function (c) {
+    var s = studentById(c.studentId), end = contractEnd(c);
+    if (c.kind !== '연간' || !s || !isActive(s) || !end) return false;
+    var d = monthDiff(thisMonth, end);
+    if (d > 2 || d < -1) return false;
+    return !S.contracts.some(function (o) { return o !== c && o.studentId === c.studentId && o.kind === '연간' && (o.startMonth || '') > (c.startMonth || ''); });
+  }).sort(function (a, b) { return contractEnd(a).localeCompare(contractEnd(b)); });
+}
+function contractLabel(c) { return c ? [c.tier === 'Standard' ? 'S' : c.tier, c.kind, c.term].filter(Boolean).join(' ') : '(삭제된 계약)'; }
+
 function toast(msg, err) {
   var t = $('toast'); t.textContent = msg; t.className = err ? 'err' : ''; t.style.display = 'block';
   clearTimeout(toast._t); toast._t = setTimeout(function () { t.style.display = 'none'; }, err ? 6000 : 2500);
@@ -407,21 +510,12 @@ function formData(form) {
 }
 
 /** 마감이 있는 항목(지원대학·활동·서류)을 한 목록으로 */
+/** 마감이 있는 항목 (지원대학) */
 function deadlineItems(includeDone) {
-  var out = [];
-  S.apps.forEach(function (a) {
-    out.push({ table: 'apps', id: a.id, studentId: a.studentId, kind: '지원대학', title: a.university,
-      sub: [a.major, a.round].filter(Boolean).join(' · '), date: a.deadline, status: a.status, done: APP_FINAL.indexOf(a.status) >= 0 });
-  });
-  S.activities.forEach(function (x) {
-    out.push({ table: 'activities', id: x.id, studentId: x.studentId, kind: '활동', title: x.name,
-      sub: x.category, date: x.deadline, status: x.status, done: ACT_DONE.indexOf(x.status) >= 0 });
-  });
-  S.docs.forEach(function (d) {
-    out.push({ table: 'docs', id: d.id, studentId: d.studentId, kind: '서류', title: d.name,
-      sub: d.memo, date: d.due, status: d.status, done: DOC_DONE.indexOf(d.status) >= 0 });
-  });
-  return out.filter(function (i) { return dayDiff(i.date) !== null && studentById(i.studentId) && (includeDone || !i.done); })
+  return S.apps.map(function (a) {
+    return { table: 'apps', id: a.id, studentId: a.studentId, kind: a.country || '지원대학', title: a.university,
+      sub: [a.major, a.round].filter(Boolean).join(' · '), date: a.deadline, status: a.status, done: APP_FINAL.indexOf(a.status) >= 0 };
+  }).filter(function (i) { return dayDiff(i.date) !== null && studentById(i.studentId) && (includeDone || !i.done); })
     .sort(byDate('date'));
 }
 function pendingTodos() {
@@ -438,57 +532,90 @@ function openStudent(id, tab) { UI.tab = tab || ''; go('#/student/' + id); }
 function render() {
   if (!S.me) return;
   var r = route();
-  var items = [['dashboard', '대시보드'], ['students', isMgr() ? '학생' : '담당 학생'], ['deadlines', '마감일정']];
-  if (isMgr()) items.push(['trash', '휴지통']);
+  var items = [['dashboard', '대시보드'], ['students', isMgr() ? '학생' : '담당 학생'], ['materials', '자료 현황'], ['deadlines', '마감일정'], ['results', '합격 실적']];
+  if (isMgr()) items.push(['sales', '매출'], ['trash', '휴지통']);
   if (isAdmin()) items.push(['teachers', '계정 관리'], ['log', '변경 기록']);
   var cur = r.view === 'student' ? 'students' : r.view;
   $('nav').innerHTML = items.map(function (i) { return '<a href="#/' + i[0] + '" class="' + (cur === i[0] ? 'on' : '') + '">' + i[1] + '</a>'; }).join('');
-  var v = { dashboard: viewDashboard, students: viewStudents, student: viewStudent, deadlines: viewDeadlines,
-    trash: viewTrash, teachers: viewTeachers, log: viewLog }[r.view] || viewDashboard;
+  var v = { dashboard: viewDashboard, students: viewStudents, student: viewStudent, materials: viewMaterials, deadlines: viewDeadlines,
+    results: viewResults, sales: viewSales, trash: viewTrash, teachers: viewTeachers, log: viewLog }[r.view] || viewDashboard;
   $('app').innerHTML = v(r.id);
   var q = $('q'); if (q && UI._focusQ) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); UI._focusQ = false; }
 }
 
 /* ============================== 대시보드 ============================== */
 function viewDashboard() {
-  var active = S.students.filter(isActive);
-  var mine = active.filter(isMine);
+  var active = S.students.filter(isActive).sort(function (a, b) { return a.name.localeCompare(b.name, 'ko'); });
   var dl = deadlineItems(false);
   var soon = dl.filter(function (i) { return dayDiff(i.date) <= 14; });
-  var docsPending = S.docs.filter(function (d) { return DOC_DONE.indexOf(d.status) < 0 && studentById(d.studentId); });
   var h = '<div class="grid g4" style="margin-bottom:14px">';
   if (isMgr()) {
     var todos = pendingTodos();
     var overdue = todos.filter(function (n) { return dayDiff(n.nextDue) !== null && dayDiff(n.nextDue) < 0; });
+    var unpaid = unpaidContracts();
+    var unpaidOver = unpaid.filter(function (c) { return c.payDue && dayDiff(c.payDue) < 0; });
     h += stat(active.length, '진행 중인 학생', "UI.counselor='all';UI.status='active';go('#/students')") +
-      stat(soon.length, '14일 내 마감', "go('#/deadlines')", soon.some(function (i) { return dayDiff(i.date) <= 3; })) +
+      stat(soon.length, '14일 내 지원 마감', "go('#/deadlines')", soon.some(function (i) { return dayDiff(i.date) <= 3; })) +
       stat(todos.length + (overdue.length ? ' / ' + overdue.length : ''), '남은 할 일' + (overdue.length ? ' / 기한 지남' : ''), '', overdue.length > 0) +
-      stat(docsPending.length, '수합 안 된 서류', '');
+      stat(unpaid.length + (unpaidOver.length ? ' / ' + unpaidOver.length : ''), '미수금' + (unpaidOver.length ? ' / 기한 지남' : '') + ' (건)', "go('#/sales')", unpaidOver.length > 0);
   } else {
     h += stat(active.length, '담당 학생 (진행 중)', "UI.status='active';go('#/students')") +
-      stat(soon.length, '14일 내 마감', "go('#/deadlines')", soon.some(function (i) { return dayDiff(i.date) <= 3; })) +
-      stat(docsPending.length, '수합 안 된 서류', '') +
-      stat(S.students.filter(function (s) { return isActive(s) && s.storyStatus !== '확정'; }).length, '스토리 미확정', '');
+      stat(soon.length, '14일 내 지원 마감', "go('#/deadlines')", soon.some(function (i) { return dayDiff(i.date) <= 3; })) +
+      stat(active.filter(function (s) { return checkCount(s) < CHECK_ITEMS.length; }).length, '자료가 덜 모인 학생', "go('#/materials')") +
+      stat(dl.length, '남은 지원 건', "go('#/deadlines')");
   }
-  h += '</div><div class="grid g2"><div>';
-  h += '<div class="card"><h3>다가오는 마감 (30일)</h3><div class="tbl-wrap">' + deadlineTable(dl.filter(function (i) { return dayDiff(i.date) <= 30; }), '30일 안에 마감되는 항목이 없습니다.') + '</div></div>';
+  h += '</div>';
+  h += '<div class="card"><div class="sec-h"><h3>학생 현황 <span class="muted">진행 중 ' + active.length + '명 · 누르면 학생 프로필로 이동</span></h3></div>' +
+    (active.length ? '<div class="tbl-wrap">' + studentTable(active, dl) + '</div>' : '<div class="empty">' + (isMgr() ? '등록된 학생이 없습니다.' : '배정된 담당 학생이 없습니다.') + '</div>') + '</div>';
+  h += '<div class="grid g2"><div>';
+  h += '<div class="card"><h3>다가오는 지원 마감 (30일)</h3><div class="tbl-wrap">' + deadlineTable(dl.filter(function (i) { return dayDiff(i.date) <= 30; }), '30일 안에 마감되는 지원이 없습니다.') + '</div></div>';
   h += '</div><div>';
   if (isMgr()) {
-    var recent = S.notes.filter(function (n) { return studentById(n.studentId); })
-      .sort(function (a, b) { return (b.date + b.createdAt).localeCompare(a.date + a.createdAt); }).slice(0, 6);
+    var un = unpaidContracts().slice(0, 6), rn = renewals();
+    h += '<div class="card">' + secHead('미수금 리마인드', '<a href="#/sales">매출 페이지 →</a>') + (un.length ? unpaidTable(un, true) : '<div class="empty">미수금이 없습니다.</div>') + '</div>';
+    if (rn.length) h += '<div class="card"><h3>연간 계약 갱신 예정</h3>' + renewalTable(rn) + '</div>';
     h += '<div class="card"><h3>할 일 (상담기록의 “다음 할 일”)</h3>' + todoList(pendingTodos()) + '</div>';
-    h += '<div class="card"><h3>최근 상담 기록</h3>' + (recent.length ? recent.map(function (n) {
-      var s = studentById(n.studentId);
-      return '<div class="todo" style="cursor:pointer" onclick="openStudent(' + js(s.id) + ',\'notes\')"><div class="t"><b>' + esc(s.name) + '</b> <span class="muted">' + esc(n.date) + ' · ' + esc(n.type) + ' · ' + esc(teacherName(n.author || n.createdBy)) + '</span><div class="muted" style="margin-top:2px">' + esc(String(n.content).slice(0, 80)) + (String(n.content).length > 80 ? '…' : '') + '</div></div></div>';
-    }).join('') : '<div class="empty">아직 상담 기록이 없습니다.</div>') + '</div>';
-  } else {
-    h += '<div class="card"><h3>담당 학생</h3>' + (mine.length ? mine.map(function (s) {
-      var next = deadlineItems(false).filter(function (i) { return i.studentId === s.id; })[0];
-      return '<div class="todo" style="cursor:pointer" onclick="openStudent(' + js(s.id) + ')"><div class="t"><b>' + esc(s.name) + '</b> <span class="muted">' + esc([s.school, s.grade].filter(Boolean).join(' · ')) + '</span>' +
-        '<div>' + tagHtml(tags(s.tracks)) + '</div>' + (next ? '<div class="muted">다음 마감: ' + esc(next.title) + ' ' + dday(next.date) + '</div>' : '') + '</div></div>';
-    }).join('') : '<div class="empty">배정된 담당 학생이 없습니다. 관리팀에 배정을 요청하세요.</div>') + '</div>';
   }
   return h + '</div></div>';
+}
+/** 학생 현황 표 (대시보드·학생 목록 공용) */
+function studentTable(list, dl) {
+  return '<table><thead><tr><th>이름</th><th>학교 / 학년</th><th>프로그램</th><th>트랙</th><th>지원 국가</th><th>다음 마감</th><th>자료</th><th>담당</th><th>상태</th></tr></thead><tbody>' +
+    list.map(function (s) {
+      var next = dl.filter(function (i) { return i.studentId === s.id; })[0];
+      return '<tr class="click" onclick="openStudent(' + js(s.id) + ')"><td class="nw"><b>' + esc(s.name) + '</b></td>' +
+        '<td>' + esc(s.school) + (s.grade ? ' <span class="muted">' + esc(s.grade) + '</span>' : '') + '</td>' +
+        '<td class="nw">' + programBadge(s.id) + '</td><td>' + tagHtml(tags(s.tracks)) + '</td>' +
+        '<td class="muted">' + esc(countrySummary(s.id)) + '</td>' +
+        '<td>' + (next ? esc(next.title) + ' ' + dday(next.date) : '<span class="muted">-</span>') + '</td>' +
+        '<td class="nw">' + checkBar(s) + '</td><td class="nw">' + esc(teacherName(s.counselor)) + '</td>' +
+        '<td><span class="pill s-' + esc(s.status) + '">' + esc(s.status || '-') + '</span></td></tr>';
+    }).join('') + '</tbody></table>';
+}
+function unpaidTable(list, compact) {
+  return '<table><thead><tr><th>학생</th><th>계약</th>' + (compact ? '' : '<th>계약액</th><th>입금액</th>') + '<th>미수금</th><th>납부 기한</th>' + (compact ? '' : '<th>마지막 입금</th><th></th>') + '</tr></thead><tbody>' +
+    list.map(function (c) {
+      var s = studentById(c.studentId), p = contractPay(c), last = paymentsOf(c.id).slice(-1)[0];
+      return '<tr><td class="nw"><a href="#/student/' + esc(s.id) + '" onclick="UI.tab=\'contracts\'"><b>' + esc(s.name) + '</b></a></td><td class="nw">' + esc(contractLabel(c)) + '</td>' +
+        (compact ? '' : '<td class="nw">' + money(p.total, p.cur) + '</td><td class="nw">' + money(p.paid, p.cur) + '</td>') +
+        '<td class="nw"><b>' + money(p.due, p.cur) + '</b></td><td class="nw">' + (c.payDue ? esc(c.payDue) + ' ' + dday(c.payDue) : '<span class="muted">미정</span>') + '</td>' +
+        (compact ? '' : '<td class="nw">' + (last ? esc(last.date) : '<span class="muted">없음</span>') + '</td>' +
+          '<td class="nw"><button class="btn sm" onclick="openPayment(' + js(c.id) + ')">입금 기록</button></td>') + '</tr>';
+    }).join('') + '</tbody></table>';
+}
+function renewalTable(list) {
+  return '<table><thead><tr><th>학생</th><th>계약</th><th>종료</th><th>담당</th></tr></thead><tbody>' +
+    list.map(function (c) {
+      var s = studentById(c.studentId), end = contractEnd(c), d = monthDiff(today().slice(0, 7), end);
+      return '<tr class="click" onclick="openStudent(' + js(s.id) + ',\'contracts\')"><td class="nw"><b>' + esc(s.name) + '</b></td><td class="nw">' + esc(contractLabel(c)) + '</td>' +
+        '<td class="nw">' + esc(end) + ' <span class="dday ' + (d < 0 ? 'over' : 'soon') + '">' + (d < 0 ? '종료됨' : d === 0 ? '이번 달' : d + '개월 후') + '</span></td>' +
+        '<td class="nw">' + esc(teacherName(s.counselor)) + '</td></tr>';
+    }).join('') + '</tbody></table>';
+}
+function openPayment(contractId) {
+  var c = findRow('contracts', contractId);
+  if (!c) return toast('계약을 찾을 수 없습니다.', true);
+  openForm('payments', null, c.studentId, { contractId: c.id, currency: c.currency || 'RMB', amount: String(contractPay(c).due || '') });
 }
 function stat(n, label, onclick, alert) {
   return '<div class="stat' + (alert ? ' alert' : '') + '"' + (onclick ? ' onclick="' + onclick + '"' : '') + '><div class="n">' + n + '</div><div class="l">' + label + '</div></div>';
@@ -531,7 +658,8 @@ function filteredStudents() {
       if (UI.counselor.indexOf('@') > 0 && String(s.counselor).toLowerCase() !== UI.counselor.toLowerCase()) return false;
     }
     if (UI.track && tags(s.tracks).indexOf(UI.track) < 0) return false;
-    if (q && [s.name, s.school, s.tags, s.tracks, s.curriculum, s.grade, s.parentName].join(' ').toLowerCase().indexOf(q) < 0) return false;
+    if (UI.program && (programType(s.id) || '계약 없음') !== UI.program) return false;
+    if (q && [s.name, s.school, s.tags, s.tracks, s.curriculum, s.grade, s.parentName, s.fatherName, s.motherName].join(' ').toLowerCase().indexOf(q) < 0) return false;
     return true;
   }).sort(function (a, b) { return a.name.localeCompare(b.name, 'ko'); });
 }
@@ -543,6 +671,7 @@ function viewStudents() {
     '<select onchange="UI.status=this.value;render()">' +
     '<option value="active"' + (UI.status === 'active' ? ' selected' : '') + '>진행 중 (완료·종료 제외)</option>' +
     '<option value="all"' + (UI.status === 'all' ? ' selected' : '') + '>전체 상태</option>' + opts(STUDENT_STATUS, UI.status) + '</select>' +
+    '<select onchange="UI.program=this.value;render()"><option value="">모든 프로그램</option>' + opts(['연간+원서', '연간만', '원서만', '계약 없음'], UI.program) + '</select>' +
     '<select onchange="UI.track=this.value;render()"><option value="">모든 트랙</option>' + opts(TRACKS, UI.track) + '</select>' +
     (isMgr() ? '<select onchange="UI.counselor=this.value;render()">' +
       '<option value="all"' + (UI.counselor === 'all' ? ' selected' : '') + '>모든 담당자</option>' +
@@ -551,43 +680,35 @@ function viewStudents() {
       S.teachers.map(function (t) { return '<option value="' + esc(t.email) + '"' + (UI.counselor === t.email ? ' selected' : '') + '>' + esc(t.name) + '</option>'; }).join('') +
       '</select>' : '') + '</div>';
   if (!list.length) return h + '<div class="card empty">' + (S.students.length ? '조건에 맞는 학생이 없습니다.' : isMgr() ? '등록된 학생이 없습니다. “+ 학생 등록”으로 시작하세요.' : '배정된 담당 학생이 없습니다.') + '</div>';
-  h += '<div class="card tbl-wrap"><table><thead><tr><th>이름</th><th>학교 / 학년</th><th>트랙</th><th>프로그램</th><th>담당</th><th>상태</th><th>다음 마감</th></tr></thead><tbody>';
-  var dl = deadlineItems(false);
-  h += list.map(function (s) {
-    var next = dl.filter(function (i) { return i.studentId === s.id; })[0];
-    return '<tr class="click" onclick="openStudent(' + js(s.id) + ')"><td class="nw"><b>' + esc(s.name) + '</b><div>' + tagHtml(tags(s.tags)) + '</div></td>' +
-      '<td>' + esc(s.school) + (s.grade ? ' <span class="muted">' + esc(s.grade) + '</span>' : '') + '</td>' +
-      '<td>' + tagHtml(tags(s.tracks)) + '</td><td class="muted">' + esc(programSummary(s.id)) + '</td>' +
-      '<td class="nw">' + esc(teacherName(s.counselor)) + '</td><td><span class="pill s-' + esc(s.status) + '">' + esc(s.status || '-') + '</span></td>' +
-      '<td>' + (next ? esc(next.title) + ' ' + dday(next.date) : '<span class="muted">-</span>') + '</td></tr>';
-  }).join('');
-  return h + '</tbody></table></div>';
+  return h + '<div class="card tbl-wrap">' + studentTable(list, deadlineItems(false)) + '</div>';
 }
 
 /* ============================== 학생 상세 ============================== */
-var TAB_LABEL = { notes: '상담기록', contracts: '계약', scores: '성적', story: '스토리', apps: '지원대학', activities: '활동·대회', docs: '서류', profile: '프로필·링크' };
-function tabsForRole() { return (isMgr() ? ['notes'] : []).concat(['contracts', 'scores', 'story', 'apps', 'activities', 'docs', 'profile']); }
+var TAB_LABEL = { notes: '상담기록', contracts: '계약', scores: '성적', apps: '지원대학', docs: '서류', story: '스토리', profile: '프로필·링크' };
+function tabsForRole() { return (isMgr() ? ['notes'] : []).concat(['contracts', 'scores', 'apps', 'docs', 'story', 'profile']); }
 
 function viewStudent(id) {
   var s = studentById(id);
   if (!s) return '<div class="card empty">학생을 찾을 수 없습니다. 삭제되었거나 담당 학생이 아닐 수 있습니다. <a href="#/students">목록으로</a></div>';
   var tabs = tabsForRole();
   if (tabs.indexOf(UI.tab) < 0) UI.tab = tabs[0];
-  var drive = safeUrl(s.driveUrl);
+  var drive = safeUrl(s.driveUrl), resume = safeUrl(s.resumeUrl);
   var h = '<div class="toolbar"><a href="#/students">← 학생 목록</a></div>';
   h += '<div class="card"><div class="toolbar" style="margin:0"><div style="margin-right:auto"><h2 style="margin:0">' + esc(s.name) +
-    ' <span class="pill s-' + esc(s.status) + '">' + esc(s.status || '-') + '</span></h2>' +
+    ' <span class="pill s-' + esc(s.status) + '">' + esc(s.status || '-') + '</span> ' + programBadge(s.id) + '</h2>' +
     '<div class="muted" style="margin-top:4px">' + [s.school, s.grade, s.curriculum, '담당 ' + (teacherName(s.counselor) || '미지정')].filter(Boolean).map(esc).join(' · ') + '</div>' +
-    '<div style="margin-top:6px">' + tagHtml(tags(s.tracks)) + (programSummary(s.id) ? ' <span class="muted">' + esc(programSummary(s.id)) + '</span>' : '') + '</div></div>' +
+    '<div style="margin-top:6px">' + tagHtml(tags(s.tracks)) + (countrySummary(s.id) ? ' <span class="muted">지원: ' + esc(countrySummary(s.id)) + '</span>' : '') + '</div></div>' +
+    (resume ? '<a class="btn ghost" href="' + esc(resume) + '" target="_blank" rel="noopener">📄 Resume</a>' : '') +
     (drive ? '<a class="btn ghost" href="' + esc(drive) + '" target="_blank" rel="noopener">📁 Drive 폴더</a>' : '') +
-    '<button class="btn ghost" onclick="openForm(\'students\',' + js(s.id) + ')">정보 수정</button></div></div>';
+    '<button class="btn ghost" onclick="openForm(\'students\',' + js(s.id) + ')">정보 수정</button></div>' +
+    '<div class="chks"><span class="muted">자료 현황 ' + checkCount(s) + '/' + CHECK_ITEMS.length + '</span> ' + checkChips(s) + '</div></div>';
   h += '<div class="tabs">' + tabs.map(function (t) {
-    var n = t === 'notes' ? childOf('notes', id).length : t === 'scores' ? childOf('scores', id).length + childOf('files', id).length :
-      ['contracts', 'apps', 'activities', 'docs'].indexOf(t) >= 0 ? childOf(t, id).length : null;
+    var n = t === 'scores' ? childOf('scores', id).length + childOf('files', id).filter(function (f) { return !f.docId; }).length :
+      ['notes', 'contracts', 'apps', 'docs'].indexOf(t) >= 0 ? childOf(t, id).length : null;
     return '<a class="' + (UI.tab === t ? 'on' : '') + '" onclick="UI.tab=' + js(t) + ';render()">' + TAB_LABEL[t] + (n ? ' (' + n + ')' : '') + '</a>';
   }).join('') + '</div>';
   return h + { notes: tabNotes, contracts: tabContracts, scores: tabScores, story: tabStory, apps: tabApps,
-    activities: tabActivities, docs: tabDocs, profile: tabProfile }[UI.tab](s);
+    docs: tabDocs, profile: tabProfile }[UI.tab](s);
 }
 function addBtn(table, sid, label) { return '<button class="btn" onclick="openForm(' + js(table) + ',null,' + js(sid) + ')">' + label + '</button>'; }
 function secHead(title, btn) { return '<div class="sec-h"><h3>' + title + '</h3>' + (btn || '') + '</div>'; }
@@ -614,18 +735,30 @@ function noteItem(n) {
 
 function tabContracts(s) {
   var list = childOf('contracts', s.id).sort(byDate('startMonth'));
-  var h = '<div class="card">' + secHead('계약', isMgr() ? addBtn('contracts', s.id, '+ 계약 추가') : '');
-  if (!isMgr()) h += '<div class="notice">계약 내용은 관리자·관리팀만 수정할 수 있고, 계약 금액은 표시되지 않습니다.</div>';
+  var h = '<div class="card">' + secHead('계약 ' + programBadge(s.id), isMgr() ? addBtn('contracts', s.id, '+ 계약 추가') : '');
+  if (!isMgr()) h += '<div class="notice">계약 내용은 관리자·관리팀만 수정할 수 있고, 금액과 입금 내역은 표시되지 않습니다.</div>';
   if (!list.length) return h + '<div class="empty">등록된 계약이 없습니다.</div></div>';
   return h + list.map(function (c) {
-    return '<div class="contract"' + (isMgr() ? ' onclick="openForm(\'contracts\',' + js(c.id) + ')"' : ' style="cursor:default"') + '><div class="h">' +
+    var end = contractEnd(c), p = isMgr() ? contractPay(c) : null;
+    var x = '<div class="contract"><div class="h" style="cursor:' + (isMgr() ? 'pointer' : 'default') + '"' + (isMgr() ? ' onclick="openForm(\'contracts\',' + js(c.id) + ')"' : '') + '>' +
       '<b>' + esc(c.tier) + ' ' + esc(c.kind) + ' 컨설팅</b>' + (c.term ? '<span class="pill">' + esc(c.term) + '</span>' : '') +
-      (c.startMonth ? '<span class="muted">' + esc(c.startMonth) + ' 시작</span>' : '') + (c.signedDate ? '<span class="muted">계약일 ' + esc(c.signedDate) + '</span>' : '') +
-      (isMgr() && (c.amount || c.paid) ? '<span style="margin-left:auto">' + (c.amount ? '<span class="money">RMB ' + fmtMoney(c.amount) + '</span> ' : '') +
-        (c.paid ? '<span class="pill p-' + esc(c.paid.indexOf('완료') >= 0 ? '납부' : c.paid === '미납' ? '미납' : '') + '">' + esc(c.paid) + '</span>' : '') + '</span>' : '') +
-      '</div>' + (c.packages ? '<div style="margin-top:6px">' + tagHtml(tags(c.packages)) + '</div>' : '') +
+      (c.startMonth ? '<span class="muted">' + esc(c.startMonth) + (end && c.kind === '연간' ? ' ~ ' + esc(end) : '') + '</span>' : '') +
+      (c.signedDate ? '<span class="muted">계약일 ' + esc(c.signedDate) + '</span>' : '') +
+      (p && p.total ? '<span style="margin-left:auto"><span class="money">' + money(p.total, p.cur) + '</span> ' + payPill(p.status) + '</span>' : '') + '</div>' +
+      (c.packages ? '<div style="margin-top:6px">' + tagHtml(tags(c.packages)) + '</div>' : '') +
       (c.scope ? '<div style="margin-top:6px;white-space:pre-wrap;font-size:.88rem">' + esc(c.scope) + '</div>' : '') +
-      (c.memo ? '<div class="muted" style="margin-top:4px;white-space:pre-wrap">' + esc(c.memo) + '</div>' : '') + '</div>';
+      (c.memo ? '<div class="muted" style="margin-top:4px;white-space:pre-wrap">' + esc(c.memo) + '</div>' : '');
+    if (p) {
+      var pays = paymentsOf(c.id);
+      x += '<div class="pays"><div class="sec-h" style="margin:0 0 6px"><span class="muted">입금 ' + money(p.paid, p.cur) + (p.due ? ' · <b style="color:var(--error)">미수금 ' + money(p.due, p.cur) + '</b>' : '') +
+        (c.payDue && p.due ? ' · 납부 기한 ' + esc(c.payDue) + ' ' + dday(c.payDue) : '') + '</span>' +
+        '<button class="btn ghost sm" onclick="openPayment(' + js(c.id) + ')">+ 입금 기록</button></div>' +
+        (pays.length ? '<table><tbody>' + pays.map(function (pm) {
+          return '<tr class="click" onclick="openForm(\'payments\',' + js(pm.id) + ')"><td class="nw">' + esc(pm.date) + '</td><td class="nw"><b>' + money(amt(pm.amount), pm.currency) + '</b></td>' +
+            '<td class="nw">' + esc(pm.method) + '</td><td class="muted">' + esc(pm.memo) + '</td><td class="nw muted">' + esc(teacherName(pm.createdBy)) + '</td></tr>';
+        }).join('') + '</tbody></table>' : '<div class="muted">입금 기록이 없습니다.</div>') + '</div>';
+    }
+    return x + '</div>';
   }).join('') + '</div>';
 }
 
@@ -642,7 +775,7 @@ function tabScores(s) {
         '<td class="nw"><b>' + esc(r.score) + '</b></td><td>' + esc(r.detail) + '</td><td class="nw">' + esc(r.date) + '</td><td class="muted">' + esc(r.memo) + '</td></tr>';
     }).join('') + '</tbody></table></div>' : '<div class="empty">입력된 성적이 없습니다.</div>';
   h += '</div>';
-  var files = childOf('files', s.id).sort(function (a, b) { return b.createdAt.localeCompare(a.createdAt); });
+  var files = childOf('files', s.id).filter(function (f) { return !f.docId; }).sort(function (a, b) { return b.createdAt.localeCompare(a.createdAt); });
   h += '<div class="card">' + secHead('성적표·자료 파일',
     '<span class="toolbar" style="margin:0"><select id="upcat">' + opts(FILE_CATS, '성적표') + '</select>' +
     '<label class="btn" style="cursor:pointer">파일 올리기<input type="file" multiple hidden accept=".pdf,.png,.jpg,.jpeg,.webp,.heic,.gif,.doc,.docx,.xls,.xlsx,.hwp" onchange="uploadFiles(this,' + js(s.id) + ')"></label></span>');
@@ -656,7 +789,7 @@ function tabScores(s) {
     }).join('') + '</tbody></table></div>' : '<div class="empty">올린 파일이 없습니다.</div>';
   return h + '</div>';
 }
-function uploadFiles(input, studentId) {
+function uploadFiles(input, studentId, docId) {
   var files = Array.prototype.slice.call(input.files);
   var cat = ($('upcat') || {}).value || '성적표';
   input.value = '';
@@ -665,7 +798,7 @@ function uploadFiles(input, studentId) {
     chain = chain.then(function () {
       if (f.size > 20 * 1024 * 1024) { toast(f.name + ': 20MB를 넘는 파일은 올릴 수 없습니다.', true); return; }
       busy(true);
-      return fetch('/api/files/upload?studentId=' + encodeURIComponent(studentId) + '&category=' + encodeURIComponent(cat), {
+      return fetch('/api/files/upload?studentId=' + encodeURIComponent(studentId) + '&category=' + encodeURIComponent(cat) + (docId ? '&docId=' + encodeURIComponent(docId) : ''), {
         method: 'POST', credentials: 'same-origin', body: f,
         headers: { 'X-Requested-With': 'revera', 'X-File-Name': encodeURIComponent(f.name), 'Content-Type': f.type || 'application/octet-stream' }
       }).then(handle, function () { busy(false); throw new Error('서버에 연결할 수 없습니다.'); })
@@ -673,7 +806,7 @@ function uploadFiles(input, studentId) {
         .catch(function (e) { toast(f.name + ': ' + errMsg(e), true); });
     });
   });
-  chain.then(function () { if (ok) toast(ok + '개 파일을 올렸습니다.'); });
+  chain.then(function () { if (ok) toast(ok + '개 파일을 올렸습니다.' + (docId ? ' 서류가 수합 완료로 바뀌었습니다.' : '')); });
 }
 
 function tabStory(s) {
@@ -687,13 +820,19 @@ function tabStory(s) {
 }
 
 function tabApps(s) {
-  var list = childOf('apps', s.id).sort(byDate('deadline'));
-  return '<div class="card">' + secHead('지원 대학', addBtn('apps', s.id, '+ 지원 대학 추가')) +
+  var list = childOf('apps', s.id);
+  var groups = {};
+  list.forEach(function (a) { var c = a.country || '국가 미지정'; (groups[c] = groups[c] || []).push(a); });
+  var keys = Object.keys(groups).sort(function (a, b) { return (COUNTRIES.indexOf(a) + 1 || 99) - (COUNTRIES.indexOf(b) + 1 || 99); });
+  return '<div class="card">' + secHead('지원 대학' + (list.length ? ' <span class="muted">' + esc(countrySummary(s.id)) + '</span>' : ''), addBtn('apps', s.id, '+ 지원 대학 추가')) +
     (list.length ? '<div class="tbl-wrap"><table><thead><tr><th>대학 / 전공</th><th>전형</th><th>마감</th><th>상태</th><th>에세이</th><th>메모</th></tr></thead><tbody>' +
-      list.map(function (a) {
-        return '<tr class="click" onclick="openForm(\'apps\',' + js(a.id) + ')"><td><b>' + esc(a.university) + '</b>' + (a.major ? '<div class="muted">' + esc(a.major) + '</div>' : '') + '</td>' +
-          '<td>' + esc(a.round) + '</td><td class="nw">' + esc(a.deadline) + (APP_FINAL.indexOf(a.status) < 0 ? ' ' + dday(a.deadline) : '') + '</td>' +
-          '<td><span class="pill a-' + esc(a.status) + '">' + esc(a.status) + '</span></td><td class="nw">' + esc(a.essay) + '</td><td class="muted">' + esc(a.memo) + '</td></tr>';
+      keys.map(function (k) {
+        return '<tr class="grp"><td colspan="6">' + esc(k) + ' <span class="muted">' + groups[k].length + '곳</span></td></tr>' +
+          groups[k].sort(byDate('deadline')).map(function (a) {
+            return '<tr class="click" onclick="openForm(\'apps\',' + js(a.id) + ')"><td><b>' + esc(a.university) + '</b>' + (a.major ? '<div class="muted">' + esc(a.major) + '</div>' : '') + '</td>' +
+              '<td>' + esc(a.round) + '</td><td class="nw">' + esc(a.deadline) + (APP_FINAL.indexOf(a.status) < 0 ? ' ' + dday(a.deadline) : '') + '</td>' +
+              '<td><span class="pill a-' + esc(a.status) + '">' + esc(a.status) + '</span></td><td class="nw">' + esc(a.essay) + '</td><td class="muted">' + esc(a.memo) + '</td></tr>';
+          }).join('');
       }).join('') + '</tbody></table></div>' : '<div class="empty">등록된 지원 대학이 없습니다.</div>') + '</div>';
 }
 
@@ -709,35 +848,51 @@ function tabActivities(s) {
 }
 
 function tabDocs(s) {
-  var list = childOf('docs', s.id).sort(byDate('due'));
+  var list = childOf('docs', s.id).sort(function (a, b) { return a.createdAt.localeCompare(b.createdAt); });
   var done = list.filter(function (d) { return DOC_DONE.indexOf(d.status) >= 0; }).length;
-  return '<div class="card">' + secHead('서류 체크리스트' + (list.length ? ' <span class="muted">' + done + ' / ' + list.length + ' 완료</span>' : ''), addBtn('docs', s.id, '+ 서류 추가')) +
-    (list.length ? '<div class="tbl-wrap"><table><thead><tr><th>서류</th><th>상태</th><th>받을 기한</th><th>메모</th></tr></thead><tbody>' +
+  return '<div class="card">' + secHead('서류' + (list.length ? ' <span class="muted">' + done + ' / ' + list.length + ' 완료</span>' : ''), addBtn('docs', s.id, '+ 서류 추가')) +
+    '<div class="muted" style="margin-bottom:8px">받은 서류는 “파일 올리기”로 저장하세요. 올리면 자동으로 <b>수합 완료</b>가 되고 업로드 날짜와 올린 사람이 기록됩니다.</div>' +
+    (list.length ? '<div class="tbl-wrap"><table><thead><tr><th>서류</th><th>상태</th><th>저장된 파일</th><th></th></tr></thead><tbody>' +
       list.map(function (d) {
         var cls = d.status === '수합 완료' ? 'd-수합' : d.status === '해당 없음' ? 'd-해당' : d.status === '요청함' ? 'd-요청함' : '';
-        return '<tr class="click" onclick="openForm(\'docs\',' + js(d.id) + ')"><td><b>' + esc(d.name) + '</b></td><td><span class="pill ' + cls + '">' + esc(d.status) + '</span></td>' +
-          '<td class="nw">' + esc(d.due) + (d.due && DOC_DONE.indexOf(d.status) < 0 ? ' ' + dday(d.due) : '') + '</td><td class="muted">' + esc(d.memo) + '</td></tr>';
+        var files = childOf('files', s.id).filter(function (f) { return f.docId === d.id; }).sort(function (a, b) { return b.createdAt.localeCompare(a.createdAt); });
+        return '<tr><td><b>' + esc(d.name) + '</b>' + (d.memo ? '<div class="muted">' + esc(d.memo) + '</div>' : '') + '</td>' +
+          '<td><span class="pill ' + cls + '">' + esc(d.status) + '</span></td>' +
+          '<td>' + (files.length ? files.map(function (f) {
+            return '<div><a href="/api/files/' + esc(f.id) + '" target="_blank" rel="noopener">' + esc(f.name) + '</a> <span class="muted">' + esc(fmtTime(f.createdAt)) + ' · ' + esc(teacherName(f.createdBy)) + '</span></div>';
+          }).join('') : '<span class="muted">-</span>') + '</td>' +
+          '<td class="nw"><label class="btn sm" style="cursor:pointer">파일 올리기<input type="file" hidden accept=".pdf,.png,.jpg,.jpeg,.webp,.heic,.gif,.doc,.docx,.xls,.xlsx,.hwp" onchange="uploadFiles(this,' + js(s.id) + ',' + js(d.id) + ')"></label> ' +
+          '<button class="btn ghost sm" onclick="openForm(\'docs\',' + js(d.id) + ')">수정</button></td></tr>';
       }).join('') + '</tbody></table></div>' : '<div class="empty">등록된 서류가 없습니다. 3년특례라면 출입국사실증명서·재학증명서 등을 추가해 두세요.</div>') + '</div>';
 }
 
 function tabProfile(s) {
-  var drive = safeUrl(s.driveUrl);
+  var drive = safeUrl(s.driveUrl), resume = safeUrl(s.resumeUrl);
   var links = childOf('links', s.id).sort(function (a, b) { return a.createdAt.localeCompare(b.createdAt); });
-  var h = '<div class="card">' + secHead('Drive·참고 링크', addBtn('links', s.id, '+ 링크 추가'));
-  h += '<div class="todo"><div class="t"><b>📁 Google Drive 학생 폴더</b><div class="muted">' +
-    (drive ? '<a href="' + esc(drive) + '" target="_blank" rel="noopener">' + esc(drive) + '</a>' : '아직 등록되지 않았습니다. “정보 수정”에서 폴더 링크를 넣어주세요.') + '</div></div></div>';
+  var linkRow = function (icon, label, u, empty) {
+    return '<div class="todo"><div class="t"><b>' + icon + ' ' + esc(label) + '</b><div class="muted">' +
+      (u ? '<a href="' + esc(u) + '" target="_blank" rel="noopener">' + esc(u) + '</a>' : empty) + '</div></div></div>';
+  };
+  var h = '<div class="card">' + secHead('Resume·Drive·참고 링크', addBtn('links', s.id, '+ 링크 추가'));
+  h += linkRow('📄', 'Resume (Google Doc)', resume, '아직 등록되지 않았습니다. “정보 수정”에서 링크를 넣어주세요.');
+  h += linkRow('📁', 'Google Drive 학생 폴더', drive, '아직 등록되지 않았습니다. “정보 수정”에서 링크를 넣어주세요.');
   h += links.map(function (l) {
     var u = safeUrl(l.url);
     return '<div class="todo"><div class="t"><b>🔗 ' + esc(l.label || '링크') + '</b><div class="muted">' + (u ? '<a href="' + esc(u) + '" target="_blank" rel="noopener">' + esc(u) + '</a>' : esc(l.url)) + '</div></div>' +
       '<button class="btn ghost sm" onclick="openForm(\'links\',' + js(l.id) + ')">수정</button></div>';
   }).join('');
   h += '<div class="muted" style="margin-top:8px">링크가 열리는지는 구글 드라이브의 공유 설정에 따라 달라집니다.</div></div>';
-  h += '<div class="card"><h3>프로필</h3><dl class="kv">' +
+  h += '<div class="grid g2"><div class="card"><h3>학생 정보</h3><dl class="kv">' +
     kv('이름', s.name) + kv('생년월일', s.dob) + kv('학교', s.school) + kv('학년', s.grade) + kv('커리큘럼', s.curriculum) +
     kv('트랙', s.tracks) + kv('담당 컨설턴트', teacherName(s.counselor)) + kv('상태', s.status) + kv('학생 연락처', s.studentPhone) + kv('학생 이메일', s.email) +
-    kv('학부모', s.parentName) + kv('학부모 연락처', s.parentPhone) + kv('태그', s.tags) + kv('메모', s.memo) +
+    kv('태그', s.tags) + kv('메모', s.memo) +
     kv('등록', fmtTime(s.createdAt) + ' · ' + teacherName(s.createdBy)) + kv('마지막 수정', fmtTime(s.updatedAt) + ' · ' + teacherName(s.updatedBy)) +
-    '</dl>' + (isMgr() ? '<div style="margin-top:14px"><button class="btn danger" onclick="delItem(\'students\',' + js(s.id) + ')">학생 삭제 (휴지통으로)</button></div>' : '') + '</div>';
+    '</dl></div><div class="card"><h3>학부모 정보</h3><dl class="kv">' +
+    kv('아버지', s.fatherName) + kv('　연락처', s.fatherPhone) + kv('　WeChat', s.fatherWechat) + kv('　이메일', s.fatherEmail) +
+    kv('어머니', s.motherName) + kv('　연락처', s.motherPhone) + kv('　WeChat', s.motherWechat) + kv('　이메일', s.motherEmail) +
+    (s.parentName || s.parentPhone ? kv('기타 보호자', s.parentName) + kv('　연락처', s.parentPhone) : '') +
+    '</dl></div></div>' +
+    (isMgr() ? '<div class="card"><button class="btn danger" onclick="delItem(\'students\',' + js(s.id) + ')">학생 삭제 (휴지통으로)</button></div>' : '');
   return h;
 }
 function kv(k, v) { return '<dt>' + esc(k) + '</dt><dd>' + (v ? esc(v) : '<span class="muted">-</span>') + '</dd>'; }
@@ -748,15 +903,111 @@ function viewDeadlines() {
   var list = deadlineItems(!UI.dlHideDone).filter(function (i) {
     if (range !== null && dayDiff(i.date) > range) return false;
     if (isMgr() && UI.counselor === 'me' && !isMine(studentById(i.studentId))) return false;
+    if (UI.dlCountry && i.kind !== UI.dlCountry) return false;
     return true;
   });
-  var h = '<div class="toolbar"><h2 style="margin:0;margin-right:auto">마감일정 <span class="muted">' + list.length + '건</span></h2>' +
+  var h = '<div class="toolbar"><h2 style="margin:0;margin-right:auto">지원 마감일정 <span class="muted">' + list.length + '건</span></h2>' +
     '<select onchange="UI.dlRange=this.value;render()">' + [['14', '14일 이내'], ['30', '30일 이내'], ['60', '60일 이내'], ['all', '전체']].map(function (o) {
       return '<option value="' + o[0] + '"' + (UI.dlRange === o[0] ? ' selected' : '') + '>' + o[1] + '</option>';
     }).join('') + '</select>' +
+    '<select onchange="UI.dlCountry=this.value;render()"><option value="">모든 국가</option>' + opts(COUNTRIES, UI.dlCountry) + '</select>' +
     (isMgr() ? '<select onchange="UI.counselor=this.value;render()"><option value="all">모든 담당자</option><option value="me"' + (UI.counselor === 'me' ? ' selected' : '') + '>내 담당 학생만</option></select>' : '') +
-    '<label class="muted"><input type="checkbox"' + (UI.dlHideDone ? ' checked' : '') + ' onchange="UI.dlHideDone=this.checked;render()"> 끝난 항목 숨기기</label></div>';
-  return h + '<div class="card tbl-wrap">' + deadlineTable(list, '해당하는 항목이 없습니다. (지원대학·활동·서류 중 마감일이 있는 것만 표시됩니다)') + '</div>';
+    '<label class="muted"><input type="checkbox"' + (UI.dlHideDone ? ' checked' : '') + ' onchange="UI.dlHideDone=this.checked;render()"> 제출완료·결과 나온 건 숨기기</label></div>';
+  return h + '<div class="card tbl-wrap">' + deadlineTable(list, '해당하는 지원 건이 없습니다. (마감일을 넣은 지원대학만 표시됩니다)') + '</div>';
+}
+
+/* ============================== 자료 현황 ============================== */
+function viewMaterials() {
+  var q = UI.q.toLowerCase();
+  var list = S.students.filter(function (s) {
+    if (UI.matAll !== true && !isActive(s)) return false;
+    if (q && [s.name, s.school, s.tracks].join(' ').toLowerCase().indexOf(q) < 0) return false;
+    return true;
+  }).sort(function (a, b) { return checkCount(a) - checkCount(b) || a.name.localeCompare(b.name, 'ko'); });
+  var h = '<div class="toolbar"><h2 style="margin:0;margin-right:auto">자료 현황 <span class="muted">' + list.length + '명 · 덜 모인 학생부터</span></h2></div>';
+  h += '<div class="toolbar"><input type="text" id="q" class="grow" placeholder="이름, 학교, 트랙 검색" value="' + esc(UI.q) + '" oninput="UI.q=this.value;UI._focusQ=true;render()">' +
+    '<label class="muted"><input type="checkbox"' + (UI.matAll ? ' checked' : '') + ' onchange="UI.matAll=this.checked;render()"> 완료·종료 학생 포함</label></div>';
+  if (!list.length) return h + '<div class="card empty">해당하는 학생이 없습니다.</div>';
+  var counts = CHECK_ITEMS.map(function (c) { return list.filter(function (s) { return c.ok(s); }).length; });
+  return h + '<div class="card tbl-wrap"><table class="mat"><thead><tr><th>학생</th>' +
+    CHECK_ITEMS.map(function (c, i) { return '<th class="c">' + esc(c.l) + '<div class="muted">' + counts[i] + '/' + list.length + '</div></th>'; }).join('') +
+    '<th>합계</th></tr></thead><tbody>' +
+    list.map(function (s) {
+      return '<tr><td class="nw"><a href="#/student/' + esc(s.id) + '"><b>' + esc(s.name) + '</b></a> <span class="muted">' + esc(s.grade) + '</span></td>' +
+        checks(s).map(function (c) {
+          return '<td class="c"><span class="mk ' + (c.ok ? 'ok' : 'no') + '" title="' + esc(c.l) + '" onclick="openStudent(' + js(s.id) + ',' + js(c.tab) + ')">' + (c.ok ? '✓' : '—') + '</span></td>';
+        }).join('') + '<td class="nw">' + checkBar(s) + '</td></tr>';
+    }).join('') + '</tbody></table></div>' +
+    '<div class="muted">기본정보 = 학교·학년·커리큘럼 / 성적표 = 성적 탭에 “성적표” 파일 / 서류 = 등록한 서류가 모두 수합 완료(또는 해당 없음)</div>';
+}
+
+/* ============================== 합격 실적 ============================== */
+var RESULT_STATUS = ['제출완료', '대기', '합격', '불합격'];
+function viewResults() {
+  var years = {};
+  S.apps.forEach(function (a) { if (/^\d{4}/.test(a.deadline || '')) years[a.deadline.slice(0, 4)] = 1; });
+  var ys = Object.keys(years).sort().reverse();
+  var list = S.apps.filter(function (a) {
+    return RESULT_STATUS.indexOf(a.status) >= 0 && studentById(a.studentId) && (!UI.resYear || (a.deadline || '').slice(0, 4) === UI.resYear);
+  });
+  var h = '<div class="toolbar"><h2 style="margin:0;margin-right:auto">합격 실적</h2>' +
+    '<select onchange="UI.resYear=this.value;render()"><option value="">전체 기간</option>' + ys.map(function (y) { return '<option value="' + y + '"' + (UI.resYear === y ? ' selected' : '') + '>' + y + '년 마감</option>'; }).join('') + '</select></div>';
+  h += '<div class="muted" style="margin-bottom:10px">지원대학 진행 상태가 제출완료·대기·합격·불합격인 건을 모았습니다. 연도는 지원 마감일 기준입니다.' + (isMgr() ? '' : ' (담당 학생만)') + '</div>';
+  if (!list.length) return h + '<div class="card empty">아직 제출했거나 결과가 나온 지원 건이 없습니다.</div>';
+  var tot = function (arr, st) { return arr.filter(function (a) { return a.status === st; }).length; };
+  h += '<div class="grid g4" style="margin-bottom:14px">' + stat(list.length, '제출', '') + stat(tot(list, '합격'), '합격', '') +
+    stat(tot(list, '불합격'), '불합격', '') + stat(tot(list, '대기') + tot(list, '제출완료'), '결과 대기', '') + '</div>';
+  var byC = {};
+  list.forEach(function (a) { var c = a.country || '국가 미지정'; byC[c] = byC[c] || {}; (byC[c][a.university] = byC[c][a.university] || []).push(a); });
+  var cs = Object.keys(byC).sort(function (a, b) { return (COUNTRIES.indexOf(a) + 1 || 99) - (COUNTRIES.indexOf(b) + 1 || 99); });
+  h += '<div class="card tbl-wrap"><table><thead><tr><th>대학</th><th>제출</th><th>합격</th><th>불합격</th><th>결과 대기</th><th>합격 학생</th></tr></thead><tbody>' +
+    cs.map(function (c) {
+      var all = [].concat.apply([], Object.keys(byC[c]).map(function (u) { return byC[c][u]; }));
+      return '<tr class="grp"><td colspan="6">' + esc(c) + ' <span class="muted">제출 ' + all.length + ' · 합격 ' + tot(all, '합격') + '</span></td></tr>' +
+        Object.keys(byC[c]).sort().map(function (u) {
+          var arr = byC[c][u];
+          return '<tr><td><b>' + esc(u) + '</b></td><td>' + arr.length + '</td><td><b>' + tot(arr, '합격') + '</b></td><td>' + tot(arr, '불합격') + '</td><td>' + (tot(arr, '대기') + tot(arr, '제출완료')) + '</td>' +
+            '<td>' + arr.filter(function (a) { return a.status === '합격'; }).map(function (a) {
+              var s = studentById(a.studentId); return '<a href="#/student/' + esc(s.id) + '">' + esc(s.name) + '</a>' + (a.major ? ' <span class="muted">' + esc(a.major) + '</span>' : '');
+            }).join(', ') + '</td></tr>';
+        }).join('');
+    }).join('') + '</tbody></table></div>';
+  return h;
+}
+
+/* ============================== 매출 (관리자·관리팀) ============================== */
+function viewSales() {
+  if (!isMgr()) return '<div class="card empty">관리자·관리팀만 볼 수 있습니다.</div>';
+  var tot = {};
+  CURRENCIES.forEach(function (c) { tot[c] = { paid: 0, contract: 0, due: 0 }; });
+  S.contracts.forEach(function (c) {
+    if (!studentById(c.studentId)) return;
+    var p = contractPay(c); tot[p.cur] = tot[p.cur] || { paid: 0, contract: 0, due: 0 };
+    tot[p.cur].contract += p.total; tot[p.cur].due += p.due;
+  });
+  var pays = S.payments.filter(function (p) { return studentById(p.studentId); });
+  pays.forEach(function (p) { var c = p.currency || 'RMB'; tot[c] = tot[c] || { paid: 0, contract: 0, due: 0 }; tot[c].paid += amt(p.amount); });
+  var unpaid = unpaidContracts(), rn = renewals();
+  var h = '<div class="toolbar"><h2 style="margin:0;margin-right:auto">매출</h2><span class="muted">입금일 기준 · 통화별로 따로 합산</span></div>';
+  h += '<div class="grid g4" style="margin-bottom:14px">' + Object.keys(tot).filter(function (c) { return tot[c].paid || tot[c].contract; }).map(function (c) {
+    return '<div class="stat"><div class="l">' + c + ' 전체 매출(입금)</div><div class="n">' + Math.round(tot[c].paid).toLocaleString('ko-KR') + '</div>' +
+      '<div class="l">계약 ' + Math.round(tot[c].contract).toLocaleString('ko-KR') + ' · <span style="color:' + (tot[c].due ? 'var(--error)' : 'inherit') + '">미수금 ' + Math.round(tot[c].due).toLocaleString('ko-KR') + '</span></div></div>';
+  }).join('') + '</div>';
+  if (!S.contracts.length) h += '<div class="notice">아직 금액이 입력된 계약이 없습니다. 학생 → 계약 탭에서 계약 금액과 입금 기록을 넣으면 여기에 모입니다.</div>';
+  h += '<div class="card">' + secHead('미수금 리마인드 <span class="muted">' + unpaid.length + '건</span>', '') +
+    (unpaid.length ? '<div class="tbl-wrap">' + unpaidTable(unpaid, false) + '</div><div class="muted" style="margin-top:6px">납부 기한이 지난 건이 맨 위에 빨간색으로 표시됩니다. 기한은 계약 수정에서 “잔금 납부 기한”으로 넣을 수 있습니다.</div>'
+      : '<div class="empty">미수금이 없습니다.</div>') + '</div>';
+  h += '<div class="card"><h3>연간 계약 갱신 예정 <span class="muted">(두 달 안에 끝나거나 지난달 끝난 계약 중 다음 연간 계약이 없는 학생)</span></h3>' +
+    (rn.length ? '<div class="tbl-wrap">' + renewalTable(rn) + '</div>' : '<div class="empty">갱신 예정인 연간 계약이 없습니다.</div>') + '</div>';
+  pays.sort(function (a, b) { return (b.date + b.createdAt).localeCompare(a.date + a.createdAt); });
+  h += '<div class="card"><h3>입금 내역 <span class="muted">' + pays.length + '건</span></h3>' + (pays.length ? '<div class="tbl-wrap"><table><thead><tr><th>입금일</th><th>학생</th><th>계약</th><th>금액</th><th>방법</th><th>메모</th><th>기록</th></tr></thead><tbody>' +
+    pays.map(function (p) {
+      var s = studentById(p.studentId);
+      return '<tr class="click" onclick="openForm(\'payments\',' + js(p.id) + ')"><td class="nw">' + esc(p.date) + '</td><td class="nw"><b>' + esc(s.name) + '</b></td>' +
+        '<td class="nw">' + esc(contractLabel(findRow('contracts', p.contractId))) + '</td><td class="nw"><b>' + money(amt(p.amount), p.currency) + '</b></td>' +
+        '<td class="nw">' + esc(p.method) + '</td><td class="muted">' + esc(p.memo) + '</td><td class="nw muted">' + esc(teacherName(p.createdBy)) + '</td></tr>';
+    }).join('') + '</tbody></table></div>' : '<div class="empty">입금 기록이 없습니다.</div>') + '</div>';
+  return h;
 }
 
 /* ============================== 휴지통 ============================== */
@@ -790,7 +1041,7 @@ function purgeItem(table, id, label) {
 }
 
 /* ============================== 변경 기록 (관리자) ============================== */
-var ACTION_LABEL = { create: '등록', update: '수정', 'delete': '삭제(휴지통)', restore: '복구', purge: '영구 삭제', upload: '파일 업로드',
+var ACTION_LABEL = { create: '등록', update: '수정', 'delete': '삭제(휴지통)', restore: '복구', purge: '영구 삭제', upload: '파일 업로드', 'import': '가져오기',
   login: '로그인', 'change-password': '비밀번호 변경', 'create-admin': '관리자 생성', 'reset-admin': '관리자 재설정' };
 function viewLog() {
   if (!isAdmin()) return '<div class="card empty">관리자만 볼 수 있습니다.</div>';
@@ -834,8 +1085,12 @@ function viewTeachers() {
     '<b>관리팀</b>: 모든 학생, 상담기록, 계약 금액, 삭제·복구 · ' +
     '<b>컨설턴트</b>: 담당 학생만 (상담기록·계약 금액은 볼 수 없음)<br>' +
     '계정을 추가할 때 <b>임시 비밀번호</b>를 정해서 직접 전달하세요. 처음 로그인하면 본인 비밀번호로 바꾸도록 안내됩니다. 퇴사자는 “비활성”으로 바꾸면 즉시 로그아웃됩니다.</div>';
-  h += '<div class="card"><h3>데이터 백업</h3><div class="muted" style="margin-bottom:10px">학생·기록 데이터 전체를 파일 하나(.db)로 내려받습니다. 정기적으로(예: 주 1회) 받아서 안전한 곳에 보관하세요. (업로드한 성적표 파일은 포함되지 않습니다)</div>' +
-    '<a class="btn ghost" href="/api/backup" download>백업 파일 다운로드</a></div>';
+  h += '<div class="grid g2"><div class="card"><h3>데이터 백업</h3><div class="muted" style="margin-bottom:10px">학생·기록·계약·입금 데이터와 <b>업로드한 파일 전체</b>를 ZIP 하나로 내려받습니다. 정기적으로(예: 주 1회) 받아서 안전한 곳에 보관하세요.</div>' +
+    '<a class="btn ghost" href="/api/backup" download>백업 파일(ZIP) 다운로드</a></div>' +
+    '<div class="card"><h3>기존 데이터 가져오기</h3><div class="muted" style="margin-bottom:10px">Compass 가져오기 파일(.json)을 선택하면 학생과 기록을 한 번에 등록합니다. 같은 이름의 학생이 이미 있으면 건너뜁니다.</div>' +
+    '<label class="btn ghost" style="cursor:pointer">가져오기 파일 선택<input type="file" hidden accept=".json,application/json" onchange="importFile(this)"></label>' +
+    (UI.importResult ? '<div style="margin-top:10px;font-size:.88rem"><b>등록 ' + UI.importResult.created.length + '명</b>: ' + esc(UI.importResult.created.join(', ') || '-') +
+      '<br><b>건너뜀 ' + UI.importResult.skipped.length + '명</b> (이미 있음): ' + esc(UI.importResult.skipped.join(', ') || '-') + '</div>' : '') + '</div></div>';
   h += '<div class="card tbl-wrap"><table><thead><tr><th>이름</th><th>이메일</th><th>역할</th><th>상태</th><th>담당 학생</th><th></th></tr></thead><tbody>' +
     S.teachers.map(function (t) {
       var cnt = S.students.filter(function (s) { return isActive(s) && String(s.counselor).toLowerCase() === t.email.toLowerCase(); }).length;
@@ -845,6 +1100,24 @@ function viewTeachers() {
     }).join('') + '</tbody></table></div>';
   return h;
 }
+function importFile(input) {
+  var f = input.files[0];
+  input.value = '';
+  if (!f) return;
+  var r = new FileReader();
+  r.onload = function () {
+    var data;
+    try { data = JSON.parse(r.result); } catch (e) { return toast('JSON 파일을 읽을 수 없습니다.', true); }
+    var n = (data.students || []).length;
+    if (!confirm('학생 ' + n + '명의 정보를 가져옵니다. 같은 이름의 학생은 건너뜁니다. 계속할까요?')) return;
+    api('importData', data).then(function (d) {
+      UI.importResult = d.importResult; load(d);
+      toast('가져오기 완료: ' + d.importResult.created.length + '명 등록, ' + d.importResult.skipped.length + '명 건너뜀');
+    }).catch(function (e) { toast(errMsg(e), true); });
+  };
+  r.readAsText(f, 'utf-8');
+}
+
 function openTeacherForm(email) {
   var t = email ? S.teachers.filter(function (x) { return x.email === email; })[0] : { role: 'consultant', active: true };
   var body = fld('이메일 (로그인 아이디)', inp('email', t.email, 'email', email ? ' readonly' : ' required'), false, true) + fld('이름', inp('name', t.name)) +
@@ -878,6 +1151,7 @@ function datalist(id, list) { return '<datalist id="' + id + '">' + list.map(fun
 function hidden(name, val) { return '<input type="hidden" name="' + name + '" value="' + esc(val) + '">'; }
 
 function field(f, rec) {
+  if ('h' in f) return '<div class="full fh">' + esc(f.h) + '</div>';
   var v = rec[f.k] == null ? '' : rec[f.k], h;
   var ph = f.ph ? ' placeholder="' + esc(f.ph) + '"' : '';
   if (f.t === 'textarea') h = '<textarea name="' + f.k + '"' + ph + (f.big ? ' style="min-height:180px"' : '') + '>' + esc(v) + '</textarea>';
@@ -894,12 +1168,13 @@ function field(f, rec) {
   return fld(f.l, h, f.full || f.t === 'multi', f.req);
 }
 
-function openForm(key, id, studentId) {
+function openForm(key, id, studentId, extra) {
   var F = FORMS[key], table = F.table || key;
-  var rec = id ? findRow(table, id) : Object.assign({ studentId: studentId }, F.defaults ? F.defaults() : {});
+  var rec = id ? findRow(table, id) : Object.assign({ studentId: studentId }, F.defaults ? F.defaults() : {}, extra || {});
   if (id && !rec) return toast('항목을 찾을 수 없습니다. 새로고침 해주세요.', true);
   if (MGR_ONLY_FORMS.indexOf(key) >= 0 && !isMgr()) return toast('관리자·관리팀만 수정할 수 있습니다.', true);
-  var body = (id ? hidden('id', rec.id) + hidden('updatedAt', rec.updatedAt) : '') + (table !== 'students' ? hidden('studentId', rec.studentId) : '');
+  var body = (id ? hidden('id', rec.id) + hidden('updatedAt', rec.updatedAt) : '') + (table !== 'students' ? hidden('studentId', rec.studentId) : '') +
+    (table === 'payments' ? hidden('contractId', rec.contractId) : '');
   body += F.fields.filter(function (f) { return !(f.mgr && !isMgr()) && !(f.editOnly && !(id && rec.nextAction)); })
     .map(function (f) { return field(f, rec); }).join('');
   if (id && table !== 'students') body += '<div class="full muted">마지막 수정: ' + esc(fmtTime(rec.updatedAt)) + ' · ' + esc(teacherName(rec.updatedBy)) + '</div>';
@@ -907,13 +1182,15 @@ function openForm(key, id, studentId) {
   var canDel = id && !F.noDelete && table !== 'students';
   var foot = (canDel ? '<button class="btn danger left" onclick="delItem(' + js(table) + ',' + js(id) + ')">삭제</button>' : '') +
     '<button class="btn ghost" onclick="closeModal()">취소</button><button class="btn" onclick="submitForm(' + js(key) + ')">저장</button>';
-  modal((id ? F.title + ' 수정' : F.title + ' 추가') + (st ? ' — ' + st.name : ''), body, foot);
+  var sub = table === 'payments' ? ' — ' + contractLabel(findRow('contracts', rec.contractId)) : '';
+  modal((id ? F.title + ' 수정' : F.title + ' 추가') + (st ? ' — ' + st.name : '') + sub, body, foot);
 }
-var MGR_ONLY_FORMS = ['notes', 'contracts'];
+var MGR_ONLY_FORMS = ['notes', 'contracts', 'payments'];
 function submitForm(key) {
   var F = FORMS[key], table = F.table || key;
   var o = formData($('mf'));
   var miss = F.fields.filter(function (f) { return f.req && !(f.mgr && !isMgr()) && !String(o[f.k] || '').trim(); })[0];
+  if (table === 'payments' && !(amt(o.amount) > 0)) return toast('입금액을 숫자로 입력하세요.', true);
   if (miss) return toast(miss.l + ' 항목을 입력하세요.', true);
   if (table === 'notes' && !o.content && !o.nextAction) return toast('미팅 내용 또는 다음 할 일을 입력하세요.', true);
   mutate('save', { table: table, obj: o }, '저장했습니다.').then(function (d) {

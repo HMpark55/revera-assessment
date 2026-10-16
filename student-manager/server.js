@@ -10,6 +10,18 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { openStore, UserError, MAX_UPLOAD } = require('./lib/store');
+const { writeZip } = require('./lib/zip');
+
+const RESTORE_HELP = [
+  'REVERA Compass 백업 복구 방법',
+  '',
+  '1. 서버를 멈춥니다.',
+  '2. compass.db 를 DB_PATH 위치(Railway: /data/revera.db)에 같은 이름으로 덮어씁니다.',
+  '3. files 폴더 안의 파일들을 DB_PATH 와 같은 폴더의 files 폴더(Railway: /data/files)에 넣습니다.',
+  '4. 서버를 다시 시작합니다.',
+  '',
+  '파일목록.csv 에서 저장 이름과 학생/원래 파일 이름을 확인할 수 있습니다.',
+].join('\r\n');
 
 const COOKIE = 'revera_sid';
 
@@ -28,7 +40,7 @@ function createApp(store, opts) {
     });
     next();
   });
-  app.use(express.json({ limit: '1mb' }));
+  app.use(express.json({ limit: '5mb' }));
 
   // 클라우드 상태 확인용 (DB 연결까지 확인)
   app.get('/healthz', (req, res) => {
@@ -119,7 +131,7 @@ function createApp(store, opts) {
       try {
         let name = '';
         try { name = decodeURIComponent(req.get('X-File-Name') || ''); } catch (e) { name = ''; }
-        res.json(store.addFile(req.me, { studentId: req.query.studentId, category: req.query.category, name,
+        res.json(store.addFile(req.me, { studentId: req.query.studentId, category: req.query.category, docId: req.query.docId, name,
           buffer: Buffer.isBuffer(req.body) ? req.body : null }));
       } catch (e) {
         sendError(res, e);
@@ -148,15 +160,28 @@ function createApp(store, opts) {
     next(err);
   });
 
-  // 관리자: DB 백업 파일 다운로드
+  // 관리자: 백업 다운로드 (ZIP = DB 파일 + 업로드한 파일 전체 + 파일 목록)
   app.get('/api/backup', requireLogin, async (req, res) => {
     if (req.me.role !== 'admin') return res.status(403).json({ error: '관리자만 백업할 수 있습니다.' });
-    const tmp = path.join(os.tmpdir(), 'compass-backup-' + Date.now() + '.db');
+    const stamp = new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 16).replace(/[-:T]/g, '');
+    const tmpDb = path.join(os.tmpdir(), 'compass-backup-' + Date.now() + '.db');
+    const tmpZip = tmpDb.replace(/\.db$/, '.zip');
+    const cleanup = () => { fs.unlink(tmpDb, () => {}); fs.unlink(tmpZip, () => {}); };
     try {
-      await store.backup(tmp);
-      const stamp = new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 16).replace(/[-:T]/g, '');
-      res.download(tmp, 'compass-backup-' + stamp + '.db', () => fs.unlink(tmp, () => {}));
+      await store.backup(tmpDb);
+      const files = store.listFiles().filter((f) => fs.existsSync(path.join(store.filesDir, f.storedName)));
+      const csvCell = (v) => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+      const csv = '\ufeff' + [['저장 이름', '학생', '파일 이름', '분류', '올린 날짜', '휴지통']]
+        .concat(files.map((f) => [f.storedName, f.studentName, f.name, f.category, f.createdAt.slice(0, 10), f.deletedAt ? 'Y' : '']))
+        .map((r) => r.map(csvCell).join(',')).join('\r\n');
+      writeZip(tmpZip, [
+        { name: 'compass.db', path: tmpDb },
+        { name: '파일목록.csv', data: Buffer.from(csv, 'utf8') },
+        { name: '복구방법.txt', data: Buffer.from(RESTORE_HELP, 'utf8') },
+      ].concat(files.map((f) => ({ name: 'files/' + f.storedName, path: path.join(store.filesDir, f.storedName) }))));
+      res.download(tmpZip, 'compass-backup-' + stamp + '.zip', cleanup);
     } catch (e) {
+      cleanup();
       console.error(e);
       res.status(500).json({ error: '백업에 실패했습니다.' });
     }

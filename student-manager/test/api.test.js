@@ -275,3 +275,147 @@ test('이전 버전 DB를 데이터 손실 없이 새 구조로 업그레이드'
   // 두 번 열어도 문제 없음
   openStore(oldPath).close();
 });
+
+test('매출: 계약 금액·분할 입금·통화, 컨설턴트에게는 숨김', async () => {
+  const admin = client();
+  await admin.login('admin@revera.test', 'admin-pass-1');
+  const staff = client();
+  await staff.login('staff@revera.test', 'mine-pass-1');
+  const lee = client();
+  await lee.login('lee@revera.test', 'mine-pass-1');
+  const sid = (await lee.ok('getAll')).students[0].id;
+
+  let d = await staff.saveOk('contracts', { studentId: sid, kind: '연간', term: '1년', currency: 'KRW', amount: '6,000,000', payDue: '2026-11-01' });
+  const cid = d.savedId;
+  assert.strictEqual(d.contracts.find((c) => c.id === cid).currency, 'KRW');
+  assert.strictEqual((await staff.save('contracts', { studentId: sid, kind: '연간', currency: 'USD' })).status, 400);
+  // 분할 입금: 통화는 계약 통화를 따라감, 금액은 숫자로 정리
+  d = await staff.saveOk('payments', { studentId: sid, contractId: cid, date: '2026-10-01', amount: '2,000,000', method: '계좌이체' });
+  const p1 = d.payments.find((p) => p.id === d.savedId);
+  assert.strictEqual(p1.currency, 'KRW');
+  assert.strictEqual(p1.amount, '2000000');
+  await staff.saveOk('payments', { studentId: sid, contractId: cid, date: '2026-10-10', amount: '1000000' });
+  assert.strictEqual((await staff.save('payments', { studentId: sid, contractId: cid, date: '2026-10-11', amount: '0' })).status, 400);
+  assert.strictEqual((await staff.save('payments', { studentId: sid, contractId: cid, amount: '10' })).status, 400);
+  assert.strictEqual((await staff.save('payments', { studentId: sid, contractId: 'nope', date: '2026-10-11', amount: '10' })).status, 400);
+
+  // 컨설턴트: 입금·금액·통화·납부기한 모두 안 내려감, 입금 기록 불가
+  d = await lee.ok('getAll');
+  assert.strictEqual(d.payments.length, 0);
+  const c = d.contracts.find((x) => x.id === cid);
+  for (const k of ['amount', 'currency', 'payDue', 'paid']) assert.ok(!(k in c), k);
+  assert.ok(!JSON.stringify(d).includes('6,000,000') && !JSON.stringify(d).includes('2000000'));
+  assert.strictEqual((await lee.save('payments', { studentId: sid, contractId: cid, date: '2026-10-11', amount: '10' })).status, 403);
+
+  // 계약을 영구 삭제하면 입금 기록도 함께 정리
+  await staff.ok('remove', { table: 'contracts', id: cid });
+  await admin.ok('purge', { table: 'contracts', id: cid });
+  assert.strictEqual(store.db.prepare('SELECT COUNT(*) n FROM payments WHERE contractId = ?').get(cid).n, 0);
+});
+
+test('서류에 파일을 올리면 자동 수합 완료 + 받은 날짜/사람 기록', async () => {
+  const lee = client();
+  await lee.login('lee@revera.test', 'mine-pass-1');
+  const sid = (await lee.ok('getAll')).students[0].id;
+  let d = await lee.saveOk('docs', { studentId: sid, name: '출입국사실증명서(학생)', status: '요청함' });
+  const docId = d.savedId;
+  const r = await lee.req('POST', '/api/files/upload?studentId=' + sid + '&docId=' + docId, undefined,
+    { 'Content-Type': 'application/pdf', 'X-File-Name': encodeURIComponent('출입국.pdf') }, Buffer.from('%PDF-1.4'));
+  assert.strictEqual(r.status, 200, JSON.stringify(r.data));
+  const doc = r.data.docs.find((x) => x.id === docId);
+  assert.strictEqual(doc.status, '수합 완료');
+  assert.strictEqual(doc.receivedBy, 'lee@revera.test');
+  assert.ok(doc.receivedAt);
+  const f = r.data.files.find((x) => x.docId === docId);
+  assert.ok(f && f.category === '서류' && f.name === '출입국.pdf');
+  // 다른 학생의 서류 id로는 올릴 수 없음
+  const other = await client();
+  await other.login('admin@revera.test', 'admin-pass-1');
+  d = await other.saveOk('students', { name: '서류다른학생' });
+  assert.strictEqual((await other.req('POST', '/api/files/upload?studentId=' + d.savedId + '&docId=' + docId, undefined,
+    { 'Content-Type': 'application/pdf', 'X-File-Name': 'a.pdf' }, Buffer.from('%PDF'))).status, 404);
+});
+
+test('기존 데이터 가져오기 (관리자 전용, 같은 이름은 건너뜀)', async () => {
+  const admin = client();
+  await admin.login('admin@revera.test', 'admin-pass-1');
+  const staff = client();
+  await staff.login('staff@revera.test', 'mine-pass-1');
+  const data = { format: 'compass-import-v1', students: [
+    { name: '가져온학생', school: 'CISS', grade: 'G12', tracks: ['3년특례', '홍콩'], counselorName: 'lee', resumeUrl: 'https://docs.google.com/document/d/x',
+      contracts: [{ kind: '원서', tier: 'Standard', packages: ['홍콩 패키지'], startMonth: '2026-09' }],
+      apps: [{ country: '홍콩', university: 'HKU', deadline: '2026-11-26', status: '준비중' }],
+      scores: [{ kind: 'SAT', score: '1400', detail: 'RW 700 · Math 700' }],
+      notes: [{ date: '2026-09-19', type: '기타', content: '기존 트래커 요약' }] },
+    { name: '김학생' }, // 이미 있음
+  ] };
+  assert.strictEqual((await staff.rpc('importData', data)).status, 403);
+  assert.strictEqual((await admin.rpc('importData', { students: [] })).status, 400);
+  const d = await admin.ok('importData', data);
+  assert.deepStrictEqual(d.importResult, { created: ['가져온학생'], skipped: ['김학생'] });
+  const s = d.students.find((x) => x.name === '가져온학생');
+  assert.strictEqual(s.counselor, 'lee@revera.test', '이름으로 담당자 연결');
+  assert.strictEqual(s.tracks, '3년특례, 홍콩');
+  assert.strictEqual(d.contracts.find((c) => c.studentId === s.id).currency, 'RMB');
+  assert.strictEqual(d.apps.find((a) => a.studentId === s.id).country, '홍콩');
+  assert.strictEqual(d.notes.filter((n) => n.studentId === s.id).length, 1);
+  // 다시 가져오면 모두 건너뜀
+  assert.deepStrictEqual((await admin.ok('importData', data)).importResult.created, []);
+  // 잘못된 링크가 있으면 전체 취소
+  const bad = { format: 'compass-import-v1', students: [{ name: '정상' }, { name: '나쁜링크', resumeUrl: 'javascript:x' }] };
+  assert.strictEqual((await admin.rpc('importData', bad)).status, 400);
+  assert.ok(!(await admin.ok('getAll')).students.some((x) => x.name === '정상'));
+});
+
+test('백업 ZIP에 DB와 업로드 파일이 모두 들어감', async () => {
+  const admin = client();
+  await admin.login('admin@revera.test', 'admin-pass-1');
+  const r = await admin.req('GET', '/api/backup');
+  assert.strictEqual(r.status, 200);
+  assert.match(r.headers.get('content-disposition'), /compass-backup-\d+\.zip/);
+  const zipPath = path.join(dir, 'b.zip');
+  fs.writeFileSync(zipPath, r.data);
+  const { execFileSync } = require('child_process');
+  const out = execFileSync('python3', ['-I', '-c', `
+import zipfile,sys,sqlite3,tempfile,os
+z=zipfile.ZipFile(sys.argv[1]); assert z.testzip() is None
+names=z.namelist(); print('\\n'.join(names))
+p=os.path.join(tempfile.mkdtemp(),'c.db'); open(p,'wb').write(z.read('compass.db'))
+print('STUDENTS', sqlite3.connect(p).execute('select count(*) from students').fetchone()[0])
+print('CSV', z.read('파일목록.csv').decode('utf-8-sig').splitlines()[0])
+`, zipPath]).toString();
+  assert.ok(out.includes('compass.db') && out.includes('복구방법.txt'));
+  const stored = store.db.prepare("SELECT storedName FROM files WHERE deletedAt = '' LIMIT 1").get().storedName;
+  assert.ok(out.includes('files/' + stored), out);
+  assert.match(out, /STUDENTS [1-9]/);
+  assert.match(out, /CSV "저장 이름","학생"/);
+  assert.strictEqual((await (async () => { const c = client(); await c.login('staff@revera.test', 'mine-pass-1'); return c.req('GET', '/api/backup'); })()).status, 403);
+});
+
+test('v2 DB(납부 완료 표시)를 v3로 업그레이드하면 입금 기록이 한 번만 생성됨', () => {
+  const p2 = path.join(dir, 'v2.db');
+  const { openStore: openV2 } = require('./fixtures/store-v2');
+  const v2 = openV2(p2, { filesDir: path.join(dir, 'v2files') });
+  v2.upsertAdmin('boss@revera.test', '원장', 'boss-pass-1');
+  const boss = { email: 'boss@revera.test', name: '원장', role: 'admin' };
+  let d = v2.rpc.save(boss, { table: 'students', obj: { name: '옛계약학생', parentName: '엄마', parentPhone: '010' } });
+  const sid = d.savedId;
+  v2.rpc.save(boss, { table: 'contracts', obj: { studentId: sid, kind: '원서', amount: '30,000', paid: '납부 완료', signedDate: '2026-09-01' } });
+  v2.rpc.save(boss, { table: 'contracts', obj: { studentId: sid, kind: '연간', amount: '10000', paid: '미납' } });
+  v2.close();
+
+  let v3 = openStore(p2, { filesDir: path.join(dir, 'v2files') });
+  d = v3.rpc.getAll(boss);
+  assert.strictEqual(d.payments.length, 1);
+  assert.strictEqual(d.payments[0].amount, '30000');
+  assert.strictEqual(d.payments[0].date, '2026-09-01');
+  assert.strictEqual(d.payments[0].currency, 'RMB');
+  assert.ok(d.contracts.every((c) => c.currency === 'RMB'));
+  assert.strictEqual(d.students[0].parentName, '엄마', '기존 학부모 정보 유지');
+  // 자동 생성된 입금을 지워도 다시 열 때 또 생기지 않음
+  v3.rpc.remove(boss, { table: 'payments', id: d.payments[0].id });
+  v3.close();
+  v3 = openStore(p2, { filesDir: path.join(dir, 'v2files') });
+  assert.strictEqual(v3.rpc.getAll(boss).payments.length, 0);
+  v3.close();
+});
