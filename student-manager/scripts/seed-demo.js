@@ -77,6 +77,14 @@ save('accounts', { studentId: a, category: '원서 포털', site: 'HKU 원서 �
 save('accounts', { studentId: a, category: '학교 LMS', site: 'Schoology', url: 'https://app.schoology.com', loginId: 'a.sample' });
 store.db.prepare("UPDATE students SET hopeUnis = ?, focusArea = ?, recommenders = ? WHERE id = ?")
   .run('1순위 홍콩 HKU 심리 / 3년특례: 성균관대', 'G12 AP Psychology·Biology 유지, 에세이 집중', '카운셀러·영어쌤 요청 완료', a);
+save('meetings', { studentId: a, date: d(-5), time: 'PM 1:00', type: '대면', place: '상담실', attendees: '원장님, 학생, 어머님, 김컨설턴트', writer: '김컨설턴트',
+  topic: 'HKU 심리학 단독 지원 확정', content: '1. HKU 심리학 단독 지원 확정\n2. 추천서 3인 확정\n3. Science Fair 주제: 치료견 프로그램 효과', nextStep: '다음 미팅에서 PS 2차본 검토', status: '완료' });
+save('meetings', { studentId: a, date: d(-30), time: 'AM 11:00', type: 'ZOOM', place: 'ZOOM', attendees: '원장님, 학생', writer: '최관리', topic: '첫 미팅 — Resume 시작',
+  content: '첫 미팅이라 Resume 작성을 시작하고 전공 방향 논의', status: '완료', needsReview: true, sourceUrl: 'https://docs.google.com/spreadsheets/d/sample' });
+save('meetings', { studentId: a, date: d(4), time: 'PM 3:00', type: '대면', place: '상담실', topic: 'PS 2차본 검토', status: '예정' });
+save('meetings', { studentId: b, date: d(9), time: 'PM 5:00', type: 'ZOOM', topic: 'HKUST 원서 최종 점검', status: '예정' });
+save('scores', { studentId: a, kind: 'SAT', score: '1350', detail: 'RW 660 · Math 690', date: d(-200), memo: '1차 응시' });
+save('scores', { studentId: c, kind: 'IB Predicted', subject: 'Biology HL', score: '6' });
 save('scores', { studentId: a, kind: 'SAT', score: '1400', detail: 'RW 700 · Math 700', date: d(-60), memo: '목표 1450' });
 save('scores', { studentId: a, kind: 'TOEFL', score: '118', detail: 'R30 L30 S29 W29', date: d(-90) });
 save('scores', { studentId: a, kind: 'AP', subject: 'Calculus AB', score: '4', date: d(-120) });

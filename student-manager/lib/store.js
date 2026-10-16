@@ -33,7 +33,7 @@ const TABLES = {
   },
   notes: {
     label: '상담기록',
-    fields: ['studentId', 'date', 'time', 'place', 'attendees', 'type', 'content', 'nextAction', 'nextDue', 'done'],
+    fields: ['studentId', 'date', 'time', 'place', 'attendees', 'type', 'content', 'nextAction', 'nextDue', 'done', 'sourceUrl', 'needsReview'],
     summary: (r) => [r.date, r.type].join(' '),
   },
   contracts: {
@@ -93,6 +93,11 @@ const TABLES = {
     fields: ['studentId', 'grade', 'schoolYear', 'subject', 'level', 'termType', 'g1', 'g2', 'g3', 'final', 'memo'],
     summary: (r) => [r.grade, r.subject].filter(Boolean).join(' '),
   },
+  meetings: {
+    label: '미팅',
+    fields: ['studentId', 'date', 'time', 'status', 'type', 'place', 'attendees', 'writer', 'topic', 'content', 'parentNote', 'nextStep', 'sourceUrl', 'needsReview'],
+    summary: (r) => [r.date, r.status, r.topic].filter(Boolean).join(' · '),
+  },
   accounts: {
     label: '사이트 계정',
     fields: ['studentId', 'category', 'site', 'url', 'universityId', 'loginId', 'password', 'memo'],
@@ -107,6 +112,7 @@ const TABLES = {
 const CURRENCIES = ['RMB', 'KRW'];
 const FOLLOWUP_STATUS = ['할 일', '진행 중', '대기', '완료'];
 const MAJOR_STATUS = ['후보', '유력', '최종', '제외'];
+const MEETING_STATUS = ['예정', '완료', '취소'];
 const COURSE_TERMS = ['1년(2학기)', '1학기만', '2학기만', 'Trimester'];
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 /** 관리 페이지에서 고르는 목록 (학교·커리큘럼) → 학생 정보의 해당 칸 */
@@ -160,6 +166,7 @@ const FIELD_LABELS = {
   hopeUnis: '희망 대학·특례', focusArea: '집중 과목·관리 영역', recommenders: '추천서 진행', onlineCourse: '온라인 코스 진행',
   meetingUrl: '미팅 회의록 링크', reply: '학생·학부모 답변', replyDate: '답변 날짜', replyFrom: '답변한 사람',
   site: '사이트', loginId: '아이디', password: '비밀번호',
+  parentNote: '부모님 전달·대화 내용', writer: '작성자', topic: '안건', nextStep: '다음 계획', needsReview: '확인 필요',
   field: '계열', source: '제안·계기', reason: '이유', parentConfirmed: '부모님 확정', parentConfirmedAt: '부모님 확정일',
   parentConfirmedBy: '부모님 확정 기록자', city: '도시', gradeFrom: '시작 학년', gradeTo: '마지막 학년', startDate: '시작일',
   endDate: '종료일', schoolYear: '학년도', level: '레벨', termType: '학기 구분', g1: '1학기/T1 성적', g2: '2학기/T2 성적',
@@ -168,7 +175,7 @@ const FIELD_LABELS = {
 /** 관리자/관리팀만 다룰 수 있는 테이블 */
 const MANAGER_ONLY = ['notes', 'contracts', 'payments'];
 /** 컨설턴트에게 숨기는 계약 필드 */
-const HIDDEN_FOR_CONSULTANT = { contracts: ['amount', 'paid', 'currency', 'payDue'] };
+const HIDDEN_FOR_CONSULTANT = { contracts: ['amount', 'paid', 'currency', 'payDue'], meetings: ['parentNote'] };
 
 const UPLOAD_TYPES = {
   pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp',
@@ -282,7 +289,7 @@ function migrate(db) {
   db.exec('CREATE INDEX IF NOT EXISTS unicycles_uni ON unicycles(universityId)');
   db.exec('CREATE INDEX IF NOT EXISTS unirounds_uni ON unirounds(universityId)');
   db.exec('CREATE INDEX IF NOT EXISTS unimajors_uni ON unimajors(universityId)');
-  ensureColumns(db, 'files', ['mime', 'size', 'storedName', 'docId']);
+  ensureColumns(db, 'files', ['mime', 'size', 'storedName', 'docId', 'meetingId']);
   ensureColumns(db, 'docs', ['receivedAt', 'receivedBy']);
   ensureColumns(db, 'contracts', ['paid']); // 이전 버전 열 (새 버전은 입금 기록으로 계산)
   db.exec('CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
@@ -528,6 +535,12 @@ function openStore(dbPath, opts) {
       if (v('status') && !FOLLOWUP_STATUS.includes(v('status'))) throw new UserError('상태가 올바르지 않습니다.');
       if (v('due') && !/^\d{4}-\d{2}-\d{2}$/.test(v('due'))) throw new UserError('기한 형식이 올바르지 않습니다.');
     }
+    if (table === 'meetings') {
+      need('date', '미팅 날짜를 입력하세요.');
+      if (!DATE_RE.test(v('date'))) throw new UserError('미팅 날짜 형식이 올바르지 않습니다. (YYYY-MM-DD)');
+      if (v('status') && !MEETING_STATUS.includes(v('status'))) throw new UserError('미팅 상태가 올바르지 않습니다.');
+    }
+    if (table === 'meetings' || table === 'notes') checkUrl(v('sourceUrl'), '원본 자료 링크');
     if (table === 'accounts') { need('site', '사이트 이름을 입력하세요.'); checkUrl(v('url'), '사이트 주소'); }
     if (table === 'followups' && v('replyDate') && !DATE_RE.test(v('replyDate'))) throw new UserError('답변 날짜 형식이 올바르지 않습니다.');
     if (table === 'students') checkUrl(v('meetingUrl'), '미팅 회의록 링크');
@@ -600,6 +613,8 @@ function openStore(dbPath, opts) {
       const rec = {};
       TABLES[table].fields.forEach((k) => { if (k in obj) rec[k] = clean(obj[k]); });
       if ('counselor' in rec) rec.counselor = lower(rec.counselor);
+      // 컨설턴트에게 숨겨진 칸은 새로 쓰거나 고칠 수도 없음
+      if (!isManager(me)) (HIDDEN_FOR_CONSULTANT[table] || []).forEach((k) => delete rec[k]);
       const t = now();
       if (obj.id) {
         const cur = getRow(table, obj.id);
@@ -666,6 +681,7 @@ function openStore(dbPath, opts) {
           if (rec.parentConfirmed === 'TRUE') { rec.parentConfirmedAt = t; rec.parentConfirmedBy = me.email; }
         }
         if (table === 'courses' && !rec.termType) rec.termType = COURSE_TERMS[0];
+        if (table === 'meetings' && !rec.status) rec.status = rec.date && rec.date < t.slice(0, 10) ? '완료' : '예정';
         if (table === 'followups') {
           if (!rec.status) rec.status = '할 일';
           if (rec.status === '완료') { rec.doneAt = t; rec.doneBy = me.email; }
@@ -868,6 +884,25 @@ function openStore(dbPath, opts) {
     return getAll(me);
   }
 
+  /** 선생님 계정 삭제 (관리자). 담당으로 지정된 학생·팔로업은 "미정"으로 바뀜 */
+  function deleteTeacher(me, arg) {
+    requireAdmin(me, '계정 삭제');
+    const email = lower(arg && arg.email);
+    const found = getTeacher(email);
+    if (!found) throw new UserError('계정을 찾을 수 없습니다.', 404);
+    if (email === me.email) throw new UserError('본인 계정은 삭제할 수 없습니다.');
+    let n = 0;
+    tx(() => {
+      n += db.prepare("UPDATE students SET counselor = '' WHERE lower(counselor) = ?").run(email).changes;
+      n += db.prepare("UPDATE students SET manager = '' WHERE lower(manager) = ?").run(email).changes;
+      db.prepare("UPDATE followups SET assignee = '' WHERE assignee = ?").run(email);
+      db.prepare('DELETE FROM sessions WHERE email = ?').run(email);
+      db.prepare('DELETE FROM teachers WHERE email = ?').run(email);
+      log(me.email, 'delete', 'teachers', email, found.name + ' · ' + email + (n ? ' — 담당 ' + n + '건을 미정으로 변경' : ''));
+    });
+    return getAll(me);
+  }
+
   /** 같은 종류 항목 여러 건을 한 번에 저장 (전부 성공하거나 전부 취소) */
   function saveMany(me, arg) {
     const table = arg && arg.table;
@@ -1055,10 +1090,25 @@ function openStore(dbPath, opts) {
 
   function addFile(me, info) {
     const s = requireStudent(me, info.studentId);
-    let doc = null;
+    const stored = [];
+    try {
+      tx(() => { storeFile(me, s, info, stored); });
+    } catch (e) {
+      stored.forEach((f) => fs.rm(f, { force: true }, () => {}));
+      throw e;
+    }
+    return getAll(me);
+  }
+  /** 파일 1개 저장 + 기록 (트랜잭션 안에서 호출, 저장한 경로는 stored 에 추가) */
+  function storeFile(me, s, info, stored) {
+    let doc = null, meeting = null;
     if (info.docId) {
       doc = getRow('docs', info.docId);
       if (!doc || doc.deletedAt || doc.studentId !== s.id) throw new UserError('서류 항목을 찾을 수 없습니다. 새로고침 해주세요.', 404);
+    }
+    if (info.meetingId) {
+      meeting = getRow('meetings', info.meetingId);
+      if (!meeting || meeting.deletedAt || meeting.studentId !== s.id) throw new UserError('미팅 기록을 찾을 수 없습니다. 새로고침 해주세요.', 404);
     }
     const name = String(info.name || '').replace(/[\\/\r\n]/g, '_').trim().slice(0, 200);
     const ext = (name.match(/\.([a-z0-9]+)$/i) || [])[1];
@@ -1069,26 +1119,20 @@ function openStore(dbPath, opts) {
     const id = newId();
     const storedName = id + '.' + ext.toLowerCase();
     fs.writeFileSync(path.join(filesDir, storedName), info.buffer);
+    stored.push(path.join(filesDir, storedName));
     const t = now();
-    const rec = { id, studentId: s.id, category: doc ? '서류' : (clean(info.category) || '성적표'), name, memo: '', mime: type,
-      size: String(info.buffer.length), storedName, docId: doc ? doc.id : '',
+    const rec = { id, studentId: s.id, category: doc ? '서류' : meeting ? '미팅' : (clean(info.category) || '성적표'), name, memo: clean(info.memo || ''), mime: type,
+      size: String(info.buffer.length), storedName, docId: doc ? doc.id : '', meetingId: meeting ? meeting.id : '',
       createdAt: t, createdBy: me.email, updatedAt: t, updatedBy: me.email };
-    try {
-      tx(() => {
-        const keys = Object.keys(rec);
-        db.prepare(`INSERT INTO files (${keys.join(', ')}) VALUES (${keys.map((k) => '@' + k).join(', ')})`).run(rec);
-        if (doc) {
-          // 서류 파일을 올리면 자동으로 수합 완료 + 받은 날짜/사람 기록
-          db.prepare("UPDATE docs SET status = '수합 완료', receivedAt = ?, receivedBy = ?, updatedAt = ?, updatedBy = ? WHERE id = ?")
-            .run(t, me.email, t, me.email, doc.id);
-        }
-        log(me.email, 'upload', 'files', id, s.name + ' · ' + (doc ? doc.name + ' · ' : '') + name);
-      });
-    } catch (e) {
-      fs.rm(path.join(filesDir, storedName), { force: true }, () => {});
-      throw e;
+    const keys = Object.keys(rec);
+    db.prepare(`INSERT INTO files (${keys.join(', ')}) VALUES (${keys.map((k) => '@' + k).join(', ')})`).run(rec);
+    if (doc) {
+      // 서류 파일을 올리면 자동으로 수합 완료 + 받은 날짜/사람 기록
+      db.prepare("UPDATE docs SET status = '수합 완료', receivedAt = ?, receivedBy = ?, updatedAt = ?, updatedBy = ? WHERE id = ?")
+        .run(t, me.email, t, me.email, doc.id);
     }
-    return getAll(me);
+    log(me.email, 'upload', 'files', id, s.name + ' · ' + (doc ? doc.name + ' · ' : meeting ? '미팅 ' + meeting.date + ' · ' : '') + name);
+    return rec;
   }
 
   /**
@@ -1101,39 +1145,66 @@ function openStore(dbPath, opts) {
     if (!data || data.format !== 'compass-import-v1' || !Array.isArray(data.students)) {
       throw new UserError('Compass 가져오기 파일 형식이 아닙니다.');
     }
-    const CHILD_KEYS = ['contracts', 'apps', 'scores', 'docs', 'links', 'notes', 'followups', 'majorplans', 'schools', 'courses', 'accounts'];
+    const CHILD_KEYS = ['contracts', 'apps', 'scores', 'docs', 'links', 'notes', 'followups', 'majorplans', 'schools', 'courses', 'accounts', 'meetings'];
+    const append = data.mode === 'append'; // 같은 이름의 학생이 있으면 기록만 덧붙임
+    const review = data.markReview !== false; // 가져온 상담기록·미팅은 "확인 필요"로 표시
     const teachersByName = {};
     db.prepare('SELECT email, name FROM teachers').all().forEach((t) => { teachersByName[t.name] = t.email; });
-    const result = { created: [], skipped: [] };
-    tx(() => {
+    const result = { created: [], skipped: [], appended: [], duplicates: 0 };
+    const storedPaths = [];
+    try { tx(() => {
       for (const src of data.students) {
         const name = String((src && src.name) || '').trim();
         if (!name) continue;
-        if (db.prepare("SELECT 1 FROM students WHERE name = ? AND deletedAt = ''").get(name)) { result.skipped.push(name); continue; }
         const t = now();
-        const st = {};
-        TABLES.students.fields.forEach((k) => { if (k in src) st[k] = clean(src[k]); });
-        if (!st.counselor && src.counselorName && teachersByName[src.counselorName]) st.counselor = teachersByName[src.counselorName];
-        st.counselor = lower(st.counselor);
-        validate('students', st, null);
-        Object.assign(st, { id: newId(), createdAt: t, createdBy: me.email, updatedAt: t, updatedBy: me.email });
-        insert('students', st);
+        const existing = db.prepare("SELECT * FROM students WHERE name = ? AND deletedAt = ''").get(name);
+        if (existing && !append) { result.skipped.push(name); continue; }
+        let st = existing;
+        if (!st) {
+          st = {};
+          TABLES.students.fields.forEach((k) => { if (k in src) st[k] = clean(src[k]); });
+          if (!st.counselor && src.counselorName && teachersByName[src.counselorName]) st.counselor = teachersByName[src.counselorName];
+          st.counselor = lower(st.counselor);
+          validate('students', st, null);
+          Object.assign(st, { id: newId(), createdAt: t, createdBy: me.email, updatedAt: t, updatedBy: me.email });
+          insert('students', st);
+        }
+        let added = 0;
         for (const key of CHILD_KEYS) {
           for (const item of (src[key] || [])) {
             const rec = { studentId: st.id };
             TABLES[key].fields.forEach((k) => { if (k !== 'studentId' && item && k in item) rec[k] = clean(item[k]); });
             if (key === 'contracts' && !rec.currency) rec.currency = 'RMB';
+            if ((key === 'meetings' || key === 'notes') && review) rec.needsReview = 'TRUE';
+            if (key === 'meetings' && !rec.status) rec.status = rec.date && rec.date < t.slice(0, 10) ? '완료' : '예정';
+            // 같은 원본(링크·날짜·시간)에서 이미 가져온 기록은 건너뜀 → 여러 번 가져와도 중복 없음
+            if ((key === 'meetings' || key === 'notes') && rec.sourceUrl &&
+                db.prepare(`SELECT 1 FROM ${key} WHERE studentId = ? AND sourceUrl = ? AND date = ? AND time = ? AND deletedAt = ''`)
+                  .get(st.id, rec.sourceUrl, rec.date || '', rec.time || '')) { result.duplicates++; continue; }
+            if (key === 'followups' && append && db.prepare("SELECT 1 FROM followups WHERE studentId = ? AND title = ? AND detail = ? AND deletedAt = ''")
+                  .get(st.id, rec.title || '', rec.detail || '')) { result.duplicates++; continue; }
             validate(key, rec, null);
+            added++;
             Object.assign(rec, { id: newId(), createdAt: t, createdBy: me.email, updatedAt: t, updatedBy: me.email });
             if (key === 'notes') rec.author = me.email;
             insert(key, rec);
+            if (key === 'meetings' && Array.isArray(item.files)) {
+              for (const f of item.files) {
+                const buffer = Buffer.from(String((f && f.data) || ''), 'base64');
+                storeFile(me, st, { name: f.name, memo: f.memo, buffer, meetingId: rec.id }, storedPaths);
+                result.files = (result.files || 0) + 1;
+              }
+            }
           }
         }
-        log(me.email, 'import', 'students', st.id, name);
-        result.created.push(name);
+        log(me.email, 'import', 'students', st.id, name + (existing ? ' — 기록 ' + added + '건 추가' : ''));
+        if (existing) result.appended.push(name + ' (' + added + '건)'); else result.created.push(name);
       }
       linkAppsByName(db);
-    });
+    }); } catch (e) {
+      storedPaths.forEach((f) => fs.rm(f, { force: true }, () => {}));
+      throw e;
+    }
     return Object.assign(getAll(me), { importResult: result });
   }
   function insert(table, rec) {
@@ -1194,7 +1265,7 @@ function openStore(dbPath, opts) {
   return {
     db, filesDir, listFiles, countTeachers, upsertAdmin, login, logout, authenticate, addFile, getFile,
     rpc: { getAll: (me) => getAll(me), save, remove, restore, purge, getTrash, getLog, saveTeacher, changePassword, importData, copyCycle, getActivity, saveMany, updateMe,
-      revealAccount, saveOption, removeOption },
+      revealAccount, saveOption, removeOption, deleteTeacher },
     backup, close: () => db.close(),
   };
 }
