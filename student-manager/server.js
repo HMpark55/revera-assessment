@@ -40,6 +40,8 @@ function createApp(store, opts) {
     });
     next();
   });
+  // 가져오기 파일(회의록 첨부 이미지 포함)은 크기가 커서 따로 허용
+  app.use('/api/rpc/importData', express.json({ limit: '60mb' }));
   app.use(express.json({ limit: '5mb' }));
 
   // 클라우드 상태 확인용 (DB 연결까지 확인)
@@ -131,7 +133,7 @@ function createApp(store, opts) {
       try {
         let name = '';
         try { name = decodeURIComponent(req.get('X-File-Name') || ''); } catch (e) { name = ''; }
-        res.json(store.addFile(req.me, { studentId: req.query.studentId, category: req.query.category, docId: req.query.docId, name,
+        res.json(store.addFile(req.me, { studentId: req.query.studentId, category: req.query.category, docId: req.query.docId, meetingId: req.query.meetingId, name,
           buffer: Buffer.isBuffer(req.body) ? req.body : null }));
       } catch (e) {
         sendError(res, e);

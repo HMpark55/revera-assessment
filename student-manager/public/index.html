@@ -233,6 +233,8 @@
   .mt .body { white-space:pre-wrap; font-size:.86rem; background:#fafbfd; border-radius:6px; padding:8px 10px; margin-top:4px; }
   .pill.rv { background:#fff0e0; color:#a24d00; }
   .pill.m-예정 { background:#e8f0ff; color:#1f4fbf; } .pill.m-완료 { background:#e6f6ef; color:#0f7a55; } .pill.m-취소 { background:#eee; color:#777; }
+  .mfiles { display:flex; flex-wrap:wrap; gap:8px; margin-top:6px; align-items:center; }
+  .mfiles img { max-height:120px; max-width:200px; border:1px solid var(--border); border-radius:6px; }
   .latest { font-size:.7rem; color:#0f7a55; margin-left:4px; }
   .notice { background:#fffaf0; border:1px solid #f1e2b0; border-radius:8px; padding:8px 12px; font-size:.85rem; color:#6b5512; margin-bottom:12px; }
 </style>
@@ -356,6 +358,7 @@ var FORMS = {
     { k: 'attendees', l: '참석자', full: 1, ph: '예: 원장님, 학생, 어머님, 박현모' },
     { k: 'topic', l: '안건 (한 줄 요약)', full: 1, ph: '예: Science Fair 주제 확정, 지원 대학 방향' },
     { k: 'content', l: '미팅 내용 (회의록)', t: 'textarea', full: 1, big: 1 },
+    { k: 'parentNote', l: '🔒 부모님 전달·대화 내용 (관리자·관리팀만 보임)', t: 'textarea', full: 1, mgr: 1 },
     { k: 'nextStep', l: '다음 계획 / 다음 미팅', t: 'textarea', full: 1 },
     { k: 'sourceUrl', l: '원본 회의록 링크', t: 'url', full: 1, ph: 'https://docs.google.com/...' },
     { k: 'needsReview', l: '확인', t: 'check', cl: '확인 필요 (가져온 자료 — 내용 확인 후 체크 해제)' }],
@@ -939,7 +942,7 @@ function viewStudent(id) {
       (s.progress ? '<div class="muted" style="font-size:.75rem">' + esc(fmtTime(s.updatedAt)) + ' · ' + esc(teacherName(s.updatedBy)) + ' 마지막 수정</div>' : '') + '</div>' +
     '<div class="chks"><span class="muted">자료 현황 ' + checkCount(s) + '/' + CHECK_ITEMS.length + '</span> ' + checkChips(s) + '</div></div>';
   h += '<div class="tabs">' + tabs.map(function (t) {
-    var n = t === 'followups' ? openFollowups(id).length : t === 'scores' ? childOf('courses', id).length + childOf('scores', id).length + childOf('files', id).filter(function (f) { return !f.docId; }).length :
+    var n = t === 'followups' ? openFollowups(id).length : t === 'scores' ? childOf('courses', id).length + childOf('scores', id).length + childOf('files', id).filter(function (f) { return !f.docId && !f.meetingId; }).length :
       t === 'manage' ? childOf('accounts', id).length : t === 'meetings' ? childOf('meetings', id).length :
       t === 'majors' ? childOf('majorplans', id).filter(function (m) { return m.status !== '제외'; }).length :
       ['notes', 'contracts', 'apps', 'docs', 'schools'].indexOf(t) >= 0 ? childOf(t, id).length : null;
@@ -1116,7 +1119,7 @@ function tabScores(s) {
         '<td class="nw muted" style="font-size:.78rem">' + esc(fmtTime(r.updatedAt).slice(2)) + '<br>' + esc(teacherName(r.updatedBy)) + (r.updatedAt !== r.createdAt ? ' 수정' : ' 등록') + '</td></tr>';
     }).join('') + '</tbody></table></div><div class="muted" style="margin-top:6px;font-size:.78rem">같은 시험을 여러 번 봤거나 Predicted가 바뀌면 덮어쓰지 말고 새 줄로 추가하세요. 응시일 순으로 쌓입니다.</div>' : '<div class="empty">입력된 시험 점수가 없습니다.</div>';
   h += '</div>';
-  var files = childOf('files', s.id).filter(function (f) { return !f.docId; }).sort(function (a, b) { return b.createdAt.localeCompare(a.createdAt); });
+  var files = childOf('files', s.id).filter(function (f) { return !f.docId && !f.meetingId; }).sort(function (a, b) { return b.createdAt.localeCompare(a.createdAt); });
   h += '<div class="card">' + secHead('성적표·자료 파일',
     '<span class="toolbar" style="margin:0"><select id="upcat">' + opts(FILE_CATS, '성적표') + '</select>' +
     '<label class="btn" style="cursor:pointer">파일 올리기<input type="file" multiple hidden accept=".pdf,.png,.jpg,.jpeg,.webp,.heic,.gif,.doc,.docx,.xls,.xlsx,.hwp" onchange="uploadFiles(this,' + js(s.id) + ')"></label></span>');
@@ -1144,6 +1147,7 @@ function meetingLine(s) {
 }
 function meetingItem(m, showStudent, open) {
   var s = studentById(m.studentId);
+  var mf = S.files.filter(function (f) { return f.meetingId === m.id; });
   var c = String(m.content || '');
   return '<div class="mt"><div class="h" onclick="openForm(\'meetings\',' + js(m.id) + ')">' +
     '<span class="when">' + esc(m.date) + (m.time ? ' ' + esc(m.time) : '') + '</span>' + (m.status === '예정' ? dday(m.date) : '') +
@@ -1154,8 +1158,16 @@ function meetingItem(m, showStudent, open) {
     '<div class="muted">' + esc([m.type, m.place, m.attendees ? '참석: ' + m.attendees : '', m.writer ? '작성: ' + m.writer : ''].filter(Boolean).join(' · ')) +
     (safeUrl(m.sourceUrl) ? ' · <a href="' + esc(m.sourceUrl) + '" target="_blank" rel="noopener">원본 ↗</a>' : '') +
     (m.needsReview === 'TRUE' ? ' <button class="btn ghost sm" onclick="reviewMeeting(' + js(m.id) + ')">✓ 확인 완료</button>' : '') + '</div>' +
-    (c || m.nextStep ? '<details' + (open ? ' open' : '') + '><summary>' + (c ? esc(c.replace(/\s+/g, ' ').slice(0, 90)) + (c.length > 90 ? '…' : '') : '다음 계획') + '</summary>' +
-      (c ? '<div class="body">' + esc(c) + '</div>' : '') + (m.nextStep ? '<div class="body"><b>다음 계획</b>\n' + esc(m.nextStep) + '</div>' : '') + '</details>' : '') + '</div>';
+    (c || m.nextStep || m.parentNote || mf.length ? '<details' + (open ? ' open' : '') + '><summary>' + (c ? esc(c.replace(/\s+/g, ' ').slice(0, 90)) + (c.length > 90 ? '…' : '') : '자세히') +
+      (mf.length ? ' · 📎 ' + mf.length : '') + '</summary>' +
+      (c ? '<div class="body">' + esc(c) + '</div>' : '') +
+      (m.parentNote ? '<div class="body" style="background:#fff7ef"><b>🔒 부모님 전달·대화 내용</b> <span class="muted">(관리자·관리팀만)</span>\n' + esc(m.parentNote) + '</div>' : '') +
+      (m.nextStep ? '<div class="body"><b>다음 계획</b>\n' + esc(m.nextStep) + '</div>' : '') +
+      (mf.length ? '<div class="mfiles">' + mf.map(function (f) {
+        return /^image\//.test(f.mime) ? '<a href="/api/files/' + esc(f.id) + '" target="_blank" rel="noopener" title="' + esc(f.name) + '"><img src="/api/files/' + esc(f.id) + '" alt="' + esc(f.name) + '"></a>' :
+          '<a class="btn ghost sm" href="/api/files/' + esc(f.id) + '" target="_blank" rel="noopener">📎 ' + esc(f.name) + '</a>';
+      }).join('') + '</div>' : '') + '</details>' : '') +
+    '<label class="btn ghost sm" style="cursor:pointer;margin-top:4px">📎 파일 첨부<input type="file" multiple hidden accept=".pdf,.png,.jpg,.jpeg,.webp,.heic,.gif,.doc,.docx,.xls,.xlsx,.hwp" onchange="uploadFiles(this,' + js(m.studentId) + ',null,' + js(m.id) + ')"></label></div>';
 }
 function reviewMeeting(id) {
   var m = findRow('meetings', id); if (!m) return;
@@ -1503,7 +1515,7 @@ function viewUniList() {
   return h;
 }
 
-function uploadFiles(input, studentId, docId) {
+function uploadFiles(input, studentId, docId, meetingId) {
   var files = Array.prototype.slice.call(input.files);
   var cat = ($('upcat') || {}).value || '성적표';
   input.value = '';
@@ -1512,7 +1524,7 @@ function uploadFiles(input, studentId, docId) {
     chain = chain.then(function () {
       if (f.size > 20 * 1024 * 1024) { toast(f.name + ': 20MB를 넘는 파일은 올릴 수 없습니다.', true); return; }
       busy(true);
-      return fetch('/api/files/upload?studentId=' + encodeURIComponent(studentId) + '&category=' + encodeURIComponent(cat) + (docId ? '&docId=' + encodeURIComponent(docId) : ''), {
+      return fetch('/api/files/upload?studentId=' + encodeURIComponent(studentId) + '&category=' + encodeURIComponent(cat) + (docId ? '&docId=' + encodeURIComponent(docId) : '') + (meetingId ? '&meetingId=' + encodeURIComponent(meetingId) : ''), {
         method: 'POST', credentials: 'same-origin', body: f,
         headers: { 'X-Requested-With': 'revera', 'X-File-Name': encodeURIComponent(f.name), 'Content-Type': f.type || 'application/octet-stream' }
       }).then(handle, function () { busy(false); throw new Error('서버에 연결할 수 없습니다.'); })
@@ -1782,7 +1794,7 @@ function searchAll(q) {
   var dc = S.docs.filter(function (d) { var s = studentById(d.studentId); return s && hit([d.name, d.memo, s.name]); })
     .map(function (d) { var s = studentById(d.studentId); return { title: s.name + ' — ' + d.name, sub: d.status, href: '#/student/' + s.id, tab: 'docs' }; });
   if (dc.length) groups.push({ label: '서류', items: dc });
-  var mts = S.meetings.filter(function (m) { var s = studentById(m.studentId); return s && hit([m.topic, m.content, m.attendees, m.date, s.name]); })
+  var mts = S.meetings.filter(function (m) { var s = studentById(m.studentId); return s && hit([m.topic, m.content, m.parentNote, m.attendees, m.date, s.name]); })
     .map(function (m) { var s = studentById(m.studentId); return { title: s.name + ' — 미팅 ' + m.date, sub: m.topic || String(m.content || '').slice(0, 60), href: '#/student/' + s.id, tab: 'meetings' }; });
   if (mts.length) groups.push({ label: '미팅', items: mts });
   if (isMgr()) {

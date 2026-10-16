@@ -95,7 +95,7 @@ const TABLES = {
   },
   meetings: {
     label: '미팅',
-    fields: ['studentId', 'date', 'time', 'status', 'type', 'place', 'attendees', 'writer', 'topic', 'content', 'nextStep', 'sourceUrl', 'needsReview'],
+    fields: ['studentId', 'date', 'time', 'status', 'type', 'place', 'attendees', 'writer', 'topic', 'content', 'parentNote', 'nextStep', 'sourceUrl', 'needsReview'],
     summary: (r) => [r.date, r.status, r.topic].filter(Boolean).join(' · '),
   },
   accounts: {
@@ -166,7 +166,7 @@ const FIELD_LABELS = {
   hopeUnis: '희망 대학·특례', focusArea: '집중 과목·관리 영역', recommenders: '추천서 진행', onlineCourse: '온라인 코스 진행',
   meetingUrl: '미팅 회의록 링크', reply: '학생·학부모 답변', replyDate: '답변 날짜', replyFrom: '답변한 사람',
   site: '사이트', loginId: '아이디', password: '비밀번호',
-  writer: '작성자', topic: '안건', nextStep: '다음 계획', needsReview: '확인 필요',
+  parentNote: '부모님 전달·대화 내용', writer: '작성자', topic: '안건', nextStep: '다음 계획', needsReview: '확인 필요',
   field: '계열', source: '제안·계기', reason: '이유', parentConfirmed: '부모님 확정', parentConfirmedAt: '부모님 확정일',
   parentConfirmedBy: '부모님 확정 기록자', city: '도시', gradeFrom: '시작 학년', gradeTo: '마지막 학년', startDate: '시작일',
   endDate: '종료일', schoolYear: '학년도', level: '레벨', termType: '학기 구분', g1: '1학기/T1 성적', g2: '2학기/T2 성적',
@@ -175,7 +175,7 @@ const FIELD_LABELS = {
 /** 관리자/관리팀만 다룰 수 있는 테이블 */
 const MANAGER_ONLY = ['notes', 'contracts', 'payments'];
 /** 컨설턴트에게 숨기는 계약 필드 */
-const HIDDEN_FOR_CONSULTANT = { contracts: ['amount', 'paid', 'currency', 'payDue'] };
+const HIDDEN_FOR_CONSULTANT = { contracts: ['amount', 'paid', 'currency', 'payDue'], meetings: ['parentNote'] };
 
 const UPLOAD_TYPES = {
   pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp',
@@ -289,7 +289,7 @@ function migrate(db) {
   db.exec('CREATE INDEX IF NOT EXISTS unicycles_uni ON unicycles(universityId)');
   db.exec('CREATE INDEX IF NOT EXISTS unirounds_uni ON unirounds(universityId)');
   db.exec('CREATE INDEX IF NOT EXISTS unimajors_uni ON unimajors(universityId)');
-  ensureColumns(db, 'files', ['mime', 'size', 'storedName', 'docId']);
+  ensureColumns(db, 'files', ['mime', 'size', 'storedName', 'docId', 'meetingId']);
   ensureColumns(db, 'docs', ['receivedAt', 'receivedBy']);
   ensureColumns(db, 'contracts', ['paid']); // 이전 버전 열 (새 버전은 입금 기록으로 계산)
   db.exec('CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
@@ -613,6 +613,8 @@ function openStore(dbPath, opts) {
       const rec = {};
       TABLES[table].fields.forEach((k) => { if (k in obj) rec[k] = clean(obj[k]); });
       if ('counselor' in rec) rec.counselor = lower(rec.counselor);
+      // 컨설턴트에게 숨겨진 칸은 새로 쓰거나 고칠 수도 없음
+      if (!isManager(me)) (HIDDEN_FOR_CONSULTANT[table] || []).forEach((k) => delete rec[k]);
       const t = now();
       if (obj.id) {
         const cur = getRow(table, obj.id);
@@ -1088,10 +1090,25 @@ function openStore(dbPath, opts) {
 
   function addFile(me, info) {
     const s = requireStudent(me, info.studentId);
-    let doc = null;
+    const stored = [];
+    try {
+      tx(() => { storeFile(me, s, info, stored); });
+    } catch (e) {
+      stored.forEach((f) => fs.rm(f, { force: true }, () => {}));
+      throw e;
+    }
+    return getAll(me);
+  }
+  /** 파일 1개 저장 + 기록 (트랜잭션 안에서 호출, 저장한 경로는 stored 에 추가) */
+  function storeFile(me, s, info, stored) {
+    let doc = null, meeting = null;
     if (info.docId) {
       doc = getRow('docs', info.docId);
       if (!doc || doc.deletedAt || doc.studentId !== s.id) throw new UserError('서류 항목을 찾을 수 없습니다. 새로고침 해주세요.', 404);
+    }
+    if (info.meetingId) {
+      meeting = getRow('meetings', info.meetingId);
+      if (!meeting || meeting.deletedAt || meeting.studentId !== s.id) throw new UserError('미팅 기록을 찾을 수 없습니다. 새로고침 해주세요.', 404);
     }
     const name = String(info.name || '').replace(/[\\/\r\n]/g, '_').trim().slice(0, 200);
     const ext = (name.match(/\.([a-z0-9]+)$/i) || [])[1];
@@ -1102,26 +1119,20 @@ function openStore(dbPath, opts) {
     const id = newId();
     const storedName = id + '.' + ext.toLowerCase();
     fs.writeFileSync(path.join(filesDir, storedName), info.buffer);
+    stored.push(path.join(filesDir, storedName));
     const t = now();
-    const rec = { id, studentId: s.id, category: doc ? '서류' : (clean(info.category) || '성적표'), name, memo: '', mime: type,
-      size: String(info.buffer.length), storedName, docId: doc ? doc.id : '',
+    const rec = { id, studentId: s.id, category: doc ? '서류' : meeting ? '미팅' : (clean(info.category) || '성적표'), name, memo: clean(info.memo || ''), mime: type,
+      size: String(info.buffer.length), storedName, docId: doc ? doc.id : '', meetingId: meeting ? meeting.id : '',
       createdAt: t, createdBy: me.email, updatedAt: t, updatedBy: me.email };
-    try {
-      tx(() => {
-        const keys = Object.keys(rec);
-        db.prepare(`INSERT INTO files (${keys.join(', ')}) VALUES (${keys.map((k) => '@' + k).join(', ')})`).run(rec);
-        if (doc) {
-          // 서류 파일을 올리면 자동으로 수합 완료 + 받은 날짜/사람 기록
-          db.prepare("UPDATE docs SET status = '수합 완료', receivedAt = ?, receivedBy = ?, updatedAt = ?, updatedBy = ? WHERE id = ?")
-            .run(t, me.email, t, me.email, doc.id);
-        }
-        log(me.email, 'upload', 'files', id, s.name + ' · ' + (doc ? doc.name + ' · ' : '') + name);
-      });
-    } catch (e) {
-      fs.rm(path.join(filesDir, storedName), { force: true }, () => {});
-      throw e;
+    const keys = Object.keys(rec);
+    db.prepare(`INSERT INTO files (${keys.join(', ')}) VALUES (${keys.map((k) => '@' + k).join(', ')})`).run(rec);
+    if (doc) {
+      // 서류 파일을 올리면 자동으로 수합 완료 + 받은 날짜/사람 기록
+      db.prepare("UPDATE docs SET status = '수합 완료', receivedAt = ?, receivedBy = ?, updatedAt = ?, updatedBy = ? WHERE id = ?")
+        .run(t, me.email, t, me.email, doc.id);
     }
-    return getAll(me);
+    log(me.email, 'upload', 'files', id, s.name + ' · ' + (doc ? doc.name + ' · ' : meeting ? '미팅 ' + meeting.date + ' · ' : '') + name);
+    return rec;
   }
 
   /**
@@ -1140,7 +1151,8 @@ function openStore(dbPath, opts) {
     const teachersByName = {};
     db.prepare('SELECT email, name FROM teachers').all().forEach((t) => { teachersByName[t.name] = t.email; });
     const result = { created: [], skipped: [], appended: [], duplicates: 0 };
-    tx(() => {
+    const storedPaths = [];
+    try { tx(() => {
       for (const src of data.students) {
         const name = String((src && src.name) || '').trim();
         if (!name) continue;
@@ -1169,18 +1181,30 @@ function openStore(dbPath, opts) {
             if ((key === 'meetings' || key === 'notes') && rec.sourceUrl &&
                 db.prepare(`SELECT 1 FROM ${key} WHERE studentId = ? AND sourceUrl = ? AND date = ? AND time = ? AND deletedAt = ''`)
                   .get(st.id, rec.sourceUrl, rec.date || '', rec.time || '')) { result.duplicates++; continue; }
+            if (key === 'followups' && append && db.prepare("SELECT 1 FROM followups WHERE studentId = ? AND title = ? AND detail = ? AND deletedAt = ''")
+                  .get(st.id, rec.title || '', rec.detail || '')) { result.duplicates++; continue; }
             validate(key, rec, null);
             added++;
             Object.assign(rec, { id: newId(), createdAt: t, createdBy: me.email, updatedAt: t, updatedBy: me.email });
             if (key === 'notes') rec.author = me.email;
             insert(key, rec);
+            if (key === 'meetings' && Array.isArray(item.files)) {
+              for (const f of item.files) {
+                const buffer = Buffer.from(String((f && f.data) || ''), 'base64');
+                storeFile(me, st, { name: f.name, memo: f.memo, buffer, meetingId: rec.id }, storedPaths);
+                result.files = (result.files || 0) + 1;
+              }
+            }
           }
         }
         log(me.email, 'import', 'students', st.id, name + (existing ? ' — 기록 ' + added + '건 추가' : ''));
         if (existing) result.appended.push(name + ' (' + added + '건)'); else result.created.push(name);
       }
       linkAppsByName(db);
-    });
+    }); } catch (e) {
+      storedPaths.forEach((f) => fs.rm(f, { force: true }, () => {}));
+      throw e;
+    }
     return Object.assign(getAll(me), { importResult: result });
   }
   function insert(table, rec) {

@@ -768,3 +768,56 @@ test('v5: 미팅, 기존 학생에 회의록 덧붙여 가져오기(확인 필�
   assert.strictEqual(d.students.find((s) => s.id === sid).counselor, '');
   assert.strictEqual((await con.rpc('getAll')).status, 401, '삭제된 계정은 바로 로그아웃');
 });
+
+test('v5-2: 미팅의 부모님 내용은 컨설턴트에게 숨김, 미팅 첨부파일, 가져오기 시 첨부 이미지·팔로업', async () => {
+  const admin = client();
+  await admin.login('admin@revera.test', 'admin-pass-1');
+  await admin.ok('saveTeacher', { email: 'con11@revera.test', name: '컨설11', role: 'consultant', password: '123456' });
+  const con = client(); await con.login('con11@revera.test', '123456');
+  let d = await admin.saveOk('students', { name: '첨부학생', counselor: 'con11@revera.test' });
+  const sid = d.savedId;
+  d = await admin.saveOk('meetings', { studentId: sid, date: '2026-10-01', content: '공개 내용', parentNote: '어머님 비공개 대화' });
+  const mid = d.savedId;
+  d = await con.ok('getAll');
+  let m = d.meetings.find((x) => x.id === mid);
+  assert.strictEqual(m.content, '공개 내용');
+  assert.ok(!('parentNote' in m));
+  assert.ok(!JSON.stringify(d).includes('어머님 비공개'));
+  // 컨설턴트는 부모님 칸을 덮어쓰거나 새로 쓸 수 없음
+  await con.saveOk('meetings', { id: mid, updatedAt: m.updatedAt, parentNote: '덮어쓰기', topic: '안건' });
+  d = await con.saveOk('meetings', { studentId: sid, date: '2026-10-02', parentNote: '몰래' });
+  const mine = d.savedId;
+  d = await admin.ok('getAll');
+  assert.strictEqual(d.meetings.find((x) => x.id === mid).parentNote, '어머님 비공개 대화');
+  assert.strictEqual(d.meetings.find((x) => x.id === mine).parentNote, '');
+
+  // 미팅 첨부파일: 담당 컨설턴트가 올림, 성적표 파일 목록과 구분
+  const png = Buffer.from('89504e470d0a1a0a0000000d49484452', 'hex');
+  let r = await con.req('POST', '/api/files/upload?studentId=' + sid + '&meetingId=' + mid, undefined,
+    { 'Content-Type': 'application/octet-stream', 'X-File-Name': encodeURIComponent('화이트보드.png') }, png);
+  assert.strictEqual(r.status, 200, JSON.stringify(r.data));
+  const f = r.data.files.find((x) => x.meetingId === mid);
+  assert.strictEqual(f.category, '미팅');
+  r = await con.req('POST', '/api/files/upload?studentId=' + sid + '&meetingId=nope', undefined,
+    { 'Content-Type': 'application/octet-stream', 'X-File-Name': 'a.png' }, png);
+  assert.strictEqual(r.status, 404);
+
+  // 가져오기: 미팅 + 첨부 이미지(base64) + 팔로업
+  d = await admin.ok('importData', { format: 'compass-import-v1', mode: 'append', students: [{ name: '첨부학생',
+    meetings: [{ date: '2026-09-01', content: '회의록', parentNote: '부모님 전달 사항', sourceUrl: 'https://docs.google.com/x',
+      files: [{ name: '회의록 이미지 1.png', data: png.toString('base64') }] }],
+    followups: [{ title: '[09-01 미팅] 확인중인 사항', detail: 'SAT 접수 확인' }] }] });
+  assert.strictEqual(d.importResult.files, 1);
+  const im = d.meetings.find((x) => x.studentId === sid && x.date === '2026-09-01');
+  assert.strictEqual(im.parentNote, '부모님 전달 사항');
+  assert.ok(d.files.some((x) => x.meetingId === im.id && x.name === '회의록 이미지 1.png'));
+  assert.ok(d.followups.some((x) => x.studentId === sid && x.title.includes('확인중인 사항')));
+  d = await admin.ok('importData', { format: 'compass-import-v1', mode: 'append', students: [{ name: '첨부학생',
+    followups: [{ title: '[09-01 미팅] 확인중인 사항', detail: 'SAT 접수 확인' }] }] });
+  assert.strictEqual(d.followups.filter((x) => x.studentId === sid && x.title.includes('확인중인 사항')).length, 1, '팔로업도 중복 없음');
+  // 잘못된 파일이 섞이면 전체 취소 (미팅도 안 들어감)
+  r = await admin.rpc('importData', { format: 'compass-import-v1', mode: 'append', students: [{ name: '첨부학생',
+    meetings: [{ date: '2026-08-01', content: 'x', files: [{ name: 'virus.exe', data: 'AAAA' }] }] }] });
+  assert.strictEqual(r.status, 400);
+  assert.ok(!(await admin.ok('getAll')).meetings.some((x) => x.date === '2026-08-01'));
+});
