@@ -821,3 +821,32 @@ test('v5-2: 미팅의 부모님 내용은 컨설턴트에게 숨김, 미팅 첨�
   assert.strictEqual(r.status, 400);
   assert.ok(!(await admin.ok('getAll')).meetings.some((x) => x.date === '2026-08-01'));
 });
+
+test('가져오기(덧붙이기): 빈 칸만 채움·메모 이어 붙임·학교 목록 추가·계정 대학 이름 연결·학력/계정 중복 방지', async () => {
+  const admin = client();
+  await admin.login('admin@revera.test', 'admin-pass-1');
+  let d = await admin.saveOk('students', { name: '채움학생', school: '기존학교', hopeUnis: '' });
+  const sid = d.savedId;
+  const file = { format: 'compass-import-v1', mode: 'append', students: [
+    { name: '채움학생', school: '새학교', curriculum: 'NewCurr', hopeUnis: 'HKU 1순위', appendMemo: '[학생별 관리 사항에서 가져옴] 비고',
+      accounts: [{ category: '원서 포털', site: 'HKU 원서 포털', university: 'HKU', loginId: 'kid', password: 'pw1' }],
+      schools: [{ school: 'SAS', country: '중국', gradeFrom: 'G2', gradeTo: 'G12', startDate: '2015-08-12', endDate: '2026-06-12' }] },
+    { name: '새로온학생', status: '완료', school: 'SLAS', grade: 'G12', appendMemo: '명단에서 가져옴' }] };
+  d = await admin.ok('importData', file);
+  const s = d.students.find((x) => x.id === sid);
+  assert.strictEqual(s.school, '기존학교', '이미 있는 값은 그대로');
+  assert.strictEqual(s.hopeUnis, 'HKU 1순위');
+  assert.strictEqual(s.curriculum, 'NewCurr');
+  assert.ok(s.memo.includes('비고'));
+  assert.ok(d.options.some((o) => o.kind === 'curriculum' && o.value === 'NewCurr'));
+  assert.ok(d.options.some((o) => o.kind === 'school' && o.value === 'SLAS'));
+  const acc = d.accounts.find((a) => a.studentId === sid);
+  assert.strictEqual(acc.universityId, d.universities.find((u) => u.name === 'HKU').id);
+  assert.strictEqual(d.students.find((x) => x.name === '새로온학생').memo, '명단에서 가져옴');
+  d = await admin.ok('importData', file);
+  assert.strictEqual(d.accounts.filter((a) => a.studentId === sid).length, 1);
+  assert.strictEqual(d.schools.filter((a) => a.studentId === sid).length, 1);
+  assert.strictEqual((d.students.find((x) => x.id === sid).memo.match(/비고/g) || []).length, 1, '메모 중복 없음');
+  const bad = { format: 'compass-import-v1', mode: 'append', students: [{ name: '채움학생', accounts: [{ site: 'x', university: '없는대학' }] }] };
+  assert.strictEqual((await admin.rpc('importData', bad)).status, 400);
+});
