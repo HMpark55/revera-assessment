@@ -116,7 +116,16 @@ const MEETING_STATUS = ['예정', '완료', '취소'];
 const COURSE_TERMS = ['1년(2학기)', '1학기만', '2학기만', 'Trimester'];
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 /** 관리 페이지에서 고르는 목록 (학교·커리큘럼) → 학생 정보의 해당 칸 */
-const OPTION_KINDS = { school: '학교', curriculum: '커리큘럼' };
+const OPTION_KINDS = { school: '학교', curriculum: '커리큘럼', site: '사이트' };
+/** 목록 이름을 바꾸면 함께 바뀌는 곳 */
+const OPTION_TARGET = { school: ['students', 'school'], curriculum: ['students', 'curriculum'], site: ['accounts', 'site'] };
+const ACCOUNT_CATS = ['원서 포털', '시험', '학교 LMS', '기타'];
+/** 자주 쓰는 사이트 초기값 (목록 관리 › 사이트에서 관리) */
+const DEFAULT_SITES = [
+  ['College Board (SAT·AP)', '시험', 'https://www.collegeboard.org'], ['TOEFL (ETS)', '시험', 'https://www.ets.org'],
+  ['IELTS', '시험', 'https://www.ielts.org'], ['Common App', '원서 포털', 'https://apply.commonapp.org'],
+  ['UCAS', '원서 포털', 'https://www.ucas.com'], ['Schoology', '학교 LMS', 'https://app.schoology.com'],
+  ['Microsoft Teams', '학교 LMS', 'https://teams.microsoft.com']];
 const DEFAULT_CURRICULA = ['IB', 'AP', 'A-Level', 'IGCSE', '국내 일반고', '국내 특목고', '기타'];
 const CHILD_TABLES = Object.keys(TABLES).filter((t) => t !== 'students');
 
@@ -313,7 +322,17 @@ function migrate(db) {
   db.prepare(`UPDATE notes SET createdBy = author WHERE createdBy = '' AND author != ''`).run();
   for (const t of ['apps']) db.prepare(`UPDATE ${t} SET createdBy = updatedBy WHERE createdBy = ''`).run();
   db.exec('CREATE TABLE IF NOT EXISTS options (id TEXT PRIMARY KEY)');
-  ensureColumns(db, 'options', ['kind', 'value', 'sortOrder', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy']);
+  ensureColumns(db, 'options', ['kind', 'value', 'sortOrder', 'url', 'category', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy']);
+  // v7: 자주 쓰는 사이트를 목록으로
+  if (!db.prepare("SELECT 1 FROM meta WHERE key = 'v7_sites'").get()) {
+    const ts = now();
+    DEFAULT_SITES.forEach(([v, c, u], i) => {
+      if (db.prepare("SELECT 1 FROM options WHERE kind = 'site' AND value = ?").get(v)) return;
+      db.prepare('INSERT INTO options (id, kind, value, sortOrder, url, category, createdAt, createdBy, updatedAt, updatedBy) VALUES (?,?,?,?,?,?,?,?,?,?)')
+        .run(crypto.randomUUID(), 'site', v, String(i + 1), u, c, ts, 'system', ts, 'system');
+    });
+    db.prepare("INSERT INTO meta VALUES ('v7_sites', ?)").run(ts);
+  }
   // v6: 학교·커리큘럼 목록 초기값 = 기본 커리큘럼 + 지금 학생들에게 입력된 값
   if (!db.prepare("SELECT 1 FROM meta WHERE key = 'v6_options'").get()) {
     const ts = now();
@@ -483,7 +502,6 @@ function openStore(dbPath, opts) {
   function publicRow(table, r, me) {
     const o = Object.assign({}, r);
     if (table === 'files') delete o.storedName;
-    if (table === 'accounts') { o.hasPassword = !!o.password; delete o.password; }
     if (!isManager(me)) (HIDDEN_FOR_CONSULTANT[table] || []).forEach((k) => delete o[k]);
     return o;
   }
@@ -503,7 +521,7 @@ function openStore(dbPath, opts) {
       out[t] = db.prepare(`SELECT * FROM ${t} WHERE deletedAt = ''`).all()
         .filter((r) => ids.has(r.studentId)).map((r) => publicRow(t, r, me));
     }
-    out.options = db.prepare('SELECT id, kind, value, sortOrder FROM options').all();
+    out.options = db.prepare('SELECT id, kind, value, sortOrder, url, category FROM options').all();
     // 대학 정보는 모두에게 공개
     const unis = db.prepare("SELECT * FROM universities WHERE deletedAt = ''").all();
     const uids = new Set(unis.map((u) => u.id));
@@ -646,7 +664,6 @@ function openStore(dbPath, opts) {
         if ('manager' in rec) rec.manager = lower(rec.manager);
         if ('assignee' in rec) rec.assignee = lower(rec.assignee);
         linkUni(table, rec);
-        if (table === 'accounts' && rec.password === '') delete rec.password; // 비워 두면 기존 비밀번호 유지
         validate(table, rec, cur);
         const keys = Object.keys(rec);
         db.prepare(`UPDATE ${table} SET ${keys.map((k) => k + ' = @' + k).concat(['updatedAt = @updatedAt', 'updatedBy = @updatedBy']).join(', ')} WHERE id = @id`)
@@ -838,16 +855,7 @@ function openStore(dbPath, opts) {
     if (table === 'majorplans') rec.university = u ? u.name : '';
   }
 
-  /** 계정 비밀번호 보기 (볼 때마다 기록) */
-  function revealAccount(me, arg) {
-    const a = getRow('accounts', arg && arg.id);
-    if (!a || a.deletedAt) throw new UserError('계정 정보를 찾을 수 없습니다.', 404);
-    requireStudent(me, a.studentId);
-    log(me.email, 'reveal', 'accounts', a.id, describe('accounts', a));
-    return { password: a.password };
-  }
-
-  /** 학교·커리큘럼 목록 관리 (관리자·관리팀). 이름을 바꾸면 그 값을 쓰던 학생 정보도 함께 바뀜 */
+  /** 학교·커리큘럼·사이트 목록 관리 (관리자·관리팀). 이름을 바꾸면 그 값을 쓰던 학생 정보·계정도 함께 바뀜 */
   function saveOption(me, arg) {
     requireManager(me, '목록 관리');
     const kind = arg && arg.kind;
@@ -856,20 +864,26 @@ function openStore(dbPath, opts) {
     if (!value) throw new UserError(OPTION_KINDS[kind] + ' 이름을 입력하세요.');
     const dup = db.prepare('SELECT id FROM options WHERE kind = ? AND value = ?').get(kind, value);
     if (dup && dup.id !== arg.id) throw new UserError('이미 있는 ' + OPTION_KINDS[kind] + '입니다.');
+    const url = kind === 'site' ? clean(arg.url).trim() : '';
+    const category = kind === 'site' ? clean(arg.category).trim() : '';
+    if (url) checkUrl(url, '사이트 주소');
+    if (category && !ACCOUNT_CATS.includes(category)) throw new UserError('분류가 올바르지 않습니다.');
     const t = now();
     let id = arg.id;
     tx(() => {
       if (id) {
         const cur = db.prepare('SELECT * FROM options WHERE id = ?').get(id);
-        if (!cur) throw new UserError('항목을 찾을 수 없습니다. 새로고침 해주세요.', 404);
-        db.prepare('UPDATE options SET value = ?, sortOrder = ?, updatedAt = ?, updatedBy = ? WHERE id = ?').run(value, clean(arg.sortOrder), t, me.email, id);
+        if (!cur || cur.kind !== kind) throw new UserError('항목을 찾을 수 없습니다. 새로고침 해주세요.', 404);
+        db.prepare('UPDATE options SET value = ?, sortOrder = ?, url = ?, category = ?, updatedAt = ?, updatedBy = ? WHERE id = ?')
+          .run(value, clean(arg.sortOrder !== undefined ? arg.sortOrder : cur.sortOrder), url, category, t, me.email, id);
         let n = 0;
-        if (cur.value !== value) n = db.prepare(`UPDATE students SET ${kind} = ? WHERE ${kind} = ?`).run(value, cur.value).changes;
-        log(me.email, 'update', 'options', id, OPTION_KINDS[kind] + ' ' + cur.value + (cur.value !== value ? ' → ' + value + (n ? ' (학생 ' + n + '명 함께 변경)' : '') : ''));
+        const [tbl, col] = OPTION_TARGET[kind];
+        if (cur.value !== value) n = db.prepare(`UPDATE ${tbl} SET ${col} = ? WHERE ${col} = ?`).run(value, cur.value).changes;
+        log(me.email, 'update', 'options', id, OPTION_KINDS[kind] + ' ' + cur.value + (cur.value !== value ? ' → ' + value + (n ? ' (' + n + '건 함께 변경)' : '') : ''));
       } else {
         id = newId();
-        db.prepare('INSERT INTO options (id, kind, value, sortOrder, createdAt, createdBy, updatedAt, updatedBy) VALUES (?,?,?,?,?,?,?,?)')
-          .run(id, kind, value, clean(arg.sortOrder), t, me.email, t, me.email);
+        db.prepare('INSERT INTO options (id, kind, value, sortOrder, url, category, createdAt, createdBy, updatedAt, updatedBy) VALUES (?,?,?,?,?,?,?,?,?,?)')
+          .run(id, kind, value, clean(arg.sortOrder), url, category, t, me.email, t, me.email);
         log(me.email, 'create', 'options', id, OPTION_KINDS[kind] + ' ' + value);
       }
     });
@@ -886,7 +900,7 @@ function openStore(dbPath, opts) {
 
   /** 학생 정보에 쓰인 학교·커리큘럼이 목록에 없으면 목록에 추가 */
   function addOptionsFor(rec, me, t) {
-    for (const kind of Object.keys(OPTION_KINDS)) {
+    for (const kind of ['school', 'curriculum']) {
       const v = String(rec[kind] || '').trim();
       if (v && !db.prepare('SELECT 1 FROM options WHERE kind = ? AND value = ?').get(kind, v)) {
         db.prepare('INSERT INTO options (id, kind, value, sortOrder, createdAt, createdBy, updatedAt, updatedBy) VALUES (?,?,?,?,?,?,?,?)')
@@ -1309,7 +1323,7 @@ function openStore(dbPath, opts) {
   return {
     db, filesDir, listFiles, countTeachers, upsertAdmin, login, logout, authenticate, addFile, getFile,
     rpc: { getAll: (me) => getAll(me), save, remove, restore, purge, getTrash, getLog, saveTeacher, changePassword, importData, copyCycle, getActivity, saveMany, updateMe,
-      revealAccount, saveOption, removeOption, deleteTeacher },
+      saveOption, removeOption, deleteTeacher },
     backup, close: () => db.close(),
   };
 }

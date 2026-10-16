@@ -666,7 +666,7 @@ test('v3: 전공 선정·부모님 확정, 학력, 학년별 수강 과목 일�
   assert.strictEqual((await con.rpc('updateMe', { name: ' ' })).status, 400);
 });
 
-test('v4: 학교·커리큘럼 목록, 팔로업 답변, 전공 후보 대학, 사이트 계정 비밀번호 보호', async () => {
+test('v4: 학교·커리큘럼 목록, 팔로업 답변, 전공 후보 대학, 사이트 계정', async () => {
   const admin = client();
   await admin.login('admin@revera.test', 'admin-pass-1');
   await admin.ok('saveTeacher', { email: 'staff8@revera.test', name: '관리8', role: 'staff', password: '123456' });
@@ -704,21 +704,16 @@ test('v4: 학교·커리큘럼 목록, 팔로업 답변, 전공 후보 대학, �
   assert.strictEqual(d.majorplans.find((m) => m.id === d.savedId).university, 'HKU');
   assert.strictEqual((await con.save('majorplans', { studentId: sid, universityId: 'nope', major: 'x' })).status, 400);
 
-  // 계정: 비밀번호는 목록에 안 내려가고, 보기 요청 시에만 + 기록
+  // 계정: 비밀번호는 그대로 보임 (열람 기록 없음), 비우면 비워짐
   d = await con.saveOk('accounts', { studentId: sid, category: '원서 포털', site: 'HKU 포털', universityId: hku.id, loginId: 'kid01', password: 'S3cret!pw' });
   let acc = d.accounts.find((a) => a.id === d.savedId);
-  assert.strictEqual(acc.hasPassword, true);
-  assert.ok(!('password' in acc));
-  assert.ok(!JSON.stringify(await admin.ok('getAll')).includes('S3cret!pw'));
-  assert.strictEqual((await con.ok('revealAccount', { id: acc.id })).password, 'S3cret!pw');
-  assert.ok((await staff.ok('getActivity', { studentId: sid })).rows.some((r) => r.action === 'reveal' && r.email === 'con8@revera.test'));
-  // 비밀번호를 비워서 저장하면 기존 값 유지
+  assert.strictEqual(acc.password, 'S3cret!pw');
   d = await con.saveOk('accounts', { id: acc.id, updatedAt: acc.updatedAt, password: '', memo: '등록 완료' });
-  assert.strictEqual((await con.ok('revealAccount', { id: acc.id })).password, 'S3cret!pw');
+  assert.strictEqual(d.accounts.find((a) => a.id === acc.id).password, '');
   // 담당이 아닌 컨설턴트는 볼 수 없음
   await admin.ok('saveTeacher', { email: 'con9@revera.test', name: '컨설9', role: 'consultant', password: '123456' });
   const other = client(); await other.login('con9@revera.test', '123456');
-  assert.strictEqual((await other.rpc('revealAccount', { id: acc.id })).status, 403);
+  assert.ok(!(await other.ok('getAll')).accounts.some((a) => a.id === acc.id));
   assert.strictEqual((await con.save('accounts', { studentId: sid, site: 'x', url: 'javascript:alert(1)' })).status, 400);
   // 관리 사항 칸
   d = await con.saveOk('students', { id: sid, updatedAt: d.students.find((s) => s.id === sid).updatedAt, hopeUnis: 'NUS 1순위', meetingUrl: 'https://docs.google.com/x' });
@@ -849,4 +844,19 @@ test('가져오기(덧붙이기): 빈 칸만 채움·메모 이어 붙임·학�
   assert.strictEqual((d.students.find((x) => x.id === sid).memo.match(/비고/g) || []).length, 1, '메모 중복 없음');
   const bad = { format: 'compass-import-v1', mode: 'append', students: [{ name: '채움학생', accounts: [{ site: 'x', university: '없는대학' }] }] };
   assert.strictEqual((await admin.rpc('importData', bad)).status, 400);
+});
+
+test('사이트 목록: 기본 사이트, 주소·분류 저장, 이름 바꾸면 계정의 사이트 이름도 변경', async () => {
+  const admin = client();
+  await admin.login('admin@revera.test', 'admin-pass-1');
+  let d = await admin.ok('getAll');
+  const cb = d.options.find((o) => o.kind === 'site' && o.value === 'College Board (SAT·AP)');
+  assert.strictEqual(cb.url, 'https://www.collegeboard.org');
+  assert.strictEqual((await admin.rpc('saveOption', { kind: 'site', value: 'X', url: 'javascript:alert(1)' })).status, 400);
+  assert.strictEqual((await admin.rpc('saveOption', { kind: 'site', value: 'X', category: '아무거나' })).status, 400);
+  d = await admin.saveOk('students', { name: '사이트학생' });
+  const sid = d.savedId;
+  await admin.saveOk('accounts', { studentId: sid, site: 'College Board (SAT·AP)', loginId: 'a' });
+  d = await admin.ok('saveOption', { id: cb.id, kind: 'site', value: 'College Board', url: 'https://www.collegeboard.org', category: '시험' });
+  assert.strictEqual(d.accounts.find((a) => a.studentId === sid).site, 'College Board');
 });

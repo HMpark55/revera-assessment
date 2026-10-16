@@ -227,7 +227,15 @@
   .subtabs a.on { background:var(--navy); color:#fff; border-color:var(--navy); }
   .hbtn { background:transparent; border:1px solid #5a6890; color:#fff; border-radius:16px; padding:5px 11px; cursor:pointer; font-size:.82rem; white-space:nowrap; }
   .mt { border-bottom:1px solid var(--soft); padding:9px 2px; }
-  .mt .h { display:flex; flex-wrap:wrap; gap:6px; align-items:center; cursor:pointer; }
+  .mt { padding:12px 2px 10px !important; border-bottom:1px solid var(--border) !important; }
+  .mt .h { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .mt .h .topic { font-weight:600; }
+  .mt-bar { display:flex; align-items:center; gap:10px; margin-top:8px; flex-wrap:wrap; }
+  .mt-tg { background:#eef3ff; color:var(--navy); border:1px solid #c9d6f2; border-radius:6px; padding:5px 14px; font-weight:bold; cursor:pointer; font-size:.84rem; }
+  .mt-tg:hover { background:#e2eaff; }
+  .mt-act { margin-left:auto; display:flex; gap:6px; flex-wrap:wrap; }
+  .mt-body { display:none; margin-top:8px; }
+  .mt.open .mt-body { display:block; }
   .mt .when { font-weight:bold; color:var(--navy); white-space:nowrap; }
   .mt details { margin-top:4px; } .mt details summary { cursor:pointer; color:var(--muted); font-size:.82rem; }
   .mt .body { white-space:pre-wrap; font-size:.86rem; background:#fafbfd; border-radius:6px; padding:8px 10px; margin-top:4px; }
@@ -294,19 +302,10 @@ var FOLLOWUP_CATS = ['서류', '에세이', '원서 접수', '시험', '학교 �
 var TERMS_INTAKE = ['9월', '8월', '3월', '1월'];
 var GRADE_ALL = ['K'].concat([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(function (n) { return 'G' + n; }), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13].map(function (n) { return 'Y' + n; }));
 var MAJOR_STATUS = ['후보', '유력', '최종', '제외'];
-var MEETING_STATUS = ['예정', '완료', '취소'];
 var MEETING_TYPES = ['대면', 'ZOOM', '전화', '위챗'];
 var REPLY_FROM = ['학생', '어머니', '아버지', '학부모', '답장 없음'];
 var ACCOUNT_CATS = ['원서 포털', '시험', '학교 LMS', '기타'];
 /** 자주 쓰는 사이트 (주소는 각 사이트의 대표 주소) */
-var SITE_PRESETS = [
-  { n: 'College Board (SAT·AP)', c: '시험', u: 'https://www.collegeboard.org' },
-  { n: 'TOEFL (ETS)', c: '시험', u: 'https://www.ets.org' },
-  { n: 'IELTS', c: '시험', u: 'https://www.ielts.org' },
-  { n: 'Common App', c: '원서 포털', u: 'https://apply.commonapp.org' },
-  { n: 'UCAS', c: '원서 포털', u: 'https://www.ucas.com' },
-  { n: 'Schoology', c: '학교 LMS', u: 'https://app.schoology.com' },
-  { n: 'Microsoft Teams', c: '학교 LMS', u: 'https://teams.microsoft.com' }];
 function optionList(kind) {
   return (S.options || []).filter(function (o) { return o.kind === kind; })
     .sort(function (a, b) { return (Number(a.sortOrder) || 999) - (Number(b.sortOrder) || 999) || a.value.localeCompare(b.value); })
@@ -339,7 +338,7 @@ var FORMS = {
     { k: 'motherName', l: '이름' }, { k: 'motherPhone', l: '연락처' }, { k: 'motherEmail', l: '이메일', t: 'email' },
     { h: '' }, { k: 'memo', l: '메모', t: 'textarea', full: 1 }],
     defaults: function () { return { status: '상담중', counselor: '', manager: isMgr() && S.me.role === 'staff' ? S.me.email : '' }; } },
-  manage: { table: 'students', title: '관리 사항', noDelete: 1, fields: [
+  manage: { table: 'students', title: '관리 메모', noDelete: 1, fields: [
     { k: 'hopeUnis', l: '희망 대학 / 특례 여부', t: 'textarea', full: 1, ph: '예: 1순위 싱가폴 NUS·SUTD (건축) / 12특: 서울대, 연대, 고대' },
     { k: 'focusArea', l: '집중 과목 / 집중 관리 영역', t: 'textarea', full: 1, ph: '예: G12 추천 AP — Calculus BC, Physics C' },
     { k: 'recommenders', l: '추천서 진행 사항', t: 'textarea', full: 1, ph: '예: 카운셀러·영어쌤·물리쌤 요청 완료' },
@@ -353,7 +352,7 @@ var FORMS = {
     defaults: function () { return { category: '원서 포털' }; } },
   meetings: { title: '미팅', fields: [
     { k: 'date', l: '날짜', t: 'date', req: 1 }, { k: 'time', l: '시간', ph: '예: PM 1:00' },
-    { k: 'status', l: '상태', t: 'select', o: MEETING_STATUS }, { k: 'type', l: '방식', t: 'list', o: MEETING_TYPES },
+    { k: 'type', l: '방식', t: 'list', o: MEETING_TYPES },
     { k: 'place', l: '장소', ph: '예: 상담실, ZOOM' }, { k: 'writer', l: '작성자' },
     { k: 'attendees', l: '참석자', full: 1, ph: '예: 원장님, 학생, 어머님, 박현모' },
     { k: 'topic', l: '안건 (한 줄 요약)', full: 1, ph: '예: Science Fair 주제 확정, 지원 대학 방향' },
@@ -362,7 +361,7 @@ var FORMS = {
     { k: 'nextStep', l: '다음 계획 / 다음 미팅', t: 'textarea', full: 1 },
     { k: 'sourceUrl', l: '원본 회의록 링크', t: 'url', full: 1, ph: 'https://docs.google.com/...' },
     { k: 'needsReview', l: '확인', t: 'check', cl: '확인 필요 (가져온 자료 — 내용 확인 후 체크 해제)' }],
-    defaults: function () { return { date: today(), status: '예정', writer: S.me.name }; } },
+    defaults: function () { return { date: today(), writer: S.me.name }; } },
   fureply: { table: 'followups', title: '학생·학부모 답변 기록', noDelete: 1, fields: [
     { k: 'replyFrom', l: '답변한 사람', t: 'select', o: [''].concat(REPLY_FROM) }, { k: 'replyDate', l: '답변 날짜', t: 'date' },
     { k: 'reply', l: '답변 내용 (위챗·문자 답장 등)', t: 'textarea', full: 1, big: 1 }],
@@ -794,16 +793,16 @@ function viewDashboard() {
     (fuList.length ? '<div class="scroll-box">' + fuList.map(function (f) { return fuRow(f, true); }).join('') + '</div>' : '<div class="empty">남은 팔로업이 없습니다.</div>') + '</div>';
   h += '</div><div class="grid g2">';
   h += '<div class="card"><h3>다가오는 지원 마감 (30일)</h3><div class="scroll-box sm">' + deadlineTable(dl.filter(function (i) { return dayDiff(i.date) <= 30; }), '30일 안에 마감되는 지원이 없습니다.') + '</div></div>';
-  var upM = upcomingMeetings().filter(function (m) { return dayDiff(m.date) <= 14; });
-  h += '<div class="card"><div class="sec-h"><h3>다가오는 미팅 (14일) <span class="muted">' + upM.length + '건</span></h3><a href="#/meetings">미팅 →</a></div><div class="scroll-box sm">' +
-    (upM.length ? upM.map(function (m) { return meetingItem(m, true, false); }).join('') : '<div class="empty">예정된 미팅이 없습니다.</div>') + '</div></div>';
-  h += '</div>';
   if (isMgr()) {
     var un = unpaidContracts(), rn = renewals();
     h += '<div class="card"><div class="sec-h"><h3>미수금 · 갱신 예정</h3><a href="#/sales">매출 →</a></div><div class="scroll-box sm">' +
       (un.length ? unpaidTable(un, true) : '<div class="empty">미수금이 없습니다.</div>') + (rn.length ? '<div style="margin-top:10px"></div>' + renewalTable(rn) : '') + '</div></div>';
+  } else {
+    var recent = S.meetings.filter(function (m) { return studentById(m.studentId); }).sort(meetingSort).slice(0, 8);
+    h += '<div class="card"><div class="sec-h"><h3>최근 미팅 회의록</h3><a href="#/meetings">미팅 →</a></div><div class="scroll-box sm">' +
+      (recent.length ? recent.map(function (m) { var st = studentById(m.studentId); return '<div class="todo"><div class="t"><a href="#/student/' + esc(st.id) + '" onclick="UI.tab=\'meetings\'"><b>' + esc(st.name) + '</b></a> <span class="muted">' + esc(m.date) + '</span><div class="muted">' + esc(m.topic || '') + '</div></div></div>'; }).join('') : '<div class="empty">기록된 미팅이 없습니다.</div>') + '</div></div>';
   }
-  return h;
+  return h + '</div>';
 }
 function compactStudentTable(list, dl) {
   return '<table class="compact"><thead><tr><th>이름</th><th>프로그램</th><th>진행 상황</th><th>다음 마감</th></tr></thead><tbody>' +
@@ -920,8 +919,8 @@ function viewStudents() {
 }
 
 /* ============================== 학생 상세 ============================== */
-var TAB_LABEL = { meetings: '미팅', manage: '관리 사항', followups: '팔로업', notes: '상담기록', contracts: '계약', majors: '전공', apps: '지원대학', scores: '성적', schools: '학력', docs: '서류', profile: '프로필·링크' };
-function tabsForRole() { return ['followups', 'meetings'].concat(isMgr() ? ['notes'] : []).concat(['manage', 'contracts', 'majors', 'apps', 'scores', 'schools', 'docs', 'profile']); }
+var TAB_LABEL = { meetings: '미팅', accounts: '계정', followups: '팔로업', notes: '상담기록', contracts: '계약', majors: '전공', apps: '지원대학', scores: '성적', schools: '학력', docs: '서류', profile: '프로필·링크' };
+function tabsForRole() { return ['followups', 'meetings'].concat(isMgr() ? ['notes'] : []).concat(['accounts', 'contracts', 'majors', 'apps', 'scores', 'schools', 'docs', 'profile']); }
 
 function viewStudent(id) {
   var s = studentById(id);
@@ -943,13 +942,13 @@ function viewStudent(id) {
     '<div class="chks"><span class="muted">자료 현황 ' + checkCount(s) + '/' + CHECK_ITEMS.length + '</span> ' + checkChips(s) + '</div></div>';
   h += '<div class="tabs">' + tabs.map(function (t) {
     var n = t === 'followups' ? openFollowups(id).length : t === 'scores' ? childOf('courses', id).length + childOf('scores', id).length + childOf('files', id).filter(function (f) { return !f.docId && !f.meetingId; }).length :
-      t === 'manage' ? childOf('accounts', id).length : t === 'meetings' ? childOf('meetings', id).length :
+      t === 'accounts' ? childOf('accounts', id).length : t === 'meetings' ? childOf('meetings', id).length :
       t === 'majors' ? childOf('majorplans', id).filter(function (m) { return m.status !== '제외'; }).length :
       ['notes', 'contracts', 'apps', 'docs', 'schools'].indexOf(t) >= 0 ? childOf(t, id).length : null;
     return '<a class="' + (UI.tab === t ? 'on' : '') + '" onclick="UI.tab=' + js(t) + ';render()">' + TAB_LABEL[t] + (n ? ' (' + n + ')' : '') + '</a>';
   }).join('') + '</div>';
   return h + { followups: tabFollowups, notes: tabNotes, contracts: tabContracts, scores: tabScores, apps: tabApps,
-    docs: tabDocs, profile: tabProfile, majors: tabMajors, schools: tabSchools, manage: tabManage, meetings: tabMeetings }[UI.tab](s);
+    docs: tabDocs, profile: tabProfile, majors: tabMajors, schools: tabSchools, accounts: tabAccounts, meetings: tabMeetings }[UI.tab](s);
 }
 function addBtn(table, sid, label) { return '<button class="btn" onclick="openForm(' + js(table) + ',null,' + js(sid) + ')">' + label + '</button>'; }
 function secHead(title, btn) { return '<div class="sec-h"><h3>' + title + '</h3>' + (btn || '') + '</div>'; }
@@ -1134,119 +1133,112 @@ function tabScores(s) {
   return h + '</div>';
 }
 /* ----- 미팅 ----- */
-function upcomingMeetings() {
-  return S.meetings.filter(function (m) { return m.status === '예정' && dayDiff(m.date) >= 0 && studentById(m.studentId); })
-    .sort(function (a, b) { return (a.date + a.time).localeCompare(b.date + b.time); });
-}
 function meetingLine(s) {
-  var ms = childOf('meetings', s.id);
-  var past = ms.filter(function (m) { return m.status === '완료'; }).sort(function (a, b) { return b.date.localeCompare(a.date); })[0];
-  var next = ms.filter(function (m) { return m.status === '예정' && dayDiff(m.date) >= 0; }).sort(function (a, b) { return a.date.localeCompare(b.date); })[0];
-  if (!past && !next) return '';
-  return ' <span class="muted">· 최근 미팅 ' + (past ? esc(past.date.slice(5)) : '-') + ' · 다음 미팅 </span>' + (next ? '<b>' + esc(next.date.slice(5)) + '</b> ' + dday(next.date) : '<span class="muted">-</span>');
+  var last = childOf('meetings', s.id).sort(function (a, b) { return b.date.localeCompare(a.date); })[0];
+  return last ? ' <span class="muted">· 최근 미팅 ' + esc(last.date.slice(5)) + '</span>' : '';
 }
-function meetingItem(m, showStudent, open) {
+function toggleMeeting(id) {
+  UI.mtOpen = UI.mtOpen || {};
+  UI.mtOpen[id] = !UI.mtOpen[id];
+  var el = document.querySelector('.mt[data-id="' + id + '"]');
+  if (el) { el.classList.toggle('open', !!UI.mtOpen[id]); el.querySelector('.mt-tg').innerHTML = UI.mtOpen[id] ? '▲ 회의록 접기' : '▼ 회의록 펼치기'; }
+}
+function meetingItem(m, showStudent) {
   var s = studentById(m.studentId);
   var mf = S.files.filter(function (f) { return f.meetingId === m.id; });
   var c = String(m.content || '');
-  return '<div class="mt"><div class="h" onclick="openForm(\'meetings\',' + js(m.id) + ')">' +
-    '<span class="when">' + esc(m.date) + (m.time ? ' ' + esc(m.time) : '') + '</span>' + (m.status === '예정' ? dday(m.date) : '') +
-    '<span class="pill m-' + esc(m.status) + '">' + esc(m.status) + '</span>' +
-    (showStudent && s ? '<a href="#/student/' + esc(s.id) + '" onclick="event.stopPropagation();UI.tab=\'meetings\'"><b>' + esc(s.name) + '</b></a>' : '') +
-    (m.topic ? '<span>' + esc(m.topic) + '</span>' : '') +
+  var open = !!(UI.mtOpen && UI.mtOpen[m.id]);
+  var hasBody = c || m.nextStep || m.parentNote || mf.length;
+  return '<div class="mt' + (open ? ' open' : '') + '" data-id="' + esc(m.id) + '"><div class="h">' +
+    '<span class="when">' + esc(m.date) + (m.time ? ' ' + esc(m.time) : '') + '</span>' +
+    (showStudent && s ? '<a href="#/student/' + esc(s.id) + '" onclick="UI.tab=\'meetings\'"><b>' + esc(s.name) + '</b></a>' : '') +
+    (m.topic ? '<span class="topic">' + esc(m.topic) + '</span>' : '') +
     (m.needsReview === 'TRUE' ? '<span class="pill rv">확인 필요</span>' : '') + '</div>' +
     '<div class="muted">' + esc([m.type, m.place, m.attendees ? '참석: ' + m.attendees : '', m.writer ? '작성: ' + m.writer : ''].filter(Boolean).join(' · ')) +
-    (safeUrl(m.sourceUrl) ? ' · <a href="' + esc(m.sourceUrl) + '" target="_blank" rel="noopener">원본 ↗</a>' : '') +
-    (m.needsReview === 'TRUE' ? ' <button class="btn ghost sm" onclick="reviewMeeting(' + js(m.id) + ')">✓ 확인 완료</button>' : '') + '</div>' +
-    (c || m.nextStep || m.parentNote || mf.length ? '<details' + (open ? ' open' : '') + '><summary>' + (c ? esc(c.replace(/\s+/g, ' ').slice(0, 90)) + (c.length > 90 ? '…' : '') : '자세히') +
-      (mf.length ? ' · 📎 ' + mf.length : '') + '</summary>' +
+    (safeUrl(m.sourceUrl) ? ' · <a href="' + esc(m.sourceUrl) + '" target="_blank" rel="noopener">원본 ↗</a>' : '') + '</div>' +
+    '<div class="mt-bar">' + (hasBody ? '<button type="button" class="mt-tg" onclick="toggleMeeting(' + js(m.id) + ')">' + (open ? '▲ 회의록 접기' : '▼ 회의록 펼치기') + '</button>' : '<span class="muted">내용 없음</span>') +
+      (mf.length ? '<span class="muted">📎 ' + mf.length + '</span>' : '') +
+      '<span class="mt-act">' + (m.needsReview === 'TRUE' ? '<button class="btn ghost sm" onclick="reviewMeeting(' + js(m.id) + ')">✓ 확인 완료</button>' : '') +
+      '<button class="btn ghost sm" onclick="openForm(\'meetings\',' + js(m.id) + ')">✏️ 수정</button>' +
+      '<label class="btn ghost sm" style="cursor:pointer">📎 파일 첨부<input type="file" multiple hidden accept=".pdf,.png,.jpg,.jpeg,.webp,.heic,.gif,.doc,.docx,.xls,.xlsx,.hwp" onchange="uploadFiles(this,' + js(m.studentId) + ',null,' + js(m.id) + ')"></label></span></div>' +
+    (hasBody ? '<div class="mt-body">' +
       (c ? '<div class="body">' + esc(c) + '</div>' : '') +
       (m.parentNote ? '<div class="body" style="background:#fff7ef"><b>🔒 부모님 전달·대화 내용</b> <span class="muted">(관리자·관리팀만)</span>\n' + esc(m.parentNote) + '</div>' : '') +
       (m.nextStep ? '<div class="body"><b>다음 계획</b>\n' + esc(m.nextStep) + '</div>' : '') +
       (mf.length ? '<div class="mfiles">' + mf.map(function (f) {
         return /^image\//.test(f.mime) ? '<a href="/api/files/' + esc(f.id) + '" target="_blank" rel="noopener" title="' + esc(f.name) + '"><img src="/api/files/' + esc(f.id) + '" alt="' + esc(f.name) + '"></a>' :
           '<a class="btn ghost sm" href="/api/files/' + esc(f.id) + '" target="_blank" rel="noopener">📎 ' + esc(f.name) + '</a>';
-      }).join('') + '</div>' : '') + '</details>' : '') +
-    '<label class="btn ghost sm" style="cursor:pointer;margin-top:4px">📎 파일 첨부<input type="file" multiple hidden accept=".pdf,.png,.jpg,.jpeg,.webp,.heic,.gif,.doc,.docx,.xls,.xlsx,.hwp" onchange="uploadFiles(this,' + js(m.studentId) + ',null,' + js(m.id) + ')"></label></div>';
+      }).join('') + '</div>' : '') + '</div>' : '') + '</div>';
 }
 function reviewMeeting(id) {
   var m = findRow('meetings', id); if (!m) return;
   mutate('save', { table: 'meetings', obj: { id: id, updatedAt: m.updatedAt, needsReview: false } }, '확인 완료로 표시했습니다.');
 }
+function meetingSort(a, b) { return (b.date + b.time).localeCompare(a.date + a.time); }
 function tabMeetings(s) {
-  var ms = childOf('meetings', s.id);
-  var up = ms.filter(function (m) { return m.status === '예정'; }).sort(function (a, b) { return (a.date + a.time).localeCompare(b.date + b.time); });
-  var past = ms.filter(function (m) { return m.status !== '예정'; }).sort(function (a, b) { return (b.date + b.time).localeCompare(a.date + a.time); });
+  var ms = childOf('meetings', s.id).sort(meetingSort);
   var rv = ms.filter(function (m) { return m.needsReview === 'TRUE'; }).length;
-  return '<div class="card">' + secHead('예정된 미팅 <span class="muted">' + up.length + '건</span>', addBtn('meetings', s.id, '+ 미팅 추가')) +
-    (up.length ? up.map(function (m) { return meetingItem(m, false, false); }).join('') : '<div class="empty">예정된 미팅이 없습니다.</div>') + '</div>' +
-    '<div class="card">' + secHead('지난 미팅 · 회의록 <span class="muted">' + past.length + '건' + (rv ? ' · 확인 필요 ' + rv + '건' : '') + '</span>') +
-    (past.length ? past.map(function (m, i) { return meetingItem(m, false, i === 0); }).join('') : '<div class="empty">기록된 미팅이 없습니다.</div>') + '</div>';
+  return '<div class="card">' + secHead('미팅 회의록 <span class="muted">' + ms.length + '건' + (rv ? ' · 확인 필요 ' + rv + '건' : '') + '</span>', addBtn('meetings', s.id, '+ 회의록 추가')) +
+    (ms.length ? ms.map(function (m) { return meetingItem(m, false); }).join('') : '<div class="empty">기록된 미팅이 없습니다.</div>') + '</div>';
 }
 function viewMeetings() {
-  UI.mtWhen = UI.mtWhen || 'up'; UI.mtWho = UI.mtWho || 'all';
+  UI.mtWhen = UI.mtWhen === 'review' ? 'review' : 'all'; UI.mtWho = UI.mtWho || 'all';
   var q = (UI.mtQ || '').toLowerCase();
   var list = S.meetings.filter(function (m) {
     var s = studentById(m.studentId); if (!s) return false;
-    if (UI.mtWhen === 'up' && !(m.status === '예정')) return false;
-    if (UI.mtWhen === 'past' && m.status === '예정') return false;
     if (UI.mtWhen === 'review' && m.needsReview !== 'TRUE') return false;
     if (UI.mtWho === 'mine' && !isMine(s)) return false;
     if (q && [s.name, m.topic, m.content, m.attendees, m.writer, m.place].join(' ').toLowerCase().indexOf(q) < 0) return false;
     return true;
-  }).sort(function (a, b) { var x = (a.date + a.time).localeCompare(b.date + b.time); return UI.mtWhen === 'up' ? x : -x; });
+  }).sort(meetingSort);
   var rv = S.meetings.filter(function (m) { return m.needsReview === 'TRUE' && studentById(m.studentId); }).length;
-  var h = '<div class="toolbar"><h2 style="margin:0;margin-right:auto">미팅 <span class="muted">' + list.length + '건</span></h2>' +
+  var h = '<div class="toolbar"><h2 style="margin:0;margin-right:auto">미팅 회의록 <span class="muted">' + list.length + '건</span></h2>' +
     '<select id="mt-st" style="max-width:160px"><option value="">학생 선택</option>' + S.students.slice().sort(function (a, b) { return a.name.localeCompare(b.name, 'ko'); }).map(function (s) { return '<option value="' + esc(s.id) + '">' + esc(s.name) + '</option>'; }).join('') + '</select>' +
-    '<button class="btn" onclick="var v=$(\'mt-st\').value;if(!v)return toast(\'학생을 먼저 고르세요.\',true);openForm(\'meetings\',null,v)">+ 미팅 추가</button></div>';
+    '<button class="btn" onclick="var v=$(\'mt-st\').value;if(!v)return toast(\'학생을 먼저 고르세요.\',true);openForm(\'meetings\',null,v)">+ 회의록 추가</button></div>';
   h += '<div class="toolbar"><input type="text" id="q" class="grow" placeholder="학생·안건·내용·참석자 검색" value="' + esc(UI.mtQ || '') + '" oninput="UI.mtQ=this.value;UI._focusQ=true;render()">' +
-    '<select onchange="UI.mtWhen=this.value;render()">' + [['up', '예정된 미팅'], ['past', '지난 미팅'], ['review', '확인 필요 (' + rv + ')'], ['all', '전체']].map(function (o) {
+    '<select onchange="UI.mtWhen=this.value;render()">' + [['all', '전체'], ['review', '확인 필요 (' + rv + ')']].map(function (o) {
       return '<option value="' + o[0] + '"' + (UI.mtWhen === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select>' +
     '<select onchange="UI.mtWho=this.value;render()"><option value="all"' + (UI.mtWho === 'all' ? ' selected' : '') + '>모든 학생</option><option value="mine"' + (UI.mtWho === 'mine' ? ' selected' : '') + '>내 담당 학생</option></select></div>';
   if (rv && UI.mtWhen !== 'review') h += '<div class="notice">Google Drive에서 가져온 회의록 중 <b>확인 필요 ' + rv + '건</b>이 있습니다. <a href="javascript:void(0)" onclick="UI.mtWhen=\'review\';render()">확인하러 가기 →</a></div>';
-  return h + '<div class="card">' + (list.length ? list.map(function (m) { return meetingItem(m, true, false); }).join('') : '<div class="empty">해당하는 미팅이 없습니다.</div>') + '</div>';
+  return h + '<div class="card">' + (list.length ? list.map(function (m) { return meetingItem(m, true); }).join('') : '<div class="empty">해당하는 미팅이 없습니다.</div>') + '</div>';
 }
 
 /* ----- 관리 사항 + 사이트 계정(ID/PW) ----- */
-function tabManage(s) {
-  var mt = safeUrl(s.meetingUrl);
-  var h = '<div class="card">' + secHead('관리 사항', '<button class="btn ghost" onclick="openForm(\'manage\',' + js(s.id) + ')">수정</button>') +
-    '<dl class="kv">' + kv('희망 대학 / 특례', s.hopeUnis) + kv('집중 과목 / 관리 영역', s.focusArea) + kv('추천서 진행', s.recommenders) + kv('온라인 코스 진행', s.onlineCourse) +
-    '<dt>미팅 회의록</dt><dd>' + (mt ? '<a href="' + esc(mt) + '" target="_blank" rel="noopener">회의록 열기 ↗</a>' : '<span class="muted">-</span>') + '</dd></dl></div>';
+function siteList() {
+  return (S.options || []).filter(function (o) { return o.kind === 'site'; })
+    .sort(function (a, b) { return (Number(a.sortOrder) || 999) - (Number(b.sortOrder) || 999) || a.value.localeCompare(b.value); });
+}
+function tabAccounts(s) {
   var list = childOf('accounts', s.id).sort(function (a, b) { return ACCOUNT_CATS.indexOf(a.category) - ACCOUNT_CATS.indexOf(b.category) || a.site.localeCompare(b.site); });
-  UI.pw = UI.pw || {};
-  h += '<div class="card">' + secHead('사이트 계정 <span class="muted">ID / PW</span>', addBtn('accounts', s.id, '+ 계정 추가'));
-  h += '<div class="sitebar"><span class="muted">자주 쓰는 사이트</span>' + SITE_PRESETS.map(function (x) { return '<a href="' + esc(x.u) + '" target="_blank" rel="noopener">' + esc(x.n) + ' ↗</a>'; }).join('') + '</div>';
+  var sites = siteList();
+  var h = '<div class="card">' + secHead('사이트 계정 <span class="muted">ID / PW</span>', addBtn('accounts', s.id, '+ 계정 추가'));
+  if (sites.length) h += '<div class="sitebar"><span class="muted">자주 쓰는 사이트</span>' + sites.map(function (x) { return safeUrl(x.url) ? '<a href="' + esc(x.url) + '" target="_blank" rel="noopener">' + esc(x.value) + ' ↗</a>' : '<span class="tag">' + esc(x.value) + '</span>'; }).join('') +
+    (isMgr() ? ' <a href="#/unilist" onclick="UI.listTab=\'site\'" style="border:0">목록 관리 →</a>' : '') + '</div>';
   h += list.length ? '<div class="tbl-wrap"><table><thead><tr><th>분류</th><th>사이트</th><th>아이디</th><th>비밀번호</th><th>메모</th><th></th></tr></thead><tbody>' + list.map(function (a) {
-    var u = accountUrl(a), pw = UI.pw[a.id];
+    var u = accountUrl(a), uni = a.universityId && findRow('universities', a.universityId);
     return '<tr><td class="nw">' + esc(a.category) + '</td><td><b>' + (u ? '<a href="' + esc(u) + '" target="_blank" rel="noopener">' + esc(a.site) + ' ↗</a>' : esc(a.site)) + '</b>' +
-      (a.universityId && findRow('universities', a.universityId) ? '<div class="muted">' + esc(findRow('universities', a.universityId).name) + '</div>' : '') + '</td>' +
+      (uni ? '<div class="muted">' + esc(uni.name) + '</div>' : '') + '</td>' +
       '<td class="nw">' + (a.loginId ? '<span class="pw">' + esc(a.loginId) + '</span> <button class="btn ghost sm" onclick="copyText(' + js(a.loginId) + ')">복사</button>' : '<span class="muted">-</span>') + '</td>' +
-      '<td class="nw">' + (!a.hasPassword ? '<span class="muted">-</span>' : pw != null ? '<span class="pw">' + esc(pw) + '</span> <button class="btn ghost sm" onclick="copyText(UI.pw[' + js(a.id) + '])">복사</button> <button class="btn ghost sm" onclick="delete UI.pw[' + js(a.id) + '];render()">숨기기</button>' :
-        '<span class="pw">••••••</span> <button class="btn ghost sm" onclick="revealPw(' + js(a.id) + ')">보기</button>') + '</td>' +
+      '<td class="nw">' + (a.password ? '<span class="pw">' + esc(a.password) + '</span> <button class="btn ghost sm" onclick="copyText(' + js(a.password) + ')">복사</button>' : '<span class="muted">-</span>') + '</td>' +
       '<td class="muted" style="white-space:pre-wrap">' + esc(a.memo) + '</td><td class="nw"><button class="btn ghost sm" onclick="openForm(\'accounts\',' + js(a.id) + ')">수정</button></td></tr>';
   }).join('') + '</tbody></table></div>' : '<div class="empty">등록된 계정이 없습니다. 원서 포털·College Board·TOEFL·학교 LMS(스쿨로지·Teams) 계정을 추가하세요.</div>';
-  h += '<div class="muted" style="margin-top:8px;font-size:.78rem">비밀번호는 “보기”를 눌렀을 때만 불러오며, 누가 언제 봤는지 최근 활동에 기록됩니다.</div></div>';
-  return h;
+  return h + '</div>';
 }
 function accountUrl(a) {
   var u = safeUrl(a.url); if (u) return u;
   var uni = a.universityId && findRow('universities', a.universityId); if (uni && safeUrl(uni.website)) return uni.website;
-  var p = SITE_PRESETS.filter(function (x) { return x.n === a.site; })[0]; return p ? p.u : '';
+  var p = siteList().filter(function (x) { return x.value === a.site; })[0]; return p ? safeUrl(p.url) : '';
 }
 function accountSiteSync(el) {
-  var p = SITE_PRESETS.filter(function (x) { return x.n === el.value; })[0], f = el.form; if (!p || !f) return;
-  if (!f.elements.url.value) f.elements.url.value = p.u;
-  f.elements.category.value = p.c;
+  var p = siteList().filter(function (x) { return x.value === el.value; })[0], f = el.form; if (!p || !f) return;
+  if (!f.elements.url.value && p.url) f.elements.url.value = p.url;
+  if (p.category) f.elements.category.value = p.category;
 }
 function accountUniSync(el) {
   var u = el.value && findRow('universities', el.value), f = el.form; if (!u || !f) return;
   if (!f.elements.site.value) f.elements.site.value = u.name + ' 원서 포털';
   if (!f.elements.url.value && safeUrl(u.website)) f.elements.url.value = u.website;
   f.elements.category.value = '원서 포털';
-}
-function revealPw(id) {
-  api('revealAccount', { id: id }).then(function (d) { UI.pw = UI.pw || {}; UI.pw[id] = d.password; render(); }).catch(function (e) { toast(errMsg(e), true); });
 }
 function copyText(t) {
   var done = function () { toast('복사했습니다.'); };
@@ -1257,15 +1249,15 @@ function copyText(t) {
 }
 
 /* ----- 목록 관리: 대학 / 학교 / 커리큘럼 ----- */
-var OPTION_KINDS = { school: '학교', curriculum: '커리큘럼' };
+var OPTION_KINDS = { school: '학교', curriculum: '커리큘럼', site: '사이트' };
 function viewLists() {
   if (!isMgr()) return '<div class="card empty">관리자·관리팀만 볼 수 있습니다.</div>';
   UI.listTab = UI.listTab || 'unis';
   var h = '<div class="toolbar"><h2 style="margin:0;margin-right:auto">목록 관리</h2></div>' +
-    '<div class="subtabs">' + [['unis', '대학'], ['school', '학교'], ['curriculum', '커리큘럼']].map(function (t) {
+    '<div class="subtabs">' + [['unis', '대학'], ['school', '학교'], ['curriculum', '커리큘럼'], ['site', '사이트']].map(function (t) {
       return '<a class="' + (UI.listTab === t[0] ? 'on' : '') + '" onclick="UI.listTab=' + js(t[0]) + ';render()">' + t[1] + '</a>';
     }).join('') + '</div>';
-  return h + (UI.listTab === 'unis' ? viewUniList() : viewOptionList(UI.listTab));
+  return h + (UI.listTab === 'unis' ? viewUniList() : UI.listTab === 'site' ? viewSiteList() : viewOptionList(UI.listTab));
 }
 function viewOptionList(kind) {
   var label = OPTION_KINDS[kind];
@@ -1284,6 +1276,33 @@ function viewOptionList(kind) {
     return '<tr><td><b>' + esc(v) + '</b></td><td>' + used[v] + '명</td><td class="nw"><button class="btn ghost sm" onclick="addOption(' + js(kind) + ',' + js(v) + ')">목록에 추가</button></td></tr>';
   }).join('') + '</tbody></table></div></div>';
   return h;
+}
+function viewSiteList() {
+  var list = siteList(), used = {};
+  S.accounts.forEach(function (a) { used[a.site] = (used[a.site] || 0) + 1; });
+  var h = '<div class="notice">학생 “계정” 탭의 <b>자주 쓰는 사이트</b> 바로가기와 계정 추가 창의 사이트 선택에 나오는 목록입니다. 이름을 바꾸면 그 이름으로 저장된 계정도 함께 바뀝니다.</div>';
+  h += '<div class="toolbar"><span class="grow"></span><button class="btn" onclick="openSiteForm()">+ 사이트 추가</button></div>';
+  h += '<div class="card tbl-wrap"><table><thead><tr><th>순서</th><th>사이트</th><th>분류</th><th>주소</th><th>계정 수</th><th></th></tr></thead><tbody>' +
+    (list.length ? list.map(function (o) {
+      return '<tr><td class="nw muted">' + esc(o.sortOrder) + '</td><td><b>' + esc(o.value) + '</b></td><td class="nw">' + esc(o.category) + '</td>' +
+        '<td>' + (safeUrl(o.url) ? '<a href="' + esc(o.url) + '" target="_blank" rel="noopener">' + esc(o.url) + '</a>' : '<span class="muted">-</span>') + '</td>' +
+        '<td class="nw">' + (used[o.value] || 0) + '건</td><td class="nw"><button class="btn ghost sm" onclick="openSiteForm(' + js(o.id) + ')">수정</button> ' +
+        '<button class="btn ghost sm" onclick="removeOption(' + js(o.id) + ')">삭제</button></td></tr>';
+    }).join('') : '<tr><td colspan="6" class="empty">아직 없습니다.</td></tr>') + '</tbody></table></div>';
+  return h;
+}
+function openSiteForm(id) {
+  var o = id ? (S.options || []).filter(function (x) { return x.id === id; })[0] : { category: '시험', sortOrder: String(siteList().length + 1) };
+  modal(id ? '사이트 수정' : '사이트 추가',
+    fld('사이트 이름', inp('value', o.value || '', 'text', ' placeholder="예: Common App"'), true, true) +
+    fld('분류', sel('category', ACCOUNT_CATS, o.category || '')) + fld('순서 (숫자)', inp('sortOrder', o.sortOrder || '')) +
+    fld('주소', inp('url', o.url || '', 'text', ' placeholder="https://..."'), true),
+    '<button class="btn ghost" onclick="closeModal()">취소</button><button class="btn" onclick="submitSite(' + js(id || '') + ')">저장</button>');
+}
+function submitSite(id) {
+  var f = formData($('mf'));
+  if (!f.value) return toast('사이트 이름을 입력하세요.', true);
+  mutate('saveOption', { id: id || undefined, kind: 'site', value: f.value, category: f.category, sortOrder: f.sortOrder, url: f.url }, '저장했습니다.');
 }
 function addOption(kind, value) {
   var v = value != null ? value : ($('opt-new') || {}).value || '';
@@ -1593,13 +1612,15 @@ function tabProfile(s) {
   var h = '<div class="card">' + secHead('Resume·Drive·참고 링크', addBtn('links', s.id, '+ 링크 추가'));
   h += linkRow('📄', 'Resume (Google Doc)', resume, '아직 등록되지 않았습니다. “정보 수정”에서 링크를 넣어주세요.');
   h += linkRow('📁', 'Google Drive 학생 폴더', drive, '아직 등록되지 않았습니다. “정보 수정”에서 링크를 넣어주세요.');
-  h += linkRow('📝', '미팅 회의록', safeUrl(s.meetingUrl), '아직 등록되지 않았습니다. “관리 사항”에서 링크를 넣어주세요.');
+  h += linkRow('📝', '미팅 회의록', safeUrl(s.meetingUrl), '아직 등록되지 않았습니다. 아래 “관리 메모 › 수정”에서 링크를 넣어주세요.');
   h += links.map(function (l) {
     var u = safeUrl(l.url);
     return '<div class="todo"><div class="t"><b>🔗 ' + esc(l.label || '링크') + '</b><div class="muted">' + (u ? '<a href="' + esc(u) + '" target="_blank" rel="noopener">' + esc(u) + '</a>' : esc(l.url)) + '</div></div>' +
       '<button class="btn ghost sm" onclick="openForm(\'links\',' + js(l.id) + ')">수정</button></div>';
   }).join('');
   h += '<div class="muted" style="margin-top:8px">링크가 열리는지는 구글 드라이브의 공유 설정에 따라 달라집니다.</div></div>';
+  h += '<div class="card">' + secHead('관리 메모', '<button class="btn ghost sm" onclick="openForm(\'manage\',' + js(s.id) + ')">수정</button>') +
+    '<dl class="kv">' + kv('희망 대학 / 특례', s.hopeUnis) + kv('집중 과목 / 관리 영역', s.focusArea) + kv('추천서 진행', s.recommenders) + kv('온라인 코스 진행', s.onlineCourse) + '</dl></div>';
   h += '<div class="grid g2"><div class="card"><h3>학생 정보</h3><dl class="kv">' +
     kv('이름', s.name) + kv('생년월일', s.dob) + kv('학교', s.school) + kv('학년', s.grade) + kv('커리큘럼', s.curriculum) +
     kv('트랙', s.tracks) + kv('담당 관리팀', teacherName(s.manager) || '미정') + kv('담당 컨설턴트', teacherName(s.counselor) || '미정') + kv('상태', s.status) + kv('학생 연락처', s.studentPhone) + kv('학생 이메일', s.email) +
@@ -2082,9 +2103,8 @@ function field(f, rec) {
       }).join('') + '</select>', f.full, f.req);
   }
   if (f.t === 'site') return fld(f.l, inp('site', rec.site || '', 'text', ' list="dl-site" oninput="accountSiteSync(this)" placeholder="예: Common App, HKU 원서 포털"') +
-    datalist('dl-site', SITE_PRESETS.map(function (x) { return x.n; })), f.full, f.req);
-  if (f.t === 'pw') return fld(f.l, inp('password', '', 'password', ' autocomplete="new-password" placeholder="' + (rec.id ? (rec.hasPassword ? '바꿀 때만 입력 (비워두면 그대로)' : '아직 없음') : '') + '"') +
-    '<label class="muted" style="font-size:.75rem"><input type="checkbox" onchange="this.closest(\'div\').querySelector(\'input[name=password]\').type=this.checked?\'text\':\'password\'"> 입력한 글자 보기</label>', f.full, f.req);
+    datalist('dl-site', siteList().map(function (x) { return x.value; })), f.full, f.req);
+  if (f.t === 'pw') return fld(f.l, inp('password', rec.password || '', 'text', ' autocomplete="off"'), f.full, f.req);
   var v = rec[f.k] == null ? '' : rec[f.k], h;
   var ph = f.ph ? ' placeholder="' + esc(f.ph) + '"' : '';
   if (f.t === 'textarea') h = '<textarea name="' + f.k + '"' + ph + (f.big ? ' style="min-height:180px"' : '') + '>' + esc(v) + '</textarea>';
@@ -2182,7 +2202,7 @@ function submitForm(key) {
     }).filter(function (x) { return x.item || x.content; }));
   }
   if (miss) return toast(miss.l + ' 항목을 입력하세요.', true);
-  if (table === 'accounts' && !o.password) delete o.password;
+  if (table === 'meetings') o.status = '완료';
   if (table === 'notes' && !o.content && !o.nextAction) return toast('미팅 내용 또는 다음 할 일을 입력하세요.', true);
   mutate('save', { table: table, obj: o }, '저장했습니다.').then(function (d) {
     if (d && table === 'students' && !o.id && d.savedId) openStudent(d.savedId);
