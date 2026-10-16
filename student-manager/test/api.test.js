@@ -10,11 +10,20 @@ const { createApp } = require('../server');
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'compass-test-'));
 let store, server, base;
+// Apps Script 대신 받는 가짜 응답 (자동 백업·메일 테스트용)
+const scriptCalls = [];
+async function fakeFetch(url, init) {
+  const body = JSON.parse(init.body);
+  scriptCalls.push(body);
+  const out = body.secret !== store.getConfig().secret ? { ok: false, error: 'secret' }
+    : body.action === 'mail' ? { ok: true, sent: body.messages.length, remaining: 99 } : { ok: true, url: 'https://drive.google.com/x' };
+  return { status: 200, text: async () => JSON.stringify(out) };
+}
 
 before(async () => {
   store = openStore(path.join(dir, 'test.db'));
   store.upsertAdmin('Admin@Revera.test', '박원장', 'admin-pass-1');
-  server = createApp(store).listen(0);
+  server = createApp(store, { fetch: (url, init) => fakeFetch(url, init) }).listen(0);
   await new Promise((r) => server.once('listening', r));
   base = 'http://127.0.0.1:' + server.address().port;
 });
@@ -859,4 +868,73 @@ test('사이트 목록: 기본 사이트, 주소·분류 저장, 이름 바꾸�
   await admin.saveOk('accounts', { studentId: sid, site: 'College Board (SAT·AP)', loginId: 'a' });
   d = await admin.ok('saveOption', { id: cb.id, kind: 'site', value: 'College Board', url: 'https://www.collegeboard.org', category: '시험' });
   assert.strictEqual(d.accounts.find((a) => a.studentId === sid).site, 'College Board');
+});
+
+test('자동 백업·이메일 알림: 설정 권한, 백업 전송, 오늘 챙길 일 메일, 하루 한 번 실행, 미팅 시간 길이', async () => {
+  const automation = require('../lib/automation');
+  const admin = client();
+  await admin.login('admin@revera.test', 'admin-pass-1');
+  await admin.ok('saveTeacher', { email: 'mail1@revera.test', name: '메일관리', role: 'staff', password: '123456' });
+  await admin.ok('saveTeacher', { email: 'mail2@revera.test', name: '알림끔', role: 'staff', password: '123456', notify: false });
+  const staff = client(); await staff.login('mail1@revera.test', '123456');
+  assert.strictEqual((await staff.rpc('getAutomation')).status, 403);
+  assert.strictEqual((await staff.req('POST', '/api/automation/ping', {})).status, 403);
+  assert.strictEqual((await admin.rpc('saveAutomation', { scriptUrl: 'https://evil.example.com/x' })).status, 400);
+  let d = await admin.ok('saveAutomation', { scriptUrl: 'https://script.google.com/macros/s/AKfy_abc-123/exec', siteUrl: 'https://revera-compass.up.railway.app/',
+    backupOn: true, backupHour: 3, mailOn: true, mailHour: 8 });
+  assert.ok(d.config.secret.length > 10);
+  assert.strictEqual(d.config.siteUrl, 'https://revera-compass.up.railway.app');
+  assert.strictEqual((await admin.req('POST', '/api/automation/ping', {})).status, 200);
+
+  // 지금 백업: ZIP(base64)이 Apps Script로 감
+  let r = await admin.req('POST', '/api/automation/backup', {});
+  assert.strictEqual(r.status, 200, JSON.stringify(r.data));
+  const sent = scriptCalls.filter((c) => c.action === 'backup').pop();
+  assert.ok(Buffer.from(sent.data, 'base64').slice(0, 2).toString() === 'PK');
+  assert.match((await admin.ok('getAutomation')).status.backup.result, /성공/);
+
+  // 오늘 챙길 일: 기한 지난 팔로업이 있는 사람에게만, 알림 끈 사람 제외
+  d = await admin.saveOk('students', { name: '알림학생', manager: 'mail1@revera.test' });
+  await admin.saveOk('followups', { studentId: d.savedId, title: '서류 받기', assignee: 'mail1@revera.test', due: '2000-01-01' });
+  await admin.saveOk('followups', { studentId: d.savedId, title: '끈 사람 일', assignee: 'mail2@revera.test', due: '2000-01-01' });
+  const list = automation.buildDigests(store);
+  const m1 = list.find((m) => m.to === 'mail1@revera.test');
+  assert.ok(m1 && m1.html.includes('서류 받기') && m1.html.includes('https://revera-compass.up.railway.app/#/student/'));
+  assert.ok(!list.some((m) => m.to === 'mail2@revera.test'));
+  r = await admin.req('POST', '/api/automation/preview', {});
+  assert.ok(r.data.digests.some((m) => m.to === 'mail1@revera.test'));
+
+  // 정해진 시각 이후 하루 한 번만
+  const before = scriptCalls.length;
+  const at = (h) => new Date(Date.UTC(2030, 0, 5, h - 8, 5));
+  const fetch = (u, i) => fakeFetch(u, i);
+  await automation.tick(store, { now: at(2), fetch });
+  assert.strictEqual(scriptCalls.length, before, '3시 전에는 백업 안 함');
+  await automation.tick(store, { now: at(9), fetch });
+  assert.strictEqual(scriptCalls.length, before + 2, '백업 1번 + 메일 1번');
+  await automation.tick(store, { now: at(10), fetch });
+  assert.strictEqual(scriptCalls.length, before + 2, '같은 날 다시 안 보냄');
+  // 비밀 키가 틀리면 알기 쉬운 오류
+  await admin.ok('saveAutomation', { newSecret: true });
+  await assert.rejects(automation.callScript(Object.assign({}, store.getConfig(), { secret: 'wrong' }), { action: 'ping' }, fetch), /비밀 키/);
+
+  // 미팅 시간은 30자 이내
+  assert.strictEqual((await admin.save('meetings', { studentId: d.savedId, date: '2026-01-01', time: 'x'.repeat(31) })).status, 400);
+});
+
+test('v8 업그레이드: 미팅 시간 칸에 들어간 긴 글은 본문 [추가 메모]로 옮김', () => {
+  const p = path.join(dir, 'v8.db');
+  let st = openStore(p, { filesDir: path.join(dir, 'v8files') });
+  st.upsertAdmin('b8@revera.test', '원장', 'boss-pass-1');
+  const boss = { email: 'b8@revera.test', name: '원장', role: 'admin' };
+  const sid = st.rpc.save(boss, { table: 'students', obj: { name: '시간학생' } }).savedId;
+  const mid = st.rpc.save(boss, { table: 'meetings', obj: { studentId: sid, date: '2026-09-23', content: '본문' } }).savedId;
+  st.db.prepare('UPDATE meetings SET time = ? WHERE id = ?').run('긴 메모 '.repeat(20), mid);
+  st.db.prepare("DELETE FROM meta WHERE key = 'v8_meeting_time'").run();
+  st.close();
+  st = openStore(p, { filesDir: path.join(dir, 'v8files') });
+  const m = st.rpc.getAll(boss).meetings.find((x) => x.id === mid);
+  assert.strictEqual(m.time, '');
+  assert.ok(m.content.startsWith('본문') && m.content.includes('[추가 메모') && m.content.includes('긴 메모'));
+  st.close();
 });

@@ -7,21 +7,9 @@
  */
 const express = require('express');
 const fs = require('fs');
-const os = require('os');
 const path = require('path');
 const { openStore, UserError, MAX_UPLOAD } = require('./lib/store');
-const { writeZip } = require('./lib/zip');
-
-const RESTORE_HELP = [
-  'REVERA Compass 백업 복구 방법',
-  '',
-  '1. 서버를 멈춥니다.',
-  '2. compass.db 를 DB_PATH 위치(Railway: /data/revera.db)에 같은 이름으로 덮어씁니다.',
-  '3. files 폴더 안의 파일들을 DB_PATH 와 같은 폴더의 files 폴더(Railway: /data/files)에 넣습니다.',
-  '4. 서버를 다시 시작합니다.',
-  '',
-  '파일목록.csv 에서 저장 이름과 학생/원래 파일 이름을 확인할 수 있습니다.',
-].join('\r\n');
+const automation = require('./lib/automation');
 
 const COOKIE = 'revera_sid';
 
@@ -165,27 +153,47 @@ function createApp(store, opts) {
   // 관리자: 백업 다운로드 (ZIP = DB 파일 + 업로드한 파일 전체 + 파일 목록)
   app.get('/api/backup', requireLogin, async (req, res) => {
     if (req.me.role !== 'admin') return res.status(403).json({ error: '관리자만 백업할 수 있습니다.' });
-    const stamp = new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 16).replace(/[-:T]/g, '');
-    const tmpDb = path.join(os.tmpdir(), 'compass-backup-' + Date.now() + '.db');
-    const tmpZip = tmpDb.replace(/\.db$/, '.zip');
-    const cleanup = () => { fs.unlink(tmpDb, () => {}); fs.unlink(tmpZip, () => {}); };
+    let z;
     try {
-      await store.backup(tmpDb);
-      const files = store.listFiles().filter((f) => fs.existsSync(path.join(store.filesDir, f.storedName)));
-      const csvCell = (v) => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
-      const csv = '\ufeff' + [['저장 이름', '학생', '파일 이름', '분류', '올린 날짜', '휴지통']]
-        .concat(files.map((f) => [f.storedName, f.studentName, f.name, f.category, f.createdAt.slice(0, 10), f.deletedAt ? 'Y' : '']))
-        .map((r) => r.map(csvCell).join(',')).join('\r\n');
-      writeZip(tmpZip, [
-        { name: 'compass.db', path: tmpDb },
-        { name: '파일목록.csv', data: Buffer.from(csv, 'utf8') },
-        { name: '복구방법.txt', data: Buffer.from(RESTORE_HELP, 'utf8') },
-      ].concat(files.map((f) => ({ name: 'files/' + f.storedName, path: path.join(store.filesDir, f.storedName) }))));
-      res.download(tmpZip, 'compass-backup-' + stamp + '.zip', cleanup);
+      z = await automation.buildBackupZip(store);
+      res.download(z.path, z.name, z.cleanup);
     } catch (e) {
-      cleanup();
+      if (z) z.cleanup();
       console.error(e);
       res.status(500).json({ error: '백업에 실패했습니다.' });
+    }
+  });
+
+  // 관리자: 구글 계정에 붙여넣을 Apps Script 코드 (비밀 키가 들어간 상태)
+  app.get('/api/automation/script', requireLogin, (req, res) => {
+    if (req.me.role !== 'admin') return res.status(403).json({ error: '관리자만 볼 수 있습니다.' });
+    const code = fs.readFileSync(path.join(__dirname, 'scripts', 'google-apps-script.gs'), 'utf8');
+    res.type('text/plain').send(code.replace('__COMPASS_SECRET__', store.getConfig().secret || '(먼저 설정을 저장하세요)'));
+  });
+
+  // 관리자: 자동 백업·이메일 알림 — 연결 확인, 지금 백업, 테스트 메일, 오늘 알림 미리보기/보내기
+  app.post('/api/automation/:action', requireLogin, async (req, res) => {
+    if (req.me.role !== 'admin') return res.status(403).json({ error: '관리자만 할 수 있습니다.' });
+    const f = opts.fetch;
+    try {
+      const a = req.params.action;
+      if (a === 'ping') return res.json(await automation.callScript(store.getConfig(), { action: 'ping' }, f));
+      if (a === 'backup') {
+        const r = await automation.sendBackup(store, f);
+        store.recordRun('backup', '성공(수동) · ' + r.name + ' (' + Math.round(r.size / 1024) + 'KB)');
+        return res.json(r);
+      }
+      if (a === 'testmail') return res.json(await automation.sendTestMail(store, req.me.email, f));
+      if (a === 'preview') return res.json({ digests: automation.buildDigests(store).map((m) => ({ to: m.to, name: m.name, subject: m.subject, html: m.html, counts: m.counts })) });
+      if (a === 'digest') {
+        const r = await automation.sendDigests(store, automation.localDate(), f);
+        store.recordRun('digest', '성공(수동) · ' + (r.sent ? r.sent + '명에게 보냄' : r.note));
+        return res.json(r);
+      }
+      res.status(404).json({ error: '없는 기능입니다.' });
+    } catch (e) {
+      if (e instanceof UserError) return sendError(res, e);
+      res.status(502).json({ error: e.message || '실패했습니다.' });
     }
   });
 
@@ -209,6 +217,7 @@ if (require.main === module) {
   }
 
   const port = Number(process.env.PORT) || 3000;
+  automation.startScheduler(store);
   createApp(store, { trustProxy: !!process.env.TRUST_PROXY, cookieSecure: !!process.env.COOKIE_SECURE })
     .listen(port, () => console.log(`REVERA Compass 실행 중: http://localhost:${port}  (DB: ${dbPath})`));
 }
