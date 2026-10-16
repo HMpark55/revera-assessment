@@ -884,6 +884,17 @@ function openStore(dbPath, opts) {
     return getAll(me);
   }
 
+  /** 학생 정보에 쓰인 학교·커리큘럼이 목록에 없으면 목록에 추가 */
+  function addOptionsFor(rec, me, t) {
+    for (const kind of Object.keys(OPTION_KINDS)) {
+      const v = String(rec[kind] || '').trim();
+      if (v && !db.prepare('SELECT 1 FROM options WHERE kind = ? AND value = ?').get(kind, v)) {
+        db.prepare('INSERT INTO options (id, kind, value, sortOrder, createdAt, createdBy, updatedAt, updatedBy) VALUES (?,?,?,?,?,?,?,?)')
+          .run(newId(), kind, v, '', t, me.email, t, me.email);
+      }
+    }
+  }
+
   /** 선생님 계정 삭제 (관리자). 담당으로 지정된 학생·팔로업은 "미정"으로 바뀜 */
   function deleteTeacher(me, arg) {
     requireAdmin(me, '계정 삭제');
@@ -1165,17 +1176,50 @@ function openStore(dbPath, opts) {
           TABLES.students.fields.forEach((k) => { if (k in src) st[k] = clean(src[k]); });
           if (!st.counselor && src.counselorName && teachersByName[src.counselorName]) st.counselor = teachersByName[src.counselorName];
           st.counselor = lower(st.counselor);
+          if (src.appendMemo) st.memo = [st.memo, String(src.appendMemo).trim()].filter(Boolean).join('\n\n');
           validate('students', st, null);
           Object.assign(st, { id: newId(), createdAt: t, createdBy: me.email, updatedAt: t, updatedBy: me.email });
           insert('students', st);
+          addOptionsFor(st, me, t);
         }
         let added = 0;
+        if (existing) {
+          // 덧붙이기: 비어 있는 칸만 채우고, 메모는 같은 글이 없을 때만 이어 붙임
+          const fill = {}, changed = [];
+          TABLES.students.fields.forEach((k) => {
+            if (k === 'name' || k === 'counselor' || k === 'manager' || !(k in src)) return;
+            const v = clean(src[k]);
+            if (v && !String(existing[k] || '').trim()) { fill[k] = v; changed.push(FIELD_LABELS[k] || k); }
+          });
+          const memo = String(src.appendMemo || '').trim();
+          if (memo && !String(existing.memo || '').includes(memo)) {
+            fill.memo = [existing.memo, memo].filter(Boolean).join('\n\n'); changed.push('메모(이어 붙임)');
+          }
+          if (changed.length) {
+            validate('students', fill, existing);
+            const keys = Object.keys(fill);
+            db.prepare(`UPDATE students SET ${keys.map((k) => k + ' = @' + k).join(', ')}, updatedAt = @updatedAt, updatedBy = @updatedBy WHERE id = @id`)
+              .run(Object.assign({}, fill, { id: existing.id, updatedAt: t, updatedBy: me.email }));
+            addOptionsFor(fill, me, t);
+            log(me.email, 'import', 'students', existing.id, name + ' — 빈 칸 채움: ' + changed.join(', '));
+            result.filled = (result.filled || 0) + 1;
+          }
+        }
         for (const key of CHILD_KEYS) {
           for (const item of (src[key] || [])) {
             const rec = { studentId: st.id };
             TABLES[key].fields.forEach((k) => { if (k !== 'studentId' && item && k in item) rec[k] = clean(item[k]); });
             if (key === 'contracts' && !rec.currency) rec.currency = 'RMB';
             if ((key === 'meetings' || key === 'notes') && review) rec.needsReview = 'TRUE';
+            if ((key === 'accounts' || key === 'majorplans') && !rec.universityId && item.university) {
+              rec.universityId = findUniByName(item.university);
+              if (!rec.universityId) throw new UserError(name + ': 대학 목록에서 "' + item.university + '"을(를) 찾을 수 없습니다.');
+            }
+            if (key === 'majorplans' && rec.universityId) linkUni(key, rec);
+            if (key === 'accounts' && append && db.prepare("SELECT 1 FROM accounts WHERE studentId = ? AND site = ? AND loginId = ? AND deletedAt = ''")
+                  .get(st.id, rec.site || '', rec.loginId || '')) { result.duplicates++; continue; }
+            if (key === 'schools' && append && db.prepare("SELECT 1 FROM schools WHERE studentId = ? AND school = ? AND startDate = ? AND deletedAt = ''")
+                  .get(st.id, rec.school || '', rec.startDate || '')) { result.duplicates++; continue; }
             if (key === 'meetings' && !rec.status) rec.status = rec.date && rec.date < t.slice(0, 10) ? '완료' : '예정';
             // 같은 원본(링크·날짜·시간)에서 이미 가져온 기록은 건너뜀 → 여러 번 가져와도 중복 없음
             if ((key === 'meetings' || key === 'notes') && rec.sourceUrl &&
