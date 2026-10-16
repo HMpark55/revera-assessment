@@ -25,7 +25,8 @@ const TABLES = {
   students: {
     label: '학생',
     fields: ['name', 'dob', 'school', 'grade', 'curriculum', 'counselor', 'status', 'tracks', 'studentPhone',
-      'parentName', 'parentPhone', 'email', 'tags', 'memo', 'driveUrl',
+      'parentName', 'parentPhone', 'email', 'tags', 'memo', 'driveUrl', 'resumeUrl',
+      'fatherName', 'fatherPhone', 'fatherWechat', 'fatherEmail', 'motherName', 'motherPhone', 'motherWechat', 'motherEmail',
       'storyTrigger', 'storyProcess', 'storyLink', 'storyConclusion', 'storyStatus'],
     summary: (r) => r.name,
   },
@@ -36,12 +37,13 @@ const TABLES = {
   },
   contracts: {
     label: '계약',
-    fields: ['studentId', 'kind', 'tier', 'term', 'packages', 'startMonth', 'signedDate', 'amount', 'paid', 'scope', 'memo'],
+    fields: ['studentId', 'kind', 'tier', 'term', 'packages', 'startMonth', 'endMonth', 'signedDate', 'currency', 'amount',
+      'payDue', 'scope', 'memo'],
     summary: (r) => [r.kind, r.tier, r.term, r.packages].filter(Boolean).join(' '),
   },
   apps: {
     label: '지원대학',
-    fields: ['studentId', 'university', 'major', 'round', 'deadline', 'status', 'essay', 'memo'],
+    fields: ['studentId', 'country', 'university', 'major', 'round', 'deadline', 'status', 'essay', 'memo'],
     summary: (r) => [r.university, r.round].filter(Boolean).join(' '),
   },
   scores: {
@@ -69,7 +71,13 @@ const TABLES = {
     fields: ['studentId', 'category', 'name', 'memo'], // 파일 자체는 upload 로만 추가
     summary: (r) => r.name,
   },
+  payments: {
+    label: '입금',
+    fields: ['studentId', 'contractId', 'date', 'amount', 'currency', 'method', 'memo'],
+    summary: (r) => [r.date, r.currency, r.amount].filter(Boolean).join(' '),
+  },
 };
+const CURRENCIES = ['RMB', 'KRW'];
 const CHILD_TABLES = Object.keys(TABLES).filter((t) => t !== 'students');
 /** 변경 기록에 표시할 항목 이름 */
 const FIELD_LABELS = {
@@ -82,11 +90,14 @@ const FIELD_LABELS = {
   signedDate: '계약일', amount: '금액', paid: '납부 상태', scope: '포함 범위', university: '대학', major: '전공',
   round: '전형', deadline: '마감일', essay: '에세이', subject: '과목', score: '점수', detail: '세부 점수',
   category: '분류', role: '역할', period: '기간', due: '기한', label: '이름', url: '주소', studentId: '학생',
+  resumeUrl: 'Resume 링크', fatherName: '부 이름', fatherPhone: '부 연락처', fatherWechat: '부 WeChat', fatherEmail: '부 이메일',
+  motherName: '모 이름', motherPhone: '모 연락처', motherWechat: '모 WeChat', motherEmail: '모 이메일', country: '국가',
+  endMonth: '종료 연월', currency: '통화', payDue: '납부 기한', contractId: '계약', method: '입금 방법',
 };
 /** 관리자/관리팀만 다룰 수 있는 테이블 */
-const MANAGER_ONLY = ['notes', 'contracts'];
+const MANAGER_ONLY = ['notes', 'contracts', 'payments'];
 /** 컨설턴트에게 숨기는 계약 필드 */
-const HIDDEN_FOR_CONSULTANT = { contracts: ['amount', 'paid'] };
+const HIDDEN_FOR_CONSULTANT = { contracts: ['amount', 'paid', 'currency', 'payDue'] };
 
 const UPLOAD_TYPES = {
   pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp',
@@ -142,6 +153,8 @@ function checkPasswordRule(pw) {
   if (String(pw || '').length < 8) throw new UserError('비밀번호는 8자 이상이어야 합니다.');
 }
 const sha256 = (s) => crypto.createHash('sha256').update(s).digest('hex');
+/** "30,000" → 30000 (숫자가 아니면 0) */
+function parseAmount(v) { const n = Number(String(v || '').replace(/[^\d.]/g, '')); return isFinite(n) ? n : 0; }
 
 /* ---------------- 스키마 ---------------- */
 
@@ -184,7 +197,24 @@ function migrate(db) {
     ensureColumns(db, t, TABLES[t].fields.filter((f) => f !== 'studentId').concat(META_COLS));
   }
   ensureColumns(db, 'notes', ['author']);
-  ensureColumns(db, 'files', ['mime', 'size', 'storedName']);
+  ensureColumns(db, 'files', ['mime', 'size', 'storedName', 'docId']);
+  ensureColumns(db, 'docs', ['receivedAt', 'receivedBy']);
+  ensureColumns(db, 'contracts', ['paid']); // 이전 버전 열 (새 버전은 입금 기록으로 계산)
+  db.exec('CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
+  db.prepare("UPDATE contracts SET currency = 'RMB' WHERE currency = ''").run();
+  // v3: 이전 버전의 '납부 완료' 표시를 입금 기록으로 한 번만 옮김 (입금일 기준 매출 계산을 위해)
+  if (!db.prepare("SELECT 1 FROM meta WHERE key = 'v3_paid_to_payments'").get()) {
+    const ts = now();
+    db.prepare(`SELECT * FROM contracts WHERE paid LIKE '%완료%'`).all().forEach((c) => {
+      const amount = parseAmount(c.amount);
+      if (!amount) return;
+      db.prepare(`INSERT INTO payments (id, studentId, contractId, date, amount, currency, method, memo,
+        createdAt, createdBy, updatedAt, updatedBy) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`)
+        .run(newId(), c.studentId, c.id, c.signedDate || c.createdAt.slice(0, 10), String(amount), c.currency || 'RMB', '',
+          '이전 버전의 "납부 완료" 표시에서 자동 생성 — 실제 입금일을 확인해 수정해주세요', ts, 'system', ts, 'system');
+    });
+    db.prepare("INSERT INTO meta VALUES ('v3_paid_to_payments', ?)").run(ts);
+  }
   // 이전 버전의 'teacher' 역할은 권한이 가장 좁은 컨설턴트로 전환
   db.prepare(`UPDATE teachers SET role = 'consultant' WHERE role NOT IN ('admin','staff','consultant')`).run();
   // 이전 버전 데이터의 작성자 정보 보정
@@ -334,7 +364,15 @@ function openStore(dbPath, opts) {
     if (table === 'docs') need('name', '서류 이름을 입력하세요.');
     if (table === 'links') { need('url', '링크 주소를 입력하세요.'); checkUrl(v('url')); }
     if (table === 'files') need('name', '파일 이름을 입력하세요.');
-    if (table === 'students') checkUrl(v('driveUrl'), 'Drive 폴더 링크');
+    if (table === 'students') { checkUrl(v('driveUrl'), 'Drive 폴더 링크'); checkUrl(v('resumeUrl'), 'Resume 링크'); }
+    if (table === 'contracts' && v('currency') && !CURRENCIES.includes(v('currency'))) throw new UserError('통화는 RMB 또는 KRW만 가능합니다.');
+    if (table === 'payments') {
+      need('date', '입금일을 입력하세요.');
+      if (!(parseAmount(v('amount')) > 0)) throw new UserError('입금액을 숫자로 입력하세요.');
+      if (!CURRENCIES.includes(v('currency'))) throw new UserError('통화는 RMB 또는 KRW만 가능합니다.');
+      const c = getRow('contracts', v('contractId'));
+      if (!c || c.deletedAt || c.studentId !== v('studentId')) throw new UserError('입금을 연결할 계약을 찾을 수 없습니다.');
+    }
   }
 
   function save(me, arg) {
@@ -365,6 +403,7 @@ function openStore(dbPath, opts) {
           throw new UserError('그 사이 ' + (who ? who.name : cur.updatedBy) + ' 님이 먼저 수정했습니다. ' +
             '새로고침 후 다시 입력해주세요.', 409);
         }
+        if (table === 'payments' && 'amount' in rec) rec.amount = String(parseAmount(rec.amount));
         validate(table, rec, cur);
         const keys = Object.keys(rec);
         db.prepare(`UPDATE ${table} SET ${keys.map((k) => k + ' = @' + k).concat(['updatedAt = @updatedAt', 'updatedBy = @updatedBy']).join(', ')} WHERE id = @id`)
@@ -382,6 +421,12 @@ function openStore(dbPath, opts) {
           requireStudent(me, rec.studentId);
           if (table === 'files') throw new UserError('파일은 업로드로만 추가할 수 있습니다.');
         }
+        if (table === 'payments' && !rec.currency) {
+          const c = getRow('contracts', rec.contractId);
+          rec.currency = (c && c.currency) || 'RMB';
+        }
+        if (table === 'contracts' && !rec.currency) rec.currency = 'RMB';
+        if (table === 'payments') rec.amount = String(parseAmount(rec.amount));
         validate(table, rec, null);
         Object.assign(rec, { id: newId(), createdAt: t, createdBy: me.email, updatedAt: t, updatedBy: me.email });
         if (table === 'notes') rec.author = me.email;
@@ -454,6 +499,8 @@ function openStore(dbPath, opts) {
         for (const t of CHILD_TABLES) db.prepare(`DELETE FROM ${t} WHERE studentId = ?`).run(cur.id);
       } else if (table === 'files') {
         files.push(cur.storedName);
+      } else if (table === 'contracts') {
+        db.prepare('DELETE FROM payments WHERE contractId = ?').run(cur.id);
       }
       log(me.email, 'purge', table, cur.id, describe(table, cur));
       db.prepare(`DELETE FROM ${table} WHERE id = ?`).run(cur.id);
@@ -494,6 +541,11 @@ function openStore(dbPath, opts) {
 
   function addFile(me, info) {
     const s = requireStudent(me, info.studentId);
+    let doc = null;
+    if (info.docId) {
+      doc = getRow('docs', info.docId);
+      if (!doc || doc.deletedAt || doc.studentId !== s.id) throw new UserError('서류 항목을 찾을 수 없습니다. 새로고침 해주세요.', 404);
+    }
     const name = String(info.name || '').replace(/[\\/\r\n]/g, '_').trim().slice(0, 200);
     const ext = (name.match(/\.([a-z0-9]+)$/i) || [])[1];
     const type = ext && UPLOAD_TYPES[ext.toLowerCase()];
@@ -504,17 +556,74 @@ function openStore(dbPath, opts) {
     const storedName = id + '.' + ext.toLowerCase();
     fs.writeFileSync(path.join(filesDir, storedName), info.buffer);
     const t = now();
-    const rec = { id, studentId: s.id, category: clean(info.category) || '성적표', name, memo: '', mime: type,
-      size: String(info.buffer.length), storedName, createdAt: t, createdBy: me.email, updatedAt: t, updatedBy: me.email };
+    const rec = { id, studentId: s.id, category: doc ? '서류' : (clean(info.category) || '성적표'), name, memo: '', mime: type,
+      size: String(info.buffer.length), storedName, docId: doc ? doc.id : '',
+      createdAt: t, createdBy: me.email, updatedAt: t, updatedBy: me.email };
     try {
-      const keys = Object.keys(rec);
-      db.prepare(`INSERT INTO files (${keys.join(', ')}) VALUES (${keys.map((k) => '@' + k).join(', ')})`).run(rec);
+      tx(() => {
+        const keys = Object.keys(rec);
+        db.prepare(`INSERT INTO files (${keys.join(', ')}) VALUES (${keys.map((k) => '@' + k).join(', ')})`).run(rec);
+        if (doc) {
+          // 서류 파일을 올리면 자동으로 수합 완료 + 받은 날짜/사람 기록
+          db.prepare("UPDATE docs SET status = '수합 완료', receivedAt = ?, receivedBy = ?, updatedAt = ?, updatedBy = ? WHERE id = ?")
+            .run(t, me.email, t, me.email, doc.id);
+        }
+        log(me.email, 'upload', 'files', id, s.name + ' · ' + (doc ? doc.name + ' · ' : '') + name);
+      });
     } catch (e) {
       fs.rm(path.join(filesDir, storedName), { force: true }, () => {});
       throw e;
     }
-    log(me.email, 'upload', 'files', id, s.name + ' · ' + name);
     return getAll(me);
+  }
+
+  /**
+   * 기존 트래커 등에서 만든 JSON 일괄 가져오기 (관리자)
+   * { format: 'compass-import-v1', students: [{ name, ..., contracts: [], apps: [], scores: [], docs: [], links: [], notes: [] }] }
+   * 같은 이름의 학생이 이미 있으면 건너뜀.
+   */
+  function importData(me, data) {
+    requireAdmin(me, '데이터 가져오기');
+    if (!data || data.format !== 'compass-import-v1' || !Array.isArray(data.students)) {
+      throw new UserError('Compass 가져오기 파일 형식이 아닙니다.');
+    }
+    const CHILD_KEYS = ['contracts', 'apps', 'scores', 'docs', 'links', 'notes'];
+    const teachersByName = {};
+    db.prepare('SELECT email, name FROM teachers').all().forEach((t) => { teachersByName[t.name] = t.email; });
+    const result = { created: [], skipped: [] };
+    tx(() => {
+      for (const src of data.students) {
+        const name = String((src && src.name) || '').trim();
+        if (!name) continue;
+        if (db.prepare("SELECT 1 FROM students WHERE name = ? AND deletedAt = ''").get(name)) { result.skipped.push(name); continue; }
+        const t = now();
+        const st = {};
+        TABLES.students.fields.forEach((k) => { if (k in src) st[k] = clean(src[k]); });
+        if (!st.counselor && src.counselorName && teachersByName[src.counselorName]) st.counselor = teachersByName[src.counselorName];
+        st.counselor = lower(st.counselor);
+        validate('students', st, null);
+        Object.assign(st, { id: newId(), createdAt: t, createdBy: me.email, updatedAt: t, updatedBy: me.email });
+        insert('students', st);
+        for (const key of CHILD_KEYS) {
+          for (const item of (src[key] || [])) {
+            const rec = { studentId: st.id };
+            TABLES[key].fields.forEach((k) => { if (k !== 'studentId' && item && k in item) rec[k] = clean(item[k]); });
+            if (key === 'contracts' && !rec.currency) rec.currency = 'RMB';
+            validate(key, rec, null);
+            Object.assign(rec, { id: newId(), createdAt: t, createdBy: me.email, updatedAt: t, updatedBy: me.email });
+            if (key === 'notes') rec.author = me.email;
+            insert(key, rec);
+          }
+        }
+        log(me.email, 'import', 'students', st.id, name);
+        result.created.push(name);
+      }
+    });
+    return Object.assign(getAll(me), { importResult: result });
+  }
+  function insert(table, rec) {
+    const keys = Object.keys(rec);
+    db.prepare(`INSERT INTO ${table} (${keys.join(', ')}) VALUES (${keys.map((k) => '@' + k).join(', ')})`).run(rec);
   }
 
   /** 다운로드용 파일 정보 (권한 확인 포함) */
@@ -561,10 +670,15 @@ function openStore(dbPath, opts) {
   }
 
   async function backup(destPath) { await db.backup(destPath); }
+  /** 백업용 전체 파일 목록 (휴지통 포함) */
+  function listFiles() {
+    return db.prepare(`SELECT f.storedName, f.name, f.category, f.createdAt, f.deletedAt, s.name AS studentName
+      FROM files f LEFT JOIN students s ON s.id = f.studentId ORDER BY f.createdAt`).all();
+  }
 
   return {
-    db, filesDir, countTeachers, upsertAdmin, login, logout, authenticate, addFile, getFile,
-    rpc: { getAll: (me) => getAll(me), save, remove, restore, purge, getTrash, getLog, saveTeacher, changePassword },
+    db, filesDir, listFiles, countTeachers, upsertAdmin, login, logout, authenticate, addFile, getFile,
+    rpc: { getAll: (me) => getAll(me), save, remove, restore, purge, getTrash, getLog, saveTeacher, changePassword, importData },
     backup, close: () => db.close(),
   };
 }
