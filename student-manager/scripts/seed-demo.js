@@ -97,6 +97,12 @@ save('apps', { studentId: b, country: '홍콩', university: 'HKU', major: 'Engin
 save('docs', { studentId: a, name: '출입국사실증명서(학생)', status: '요청함' });
 save('docs', { studentId: a, name: '재학증명서', status: '수합 완료' });
 save('links', { studentId: a, label: '회의록', url: 'https://docs.google.com/spreadsheets/d/sample' });
+// 메인 화면 공용 달력 (날짜는 예시)
+r.saveEvent(me, { date: d(9), title: 'SAT 시험 (예시)', category: '시험', memo: '시험장·준비물 학생들에게 안내' });
+r.saveEvent(me, { date: d(2), title: 'SAT 접수 마감 (예시)', category: '시험' });
+r.saveEvent(me, { date: d(20), endDate: d(22), title: '홍콩 대학 설명회 (예시)', category: '설명회·행사' });
+r.saveEvent(me, { date: d(30), endDate: d(36), title: '학원 휴무 (예시)', category: '휴무' });
+r.saveEvent(me, { date: d(14), title: 'CISS 중간고사 시작 (예시)', category: '학교' });
 
 store.close();
 console.log('데모 DB 생성: ' + dbPath + '\n실행: DB_PATH=' + dbPath + ' npm start\n' +
