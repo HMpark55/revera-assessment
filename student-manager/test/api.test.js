@@ -534,3 +534,81 @@ test('v3 DB 업그레이드 시 대학 초기 자료가 들어가고 기존 지�
   assert.strictEqual(again.rpc.getAll(boss).universities.length, 14);
   again.close();
 });
+
+test('v2: 비밀번호 6자·첫 로그인 변경 없음, 담당 관리팀, 팔로업, 학생별 최근 활동', async () => {
+  const admin = client();
+  await admin.login('admin@revera.test', 'admin-pass-1');
+  assert.strictEqual((await admin.rpc('saveTeacher', { email: 'short@revera.test', name: 's', role: 'staff', password: '12345' })).status, 400);
+  await admin.ok('saveTeacher', { email: 'mgr6@revera.test', name: '관리', role: 'staff', password: '123456' });
+  await admin.ok('saveTeacher', { email: 'con6@revera.test', name: '컨설', role: 'consultant', password: '123456' });
+  const mgr = client(); assert.strictEqual((await mgr.login('mgr6@revera.test', '123456')).status, 200);
+  const con = client(); await con.login('con6@revera.test', '123456');
+  let d = await mgr.ok('getAll');
+  assert.strictEqual(d.me.mustChangePassword, false, '첫 로그인 비밀번호 변경 강제 없음');
+
+  // 담당 관리팀 + 컨설턴트(미정 가능)
+  assert.strictEqual((await mgr.save('students', { name: 'x', manager: 'nobody@revera.test' })).status, 400);
+  d = await mgr.saveOk('students', { name: '팔로업학생', manager: 'MGR6@revera.test', counselor: '', progress: '에세이 초안 작업 중' });
+  const sid = d.savedId;
+  let s = d.students.find((x) => x.id === sid);
+  assert.strictEqual(s.manager, 'mgr6@revera.test');
+  assert.strictEqual(s.counselor, '');
+  d = await mgr.saveOk('students', { id: sid, updatedAt: s.updatedAt, counselor: 'con6@revera.test' });
+  s = d.students.find((x) => x.id === sid);
+
+  // 팔로업
+  assert.strictEqual((await mgr.save('followups', { studentId: sid })).status, 400);
+  assert.strictEqual((await mgr.save('followups', { studentId: sid, title: 'x', status: '이상함' })).status, 400);
+  assert.strictEqual((await mgr.save('followups', { studentId: sid, title: 'x', due: '10/20' })).status, 400);
+  d = await mgr.saveOk('followups', { studentId: sid, title: '재학증명서 받기', assignee: 'CON6@revera.test', due: '2026-10-20' });
+  let f = d.followups.find((x) => x.id === d.savedId);
+  assert.strictEqual(f.status, '할 일');
+  assert.strictEqual(f.assignee, 'con6@revera.test');
+  await mgr.saveOk('notes', { studentId: sid, content: '어머님 비밀 상담' });
+
+  // 컨설턴트도 담당 학생 팔로업 완료 처리 가능, 담당자 변경은 불가
+  d = await con.ok('getAll');
+  f = d.followups.find((x) => x.id === f.id);
+  d = await con.saveOk('followups', { id: f.id, updatedAt: f.updatedAt, status: '완료' });
+  f = d.followups.find((x) => x.id === f.id);
+  assert.strictEqual(f.doneBy, 'con6@revera.test');
+  assert.ok(f.doneAt);
+  s = d.students.find((x) => x.id === sid);
+  d = await con.saveOk('students', { id: sid, updatedAt: s.updatedAt, manager: 'admin@revera.test', progress: '최종 제출 준비' });
+  s = d.students.find((x) => x.id === sid);
+  assert.strictEqual(s.manager, 'mgr6@revera.test', '컨설턴트는 담당 관리팀 변경 불가');
+  assert.strictEqual(s.progress, '최종 제출 준비');
+  d = await con.saveOk('followups', { id: f.id, updatedAt: f.updatedAt, status: '진행 중' });
+  f = d.followups.find((x) => x.id === f.id);
+  assert.strictEqual(f.doneAt, '');
+
+  // 최근 활동: 관리팀은 상담기록 포함, 컨설턴트는 제외
+  const all = (await mgr.ok('getActivity', { studentId: sid })).rows;
+  assert.ok(all.some((r) => r.tbl === 'followups' && r.tblLabel === '팔로업'));
+  assert.ok(all.some((r) => r.tbl === 'notes'));
+  const mine = (await con.ok('getActivity', { studentId: sid })).rows;
+  assert.ok(mine.some((r) => r.tbl === 'followups'));
+  assert.ok(!mine.some((r) => r.tbl === 'notes'));
+  const other = await mgr.saveOk('students', { name: '다른학생' });
+  assert.strictEqual((await con.rpc('getActivity', { studentId: other.savedId })).status, 403);
+});
+
+test('v4 DB 업그레이드: 비밀번호 변경 강제 해제 + 기존 데이터 유지', () => {
+  const p4 = path.join(dir, 'v4.db');
+  const { openStore: openV4 } = require('./fixtures/store-v4');
+  const v4 = openV4(p4, { filesDir: path.join(dir, 'v4files') });
+  v4.upsertAdmin('boss4@revera.test', '원장', 'boss-pass-1');
+  const boss = { email: 'boss4@revera.test', name: '원장', role: 'admin' };
+  v4.rpc.saveTeacher(boss, { email: 'new4@revera.test', name: '신입', role: 'staff', password: 'temp-pass-1' });
+  const sid = v4.rpc.save(boss, { table: 'students', obj: { name: '옛학생', fatherWechat: 'wx1' } }).savedId;
+  v4.close();
+  const v5 = openStore(p4, { filesDir: path.join(dir, 'v4files') });
+  assert.strictEqual(v5.db.prepare("SELECT mustChangePassword m FROM teachers WHERE email='new4@revera.test'").get().m, 0);
+  const d = v5.rpc.getAll(boss);
+  const s = d.students.find((x) => x.id === sid);
+  assert.strictEqual(s.fatherWechat, 'wx1', '숨긴 칸의 기존 값은 지우지 않음');
+  assert.deepStrictEqual(d.followups, []);
+  v5.rpc.save(boss, { table: 'followups', obj: { studentId: sid, title: '확인' } });
+  assert.ok(v5.rpc.getActivity(boss, { studentId: sid }).rows.length >= 1);
+  v5.close();
+});

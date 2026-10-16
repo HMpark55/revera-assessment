@@ -24,7 +24,7 @@ const ROLES = ['admin', 'staff', 'consultant'];
 const TABLES = {
   students: {
     label: '학생',
-    fields: ['name', 'dob', 'school', 'grade', 'curriculum', 'counselor', 'status', 'tracks', 'studentPhone',
+    fields: ['name', 'dob', 'school', 'grade', 'curriculum', 'counselor', 'manager', 'status', 'tracks', 'studentPhone', 'progress',
       'parentName', 'parentPhone', 'email', 'tags', 'memo', 'driveUrl', 'resumeUrl',
       'fatherName', 'fatherPhone', 'fatherWechat', 'fatherEmail', 'motherName', 'motherPhone', 'motherWechat', 'motherEmail',
       'storyTrigger', 'storyProcess', 'storyLink', 'storyConclusion', 'storyStatus'],
@@ -72,6 +72,11 @@ const TABLES = {
     fields: ['studentId', 'category', 'name', 'memo'], // 파일 자체는 upload 로만 추가
     summary: (r) => r.name,
   },
+  followups: {
+    label: '팔로업',
+    fields: ['studentId', 'title', 'detail', 'category', 'assignee', 'due', 'status'],
+    summary: (r) => [r.title, r.status].filter(Boolean).join(' · '),
+  },
   payments: {
     label: '입금',
     fields: ['studentId', 'contractId', 'date', 'amount', 'currency', 'method', 'memo'],
@@ -79,6 +84,7 @@ const TABLES = {
   },
 };
 const CURRENCIES = ['RMB', 'KRW'];
+const FOLLOWUP_STATUS = ['할 일', '진행 중', '대기', '완료'];
 const CHILD_TABLES = Object.keys(TABLES).filter((t) => t !== 'students');
 
 /** 대학 정보 (학생과 무관한 공용 자료) */
@@ -119,6 +125,7 @@ const FIELD_LABELS = {
   resumeUrl: 'Resume 링크', fatherName: '부 이름', fatherPhone: '부 연락처', fatherWechat: '부 WeChat', fatherEmail: '부 이메일',
   motherName: '모 이름', motherPhone: '모 연락처', motherWechat: '모 WeChat', motherEmail: '모 이메일', country: '국가',
   endMonth: '종료 연월', currency: '통화', payDue: '납부 기한', contractId: '계약', method: '입금 방법',
+  manager: '담당 관리팀', progress: '현재 진행 상황', title: '할 일', assignee: '담당자', doneAt: '완료 시각', doneBy: '완료한 사람',
   universityId: '대학(목록)', majorId: '전공(목록)', roundId: '전형(목록)', deadlineManual: '마감일 직접 지정',
   fullName: '정식 이름', aliases: '다른 이름', website: '홈페이지', tips: '원서 준비 유의사항', sortOrder: '순서',
   year: '입학 연도', term: '입학 학기', requirements: '공식 지원 요건', sourceUrl: '출처', faculty: '단과대',
@@ -180,7 +187,7 @@ function verifyPassword(pw, stored) {
   return crypto.timingSafeEqual(expected, actual);
 }
 function checkPasswordRule(pw) {
-  if (String(pw || '').length < 8) throw new UserError('비밀번호는 8자 이상이어야 합니다.');
+  if (String(pw || '').length < 6) throw new UserError('비밀번호는 6자 이상이어야 합니다.');
 }
 const sha256 = (s) => crypto.createHash('sha256').update(s).digest('hex');
 /** "30,000" → 30000 (숫자가 아니면 0) */
@@ -227,6 +234,11 @@ function migrate(db) {
     ensureColumns(db, t, TABLES[t].fields.filter((f) => f !== 'studentId').concat(META_COLS));
   }
   ensureColumns(db, 'notes', ['author']);
+  ensureColumns(db, 'followups', ['doneAt', 'doneBy']);
+  ensureColumns(db, 'log', ['studentId']);
+  db.exec('CREATE INDEX IF NOT EXISTS log_student ON log(studentId)');
+  // v5: 첫 로그인 비밀번호 변경 강제 없앰
+  db.prepare('UPDATE teachers SET mustChangePassword = 0 WHERE mustChangePassword != 0').run();
   for (const t of Object.keys(CATALOG)) {
     db.exec(`CREATE TABLE IF NOT EXISTS ${t} (id TEXT PRIMARY KEY)`);
     ensureColumns(db, t, CATALOG[t].fields.concat(META_COLS));
@@ -315,9 +327,13 @@ function openStore(dbPath, opts) {
   fs.mkdirSync(filesDir, { recursive: true });
 
   const tx = (fn) => db.transaction(fn)();
-  const log = (email, action, table, id, summary) =>
-    db.prepare('INSERT INTO log (at, email, action, tbl, targetId, summary) VALUES (?,?,?,?,?,?)')
-      .run(now(), email, action, table, String(id), String(summary || '').slice(0, 500));
+  const log = (email, action, table, id, summary) => {
+    let sid = '';
+    if (table === 'students') sid = String(id);
+    else if (TABLES[table]) { const r = getRow(table, id); sid = r ? r.studentId : ''; }
+    db.prepare('INSERT INTO log (at, email, action, tbl, targetId, summary, studentId) VALUES (?,?,?,?,?,?,?)')
+      .run(now(), email, action, table, String(id), String(summary || '').slice(0, 500), sid);
+  };
   const getTeacher = (email) => db.prepare('SELECT * FROM teachers WHERE email = ?').get(lower(email));
   const getRow = (table, id) => db.prepare(`SELECT * FROM ${table} WHERE id = ?`).get(String(id || ''));
 
@@ -454,6 +470,17 @@ function openStore(dbPath, opts) {
     if (table === 'docs') need('name', '서류 이름을 입력하세요.');
     if (table === 'links') { need('url', '링크 주소를 입력하세요.'); checkUrl(v('url')); }
     if (table === 'files') need('name', '파일 이름을 입력하세요.');
+    if (table === 'followups') {
+      need('title', '할 일을 입력하세요.');
+      if (v('status') && !FOLLOWUP_STATUS.includes(v('status'))) throw new UserError('상태가 올바르지 않습니다.');
+      if (v('due') && !/^\d{4}-\d{2}-\d{2}$/.test(v('due'))) throw new UserError('기한 형식이 올바르지 않습니다.');
+    }
+    if (table === 'students') {
+      for (const k of ['counselor', 'manager']) {
+        const e = v(k);
+        if (e && !getTeacher(e)) throw new UserError('담당자로 지정한 계정을 찾을 수 없습니다.');
+      }
+    }
     if (table === 'students') { checkUrl(v('driveUrl'), 'Drive 폴더 링크'); checkUrl(v('resumeUrl'), 'Resume 링크'); }
     if (table === 'contracts' && v('currency') && !CURRENCIES.includes(v('currency'))) throw new UserError('통화는 RMB 또는 KRW만 가능합니다.');
     if (table === 'payments') {
@@ -507,7 +534,7 @@ function openStore(dbPath, opts) {
         if (!cur || cur.deletedAt) throw new UserError('다른 선생님이 이미 삭제한 항목입니다. 새로고침 해주세요.', 409);
         if (table === 'students') {
           requireStudent(me, cur.id);
-          if (!isManager(me)) delete rec.counselor; // 컨설턴트는 담당자 변경 불가
+          if (!isManager(me)) { delete rec.counselor; delete rec.manager; } // 컨설턴트는 담당자 변경 불가
         } else {
           requireStudent(me, cur.studentId);
           if (rec.studentId && rec.studentId !== cur.studentId) requireStudent(me, rec.studentId);
@@ -521,6 +548,12 @@ function openStore(dbPath, opts) {
         }
         if (table === 'payments' && 'amount' in rec) rec.amount = String(parseAmount(rec.amount));
         if (table === 'apps') resolveApp(rec, cur);
+        if (table === 'followups' && 'status' in rec && rec.status !== cur.status) {
+          rec.doneAt = rec.status === '완료' ? t : '';
+          rec.doneBy = rec.status === '완료' ? me.email : '';
+        }
+        if ('manager' in rec) rec.manager = lower(rec.manager);
+        if ('assignee' in rec) rec.assignee = lower(rec.assignee);
         validate(table, rec, cur);
         const keys = Object.keys(rec);
         db.prepare(`UPDATE ${table} SET ${keys.map((k) => k + ' = @' + k).concat(['updatedAt = @updatedAt', 'updatedBy = @updatedBy']).join(', ')} WHERE id = @id`)
@@ -548,6 +581,12 @@ function openStore(dbPath, opts) {
           if (!rec.universityId && rec.university) rec.universityId = findUniByName(rec.university);
           resolveApp(rec, null);
         }
+        if (table === 'followups') {
+          if (!rec.status) rec.status = '할 일';
+          if (rec.status === '완료') { rec.doneAt = t; rec.doneBy = me.email; }
+        }
+        if ('manager' in rec) rec.manager = lower(rec.manager);
+        if ('assignee' in rec) rec.assignee = lower(rec.assignee);
         validate(table, rec, null);
         Object.assign(rec, { id: newId(), createdAt: t, createdBy: me.email, updatedAt: t, updatedBy: me.email });
         if (table === 'notes') rec.author = me.email;
@@ -829,6 +868,16 @@ function openStore(dbPath, opts) {
     return { items };
   }
 
+  /** 학생별 최근 활동 (담당자 모두 볼 수 있음, 컨설턴트에게는 상담기록·계약·입금 기록 제외) */
+  function getActivity(me, arg) {
+    const s = requireStudent(me, arg && arg.studentId);
+    const hidden = isManager(me) ? [] : ['notes', 'contracts', 'payments'];
+    const rows = db.prepare('SELECT at, email, action, tbl, summary FROM log WHERE studentId = ? ORDER BY id DESC LIMIT 200').all(s.id)
+      .filter((r) => !hidden.includes(r.tbl)).slice(0, 60);
+    rows.forEach((r) => { r.tblLabel = (DEF[r.tbl] && DEF[r.tbl].label) || r.tbl; });
+    return { rows };
+  }
+
   /** 변경 기록 (관리자) */
   function getLog(me, arg) {
     requireAdmin(me, '변경 기록 보기');
@@ -889,7 +938,7 @@ function openStore(dbPath, opts) {
     if (!data || data.format !== 'compass-import-v1' || !Array.isArray(data.students)) {
       throw new UserError('Compass 가져오기 파일 형식이 아닙니다.');
     }
-    const CHILD_KEYS = ['contracts', 'apps', 'scores', 'docs', 'links', 'notes'];
+    const CHILD_KEYS = ['contracts', 'apps', 'scores', 'docs', 'links', 'notes', 'followups'];
     const teachersByName = {};
     db.prepare('SELECT email, name FROM teachers').all().forEach((t) => { teachersByName[t.name] = t.email; });
     const result = { created: [], skipped: [] };
@@ -956,13 +1005,13 @@ function openStore(dbPath, opts) {
       if (found) {
         db.prepare('UPDATE teachers SET name=?, role=?, active=?, updatedAt=? WHERE email=?').run(name, role, active, t, email);
         if (password) {
-          db.prepare('UPDATE teachers SET passwordHash=?, mustChangePassword=1 WHERE email=?').run(hashPassword(password), email);
+          db.prepare('UPDATE teachers SET passwordHash=?, mustChangePassword=0 WHERE email=?').run(hashPassword(password), email);
         }
         // 비활성화·비밀번호 초기화·역할 변경 시 기존 로그인 즉시 해제
         if (!active || password || role !== found.role) db.prepare('DELETE FROM sessions WHERE email = ?').run(email);
       } else {
-        if (!password) throw new UserError('새 계정의 임시 비밀번호를 입력하세요 (8자 이상).');
-        db.prepare('INSERT INTO teachers VALUES (?,?,?,?,?,?,?,?)').run(email, name, role, active, hashPassword(password), 1, t, t);
+        if (!password) throw new UserError('새 계정의 비밀번호를 입력하세요 (6자 이상).');
+        db.prepare('INSERT INTO teachers VALUES (?,?,?,?,?,?,?,?)').run(email, name, role, active, hashPassword(password), 0, t, t);
       }
       const roleLabel = { admin: '관리자', staff: '관리팀', consultant: '컨설턴트' }[role];
       log(me.email, found ? 'update' : 'create', 'teachers', email,
@@ -981,7 +1030,7 @@ function openStore(dbPath, opts) {
 
   return {
     db, filesDir, listFiles, countTeachers, upsertAdmin, login, logout, authenticate, addFile, getFile,
-    rpc: { getAll: (me) => getAll(me), save, remove, restore, purge, getTrash, getLog, saveTeacher, changePassword, importData, copyCycle },
+    rpc: { getAll: (me) => getAll(me), save, remove, restore, purge, getTrash, getLog, saveTeacher, changePassword, importData, copyCycle, getActivity },
     backup, close: () => db.close(),
   };
 }
