@@ -120,6 +120,8 @@ const OPTION_KINDS = { school: '학교', curriculum: '커리큘럼', site: '사�
 /** 목록 이름을 바꾸면 함께 바뀌는 곳 */
 const OPTION_TARGET = { school: ['students', 'school'], curriculum: ['students', 'curriculum'], site: ['accounts', 'site'] };
 const ACCOUNT_CATS = ['원서 포털', '시험', '학교 LMS', '기타'];
+/** 메인 화면 공용 달력의 일정 분류 */
+const EVENT_CATS = ['시험', '원서·입시', '학교', '설명회·행사', '휴무', '기타'];
 /** 자주 쓰는 사이트 초기값 (목록 관리 › 사이트에서 관리) */
 const DEFAULT_SITES = [
   ['College Board (SAT·AP)', '시험', 'https://www.collegeboard.org'], ['TOEFL (ETS)', '시험', 'https://www.ets.org'],
@@ -332,6 +334,10 @@ function migrate(db) {
   for (const t of ['apps']) db.prepare(`UPDATE ${t} SET createdBy = updatedBy WHERE createdBy = ''`).run();
   db.exec('CREATE TABLE IF NOT EXISTS options (id TEXT PRIMARY KEY)');
   ensureColumns(db, 'options', ['kind', 'value', 'sortOrder', 'url', 'category', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy']);
+  // v9: 메인 화면 공용 달력 (SAT 시험일 등 모두가 함께 보는 일정)
+  db.exec('CREATE TABLE IF NOT EXISTS events (id TEXT PRIMARY KEY)');
+  ensureColumns(db, 'events', ['date', 'endDate', 'title', 'category', 'memo', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy']);
+  db.exec('CREATE INDEX IF NOT EXISTS events_date ON events(date)');
   // v7: 자주 쓰는 사이트를 목록으로
   if (!db.prepare("SELECT 1 FROM meta WHERE key = 'v7_sites'").get()) {
     const ts = now();
@@ -531,6 +537,7 @@ function openStore(dbPath, opts) {
         .filter((r) => ids.has(r.studentId)).map((r) => publicRow(t, r, me));
     }
     out.options = db.prepare('SELECT id, kind, value, sortOrder, url, category FROM options').all();
+    out.events = db.prepare('SELECT * FROM events ORDER BY date, title').all();
     // 대학 정보는 모두에게 공개
     const unis = db.prepare("SELECT * FROM universities WHERE deletedAt = ''").all();
     const uids = new Set(unis.map((u) => u.id));
@@ -908,6 +915,52 @@ function openStore(dbPath, opts) {
     return getAll(me);
   }
 
+  /** 공용 달력 일정: 누구나 추가, 수정·삭제는 등록한 사람 또는 관리자·관리팀 */
+  function eventLabel(r) { return r.date + (r.endDate && r.endDate !== r.date ? '~' + r.endDate : '') + ' ' + r.title; }
+  function saveEvent(me, arg) {
+    arg = arg || {};
+    const rec = {
+      date: clean(arg.date).trim(), endDate: clean(arg.endDate).trim(), title: clean(arg.title).trim().slice(0, 200),
+      category: clean(arg.category).trim(), memo: clean(arg.memo).trim(),
+    };
+    if (!rec.title) throw new UserError('일정 이름을 입력하세요.');
+    if (!DATE_RE.test(rec.date)) throw new UserError('날짜를 YYYY-MM-DD 형식으로 입력하세요.');
+    if (rec.endDate && !DATE_RE.test(rec.endDate)) throw new UserError('끝나는 날짜를 YYYY-MM-DD 형식으로 입력하세요.');
+    if (rec.endDate && rec.endDate < rec.date) throw new UserError('끝나는 날짜가 시작 날짜보다 빠릅니다.');
+    if (rec.endDate === rec.date) rec.endDate = '';
+    if (rec.category && !EVENT_CATS.includes(rec.category)) throw new UserError('분류가 올바르지 않습니다.');
+    const t = now();
+    let id = arg.id;
+    tx(() => {
+      if (id) {
+        const cur = getRow('events', id);
+        if (!cur) throw new UserError('다른 선생님이 이미 삭제한 일정입니다. 새로고침 해주세요.', 409);
+        if (cur.createdBy !== me.email && !isManager(me)) throw new UserError('일정은 등록한 사람이나 관리자·관리팀만 고칠 수 있습니다.', 403);
+        if (arg.updatedAt && arg.updatedAt !== cur.updatedAt) {
+          const who = getTeacher(cur.updatedBy);
+          throw new UserError('그 사이 ' + (who ? who.name : cur.updatedBy) + ' 님이 먼저 수정했습니다. 새로고침 후 다시 입력해주세요.', 409);
+        }
+        db.prepare('UPDATE events SET date=?, endDate=?, title=?, category=?, memo=?, updatedAt=?, updatedBy=? WHERE id=?')
+          .run(rec.date, rec.endDate, rec.title, rec.category, rec.memo, t, me.email, id);
+        log(me.email, 'update', 'events', id, eventLabel(rec));
+      } else {
+        id = newId();
+        db.prepare('INSERT INTO events (id, date, endDate, title, category, memo, createdAt, createdBy, updatedAt, updatedBy) VALUES (?,?,?,?,?,?,?,?,?,?)')
+          .run(id, rec.date, rec.endDate, rec.title, rec.category, rec.memo, t, me.email, t, me.email);
+        log(me.email, 'create', 'events', id, eventLabel(rec));
+      }
+    });
+    return Object.assign(getAll(me), { savedId: id });
+  }
+  function removeEvent(me, arg) {
+    const cur = getRow('events', arg && arg.id);
+    if (!cur) throw new UserError('이미 삭제된 일정입니다.', 404);
+    if (cur.createdBy !== me.email && !isManager(me)) throw new UserError('일정은 등록한 사람이나 관리자·관리팀만 지울 수 있습니다.', 403);
+    db.prepare('DELETE FROM events WHERE id = ?').run(cur.id);
+    log(me.email, 'delete', 'events', cur.id, eventLabel(cur) + (cur.memo ? ' — ' + cur.memo.slice(0, 200) : ''));
+    return getAll(me);
+  }
+
   /** 학생 정보에 쓰인 학교·커리큘럼이 목록에 없으면 목록에 추가 */
   function addOptionsFor(rec, me, t) {
     for (const kind of ['school', 'curriculum']) {
@@ -1119,7 +1172,7 @@ function openStore(dbPath, opts) {
     rows.forEach((r) => { r.tblLabel = (DEF[r.tbl] && DEF[r.tbl].label) || legacyLabel(r.tbl); });
     return { rows };
   }
-  function legacyLabel(t) { return { teachers: '선생님 계정', options: '목록(학교·커리큘럼·사이트)', settings: '설정' }[t] || t; }
+  function legacyLabel(t) { return { teachers: '선생님 계정', options: '목록(학교·커리큘럼·사이트)', settings: '설정', events: '달력 일정' }[t] || t; }
 
   /* ----- 파일 ----- */
 
@@ -1390,7 +1443,7 @@ function openStore(dbPath, opts) {
   return {
     db, filesDir, listFiles, countTeachers, upsertAdmin, login, logout, authenticate, addFile, getFile,
     rpc: { getAll: (me) => getAll(me), save, remove, restore, purge, getTrash, getLog, saveTeacher, changePassword, importData, copyCycle, getActivity, saveMany, updateMe,
-      saveOption, removeOption, deleteTeacher, getAutomation, saveAutomation },
+      saveOption, removeOption, deleteTeacher, getAutomation, saveAutomation, saveEvent, removeEvent },
     backup, getConfig, getMeta, recordRun, listTeachers, close: () => db.close(),
   };
 }

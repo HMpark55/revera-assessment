@@ -938,3 +938,35 @@ test('v8 업그레이드: 미팅 시간 칸에 들어간 긴 글은 본문 [추�
   assert.ok(m.content.startsWith('본문') && m.content.includes('[추가 메모') && m.content.includes('긴 메모'));
   st.close();
 });
+
+test('공용 달력: 누구나 추가, 수정·삭제는 등록자·관리팀만, 날짜 검사, 변경 기록', async () => {
+  const admin = client(); await admin.login('admin@revera.test', 'admin-pass-1');
+  const c1 = await newUser(admin, 'cal1@revera.test', 'consultant');
+  const c2 = await newUser(admin, 'cal2@revera.test', 'consultant');
+  const staff = await newUser(admin, 'calstaff@revera.test', 'staff');
+  let d = await c1.ok('saveEvent', { date: '2026-11-07', title: 'SAT 시험', category: '시험', memo: '접수 마감 10/24' });
+  const id = d.savedId;
+  assert.ok(d.events.some((e) => e.id === id && e.createdBy === 'cal1@revera.test'));
+  // 다른 컨설턴트에게도 보임, 하지만 수정·삭제는 불가
+  const seen = await c2.ok('getAll');
+  const ev = seen.events.find((e) => e.id === id);
+  assert.ok(ev);
+  assert.strictEqual((await c2.rpc('saveEvent', { id, updatedAt: ev.updatedAt, date: '2026-11-08', title: 'x' })).status, 403);
+  assert.strictEqual((await c2.rpc('removeEvent', { id })).status, 403);
+  // 잘못된 날짜·기간
+  assert.strictEqual((await c1.rpc('saveEvent', { date: '11/07', title: 'x' })).status, 400);
+  assert.strictEqual((await c1.rpc('saveEvent', { date: '2026-11-07', endDate: '2026-11-01', title: 'x' })).status, 400);
+  assert.strictEqual((await c1.rpc('saveEvent', { date: '2026-11-07', title: '' })).status, 400);
+  assert.strictEqual((await c1.rpc('saveEvent', { date: '2026-11-07', title: 'x', category: '없는 분류' })).status, 400);
+  // 관리팀은 수정 가능, 동시 수정 충돌 감지
+  d = await staff.ok('saveEvent', { id, updatedAt: ev.updatedAt, date: '2026-11-07', endDate: '2026-11-07', title: 'SAT 시험 (11월)', category: '시험' });
+  const ev2 = d.events.find((e) => e.id === id);
+  assert.strictEqual(ev2.title, 'SAT 시험 (11월)');
+  assert.strictEqual(ev2.endDate, '');
+  assert.strictEqual((await c1.rpc('saveEvent', { id, updatedAt: ev.updatedAt, date: '2026-11-07', title: '옛 화면에서 저장' })).status, 409);
+  // 등록자는 삭제 가능, 변경 기록에 남음
+  await c1.ok('removeEvent', { id });
+  assert.ok(!(await c1.ok('getAll')).events.some((e) => e.id === id));
+  const log = await admin.ok('getLog', {});
+  assert.ok(log.rows.some((r) => r.tbl === 'events' && r.action === 'delete' && r.tblLabel === '달력 일정' && /SAT 시험 \(11월\)/.test(r.summary)));
+});
