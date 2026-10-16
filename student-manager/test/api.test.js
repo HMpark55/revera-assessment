@@ -419,3 +419,118 @@ test('v2 DB(납부 완료 표시)를 v3로 업그레이드하면 입금 기록�
   assert.strictEqual(v3.rpc.getAll(boss).payments.length, 0);
   v3.close();
 });
+
+test('대학 정보: 초기 자료, 권한, 전형 마감일 자동 반영', async () => {
+  const admin = client();
+  await admin.login('admin@revera.test', 'admin-pass-1');
+  const staff = client();
+  await staff.login('staff@revera.test', 'mine-pass-1');
+  const lee = client();
+  await lee.login('lee@revera.test', 'mine-pass-1');
+
+  let d = await lee.ok('getAll');
+  const names = d.universities.map((u) => u.name);
+  for (const n of ['HKU', 'HKUST', 'CUHK', 'CityU', 'PolyU', 'NUS', 'NTU', 'SUTD', 'SMU', 'McGill', 'UBC', 'University of Toronto', '서울대', 'KAIST']) {
+    assert.ok(names.includes(n), n + ' 없음');
+  }
+  const hku = d.universities.find((u) => u.name === 'HKU');
+  const cyc = d.unicycles.find((c) => c.universityId === hku.id && c.year === '2027');
+  assert.strictEqual(cyc.status, '확인 필요');
+  assert.ok(JSON.parse(cyc.requirements).some((r) => r.item === 'Personal Statement'));
+  const early = d.unirounds.find((r) => r.cycleId === cyc.id && r.deadline === '2026-11-25');
+  assert.ok(early);
+
+  // 대학 추가·삭제·이름 변경은 관리자만
+  assert.strictEqual((await lee.save('universities', { name: 'Test U', country: '기타' })).status, 403);
+  assert.strictEqual((await staff.save('universities', { name: 'Test U', country: '기타' })).status, 403);
+  assert.strictEqual((await lee.rpc('remove', { table: 'universities', id: hku.id })).status, 403);
+  d = await lee.saveOk('universities', { id: hku.id, updatedAt: hku.updatedAt, name: '바뀐이름', website: 'https://x.hku.hk', tips: '컨설턴트 메모' });
+  const hku2 = d.universities.find((u) => u.id === hku.id);
+  assert.strictEqual(hku2.name, 'HKU', '컨설턴트는 이름 변경 불가');
+  assert.strictEqual(hku2.tips, '컨설턴트 메모');
+  assert.strictEqual((await lee.save('universities', { id: hku.id, website: 'javascript:x' })).status, 400);
+
+  // 컨설턴트도 연도 정보·전형·전공 수정 가능
+  d = await lee.saveOk('unicycles', { id: cyc.id, updatedAt: cyc.updatedAt, requirements: JSON.stringify([{ item: 'Essay', content: '영어 500 words' }]), status: '확인 완료' });
+  const cyc2 = d.unicycles.find((c) => c.id === cyc.id);
+  assert.strictEqual(cyc2.verifiedBy, 'lee@revera.test');
+  assert.ok(cyc2.verifiedAt);
+  assert.strictEqual((await lee.save('unicycles', { id: cyc.id, requirements: '{bad' })).status, 400);
+  assert.strictEqual((await lee.save('unicycles', { universityId: hku.id, year: '2027', term: '9월' })).status, 400, '같은 연도 중복');
+  d = await lee.saveOk('unimajors', { universityId: hku.id, name: 'Computer Science', detail: '수학 필수' });
+  const major = d.unimajors.find((m) => m.id === d.savedId);
+
+  // 학생 지원대학을 대학·전형에 연결하면 마감일 자동
+  const sid = d.students[0].id;
+  d = await lee.saveOk('apps', { studentId: sid, universityId: hku.id, roundId: early.id, majorId: major.id, university: '무시됨', deadline: '2000-01-01' });
+  let app = d.apps.find((a) => a.id === d.savedId);
+  assert.strictEqual(app.university, 'HKU');
+  assert.strictEqual(app.country, '홍콩');
+  assert.strictEqual(app.deadline, '2026-11-25');
+  assert.strictEqual(app.round, '1차 라운드 (Early)');
+  assert.strictEqual(app.major, 'Computer Science');
+  // 직접 지정한 학생
+  d = await lee.saveOk('apps', { studentId: sid, universityId: hku.id, roundId: early.id, deadlineManual: true, deadline: '2026-11-20' });
+  const manual = d.apps.find((a) => a.id === d.savedId);
+  assert.strictEqual(manual.deadline, '2026-11-20');
+  // 대학 정보에서 마감일을 고치면 연결된 학생에게 반영 (직접 지정은 그대로)
+  const r = d.unirounds.find((x) => x.id === early.id);
+  d = await lee.saveOk('unirounds', { id: r.id, updatedAt: r.updatedAt, deadline: '2026-11-26' });
+  assert.strictEqual(d.apps.find((a) => a.id === app.id).deadline, '2026-11-26');
+  assert.strictEqual(d.apps.find((a) => a.id === manual.id).deadline, '2026-11-20');
+  // 다른 대학의 전형은 연결 불가 → 무시
+  const cuhkRound = d.unirounds.find((x) => x.universityId === d.universities.find((u) => u.name === 'CUHK').id);
+  d = await lee.saveOk('apps', { id: app.id, roundId: cuhkRound.id });
+  assert.strictEqual(d.apps.find((a) => a.id === app.id).roundId, '');
+  // 이름만 입력해도 목록과 같으면 자동 연결
+  d = await lee.saveOk('apps', { studentId: sid, university: 'hong kong polytechnic university' });
+  app = d.apps.find((a) => a.id === d.savedId);
+  assert.strictEqual(app.university, 'PolyU');
+  assert.ok(app.universityId);
+
+  // 연도 복사: 요건 복사 + 마감일 1년 뒤 추정
+  d = await lee.ok('copyCycle', { cycleId: cyc.id });
+  const c28 = d.unicycles.find((c) => c.id === d.savedId);
+  assert.strictEqual(c28.year, '2028');
+  assert.strictEqual(c28.status, '확인 필요');
+  assert.ok(d.unirounds.some((x) => x.cycleId === c28.id && x.deadline === '2027-11-26'));
+
+  // 전형 삭제 → 휴지통 → 영구 삭제 시 학생 연결 해제
+  await lee.ok('remove', { table: 'unirounds', id: early.id });
+  const t = await staff.ok('getTrash');
+  assert.ok(t.items.some((i) => i.id === early.id && i.label === '전형·마감'));
+  await admin.ok('purge', { table: 'unirounds', id: early.id });
+  assert.strictEqual(store.db.prepare('SELECT COUNT(*) n FROM apps WHERE roundId = ?').get(early.id).n, 0);
+
+  // 관리자는 대학 추가 가능 + 같은 이름 지원대학 자동 연결
+  await staff.saveOk('apps', { studentId: sid, university: 'Waseda' });
+  d = await admin.saveOk('universities', { name: '와세다', country: '일본', aliases: 'Waseda, Waseda University' });
+  assert.ok(d.apps.some((a) => a.university === '와세다' && a.universityId === d.savedId));
+  const log = (await admin.ok('getLog')).rows;
+  assert.ok(log.some((x) => x.tblLabel === '대학' && x.summary.includes('자동 연결')));
+  assert.ok(log.some((x) => x.tblLabel === '전형·마감' && x.summary.includes('마감일 자동 반영')));
+});
+
+test('v3 DB 업그레이드 시 대학 초기 자료가 들어가고 기존 지원대학이 연결됨', () => {
+  const p3 = path.join(dir, 'v3.db');
+  const { openStore: openV3 } = require('./fixtures/store-v3');
+  const v3 = openV3(p3, { filesDir: path.join(dir, 'v3files') });
+  v3.upsertAdmin('boss@revera.test', '원장', 'boss-pass-1');
+  const boss = { email: 'boss@revera.test', name: '원장', role: 'admin' };
+  const sid = v3.rpc.save(boss, { table: 'students', obj: { name: '옛지원학생' } }).savedId;
+  v3.rpc.save(boss, { table: 'apps', obj: { studentId: sid, country: '홍콩', university: 'HKU', deadline: '2026-11-26' } });
+  v3.rpc.save(boss, { table: 'apps', obj: { studentId: sid, university: '모르는대학' } });
+  v3.close();
+  const v4 = openStore(p3, { filesDir: path.join(dir, 'v3files') });
+  const d = v4.rpc.getAll(boss);
+  assert.strictEqual(d.universities.length, 14);
+  const hku = d.apps.find((a) => a.university === 'HKU');
+  assert.strictEqual(hku.universityId, d.universities.find((u) => u.name === 'HKU').id);
+  assert.strictEqual(hku.deadline, '2026-11-26', '연결만 하고 기존 마감일은 그대로');
+  assert.strictEqual(d.apps.find((a) => a.university === '모르는대학').universityId, '');
+  v4.close();
+  // 다시 열어도 중복 생성 없음
+  const again = openStore(p3, { filesDir: path.join(dir, 'v3files') });
+  assert.strictEqual(again.rpc.getAll(boss).universities.length, 14);
+  again.close();
+});

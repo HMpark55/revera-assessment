@@ -43,7 +43,8 @@ const TABLES = {
   },
   apps: {
     label: '지원대학',
-    fields: ['studentId', 'country', 'university', 'major', 'round', 'deadline', 'status', 'essay', 'memo'],
+    fields: ['studentId', 'country', 'universityId', 'university', 'majorId', 'major', 'roundId', 'round', 'deadline',
+      'deadlineManual', 'status', 'essay', 'memo'],
     summary: (r) => [r.university, r.round].filter(Boolean).join(' '),
   },
   scores: {
@@ -79,6 +80,31 @@ const TABLES = {
 };
 const CURRENCIES = ['RMB', 'KRW'];
 const CHILD_TABLES = Object.keys(TABLES).filter((t) => t !== 'students');
+
+/** 대학 정보 (학생과 무관한 공용 자료) */
+const CATALOG = {
+  universities: {
+    label: '대학', fields: ['country', 'name', 'fullName', 'aliases', 'website', 'tips', 'sortOrder'],
+    summary: (r) => r.name,
+  },
+  unicycles: {
+    label: '입학 연도 정보', fields: ['universityId', 'year', 'term', 'requirements', 'sourceUrl', 'status', 'memo'],
+    summary: (r) => cycleLabel(r),
+  },
+  unirounds: {
+    label: '전형·마감', fields: ['universityId', 'cycleId', 'name', 'deadline', 'memo'],
+    summary: (r) => [r.name, r.deadline].filter(Boolean).join(' '),
+  },
+  unimajors: {
+    label: '전공', fields: ['universityId', 'name', 'faculty', 'code', 'detail', 'sourceUrl'],
+    summary: (r) => r.name,
+  },
+};
+/** 대학 목록 자체(추가·삭제·이름/국가 변경)는 관리자만 */
+const UNI_ADMIN_FIELDS = ['country', 'name', 'fullName', 'aliases', 'sortOrder'];
+const CYCLE_STATUS = ['확인 필요', '확인 완료'];
+const DEF = Object.assign({}, TABLES, CATALOG);
+function cycleLabel(c) { return c ? (c.year || '') + '년 ' + (c.term || '') + ' 입학' : ''; }
 /** 변경 기록에 표시할 항목 이름 */
 const FIELD_LABELS = {
   name: '이름', dob: '생년월일', school: '학교', grade: '학년', curriculum: '커리큘럼', counselor: '담당 컨설턴트',
@@ -93,6 +119,10 @@ const FIELD_LABELS = {
   resumeUrl: 'Resume 링크', fatherName: '부 이름', fatherPhone: '부 연락처', fatherWechat: '부 WeChat', fatherEmail: '부 이메일',
   motherName: '모 이름', motherPhone: '모 연락처', motherWechat: '모 WeChat', motherEmail: '모 이메일', country: '국가',
   endMonth: '종료 연월', currency: '통화', payDue: '납부 기한', contractId: '계약', method: '입금 방법',
+  universityId: '대학(목록)', majorId: '전공(목록)', roundId: '전형(목록)', deadlineManual: '마감일 직접 지정',
+  fullName: '정식 이름', aliases: '다른 이름', website: '홈페이지', tips: '원서 준비 유의사항', sortOrder: '순서',
+  year: '입학 연도', term: '입학 학기', requirements: '공식 지원 요건', sourceUrl: '출처', faculty: '단과대',
+  code: '코드', cycleId: '입학 연도',
 };
 /** 관리자/관리팀만 다룰 수 있는 테이블 */
 const MANAGER_ONLY = ['notes', 'contracts', 'payments'];
@@ -197,6 +227,14 @@ function migrate(db) {
     ensureColumns(db, t, TABLES[t].fields.filter((f) => f !== 'studentId').concat(META_COLS));
   }
   ensureColumns(db, 'notes', ['author']);
+  for (const t of Object.keys(CATALOG)) {
+    db.exec(`CREATE TABLE IF NOT EXISTS ${t} (id TEXT PRIMARY KEY)`);
+    ensureColumns(db, t, CATALOG[t].fields.concat(META_COLS));
+  }
+  ensureColumns(db, 'unicycles', ['verifiedAt', 'verifiedBy']);
+  db.exec('CREATE INDEX IF NOT EXISTS unicycles_uni ON unicycles(universityId)');
+  db.exec('CREATE INDEX IF NOT EXISTS unirounds_uni ON unirounds(universityId)');
+  db.exec('CREATE INDEX IF NOT EXISTS unimajors_uni ON unimajors(universityId)');
   ensureColumns(db, 'files', ['mime', 'size', 'storedName', 'docId']);
   ensureColumns(db, 'docs', ['receivedAt', 'receivedBy']);
   ensureColumns(db, 'contracts', ['paid']); // 이전 버전 열 (새 버전은 입금 기록으로 계산)
@@ -220,6 +258,51 @@ function migrate(db) {
   // 이전 버전 데이터의 작성자 정보 보정
   db.prepare(`UPDATE notes SET createdBy = author WHERE createdBy = '' AND author != ''`).run();
   for (const t of ['apps']) db.prepare(`UPDATE ${t} SET createdBy = updatedBy WHERE createdBy = ''`).run();
+  // v4: 대학 정보 초기 자료 (목록이 비어 있을 때 한 번만)
+  if (!db.prepare("SELECT 1 FROM meta WHERE key = 'v4_university_seed'").get()) {
+    if (!db.prepare('SELECT 1 FROM universities LIMIT 1').get()) seedUniversities(db);
+    db.prepare("INSERT INTO meta VALUES ('v4_university_seed', ?)").run(now());
+  }
+}
+
+function seedUniversities(db) {
+  const seed = require('./university-seed');
+  const ts = now();
+  const meta = { createdAt: ts, createdBy: 'system', updatedAt: ts, updatedBy: 'system' };
+  const ins = (table, rec) => {
+    const keys = Object.keys(rec);
+    db.prepare(`INSERT INTO ${table} (${keys.join(', ')}) VALUES (${keys.map((k) => '@' + k).join(', ')})`).run(rec);
+  };
+  seed.forEach((u, i) => {
+    const uid = newId();
+    ins('universities', Object.assign({ id: uid, country: u.country, name: u.name, fullName: u.fullName || '', aliases: u.aliases || '',
+      website: u.website || '', tips: u.tips || '', sortOrder: String(i + 1) }, meta));
+    (u.cycles || []).forEach((c) => {
+      const cid = newId();
+      ins('unicycles', Object.assign({ id: cid, universityId: uid, year: c.year, term: c.term, requirements: JSON.stringify(c.requirements || []),
+        sourceUrl: c.sourceUrl || '', status: '확인 필요', memo: c.memo || '' }, meta));
+      (c.rounds || []).forEach((r) => ins('unirounds', Object.assign({ id: newId(), universityId: uid, cycleId: cid,
+        name: r.name, deadline: r.deadline || '', memo: r.memo || '' }, meta)));
+    });
+    (u.majors || []).forEach((m) => ins('unimajors', Object.assign({ id: newId(), universityId: uid, name: m.name,
+      faculty: m.faculty || '', code: m.code || '', detail: m.detail || '', sourceUrl: m.sourceUrl || '' }, meta)));
+  });
+  linkAppsByName(db);
+}
+
+/** 대학 목록과 이름이 같은 지원대학을 목록에 연결 (이름 · 정식 이름 · 다른 이름 기준) */
+function linkAppsByName(db) {
+  const norm = (x) => String(x || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  const map = {};
+  db.prepare("SELECT * FROM universities WHERE deletedAt = ''").all().forEach((u) => {
+    [u.name, u.fullName].concat(String(u.aliases || '').split(',')).map(norm).filter(Boolean).forEach((n) => { map[n] = map[n] || u; });
+  });
+  let n = 0;
+  db.prepare("SELECT id, university FROM apps WHERE universityId = '' AND deletedAt = ''").all().forEach((a) => {
+    const u = map[norm(a.university)];
+    if (u) { db.prepare('UPDATE apps SET universityId = ?, university = ?, country = ? WHERE id = ?').run(u.id, u.name, u.country, a.id); n++; }
+  });
+  return n;
 }
 
 /* ---------------- 저장소 ---------------- */
@@ -345,6 +428,13 @@ function openStore(dbPath, opts) {
       out[t] = db.prepare(`SELECT * FROM ${t} WHERE deletedAt = ''`).all()
         .filter((r) => ids.has(r.studentId)).map((r) => publicRow(t, r, me));
     }
+    // 대학 정보는 모두에게 공개
+    const unis = db.prepare("SELECT * FROM universities WHERE deletedAt = ''").all();
+    const uids = new Set(unis.map((u) => u.id));
+    out.universities = unis;
+    for (const t of ['unicycles', 'unirounds', 'unimajors']) {
+      out[t] = db.prepare(`SELECT * FROM ${t} WHERE deletedAt = ''`).all().filter((r) => uids.has(r.universityId));
+    }
     return out;
   }
 
@@ -375,9 +465,35 @@ function openStore(dbPath, opts) {
     }
   }
 
+  /** 지원대학이 대학 목록과 연결되어 있으면 대학명·국가·전공·전형·마감일을 목록 값으로 채움 */
+  function resolveApp(rec, cur) {
+    const pick = (k) => (k in rec ? rec[k] : cur ? cur[k] : '');
+    let uid = pick('universityId');
+    const u = uid ? getRow('universities', uid) : null;
+    if (uid && (!u || u.deletedAt)) uid = '';
+    if (!uid) {
+      if ('universityId' in rec || (cur && cur.universityId)) { rec.universityId = ''; rec.roundId = ''; rec.majorId = ''; }
+      return;
+    }
+    rec.universityId = uid;
+    rec.university = u.name;
+    rec.country = u.country;
+    const rid = pick('roundId');
+    const r = rid ? getRow('unirounds', rid) : null;
+    if (r && !r.deletedAt && r.universityId === uid) {
+      rec.round = r.name;
+      if (pick('deadlineManual') !== 'TRUE') rec.deadline = r.deadline;
+    } else if (rid) rec.roundId = '';
+    const mid = pick('majorId');
+    const m = mid ? getRow('unimajors', mid) : null;
+    if (m && !m.deletedAt && m.universityId === uid) rec.major = m.name;
+    else if (mid) rec.majorId = '';
+  }
+
   function save(me, arg) {
     const table = arg && arg.table;
     const obj = (arg && arg.obj) || {};
+    if (CATALOG[table]) return saveCatalog(me, table, obj);
     if (!TABLES[table]) throw new UserError('알 수 없는 항목입니다.');
     requireTableAccess(me, table);
     let result;
@@ -404,6 +520,7 @@ function openStore(dbPath, opts) {
             '새로고침 후 다시 입력해주세요.', 409);
         }
         if (table === 'payments' && 'amount' in rec) rec.amount = String(parseAmount(rec.amount));
+        if (table === 'apps') resolveApp(rec, cur);
         validate(table, rec, cur);
         const keys = Object.keys(rec);
         db.prepare(`UPDATE ${table} SET ${keys.map((k) => k + ' = @' + k).concat(['updatedAt = @updatedAt', 'updatedBy = @updatedBy']).join(', ')} WHERE id = @id`)
@@ -427,6 +544,10 @@ function openStore(dbPath, opts) {
         }
         if (table === 'contracts' && !rec.currency) rec.currency = 'RMB';
         if (table === 'payments') rec.amount = String(parseAmount(rec.amount));
+        if (table === 'apps') {
+          if (!rec.universityId && rec.university) rec.universityId = findUniByName(rec.university);
+          resolveApp(rec, null);
+        }
         validate(table, rec, null);
         Object.assign(rec, { id: newId(), createdAt: t, createdBy: me.email, updatedAt: t, updatedBy: me.email });
         if (table === 'notes') rec.author = me.email;
@@ -441,20 +562,172 @@ function openStore(dbPath, opts) {
     return data;
   }
 
-  /** 로그에 남길 설명: "학생명 · 내용" */
+  /** 로그에 남길 설명: "학생명 · 내용" (대학 정보는 "대학명 · 내용") */
   function describe(table, r) {
+    if (CATALOG[table]) {
+      const u = table === 'universities' ? null : getRow('universities', r.universityId);
+      const extra = table === 'unirounds' ? cycleLabel(getRow('unicycles', r.cycleId)) : '';
+      return [u ? u.name : '', extra, CATALOG[table].summary(r)].filter(Boolean).join(' · ');
+    }
     const s = table === 'students' ? null : getRow('students', r.studentId);
     return [s ? s.name : '', TABLES[table].summary(r)].filter(Boolean).join(' · ');
+  }
+
+  function findUniByName(name) {
+    const norm = (x) => String(x || '').trim().toLowerCase().replace(/\s+/g, ' ');
+    const n = norm(name);
+    if (!n) return '';
+    const u = db.prepare("SELECT * FROM universities WHERE deletedAt = ''").all().find((x) =>
+      [x.name, x.fullName].concat(String(x.aliases || '').split(',')).map(norm).includes(n));
+    return u ? u.id : '';
+  }
+  function requireUni(id) {
+    const u = getRow('universities', id);
+    if (!u || u.deletedAt) throw new UserError('대학 정보를 찾을 수 없습니다. 새로고침 해주세요.', 404);
+    return u;
+  }
+  function validateCatalog(table, rec, cur) {
+    const v = (k) => (k in rec ? rec[k] : cur ? cur[k] : '');
+    const need = (k, msg) => { if (!String(v(k) || '').trim()) throw new UserError(msg); };
+    if (table === 'universities') {
+      need('name', '대학 이름을 입력하세요.'); need('country', '국가를 선택하세요.');
+      checkUrl(v('website'), '홈페이지');
+      const dup = db.prepare("SELECT id FROM universities WHERE name = ? AND deletedAt = ''").get(v('name'));
+      if (dup && (!cur || dup.id !== cur.id)) throw new UserError('같은 이름의 대학이 이미 있습니다.');
+    }
+    if (table === 'unicycles') {
+      if (!/^\d{4}$/.test(v('year'))) throw new UserError('입학 연도를 4자리 숫자로 입력하세요. (예: 2027)');
+      need('term', '입학 학기를 선택하세요.');
+      if (v('status') && !CYCLE_STATUS.includes(v('status'))) throw new UserError('상태는 "확인 필요" 또는 "확인 완료"만 가능합니다.');
+      checkUrl(v('sourceUrl'), '출처 링크');
+      let reqs;
+      try { reqs = JSON.parse(v('requirements') || '[]'); } catch (e) { reqs = null; }
+      if (!Array.isArray(reqs)) throw new UserError('공식 지원 요건 형식이 올바르지 않습니다.');
+      const dup = db.prepare("SELECT id FROM unicycles WHERE universityId = ? AND year = ? AND term = ? AND deletedAt = ''")
+        .get(v('universityId'), v('year'), v('term'));
+      if (dup && (!cur || dup.id !== cur.id)) throw new UserError(v('year') + '년 ' + v('term') + ' 입학 정보가 이미 있습니다.');
+    }
+    if (table === 'unirounds') {
+      need('name', '전형 이름을 입력하세요. (예: Early, Regular)');
+      const c = getRow('unicycles', v('cycleId'));
+      if (!c || c.deletedAt || c.universityId !== v('universityId')) throw new UserError('입학 연도 정보를 찾을 수 없습니다.');
+      if (v('deadline') && !/^\d{4}-\d{2}-\d{2}$/.test(v('deadline'))) throw new UserError('마감일 형식이 올바르지 않습니다.');
+    }
+    if (table === 'unimajors') { need('name', '전공 이름을 입력하세요.'); checkUrl(v('sourceUrl'), '출처 링크'); }
+  }
+
+  function saveCatalog(me, table, obj) {
+    const def = CATALOG[table];
+    let result;
+    tx(() => {
+      const rec = {};
+      def.fields.forEach((k) => { if (k in obj) rec[k] = clean(obj[k]); });
+      const t = now();
+      if (obj.id) {
+        const cur = getRow(table, obj.id);
+        if (!cur || cur.deletedAt) throw new UserError('다른 선생님이 이미 삭제한 항목입니다. 새로고침 해주세요.', 409);
+        if (table === 'universities') {
+          if (me.role !== 'admin') UNI_ADMIN_FIELDS.forEach((k) => delete rec[k]);
+        } else {
+          requireUni(cur.universityId);
+          delete rec.universityId; // 다른 대학으로 옮기기 불가
+          if (table === 'unirounds') delete rec.cycleId;
+        }
+        if (obj.updatedAt && obj.updatedAt !== cur.updatedAt) {
+          const who = getTeacher(cur.updatedBy);
+          throw new UserError('그 사이 ' + (who ? who.name : cur.updatedBy) + ' 님이 먼저 수정했습니다. 새로고침 후 다시 입력해주세요.', 409);
+        }
+        validateCatalog(table, rec, cur);
+        if (table === 'unicycles' && 'status' in rec && rec.status !== cur.status) {
+          rec.verifiedAt = rec.status === '확인 완료' ? t : '';
+          rec.verifiedBy = rec.status === '확인 완료' ? me.email : '';
+        }
+        const keys = Object.keys(rec);
+        db.prepare(`UPDATE ${table} SET ${keys.map((k) => k + ' = @' + k).concat(['updatedAt = @updatedAt', 'updatedBy = @updatedBy']).join(', ')} WHERE id = @id`)
+          .run(Object.assign({}, rec, { updatedAt: t, updatedBy: me.email, id: cur.id }));
+        const after = Object.assign({}, cur, rec);
+        const changed = keys.filter((k) => String(rec[k]) !== String(cur[k] == null ? '' : cur[k])).map((k) => FIELD_LABELS[k] || k);
+        let cascade = '';
+        // 연결된 학생 지원대학에 자동 반영
+        if (table === 'universities' && (rec.name !== undefined || rec.country !== undefined)) {
+          db.prepare("UPDATE apps SET university = ?, country = ? WHERE universityId = ? AND deletedAt = ''").run(after.name, after.country, cur.id);
+        }
+        if (table === 'unirounds') {
+          const n = db.prepare("UPDATE apps SET deadline = ?, round = ?, updatedAt = ?, updatedBy = ? WHERE roundId = ? AND deletedAt = '' AND deadlineManual != 'TRUE' AND (deadline != ? OR round != ?)")
+            .run(after.deadline, after.name, t, me.email, cur.id, after.deadline, after.name).changes;
+          db.prepare("UPDATE apps SET round = ? WHERE roundId = ? AND deletedAt = '' AND deadlineManual = 'TRUE'").run(after.name, cur.id);
+          if (n) cascade = ' — 학생 지원대학 ' + n + '건 마감일 자동 반영';
+        }
+        if (table === 'unimajors' && rec.name !== undefined) {
+          db.prepare("UPDATE apps SET major = ? WHERE majorId = ? AND deletedAt = ''").run(after.name, cur.id);
+        }
+        log(me.email, 'update', table, cur.id, describe(table, after) + (changed.length ? ' — 변경: ' + changed.join(', ') : ' — 변경 없음') + cascade);
+        result = cur.id;
+      } else {
+        if (table === 'universities') requireAdmin(me, '대학 추가');
+        else requireUni(rec.universityId);
+        if (table === 'unicycles') {
+          if (!rec.status) rec.status = '확인 필요';
+          if (!rec.requirements) rec.requirements = '[]';
+        }
+        validateCatalog(table, rec, null);
+        if (table === 'unicycles' && rec.status === '확인 완료') { rec.verifiedAt = t; rec.verifiedBy = me.email; }
+        Object.assign(rec, { id: newId(), createdAt: t, createdBy: me.email, updatedAt: t, updatedBy: me.email });
+        insert(table, rec);
+        let extra = '';
+        if (table === 'universities') {
+          const n = linkAppsByName(db);
+          if (n) extra = ' — 이름이 같은 학생 지원대학 ' + n + '건 자동 연결';
+        }
+        log(me.email, 'create', table, rec.id, describe(table, rec) + extra);
+        result = rec.id;
+      }
+    });
+    const data = getAll(me);
+    data.savedId = result;
+    return data;
+  }
+
+  /** 입학 연도 정보 복사 (예: 2027 → 2028). 마감일은 1년 뒤로 옮긴 추정치 */
+  function copyCycle(me, arg) {
+    const src = getRow('unicycles', arg && arg.cycleId);
+    if (!src || src.deletedAt) throw new UserError('복사할 입학 연도 정보를 찾을 수 없습니다.', 404);
+    requireUni(src.universityId);
+    const year = String((arg && arg.year) || (Number(src.year) + 1));
+    const term = String((arg && arg.term) || src.term);
+    let newId_;
+    tx(() => {
+      const t = now();
+      const rec = { universityId: src.universityId, year, term, requirements: src.requirements, sourceUrl: src.sourceUrl,
+        status: '확인 필요', memo: cycleLabel(src) + ' 정보를 복사해 만든 초안입니다. 마감일은 1년 뒤로 옮긴 추정치이니 공식 요강으로 확인하세요.' };
+      validateCatalog('unicycles', rec, null);
+      Object.assign(rec, { id: newId(), createdAt: t, createdBy: me.email, updatedAt: t, updatedBy: me.email });
+      insert('unicycles', rec);
+      newId_ = rec.id;
+      const shift = (d) => /^\d{4}-\d{2}-\d{2}$/.test(d || '') ? (Number(d.slice(0, 4)) + (Number(year) - Number(src.year))) + d.slice(4) : '';
+      db.prepare("SELECT * FROM unirounds WHERE cycleId = ? AND deletedAt = ''").all(src.id).forEach((r) => {
+        insert('unirounds', { id: newId(), universityId: r.universityId, cycleId: rec.id, name: r.name, deadline: shift(r.deadline),
+          memo: (r.memo ? r.memo + ' / ' : '') + '추정 날짜 — 확인 필요', createdAt: t, createdBy: me.email, updatedAt: t, updatedBy: me.email });
+      });
+      log(me.email, 'create', 'unicycles', rec.id, describe('unicycles', rec) + ' — ' + cycleLabel(src) + '에서 복사');
+    });
+    const data = getAll(me);
+    data.savedId = newId_;
+    return data;
   }
 
   /** 삭제 = 휴지통으로 이동 */
   function remove(me, arg) {
     const table = arg && arg.table;
-    if (!TABLES[table]) throw new UserError('알 수 없는 항목입니다.');
+    if (!DEF[table]) throw new UserError('알 수 없는 항목입니다.');
     tx(() => {
       const cur = getRow(table, arg.id);
       if (!cur || cur.deletedAt) throw new UserError('이미 삭제된 항목입니다.', 404);
-      if (table === 'students') {
+      if (table === 'universities') {
+        requireAdmin(me, '대학 삭제');
+      } else if (CATALOG[table]) {
+        requireUni(cur.universityId);
+      } else if (table === 'students') {
         requireManager(me, '학생 삭제');
       } else {
         requireTableAccess(me, table);
@@ -470,11 +743,19 @@ function openStore(dbPath, opts) {
   function restore(me, arg) {
     requireManager(me, '복구');
     const table = arg && arg.table;
-    if (!TABLES[table]) throw new UserError('알 수 없는 항목입니다.');
+    if (!DEF[table]) throw new UserError('알 수 없는 항목입니다.');
     tx(() => {
       const cur = getRow(table, arg.id);
       if (!cur || !cur.deletedAt) throw new UserError('휴지통에 없는 항목입니다.', 404);
-      if (table !== 'students') {
+      if (CATALOG[table] && table !== 'universities') {
+        const u = getRow('universities', cur.universityId);
+        if (!u) throw new UserError('대학 정보가 영구 삭제되어 복구할 수 없습니다.');
+        if (u.deletedAt) throw new UserError('"' + u.name + '" 대학이 휴지통에 있습니다. 대학을 먼저 복구하세요.');
+        if (table === 'unirounds') {
+          const c = getRow('unicycles', cur.cycleId);
+          if (!c || c.deletedAt) throw new UserError('이 전형의 입학 연도 정보가 휴지통에 있습니다. 먼저 복구하세요.');
+        }
+      } else if (table !== 'students' && !CATALOG[table]) {
         const s = getRow('students', cur.studentId);
         if (!s) throw new UserError('학생 정보가 영구 삭제되어 복구할 수 없습니다.');
         if (s.deletedAt) throw new UserError('"' + s.name + '" 학생이 휴지통에 있습니다. 학생을 먼저 복구하세요.');
@@ -489,7 +770,7 @@ function openStore(dbPath, opts) {
   function purge(me, arg) {
     requireAdmin(me, '영구 삭제');
     const table = arg && arg.table;
-    if (!TABLES[table]) throw new UserError('알 수 없는 항목입니다.');
+    if (!DEF[table]) throw new UserError('알 수 없는 항목입니다.');
     const files = [];
     tx(() => {
       const cur = getRow(table, arg.id);
@@ -501,6 +782,16 @@ function openStore(dbPath, opts) {
         files.push(cur.storedName);
       } else if (table === 'contracts') {
         db.prepare('DELETE FROM payments WHERE contractId = ?').run(cur.id);
+      } else if (table === 'universities') {
+        for (const t of ['unicycles', 'unirounds', 'unimajors']) db.prepare(`DELETE FROM ${t} WHERE universityId = ?`).run(cur.id);
+        db.prepare("UPDATE apps SET universityId = '', roundId = '', majorId = '' WHERE universityId = ?").run(cur.id);
+      } else if (table === 'unicycles') {
+        db.prepare("UPDATE apps SET roundId = '' WHERE roundId IN (SELECT id FROM unirounds WHERE cycleId = ?)").run(cur.id);
+        db.prepare('DELETE FROM unirounds WHERE cycleId = ?').run(cur.id);
+      } else if (table === 'unirounds') {
+        db.prepare("UPDATE apps SET roundId = '' WHERE roundId = ?").run(cur.id);
+      } else if (table === 'unimajors') {
+        db.prepare("UPDATE apps SET majorId = '' WHERE majorId = ?").run(cur.id);
       }
       log(me.email, 'purge', table, cur.id, describe(table, cur));
       db.prepare(`DELETE FROM ${table} WHERE id = ?`).run(cur.id);
@@ -523,6 +814,17 @@ function openStore(dbPath, opts) {
           deletedAt: r.deletedAt, deletedBy: r.deletedBy });
       });
     }
+    const unis = {};
+    db.prepare('SELECT id, name, deletedAt FROM universities').all().forEach((u) => { unis[u.id] = u; });
+    for (const t of Object.keys(CATALOG)) {
+      db.prepare(`SELECT * FROM ${t} WHERE deletedAt != ''`).all().forEach((r) => {
+        const u = t === 'universities' ? r : unis[r.universityId];
+        items.push({ table: t, id: r.id, label: CATALOG[t].label, summary: describe(t, r).replace((u ? u.name : '') + ' · ', ''),
+          studentId: '', studentName: (u ? u.name : '(삭제됨)') + ' (대학 정보)',
+          studentDeleted: t !== 'universities' && !!(u && u.deletedAt),
+          deletedAt: r.deletedAt, deletedBy: r.deletedBy });
+      });
+    }
     items.sort((a, b) => b.deletedAt.localeCompare(a.deletedAt));
     return { items };
   }
@@ -532,7 +834,7 @@ function openStore(dbPath, opts) {
     requireAdmin(me, '변경 기록 보기');
     const limit = Math.min(Math.max(Number(arg && arg.limit) || 1000, 1), 5000);
     const rows = db.prepare('SELECT * FROM log ORDER BY id DESC LIMIT ?').all(limit);
-    rows.forEach((r) => { r.tblLabel = (TABLES[r.tbl] && TABLES[r.tbl].label) || legacyLabel(r.tbl); });
+    rows.forEach((r) => { r.tblLabel = (DEF[r.tbl] && DEF[r.tbl].label) || legacyLabel(r.tbl); });
     return { rows };
   }
   function legacyLabel(t) { return { teachers: '계정' }[t] || t; }
@@ -618,6 +920,7 @@ function openStore(dbPath, opts) {
         log(me.email, 'import', 'students', st.id, name);
         result.created.push(name);
       }
+      linkAppsByName(db);
     });
     return Object.assign(getAll(me), { importResult: result });
   }
@@ -678,7 +981,7 @@ function openStore(dbPath, opts) {
 
   return {
     db, filesDir, listFiles, countTeachers, upsertAdmin, login, logout, authenticate, addFile, getFile,
-    rpc: { getAll: (me) => getAll(me), save, remove, restore, purge, getTrash, getLog, saveTeacher, changePassword, importData },
+    rpc: { getAll: (me) => getAll(me), save, remove, restore, purge, getTrash, getLog, saveTeacher, changePassword, importData, copyCycle },
     backup, close: () => db.close(),
   };
 }
