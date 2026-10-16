@@ -216,6 +216,15 @@
   tr.gap td { background:#fff6f5; color:var(--error); font-size:.82rem; }
   tr.ex td { color:#999; } tr.ex td b { text-decoration:line-through; }
   .major-sum { background:#f7f9fc; border-left:3px solid var(--navy); padding:8px 12px; border-radius:0 6px 6px 0; margin-bottom:10px; }
+  .fu-reply { margin:4px 0 2px; padding:5px 9px; background:#f2f7f2; border-radius:6px; font-size:.84rem; white-space:pre-wrap; }
+  .fu-reply.none { background:#f6f6f6; color:#888; }
+  .fu .rbtn { margin-left:6px; font-size:.72rem; padding:1px 7px; }
+  .sitebar { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; align-items:center; }
+  .sitebar a { font-size:.8rem; padding:3px 10px; border:1px solid var(--border); border-radius:14px; text-decoration:none; }
+  .pw { font-family:monospace; letter-spacing:.05em; }
+  .subtabs { display:flex; gap:6px; margin-bottom:12px; }
+  .subtabs a { padding:6px 14px; border-radius:16px; border:1px solid var(--border); text-decoration:none; color:var(--navy); cursor:pointer; font-size:.88rem; }
+  .subtabs a.on { background:var(--navy); color:#fff; border-color:var(--navy); }
   .notice { background:#fffaf0; border:1px solid #f1e2b0; border-radius:8px; padding:8px 12px; font-size:.85rem; color:#6b5512; margin-bottom:12px; }
 </style>
 </head>
@@ -224,7 +233,7 @@
 <header class="top">
   <div class="top-in">
     <div class="brand">REVERA <span>Compass</span></div>
-    <div class="gsearch" id="gs" style="display:none"><input type="search" id="gq" placeholder="🔍 학생·학부모·학교·대학·팔로업 검색" autocomplete="off"
+    <div class="gsearch" id="gs" style="display:none"><input type="search" id="gq" placeholder="🔍" aria-label="검색" autocomplete="off"
       oninput="gsearch()" onfocus="gsearch()" onkeydown="gsKey(event)"><div id="gsr" class="gsr"></div></div>
     <div class="um" id="who" style="display:none"><button type="button" class="um-btn" onclick="this.parentNode.classList.toggle('open')"><span class="av" id="um-av"></span><span id="whoami"></span> ▾</button>
       <div class="um-menu"><div class="um-box"><div class="um-h" id="um-h"></div>
@@ -265,7 +274,7 @@ var DOC_DONE = ['수합 완료', '해당 없음'];
 var DOC_PRESETS = ['출입국사실증명서(학생)', '출입국사실증명서(부)', '출입국사실증명서(모)', '재학증명서', '성적증명서', '졸업(예정)증명서', '여권 사본', '가족관계증명서', '추천서'];
 var STORY_STATUS = ['작성 전', '검토 중', '확정'];
 var FILE_CATS = ['성적표', '기타'];
-var CHILD = ['notes', 'contracts', 'payments', 'apps', 'scores', 'activities', 'docs', 'links', 'files', 'followups', 'majorplans', 'schools', 'courses',
+var CHILD = ['notes', 'contracts', 'payments', 'apps', 'scores', 'activities', 'docs', 'links', 'files', 'followups', 'majorplans', 'schools', 'courses', 'accounts',
   'universities', 'unicycles', 'unirounds', 'unimajors'];
 var CATALOG_TABLES = ['universities', 'unicycles', 'unirounds', 'unimajors'];
 var FOLLOWUP_STATUS = ['할 일', '진행 중', '대기', '완료'];
@@ -273,6 +282,22 @@ var FOLLOWUP_CATS = ['서류', '에세이', '원서 접수', '시험', '학교 �
 var TERMS_INTAKE = ['9월', '8월', '3월', '1월'];
 var GRADE_ALL = ['K'].concat([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(function (n) { return 'G' + n; }), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13].map(function (n) { return 'Y' + n; }));
 var MAJOR_STATUS = ['후보', '유력', '최종', '제외'];
+var REPLY_FROM = ['학생', '어머니', '아버지', '학부모', '답장 없음'];
+var ACCOUNT_CATS = ['원서 포털', '시험', '학교 LMS', '기타'];
+/** 자주 쓰는 사이트 (주소는 각 사이트의 대표 주소) */
+var SITE_PRESETS = [
+  { n: 'College Board (SAT·AP)', c: '시험', u: 'https://www.collegeboard.org' },
+  { n: 'TOEFL (ETS)', c: '시험', u: 'https://www.ets.org' },
+  { n: 'IELTS', c: '시험', u: 'https://www.ielts.org' },
+  { n: 'Common App', c: '원서 포털', u: 'https://apply.commonapp.org' },
+  { n: 'UCAS', c: '원서 포털', u: 'https://www.ucas.com' },
+  { n: 'Schoology', c: '학교 LMS', u: 'https://app.schoology.com' },
+  { n: 'Microsoft Teams', c: '학교 LMS', u: 'https://teams.microsoft.com' }];
+function optionList(kind) {
+  return (S.options || []).filter(function (o) { return o.kind === kind; })
+    .sort(function (a, b) { return (Number(a.sortOrder) || 999) - (Number(b.sortOrder) || 999) || a.value.localeCompare(b.value); })
+    .map(function (o) { return o.value; });
+}
 var MAJOR_FIELDS = ['공학', '컴퓨터·데이터', '자연과학', '의약·보건', '경영·경제', '사회과학', '인문', '법', '교육', '예술·디자인', '건축', '기타'];
 var MAJOR_SOURCES = ['학생 희망', '학부모 의견', '컨설턴트 제안', '원장님 의견', '성적·시험 결과', '활동·적성', '기타'];
 var COURSE_TERMS = ['1년(2학기)', '1학기만', '2학기만', 'Trimester'];
@@ -286,11 +311,12 @@ var CYCLE_STATUS = ['확인 필요', '확인 완료'];
 var FORMS = {
   students: { title: '학생 정보', fields: [
     { k: 'name', l: '이름', req: 1 }, { k: 'dob', l: '생년월일', t: 'date' },
-    { k: 'school', l: '학교' }, { k: 'grade', l: '학년', t: 'select', o: [''].concat(GRADES) },
-    { k: 'curriculum', l: '커리큘럼', t: 'list', o: CURRICULA }, { k: 'status', l: '상태', t: 'select', o: STUDENT_STATUS },
+    { k: 'school', l: '학교', t: 'opt' }, { k: 'grade', l: '학년', t: 'select', o: [''].concat(GRADES) },
+    { k: 'studentPhone', l: '학생 연락처' }, { k: 'email', l: '학생 이메일', t: 'email' },
+    { k: 'curriculum', l: '커리큘럼', t: 'opt' }, { k: 'status', l: '상태', t: 'select', o: STUDENT_STATUS },
     { k: 'manager', l: '담당 관리팀', t: 'teacher', roles: ['staff', 'admin'], mgr: 1 }, { k: 'counselor', l: '담당 컨설턴트', t: 'teacher', roles: ['consultant', 'admin', 'staff'], mgr: 1 },
-    { k: 'email', l: '학생 이메일', t: 'email' }, { k: 'studentPhone', l: '학생 연락처' }, { k: 'tags', l: '태그 (쉼표로 구분)', ph: '예: 미대, 장학금' },
     { k: 'tracks', l: '트랙 (여러 개 선택 가능)', t: 'multi', o: TRACKS, full: 1 },
+    { k: 'tags', l: '태그 (쉼표로 구분)', ph: '예: 미대, 장학금', full: 1 },
     { k: 'resumeUrl', l: 'Resume (학생별 Google Doc) 링크', t: 'url', full: 1, ph: 'https://docs.google.com/document/d/...' },
     { k: 'driveUrl', l: 'Google Drive 학생 폴더 링크', t: 'url', full: 1, ph: 'https://drive.google.com/drive/folders/...' },
     { h: '학부모 정보 — 아버지' },
@@ -299,6 +325,22 @@ var FORMS = {
     { k: 'motherName', l: '이름' }, { k: 'motherPhone', l: '연락처' }, { k: 'motherEmail', l: '이메일', t: 'email' },
     { h: '' }, { k: 'memo', l: '메모', t: 'textarea', full: 1 }],
     defaults: function () { return { status: '상담중', counselor: '', manager: isMgr() && S.me.role === 'staff' ? S.me.email : '' }; } },
+  manage: { table: 'students', title: '관리 사항', noDelete: 1, fields: [
+    { k: 'hopeUnis', l: '희망 대학 / 특례 여부', t: 'textarea', full: 1, ph: '예: 1순위 싱가폴 NUS·SUTD (건축) / 12특: 서울대, 연대, 고대' },
+    { k: 'focusArea', l: '집중 과목 / 집중 관리 영역', t: 'textarea', full: 1, ph: '예: G12 추천 AP — Calculus BC, Physics C' },
+    { k: 'recommenders', l: '추천서 진행 사항', t: 'textarea', full: 1, ph: '예: 카운셀러·영어쌤·물리쌤 요청 완료' },
+    { k: 'onlineCourse', l: '온라인 코스 진행 사항 (어디까지 들었고, 어디까지 정리했는지)', t: 'textarea', full: 1 },
+    { k: 'meetingUrl', l: '미팅 회의록 링크', t: 'url', full: 1, ph: 'https://docs.google.com/document/d/...' }] },
+  accounts: { title: '사이트 계정', fields: [
+    { k: 'category', l: '분류', t: 'select', o: ACCOUNT_CATS }, { k: 'site', l: '사이트', t: 'site', req: 1 },
+    { k: 'universityId', l: '대학 (원서 포털인 경우)', t: 'unipick', none: '— 해당 없음 —' }, { k: 'url', l: '로그인 주소', t: 'url', ph: 'https://...' },
+    { k: 'loginId', l: '아이디' }, { k: 'password', l: '비밀번호', t: 'pw' },
+    { k: 'memo', l: '메모 (보안 질문, 등록 완료 여부 등)', t: 'textarea', full: 1 }],
+    defaults: function () { return { category: '원서 포털' }; } },
+  fureply: { table: 'followups', title: '학생·학부모 답변 기록', noDelete: 1, fields: [
+    { k: 'replyFrom', l: '답변한 사람', t: 'select', o: [''].concat(REPLY_FROM) }, { k: 'replyDate', l: '답변 날짜', t: 'date' },
+    { k: 'reply', l: '답변 내용 (위챗·문자 답장 등)', t: 'textarea', full: 1, big: 1 }],
+    prefill: function (r) { return { replyDate: r.replyDate || today(), replyFrom: r.replyFrom || '학생' }; } },
   progress: { table: 'students', title: '현재 진행 상황', noDelete: 1, fields: [
     { k: 'progress', l: '지금 이 학생은 무엇을 하고 있나요? (누가 봐도 바로 알 수 있게 짧게)', t: 'textarea', full: 1,
       ph: '예: HKU 심리학 PS 2차 수정 중 / 추천서 3명 확정 / 출입국사실증명서 수합 대기' }] },
@@ -306,7 +348,10 @@ var FORMS = {
     { k: 'title', l: '할 일', req: 1, full: 1, ph: '예: HKU Personal Statement 2차 피드백 전달' },
     { k: 'category', l: '분류', t: 'list', o: FOLLOWUP_CATS }, { k: 'status', l: '상태', t: 'select', o: FOLLOWUP_STATUS },
     { k: 'assignee', l: '담당자', t: 'teacher' }, { k: 'due', l: '기한', t: 'date' },
-    { k: 'detail', l: '세부 내용 / 진행 메모', t: 'textarea', full: 1 }],
+    { k: 'detail', l: '세부 내용 / 학생에게 보낸 메시지', t: 'textarea', full: 1 },
+    { h: '학생·학부모 답변' },
+    { k: 'replyFrom', l: '답변한 사람', t: 'select', o: [''].concat(REPLY_FROM) }, { k: 'replyDate', l: '답변 날짜', t: 'date' },
+    { k: 'reply', l: '답변 내용', t: 'textarea', full: 1 }],
     defaults: function () { return { status: '할 일', assignee: S.me.email }; } },
   notes: { title: '상담 기록', fields: [
     { k: 'date', l: '날짜', t: 'date', req: 1 }, { k: 'time', l: '시간', ph: '예: PM 1:00' },
@@ -369,6 +414,7 @@ var FORMS = {
     { k: 'date', l: '응시일 / 기준일', t: 'date' }, { k: 'memo', l: '메모', ph: '예: 목표 1500, 재응시 예정' }],
     defaults: function () { return { kind: 'SAT' }; } },
   majorplans: { title: '전공 후보', fields: [
+    { k: 'universityId', l: '대학 (대학마다 전공이 다르면 선택)', t: 'unipick', none: '— 공통 (특정 대학 아님) —', full: 1 },
     { k: 'major', l: '전공', req: 1, ph: '예: Psychology, 컴퓨터공학' }, { k: 'field', l: '계열', t: 'list', o: MAJOR_FIELDS },
     { k: 'status', l: '상태', t: 'select', o: MAJOR_STATUS }, { k: 'date', l: '날짜 (논의·결정한 날)', t: 'date' },
     { k: 'source', l: '제안·계기', t: 'list', o: MAJOR_SOURCES }, { k: 'parentConfirmed', l: '부모님', t: 'check', cl: '부모님 최종 확정' },
@@ -437,6 +483,8 @@ function errMsg(e) { return (e && e.message ? e.message : String(e)).replace(/^E
 function load(data) {
   S.me = data.me; S.teachers = data.teachers; S.students = data.students; S.loadedAt = Date.now();
   CHILD.forEach(function (t) { S[t] = data[t] || []; });
+  S.options = data.options || [];
+  UI.pw = {};
   UI.activity = {}; // 최근 활동은 저장할 때마다 새로 불러옴
   $('whoami').textContent = S.me.name;
   $('um-av').textContent = String(S.me.name || '?').trim().slice(0, 1);
@@ -673,7 +721,8 @@ function render() {
   var work = [['dashboard', '대시보드'], ['students', isMgr() ? '학생' : '담당 학생'], ['followups', '팔로업'], ['materials', '자료 현황'], ['deadlines', '마감일정'], ['unis', '대학 정보'], ['results', '합격 실적']];
   var admin = [];
   if (isMgr()) admin.push(['sales', '매출']);
-  if (isAdmin()) admin.push(['unilist', '대학 목록 관리'], ['teachers', '계정 관리'], ['log', '변경 기록']);
+  if (isMgr()) admin.push(['unilist', '목록 관리']);
+  if (isAdmin()) admin.push(['teachers', '계정 관리'], ['log', '변경 기록']);
   if (isMgr()) admin.push(['trash', '휴지통']);
   var cur = r.view === 'student' ? 'students' : r.view === 'uni' ? 'unis' : r.view;
   var row = function (label, items) {
@@ -684,7 +733,7 @@ function render() {
   $('who').classList.remove('open');
   var v = { dashboard: viewDashboard, students: viewStudents, student: viewStudent, materials: viewMaterials, deadlines: viewDeadlines,
     unis: viewUnis, uni: viewUni, followups: viewFollowups, search: viewSearch,
-    results: viewResults, sales: viewSales, trash: viewTrash, teachers: viewTeachers, log: viewLog, me: viewMe, unilist: viewUniList }[r.view] || viewDashboard;
+    results: viewResults, sales: viewSales, trash: viewTrash, teachers: viewTeachers, log: viewLog, me: viewMe, unilist: viewLists }[r.view] || viewDashboard;
   $('app').innerHTML = v(r.id);
   var q = $('q'); if (q && UI._focusQ) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); UI._focusQ = false; }
 }
@@ -729,7 +778,7 @@ function compactStudentTable(list, dl) {
     list.map(function (s) {
       var next = dl.filter(function (i) { return i.studentId === s.id; })[0];
       var pr = String(s.progress || '');
-      return '<tr class="click" onclick="openStudent(' + js(s.id) + ')"><td class="nw"><b>' + esc(s.name) + '</b><div class="muted" style="font-size:.72rem">' + esc(teacherName(s.counselor) || '컨설턴트 미정') + '</div></td>' +
+      return '<tr class="click" onclick="openStudent(' + js(s.id) + ')"><td class="nw"><b>' + esc(s.name) + '</b><div class="muted" style="font-size:.72rem">' + esc(teacherName(s.manager) || '관리팀 미정') + '</div></td>' +
         '<td class="nw">' + programBadge(s.id) + '</td><td class="muted">' + (pr ? esc(pr.length > 46 ? pr.slice(0, 46) + '…' : pr) : '-') + '</td>' +
         '<td class="nw">' + (next ? esc(next.title) + ' ' + dday(next.date) : '<span class="muted">-</span>') + '</td></tr>';
     }).join('') + '</tbody></table>';
@@ -839,8 +888,8 @@ function viewStudents() {
 }
 
 /* ============================== 학생 상세 ============================== */
-var TAB_LABEL = { followups: '팔로업', notes: '상담기록', contracts: '계약', majors: '전공', apps: '지원대학', scores: '성적', schools: '학력', docs: '서류', profile: '프로필·링크' };
-function tabsForRole() { return ['followups'].concat(isMgr() ? ['notes'] : []).concat(['contracts', 'majors', 'apps', 'scores', 'schools', 'docs', 'profile']); }
+var TAB_LABEL = { manage: '관리 사항', followups: '팔로업', notes: '상담기록', contracts: '계약', majors: '전공', apps: '지원대학', scores: '성적', schools: '학력', docs: '서류', profile: '프로필·링크' };
+function tabsForRole() { return ['followups'].concat(isMgr() ? ['notes'] : []).concat(['manage', 'contracts', 'majors', 'apps', 'scores', 'schools', 'docs', 'profile']); }
 
 function viewStudent(id) {
   var s = studentById(id);
@@ -862,12 +911,13 @@ function viewStudent(id) {
     '<div class="chks"><span class="muted">자료 현황 ' + checkCount(s) + '/' + CHECK_ITEMS.length + '</span> ' + checkChips(s) + '</div></div>';
   h += '<div class="tabs">' + tabs.map(function (t) {
     var n = t === 'followups' ? openFollowups(id).length : t === 'scores' ? childOf('courses', id).length + childOf('scores', id).length + childOf('files', id).filter(function (f) { return !f.docId; }).length :
+      t === 'manage' ? childOf('accounts', id).length :
       t === 'majors' ? childOf('majorplans', id).filter(function (m) { return m.status !== '제외'; }).length :
       ['notes', 'contracts', 'apps', 'docs', 'schools'].indexOf(t) >= 0 ? childOf(t, id).length : null;
     return '<a class="' + (UI.tab === t ? 'on' : '') + '" onclick="UI.tab=' + js(t) + ';render()">' + TAB_LABEL[t] + (n ? ' (' + n + ')' : '') + '</a>';
   }).join('') + '</div>';
   return h + { followups: tabFollowups, notes: tabNotes, contracts: tabContracts, scores: tabScores, apps: tabApps,
-    docs: tabDocs, profile: tabProfile, majors: tabMajors, schools: tabSchools }[UI.tab](s);
+    docs: tabDocs, profile: tabProfile, majors: tabMajors, schools: tabSchools, manage: tabManage }[UI.tab](s);
 }
 function addBtn(table, sid, label) { return '<button class="btn" onclick="openForm(' + js(table) + ',null,' + js(sid) + ')">' + label + '</button>'; }
 function secHead(title, btn) { return '<div class="sec-h"><h3>' + title + '</h3>' + (btn || '') + '</div>'; }
@@ -888,9 +938,11 @@ function fuRow(f, showStudent) {
     '<div class="t" onclick="openForm(\'followups\',' + js(f.id) + ')">' +
       '<div><b>' + esc(f.title) + '</b> ' + (f.category ? '<span class="tag">' + esc(f.category) + '</span>' : '') + (done ? '' : fuStatusPill(f)) + '</div>' +
       (f.detail ? '<div class="muted fu-d">' + esc(f.detail) + '</div>' : '') +
+      (f.reply || f.replyFrom ? '<div class="fu-reply' + (f.replyFrom === '답장 없음' ? ' none' : '') + '">💬 <b>' + esc(f.replyFrom || '답변') + '</b>' + (f.replyDate ? ' <span class="muted">' + esc(f.replyDate.slice(5)) + '</span>' : '') + (f.reply ? ': ' + esc(f.reply) : '') + '</div>' : '') +
       '<div class="muted">' + (showStudent ? '<a href="#/student/' + esc(s.id) + '" onclick="event.stopPropagation();UI.tab=\'followups\'"><b>' + esc(s.name) + '</b></a> · ' : '') +
         '담당 ' + esc(teacherName(f.assignee) || '미정') + (f.due ? ' · 기한 ' + esc(f.due) + (done ? '' : ' ' + dday(f.due)) : '') +
-        (done ? ' · ' + esc(teacherName(f.doneBy)) + ' 완료 ' + esc(fmtTime(f.doneAt)) : ' · ' + esc(teacherName(f.createdBy)) + ' 등록 ' + esc(fmtTime(f.createdAt).slice(5, 10))) + '</div>' +
+        (done ? ' · ' + esc(teacherName(f.doneBy)) + ' 완료 ' + esc(fmtTime(f.doneAt)) : ' · ' + esc(teacherName(f.createdBy)) + ' 등록 ' + esc(fmtTime(f.createdAt).slice(5, 10))) +
+        '<button class="btn ghost sm rbtn" onclick="event.stopPropagation();openForm(\'fureply\',' + js(f.id) + ')">💬 답변 기록</button></div>' +
     '</div></div>';
 }
 function toggleFollowup(id, done) {
@@ -1045,6 +1097,101 @@ function tabScores(s) {
     }).join('') + '</tbody></table></div>' : '<div class="empty">올린 파일이 없습니다.</div>';
   return h + '</div>';
 }
+/* ----- 관리 사항 + 사이트 계정(ID/PW) ----- */
+function tabManage(s) {
+  var mt = safeUrl(s.meetingUrl);
+  var h = '<div class="card">' + secHead('관리 사항', '<button class="btn ghost" onclick="openForm(\'manage\',' + js(s.id) + ')">수정</button>') +
+    '<dl class="kv">' + kv('희망 대학 / 특례', s.hopeUnis) + kv('집중 과목 / 관리 영역', s.focusArea) + kv('추천서 진행', s.recommenders) + kv('온라인 코스 진행', s.onlineCourse) +
+    '<dt>미팅 회의록</dt><dd>' + (mt ? '<a href="' + esc(mt) + '" target="_blank" rel="noopener">회의록 열기 ↗</a>' : '<span class="muted">-</span>') + '</dd></dl></div>';
+  var list = childOf('accounts', s.id).sort(function (a, b) { return ACCOUNT_CATS.indexOf(a.category) - ACCOUNT_CATS.indexOf(b.category) || a.site.localeCompare(b.site); });
+  UI.pw = UI.pw || {};
+  h += '<div class="card">' + secHead('사이트 계정 <span class="muted">ID / PW</span>', addBtn('accounts', s.id, '+ 계정 추가'));
+  h += '<div class="sitebar"><span class="muted">자주 쓰는 사이트</span>' + SITE_PRESETS.map(function (x) { return '<a href="' + esc(x.u) + '" target="_blank" rel="noopener">' + esc(x.n) + ' ↗</a>'; }).join('') + '</div>';
+  h += list.length ? '<div class="tbl-wrap"><table><thead><tr><th>분류</th><th>사이트</th><th>아이디</th><th>비밀번호</th><th>메모</th><th></th></tr></thead><tbody>' + list.map(function (a) {
+    var u = accountUrl(a), pw = UI.pw[a.id];
+    return '<tr><td class="nw">' + esc(a.category) + '</td><td><b>' + (u ? '<a href="' + esc(u) + '" target="_blank" rel="noopener">' + esc(a.site) + ' ↗</a>' : esc(a.site)) + '</b>' +
+      (a.universityId && findRow('universities', a.universityId) ? '<div class="muted">' + esc(findRow('universities', a.universityId).name) + '</div>' : '') + '</td>' +
+      '<td class="nw">' + (a.loginId ? '<span class="pw">' + esc(a.loginId) + '</span> <button class="btn ghost sm" onclick="copyText(' + js(a.loginId) + ')">복사</button>' : '<span class="muted">-</span>') + '</td>' +
+      '<td class="nw">' + (!a.hasPassword ? '<span class="muted">-</span>' : pw != null ? '<span class="pw">' + esc(pw) + '</span> <button class="btn ghost sm" onclick="copyText(UI.pw[' + js(a.id) + '])">복사</button> <button class="btn ghost sm" onclick="delete UI.pw[' + js(a.id) + '];render()">숨기기</button>' :
+        '<span class="pw">••••••</span> <button class="btn ghost sm" onclick="revealPw(' + js(a.id) + ')">보기</button>') + '</td>' +
+      '<td class="muted" style="white-space:pre-wrap">' + esc(a.memo) + '</td><td class="nw"><button class="btn ghost sm" onclick="openForm(\'accounts\',' + js(a.id) + ')">수정</button></td></tr>';
+  }).join('') + '</tbody></table></div>' : '<div class="empty">등록된 계정이 없습니다. 원서 포털·College Board·TOEFL·학교 LMS(스쿨로지·Teams) 계정을 추가하세요.</div>';
+  h += '<div class="muted" style="margin-top:8px;font-size:.78rem">비밀번호는 “보기”를 눌렀을 때만 불러오며, 누가 언제 봤는지 최근 활동에 기록됩니다.</div></div>';
+  return h;
+}
+function accountUrl(a) {
+  var u = safeUrl(a.url); if (u) return u;
+  var uni = a.universityId && findRow('universities', a.universityId); if (uni && safeUrl(uni.website)) return uni.website;
+  var p = SITE_PRESETS.filter(function (x) { return x.n === a.site; })[0]; return p ? p.u : '';
+}
+function accountSiteSync(el) {
+  var p = SITE_PRESETS.filter(function (x) { return x.n === el.value; })[0], f = el.form; if (!p || !f) return;
+  if (!f.elements.url.value) f.elements.url.value = p.u;
+  f.elements.category.value = p.c;
+}
+function accountUniSync(el) {
+  var u = el.value && findRow('universities', el.value), f = el.form; if (!u || !f) return;
+  if (!f.elements.site.value) f.elements.site.value = u.name + ' 원서 포털';
+  if (!f.elements.url.value && safeUrl(u.website)) f.elements.url.value = u.website;
+  f.elements.category.value = '원서 포털';
+}
+function revealPw(id) {
+  api('revealAccount', { id: id }).then(function (d) { UI.pw = UI.pw || {}; UI.pw[id] = d.password; render(); }).catch(function (e) { toast(errMsg(e), true); });
+}
+function copyText(t) {
+  var done = function () { toast('복사했습니다.'); };
+  if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(String(t)).then(done, function () { toast('복사하지 못했습니다.', true); });
+  var ta = document.createElement('textarea'); ta.value = String(t); document.body.appendChild(ta); ta.select();
+  try { document.execCommand('copy'); done(); } catch (e) { toast('복사하지 못했습니다.', true); }
+  ta.remove();
+}
+
+/* ----- 목록 관리: 대학 / 학교 / 커리큘럼 ----- */
+var OPTION_KINDS = { school: '학교', curriculum: '커리큘럼' };
+function viewLists() {
+  if (!isMgr()) return '<div class="card empty">관리자·관리팀만 볼 수 있습니다.</div>';
+  UI.listTab = UI.listTab || 'unis';
+  var h = '<div class="toolbar"><h2 style="margin:0;margin-right:auto">목록 관리</h2></div>' +
+    '<div class="subtabs">' + [['unis', '대학'], ['school', '학교'], ['curriculum', '커리큘럼']].map(function (t) {
+      return '<a class="' + (UI.listTab === t[0] ? 'on' : '') + '" onclick="UI.listTab=' + js(t[0]) + ';render()">' + t[1] + '</a>';
+    }).join('') + '</div>';
+  return h + (UI.listTab === 'unis' ? viewUniList() : viewOptionList(UI.listTab));
+}
+function viewOptionList(kind) {
+  var label = OPTION_KINDS[kind];
+  var list = (S.options || []).filter(function (o) { return o.kind === kind; }).sort(function (a, b) { return a.value.localeCompare(b.value); });
+  var used = {}; S.students.forEach(function (s) { if (s[kind]) used[s[kind]] = (used[s[kind]] || 0) + 1; });
+  var h = '<div class="notice">여기 있는 ' + label + '만 학생 정보에서 고를 수 있습니다. 이름을 바꾸면 그 ' + label + '로 입력된 학생 정보도 함께 바뀝니다.</div>';
+  h += '<div class="card"><form class="toolbar" style="margin:0" onsubmit="addOption(' + js(kind) + ');return false"><input type="text" id="opt-new" class="grow" placeholder="새 ' + label + ' 이름"><button class="btn" type="submit">+ 추가</button></form></div>';
+  h += '<div class="card tbl-wrap"><table><thead><tr><th>' + label + '</th><th>학생 수</th><th></th></tr></thead><tbody>' +
+    (list.length ? list.map(function (o) {
+      return '<tr><td><b>' + esc(o.value) + '</b></td><td>' + (used[o.value] || 0) + '명</td><td class="nw"><button class="btn ghost sm" onclick="renameOption(' + js(o.id) + ')">이름 변경</button> ' +
+        '<button class="btn ghost sm" onclick="removeOption(' + js(o.id) + ')">삭제</button></td></tr>';
+    }).join('') : '<tr><td colspan="3" class="empty">아직 없습니다.</td></tr>') + '</tbody></table></div>';
+  var have = {}; list.forEach(function (o) { have[o.value] = 1; });
+  var loose = Object.keys(used).filter(function (v) { return !have[v]; }).sort();
+  if (loose.length) h += '<div class="card"><h3>학생 정보에만 있고 목록에 없는 ' + label + '</h3><div class="tbl-wrap"><table class="compact"><tbody>' + loose.map(function (v) {
+    return '<tr><td><b>' + esc(v) + '</b></td><td>' + used[v] + '명</td><td class="nw"><button class="btn ghost sm" onclick="addOption(' + js(kind) + ',' + js(v) + ')">목록에 추가</button></td></tr>';
+  }).join('') + '</tbody></table></div></div>';
+  return h;
+}
+function addOption(kind, value) {
+  var v = value != null ? value : ($('opt-new') || {}).value || '';
+  if (!v.trim()) return toast('이름을 입력하세요.', true);
+  mutate('saveOption', { kind: kind, value: v.trim() }, '추가했습니다.');
+}
+function renameOption(id) {
+  var o = (S.options || []).filter(function (x) { return x.id === id; })[0]; if (!o) return;
+  var v = prompt('새 이름 (이 이름으로 입력된 학생 정보도 함께 바뀝니다)', o.value);
+  if (v == null || !v.trim() || v.trim() === o.value) return;
+  mutate('saveOption', { id: id, kind: o.kind, value: v.trim(), sortOrder: o.sortOrder }, '이름을 바꿨습니다.');
+}
+function removeOption(id) {
+  var o = (S.options || []).filter(function (x) { return x.id === id; })[0]; if (!o) return;
+  if (!confirm('“' + o.value + '”을(를) 목록에서 삭제할까요?\n이미 이 값으로 입력된 학생 정보는 그대로 남습니다.')) return;
+  mutate('removeOption', { id: id }, '삭제했습니다.');
+}
+
 /* ----- 학년별 수강 과목 ----- */
 function gradeRank(g) { var i = GRADE_ALL.indexOf(g); return i < 0 ? 999 : i; }
 function coursesByGrade(sid) {
@@ -1136,19 +1283,21 @@ function majorsOf(sid) {
 function majorChip(s) {
   var m = majorsOf(s.id).filter(function (x) { return x.status !== '제외'; })[0];
   if (!m) return '';
-  return ' <span class="muted">· 전공:</span> <b>' + esc(m.major) + '</b> <span class="pill ' + (m.status === '최종' ? 's-진행중' : 'd-요청함') + '">' + esc(m.status) + '</span>' +
+  return ' <span class="muted">· 전공:</span> <b>' + (m.universityId ? esc(uniName(m)) + ' ' : '') + esc(m.major) + '</b> <span class="pill ' + (m.status === '최종' ? 's-진행중' : 'd-요청함') + '">' + esc(m.status) + '</span>' +
     (m.parentConfirmed === 'TRUE' ? ' <span class="pill d-수합">부모님 확정</span>' : ' <span class="pill d-미확정">부모님 미확정</span>');
 }
+function uniName(m) { var u = findRow('universities', m.universityId); return u ? u.name : (m.university || ''); }
 function tabMajors(s) {
   var list = majorsOf(s.id);
   var fin = list.filter(function (m) { return m.status === '최종'; });
   var h = '<div class="card">' + secHead('전공 선정', addBtn('majorplans', s.id, '+ 전공 후보 추가'));
   h += '<div class="major-sum">' + (fin.length ? '최종 전공: ' + fin.map(function (m) {
-      return '<b>' + esc(m.major) + '</b> ' + (m.parentConfirmed === 'TRUE' ? '<span class="pill d-수합">부모님 확정 ' + esc(fmtTime(m.parentConfirmedAt).slice(0, 10)) + '</span>' : '<span class="pill d-미확정">부모님 미확정</span>');
+      return (m.universityId ? esc(uniName(m)) + ' — ' : '') + '<b>' + esc(m.major) + '</b> ' + (m.parentConfirmed === 'TRUE' ? '<span class="pill d-수합">부모님 확정 ' + esc(fmtTime(m.parentConfirmedAt).slice(0, 10)) + '</span>' : '<span class="pill d-미확정">부모님 미확정</span>');
     }).join(' · ') : '<span class="muted">아직 최종 전공이 정해지지 않았습니다. 후보를 추가하고, 정해지면 상태를 “최종”으로 바꾸세요.</span>') + '</div>';
-  h += list.length ? '<div class="tbl-wrap"><table><thead><tr><th>상태</th><th>전공 / 계열</th><th>제안·계기</th><th>이유·메모</th><th>날짜</th><th>부모님 확정</th></tr></thead><tbody>' +
+  h += list.length ? '<div class="tbl-wrap"><table><thead><tr><th>상태</th><th>대학</th><th>전공 / 계열</th><th>제안·계기</th><th>이유·메모</th><th>날짜</th><th>부모님 확정</th></tr></thead><tbody>' +
     list.map(function (m) {
       return '<tr class="click' + (m.status === '제외' ? ' ex' : '') + '" onclick="openForm(\'majorplans\',' + js(m.id) + ')"><td class="nw"><span class="pill ' + (m.status === '최종' ? 's-진행중' : m.status === '제외' ? 's-종료' : 'd-요청함') + '">' + esc(m.status) + '</span></td>' +
+        '<td class="nw">' + (m.universityId ? esc(uniName(m)) : '<span class="muted">공통</span>') + '</td>' +
         '<td><b>' + esc(m.major) + '</b>' + (m.field ? '<div class="muted">' + esc(m.field) + '</div>' : '') + '</td><td class="nw">' + esc(m.source) + '</td>' +
         '<td class="muted" style="white-space:pre-wrap">' + esc(m.reason) + '</td><td class="nw">' + esc(m.date) + '</td>' +
         '<td class="nw" onclick="event.stopPropagation()"><label style="display:inline-flex;gap:6px;align-items:center"><input type="checkbox"' + (m.parentConfirmed === 'TRUE' ? ' checked' : '') +
@@ -1226,12 +1375,11 @@ function saveMyName() {
 
 /* ----- 대학 목록 관리 (관리자) ----- */
 function viewUniList() {
-  if (!isAdmin()) return '<div class="card empty">관리자만 볼 수 있습니다.</div>';
   var q = (UI.ulQ || '').toLowerCase(), c = UI.ulC || '';
   var list = sortedUnis().filter(function (u) {
     return (!c || u.country === c) && (!q || [u.name, u.fullName, u.aliases].join(' ').toLowerCase().indexOf(q) >= 0);
   });
-  var h = '<div class="toolbar"><h2 style="margin:0;margin-right:auto">대학 목록 관리 <span class="muted">' + S.universities.length + '곳</span></h2><button class="btn" onclick="openForm(\'universities\')">+ 대학 추가</button></div>';
+  var h = '<div class="toolbar"><h3 style="margin:0;margin-right:auto">대학 <span class="muted">' + S.universities.length + '곳</span></h3>' + (isAdmin() ? '<button class="btn" onclick="openForm(\'universities\')">+ 대학 추가</button>' : '<span class="muted">대학 추가·수정은 관리자만 할 수 있습니다</span>') + '</div>';
   h += '<div class="notice">여기 있는 대학만 학생 “지원대학 추가”에서 고를 수 있습니다. 요강·마감일·전공 같은 상세 내용은 “대학 정보”에서 컨설턴트도 고칠 수 있습니다.</div>';
   h += '<div class="toolbar"><input type="text" id="q" class="grow" placeholder="대학 이름·다른 이름 검색" value="' + esc(UI.ulQ || '') + '" oninput="UI.ulQ=this.value;UI._focusQ=true;render()">' +
     '<select onchange="UI.ulC=this.value;render()"><option value="">모든 국가</option>' + opts(COUNTRIES, c).replace('<option value="">—</option>', '') + '</select></div>';
@@ -1241,7 +1389,7 @@ function viewUniList() {
       var st = {}; ap.forEach(function (a) { st[a.studentId] = 1; });
       return '<tr><td class="nw">' + esc(u.country) + '</td><td><b>' + esc(u.name) + '</b></td><td>' + esc(u.fullName) + '</td><td class="muted">' + esc(u.aliases) + '</td>' +
         '<td class="nw">' + cyc + '개</td><td class="nw">' + Object.keys(st).length + '명</td>' +
-        '<td class="nw"><button class="btn ghost sm" onclick="openForm(\'universities\',' + js(u.id) + ')">수정</button> <a class="btn ghost sm" href="#/uni/' + esc(u.id) + '">상세 →</a></td></tr>';
+        '<td class="nw">' + (isAdmin() ? '<button class="btn ghost sm" onclick="openForm(\'universities\',' + js(u.id) + ')">수정</button> ' : '') + '<a class="btn ghost sm" href="#/uni/' + esc(u.id) + '">상세 →</a></td></tr>';
     }).join('') : '<tr><td colspan="7" class="empty">해당하는 대학이 없습니다.</td></tr>') + '</tbody></table></div>';
   var loose = {};
   S.apps.filter(function (a) { return !a.universityId && a.university; }).forEach(function (a) { (loose[a.university] = loose[a.university] || []).push(a); });
@@ -1251,7 +1399,7 @@ function viewUniList() {
       '<div class="muted" style="margin-bottom:8px">대학으로 추가하거나, 기존 대학의 “다른 이름”에 넣으면 자동으로 연결됩니다.</div><div class="tbl-wrap"><table class="compact"><tbody>' +
       names.map(function (n) {
         var who = loose[n].map(function (a) { var s = studentById(a.studentId); return s ? s.name : ''; }).filter(Boolean);
-        return '<tr><td><b>' + esc(n) + '</b></td><td class="muted">' + esc(who.join(', ')) + '</td><td class="nw"><button class="btn ghost sm" onclick="openForm(\'universities\',null,null,{name:' + js(n) + '})">대학으로 추가</button></td></tr>';
+        return '<tr><td><b>' + esc(n) + '</b></td><td class="muted">' + esc(who.join(', ')) + '</td><td class="nw">' + (isAdmin() ? '<button class="btn ghost sm" onclick="openForm(\'universities\',null,null,{name:' + js(n) + '})">대학으로 추가</button>' : '') + '</td></tr>';
       }).join('') + '</tbody></table></div></div>';
   }
   return h;
@@ -1335,6 +1483,7 @@ function tabProfile(s) {
   var h = '<div class="card">' + secHead('Resume·Drive·참고 링크', addBtn('links', s.id, '+ 링크 추가'));
   h += linkRow('📄', 'Resume (Google Doc)', resume, '아직 등록되지 않았습니다. “정보 수정”에서 링크를 넣어주세요.');
   h += linkRow('📁', 'Google Drive 학생 폴더', drive, '아직 등록되지 않았습니다. “정보 수정”에서 링크를 넣어주세요.');
+  h += linkRow('📝', '미팅 회의록', safeUrl(s.meetingUrl), '아직 등록되지 않았습니다. “관리 사항”에서 링크를 넣어주세요.');
   h += links.map(function (l) {
     var u = safeUrl(l.url);
     return '<div class="todo"><div class="t"><b>🔗 ' + esc(l.label || '링크') + '</b><div class="muted">' + (u ? '<a href="' + esc(u) + '" target="_blank" rel="noopener">' + esc(u) + '</a>' : esc(l.url)) + '</div></div>' +
@@ -1519,7 +1668,7 @@ function searchAll(q) {
   var groups = [];
   var st = S.students.filter(function (s) {
     return hit([s.name, s.school, s.grade, s.curriculum, s.tracks, s.tags, s.email, s.studentPhone, s.fatherName, s.fatherPhone, s.fatherEmail,
-      s.motherName, s.motherPhone, s.motherEmail, s.progress, s.memo, teacherName(s.counselor), teacherName(s.manager), s.status,
+      s.motherName, s.motherPhone, s.motherEmail, s.progress, s.memo, s.hopeUnis, s.focusArea, teacherName(s.counselor), teacherName(s.manager), s.status,
       childOf('schools', s.id).map(function (x) { return x.school; }).join(' '), childOf('majorplans', s.id).map(function (x) { return x.major; }).join(' ')]);
   }).map(function (s) { return { title: s.name, sub: [s.school, s.grade, s.status, ownersText(s)].filter(Boolean).join(' · '), href: '#/student/' + s.id }; });
   if (st.length) groups.push({ label: '학생', items: st });
@@ -1529,7 +1678,7 @@ function searchAll(q) {
   var ap = S.apps.filter(function (a) { var s = studentById(a.studentId); return s && hit([a.university, a.major, a.round, a.country, s.name]); })
     .map(function (a) { var s = studentById(a.studentId); return { title: s.name + ' — ' + a.university, sub: [a.major, a.round, a.deadline, a.status].filter(Boolean).join(' · '), href: '#/student/' + s.id, tab: 'apps' }; });
   if (ap.length) groups.push({ label: '지원대학', items: ap });
-  var fu = S.followups.filter(function (f) { var s = studentById(f.studentId); return s && hit([f.title, f.detail, f.category, s.name, teacherName(f.assignee)]); })
+  var fu = S.followups.filter(function (f) { var s = studentById(f.studentId); return s && hit([f.title, f.detail, f.category, f.reply, s.name, teacherName(f.assignee)]); })
     .map(function (f) { var s = studentById(f.studentId); return { title: s.name + ' — ' + f.title, sub: [f.status, '담당 ' + (teacherName(f.assignee) || '미정'), f.due].filter(Boolean).join(' · '), href: '#/student/' + s.id, tab: 'followups' }; });
   if (fu.length) groups.push({ label: '팔로업', items: fu });
   var dc = S.docs.filter(function (d) { var s = studentById(d.studentId); return s && hit([d.name, d.memo, s.name]); })
@@ -1672,7 +1821,7 @@ function purgeItem(table, id, label) {
 }
 
 /* ============================== 변경 기록 (관리자) ============================== */
-var ACTION_LABEL = { create: '등록', update: '수정', 'delete': '삭제(휴지통)', restore: '복구', purge: '영구 삭제', upload: '파일 업로드', 'import': '가져오기',
+var ACTION_LABEL = { reveal: '비밀번호 보기', create: '등록', update: '수정', 'delete': '삭제(휴지통)', restore: '복구', purge: '영구 삭제', upload: '파일 업로드', 'import': '가져오기',
   login: '로그인', 'change-password': '비밀번호 변경', 'create-admin': '관리자 생성', 'reset-admin': '관리자 재설정' };
 function viewLog() {
   if (!isAdmin()) return '<div class="card empty">관리자만 볼 수 있습니다.</div>';
@@ -1796,6 +1945,23 @@ function reqRow(r) {
 function field(f, rec) {
   if ('h' in f) return '<div class="full fh">' + esc(f.h) + '</div>';
   if (f.t === 'hid') return hidden(f.k, rec[f.k] == null ? '' : rec[f.k]);
+  if (f.t === 'opt') {
+    var ol = optionList(f.k), cv = rec[f.k] || '';
+    return fld(f.l, '<select name="' + f.k + '">' + opts([''].concat(ol, cv && ol.indexOf(cv) < 0 ? [cv] : []), cv) + '</select>' +
+      '<div class="muted" style="font-size:.75rem;margin-top:2px">목록에 없으면 관리 › 목록 관리에서 추가</div>', f.full, f.req);
+  }
+  if (f.t === 'unipick') {
+    var uv = rec[f.k] || '';
+    return fld(f.l, '<select name="' + f.k + '"' + (f.k === 'universityId' && FORMS.accounts.fields.indexOf(f) >= 0 ? ' onchange="accountUniSync(this)"' : '') + '><option value="">' + esc(f.none || '—') + '</option>' +
+      COUNTRIES.map(function (c) {
+        var us = sortedUnis().filter(function (u) { return u.country === c; });
+        return us.length ? '<optgroup label="' + esc(c) + '">' + us.map(function (u) { return '<option value="' + esc(u.id) + '"' + (u.id === uv ? ' selected' : '') + '>' + esc(u.name) + '</option>'; }).join('') + '</optgroup>' : '';
+      }).join('') + '</select>', f.full, f.req);
+  }
+  if (f.t === 'site') return fld(f.l, inp('site', rec.site || '', 'text', ' list="dl-site" oninput="accountSiteSync(this)" placeholder="예: Common App, HKU 원서 포털"') +
+    datalist('dl-site', SITE_PRESETS.map(function (x) { return x.n; })), f.full, f.req);
+  if (f.t === 'pw') return fld(f.l, inp('password', '', 'password', ' autocomplete="new-password" placeholder="' + (rec.id ? (rec.hasPassword ? '바꿀 때만 입력 (비워두면 그대로)' : '아직 없음') : '') + '"') +
+    '<label class="muted" style="font-size:.75rem"><input type="checkbox" onchange="this.closest(\'div\').querySelector(\'input[name=password]\').type=this.checked?\'text\':\'password\'"> 입력한 글자 보기</label>', f.full, f.req);
   var v = rec[f.k] == null ? '' : rec[f.k], h;
   var ph = f.ph ? ' placeholder="' + esc(f.ph) + '"' : '';
   if (f.t === 'textarea') h = '<textarea name="' + f.k + '"' + ph + (f.big ? ' style="min-height:180px"' : '') + '>' + esc(v) + '</textarea>';
@@ -1828,6 +1994,7 @@ function openForm(key, id, studentId, extra) {
   var F = FORMS[key], table = F.table || key;
   var rec = id ? findRow(table, id) : Object.assign({ studentId: studentId }, F.defaults ? F.defaults() : {}, extra || {});
   if (id && !rec) return toast('항목을 찾을 수 없습니다. 새로고침 해주세요.', true);
+  if (F.prefill) rec = Object.assign({}, rec, F.prefill(rec));
   if (MGR_ONLY_FORMS.indexOf(key) >= 0 && !isMgr()) return toast('관리자·관리팀만 수정할 수 있습니다.', true);
   var cat = CATALOG_TABLES.indexOf(table) >= 0;
   var body = (id ? hidden('id', rec.id) + hidden('updatedAt', rec.updatedAt) : '') +
@@ -1892,6 +2059,7 @@ function submitForm(key) {
     }).filter(function (x) { return x.item || x.content; }));
   }
   if (miss) return toast(miss.l + ' 항목을 입력하세요.', true);
+  if (table === 'accounts' && !o.password) delete o.password;
   if (table === 'notes' && !o.content && !o.nextAction) return toast('미팅 내용 또는 다음 할 일을 입력하세요.', true);
   mutate('save', { table: table, obj: o }, '저장했습니다.').then(function (d) {
     if (d && table === 'students' && !o.id && d.savedId) openStudent(d.savedId);

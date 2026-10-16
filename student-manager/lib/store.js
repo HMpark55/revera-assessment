@@ -26,6 +26,7 @@ const TABLES = {
     label: '학생',
     fields: ['name', 'dob', 'school', 'grade', 'curriculum', 'counselor', 'manager', 'status', 'tracks', 'studentPhone', 'progress',
       'parentName', 'parentPhone', 'email', 'tags', 'memo', 'driveUrl', 'resumeUrl',
+      'hopeUnis', 'focusArea', 'recommenders', 'onlineCourse', 'meetingUrl',
       'fatherName', 'fatherPhone', 'fatherWechat', 'fatherEmail', 'motherName', 'motherPhone', 'motherWechat', 'motherEmail',
       'storyTrigger', 'storyProcess', 'storyLink', 'storyConclusion', 'storyStatus'],
     summary: (r) => r.name,
@@ -74,13 +75,13 @@ const TABLES = {
   },
   followups: {
     label: '팔로업',
-    fields: ['studentId', 'title', 'detail', 'category', 'assignee', 'due', 'status'],
+    fields: ['studentId', 'title', 'detail', 'category', 'assignee', 'due', 'status', 'reply', 'replyDate', 'replyFrom'],
     summary: (r) => [r.title, r.status].filter(Boolean).join(' · '),
   },
   majorplans: {
     label: '전공 선정',
-    fields: ['studentId', 'date', 'major', 'field', 'status', 'source', 'reason', 'parentConfirmed'],
-    summary: (r) => [r.major, r.status, r.parentConfirmed === 'TRUE' ? '부모님 확정' : ''].filter(Boolean).join(' · '),
+    fields: ['studentId', 'date', 'universityId', 'university', 'major', 'field', 'status', 'source', 'reason', 'parentConfirmed'],
+    summary: (r) => [r.university, r.major, r.status, r.parentConfirmed === 'TRUE' ? '부모님 확정' : ''].filter(Boolean).join(' · '),
   },
   schools: {
     label: '학력',
@@ -91,6 +92,11 @@ const TABLES = {
     label: '수강 과목',
     fields: ['studentId', 'grade', 'schoolYear', 'subject', 'level', 'termType', 'g1', 'g2', 'g3', 'final', 'memo'],
     summary: (r) => [r.grade, r.subject].filter(Boolean).join(' '),
+  },
+  accounts: {
+    label: '사이트 계정',
+    fields: ['studentId', 'category', 'site', 'url', 'universityId', 'loginId', 'password', 'memo'],
+    summary: (r) => [r.site, r.loginId].filter(Boolean).join(' · '),
   },
   payments: {
     label: '입금',
@@ -103,6 +109,9 @@ const FOLLOWUP_STATUS = ['할 일', '진행 중', '대기', '완료'];
 const MAJOR_STATUS = ['후보', '유력', '최종', '제외'];
 const COURSE_TERMS = ['1년(2학기)', '1학기만', '2학기만', 'Trimester'];
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+/** 관리 페이지에서 고르는 목록 (학교·커리큘럼) → 학생 정보의 해당 칸 */
+const OPTION_KINDS = { school: '학교', curriculum: '커리큘럼' };
+const DEFAULT_CURRICULA = ['IB', 'AP', 'A-Level', 'IGCSE', '국내 일반고', '국내 특목고', '기타'];
 const CHILD_TABLES = Object.keys(TABLES).filter((t) => t !== 'students');
 
 /** 대학 정보 (학생과 무관한 공용 자료) */
@@ -148,6 +157,9 @@ const FIELD_LABELS = {
   fullName: '정식 이름', aliases: '다른 이름', website: '홈페이지', tips: '원서 준비 유의사항', sortOrder: '순서',
   year: '입학 연도', term: '입학 학기', requirements: '공식 지원 요건', sourceUrl: '출처', faculty: '단과대',
   code: '코드', cycleId: '입학 연도',
+  hopeUnis: '희망 대학·특례', focusArea: '집중 과목·관리 영역', recommenders: '추천서 진행', onlineCourse: '온라인 코스 진행',
+  meetingUrl: '미팅 회의록 링크', reply: '학생·학부모 답변', replyDate: '답변 날짜', replyFrom: '답변한 사람',
+  site: '사이트', loginId: '아이디', password: '비밀번호',
   field: '계열', source: '제안·계기', reason: '이유', parentConfirmed: '부모님 확정', parentConfirmedAt: '부모님 확정일',
   parentConfirmedBy: '부모님 확정 기록자', city: '도시', gradeFrom: '시작 학년', gradeTo: '마지막 학년', startDate: '시작일',
   endDate: '종료일', schoolYear: '학년도', level: '레벨', termType: '학기 구분', g1: '1학기/T1 성적', g2: '2학기/T2 성적',
@@ -293,6 +305,22 @@ function migrate(db) {
   // 이전 버전 데이터의 작성자 정보 보정
   db.prepare(`UPDATE notes SET createdBy = author WHERE createdBy = '' AND author != ''`).run();
   for (const t of ['apps']) db.prepare(`UPDATE ${t} SET createdBy = updatedBy WHERE createdBy = ''`).run();
+  db.exec('CREATE TABLE IF NOT EXISTS options (id TEXT PRIMARY KEY)');
+  ensureColumns(db, 'options', ['kind', 'value', 'sortOrder', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy']);
+  // v6: 학교·커리큘럼 목록 초기값 = 기본 커리큘럼 + 지금 학생들에게 입력된 값
+  if (!db.prepare("SELECT 1 FROM meta WHERE key = 'v6_options'").get()) {
+    const ts = now();
+    const add = (kind, value) => {
+      value = String(value || '').trim();
+      if (!value || db.prepare('SELECT 1 FROM options WHERE kind = ? AND value = ?').get(kind, value)) return;
+      db.prepare('INSERT INTO options (id, kind, value, sortOrder, createdAt, createdBy, updatedAt, updatedBy) VALUES (?,?,?,?,?,?,?,?)')
+        .run(crypto.randomUUID(), kind, value, '', ts, 'system', ts, 'system');
+    };
+    DEFAULT_CURRICULA.forEach((v) => add('curriculum', v));
+    db.prepare("SELECT DISTINCT curriculum v FROM students WHERE deletedAt = '' ORDER BY 1").all().forEach((r) => add('curriculum', r.v));
+    db.prepare("SELECT DISTINCT school v FROM students WHERE deletedAt = '' ORDER BY 1").all().forEach((r) => add('school', r.v));
+    db.prepare("INSERT INTO meta VALUES ('v6_options', ?)").run(ts);
+  }
   // v4: 대학 정보 초기 자료 (목록이 비어 있을 때 한 번만)
   if (!db.prepare("SELECT 1 FROM meta WHERE key = 'v4_university_seed'").get()) {
     if (!db.prepare('SELECT 1 FROM universities LIMIT 1').get()) seedUniversities(db);
@@ -448,6 +476,7 @@ function openStore(dbPath, opts) {
   function publicRow(table, r, me) {
     const o = Object.assign({}, r);
     if (table === 'files') delete o.storedName;
+    if (table === 'accounts') { o.hasPassword = !!o.password; delete o.password; }
     if (!isManager(me)) (HIDDEN_FOR_CONSULTANT[table] || []).forEach((k) => delete o[k]);
     return o;
   }
@@ -467,6 +496,7 @@ function openStore(dbPath, opts) {
       out[t] = db.prepare(`SELECT * FROM ${t} WHERE deletedAt = ''`).all()
         .filter((r) => ids.has(r.studentId)).map((r) => publicRow(t, r, me));
     }
+    out.options = db.prepare('SELECT id, kind, value, sortOrder FROM options').all();
     // 대학 정보는 모두에게 공개
     const unis = db.prepare("SELECT * FROM universities WHERE deletedAt = ''").all();
     const uids = new Set(unis.map((u) => u.id));
@@ -498,6 +528,9 @@ function openStore(dbPath, opts) {
       if (v('status') && !FOLLOWUP_STATUS.includes(v('status'))) throw new UserError('상태가 올바르지 않습니다.');
       if (v('due') && !/^\d{4}-\d{2}-\d{2}$/.test(v('due'))) throw new UserError('기한 형식이 올바르지 않습니다.');
     }
+    if (table === 'accounts') { need('site', '사이트 이름을 입력하세요.'); checkUrl(v('url'), '사이트 주소'); }
+    if (table === 'followups' && v('replyDate') && !DATE_RE.test(v('replyDate'))) throw new UserError('답변 날짜 형식이 올바르지 않습니다.');
+    if (table === 'students') checkUrl(v('meetingUrl'), '미팅 회의록 링크');
     if (table === 'majorplans') {
       need('major', '전공을 입력하세요.');
       if (v('status') && !MAJOR_STATUS.includes(v('status'))) throw new UserError('상태가 올바르지 않습니다.');
@@ -597,6 +630,8 @@ function openStore(dbPath, opts) {
         }
         if ('manager' in rec) rec.manager = lower(rec.manager);
         if ('assignee' in rec) rec.assignee = lower(rec.assignee);
+        linkUni(table, rec);
+        if (table === 'accounts' && rec.password === '') delete rec.password; // 비워 두면 기존 비밀번호 유지
         validate(table, rec, cur);
         const keys = Object.keys(rec);
         db.prepare(`UPDATE ${table} SET ${keys.map((k) => k + ' = @' + k).concat(['updatedAt = @updatedAt', 'updatedBy = @updatedBy']).join(', ')} WHERE id = @id`)
@@ -637,6 +672,7 @@ function openStore(dbPath, opts) {
         }
         if ('manager' in rec) rec.manager = lower(rec.manager);
         if ('assignee' in rec) rec.assignee = lower(rec.assignee);
+        linkUni(table, rec);
         validate(table, rec, null);
         Object.assign(rec, { id: newId(), createdAt: t, createdBy: me.email, updatedAt: t, updatedBy: me.email });
         if (table === 'notes') rec.author = me.email;
@@ -776,6 +812,60 @@ function openStore(dbPath, opts) {
     const data = getAll(me);
     data.savedId = result;
     return data;
+  }
+
+  /** 전공 후보·계정의 대학 연결 확인 (전공 후보는 대학 이름도 함께 저장) */
+  function linkUni(table, rec) {
+    if (!['majorplans', 'accounts'].includes(table) || !('universityId' in rec)) return;
+    const u = rec.universityId ? getRow('universities', rec.universityId) : null;
+    if (rec.universityId && (!u || u.deletedAt)) throw new UserError('대학 목록에서 대학을 찾을 수 없습니다.');
+    if (table === 'majorplans') rec.university = u ? u.name : '';
+  }
+
+  /** 계정 비밀번호 보기 (볼 때마다 기록) */
+  function revealAccount(me, arg) {
+    const a = getRow('accounts', arg && arg.id);
+    if (!a || a.deletedAt) throw new UserError('계정 정보를 찾을 수 없습니다.', 404);
+    requireStudent(me, a.studentId);
+    log(me.email, 'reveal', 'accounts', a.id, describe('accounts', a));
+    return { password: a.password };
+  }
+
+  /** 학교·커리큘럼 목록 관리 (관리자·관리팀). 이름을 바꾸면 그 값을 쓰던 학생 정보도 함께 바뀜 */
+  function saveOption(me, arg) {
+    requireManager(me, '목록 관리');
+    const kind = arg && arg.kind;
+    if (!OPTION_KINDS[kind]) throw new UserError('알 수 없는 목록입니다.');
+    const value = clean(arg.value).trim();
+    if (!value) throw new UserError(OPTION_KINDS[kind] + ' 이름을 입력하세요.');
+    const dup = db.prepare('SELECT id FROM options WHERE kind = ? AND value = ?').get(kind, value);
+    if (dup && dup.id !== arg.id) throw new UserError('이미 있는 ' + OPTION_KINDS[kind] + '입니다.');
+    const t = now();
+    let id = arg.id;
+    tx(() => {
+      if (id) {
+        const cur = db.prepare('SELECT * FROM options WHERE id = ?').get(id);
+        if (!cur) throw new UserError('항목을 찾을 수 없습니다. 새로고침 해주세요.', 404);
+        db.prepare('UPDATE options SET value = ?, sortOrder = ?, updatedAt = ?, updatedBy = ? WHERE id = ?').run(value, clean(arg.sortOrder), t, me.email, id);
+        let n = 0;
+        if (cur.value !== value) n = db.prepare(`UPDATE students SET ${kind} = ? WHERE ${kind} = ?`).run(value, cur.value).changes;
+        log(me.email, 'update', 'options', id, OPTION_KINDS[kind] + ' ' + cur.value + (cur.value !== value ? ' → ' + value + (n ? ' (학생 ' + n + '명 함께 변경)' : '') : ''));
+      } else {
+        id = newId();
+        db.prepare('INSERT INTO options (id, kind, value, sortOrder, createdAt, createdBy, updatedAt, updatedBy) VALUES (?,?,?,?,?,?,?,?)')
+          .run(id, kind, value, clean(arg.sortOrder), t, me.email, t, me.email);
+        log(me.email, 'create', 'options', id, OPTION_KINDS[kind] + ' ' + value);
+      }
+    });
+    return Object.assign(getAll(me), { savedId: id });
+  }
+  function removeOption(me, arg) {
+    requireManager(me, '목록 관리');
+    const cur = db.prepare('SELECT * FROM options WHERE id = ?').get(arg && arg.id);
+    if (!cur) throw new UserError('이미 삭제된 항목입니다.', 404);
+    db.prepare('DELETE FROM options WHERE id = ?').run(cur.id);
+    log(me.email, 'delete', 'options', cur.id, (OPTION_KINDS[cur.kind] || cur.kind) + ' ' + cur.value + ' (학생 정보의 기존 값은 그대로)');
+    return getAll(me);
   }
 
   /** 같은 종류 항목 여러 건을 한 번에 저장 (전부 성공하거나 전부 취소) */
@@ -959,7 +1049,7 @@ function openStore(dbPath, opts) {
     rows.forEach((r) => { r.tblLabel = (DEF[r.tbl] && DEF[r.tbl].label) || legacyLabel(r.tbl); });
     return { rows };
   }
-  function legacyLabel(t) { return { teachers: '계정' }[t] || t; }
+  function legacyLabel(t) { return { teachers: '선생님 계정', options: '목록(학교·커리큘럼)' }[t] || t; }
 
   /* ----- 파일 ----- */
 
@@ -1011,7 +1101,7 @@ function openStore(dbPath, opts) {
     if (!data || data.format !== 'compass-import-v1' || !Array.isArray(data.students)) {
       throw new UserError('Compass 가져오기 파일 형식이 아닙니다.');
     }
-    const CHILD_KEYS = ['contracts', 'apps', 'scores', 'docs', 'links', 'notes', 'followups', 'majorplans', 'schools', 'courses'];
+    const CHILD_KEYS = ['contracts', 'apps', 'scores', 'docs', 'links', 'notes', 'followups', 'majorplans', 'schools', 'courses', 'accounts'];
     const teachersByName = {};
     db.prepare('SELECT email, name FROM teachers').all().forEach((t) => { teachersByName[t.name] = t.email; });
     const result = { created: [], skipped: [] };
@@ -1103,7 +1193,8 @@ function openStore(dbPath, opts) {
 
   return {
     db, filesDir, listFiles, countTeachers, upsertAdmin, login, logout, authenticate, addFile, getFile,
-    rpc: { getAll: (me) => getAll(me), save, remove, restore, purge, getTrash, getLog, saveTeacher, changePassword, importData, copyCycle, getActivity, saveMany, updateMe },
+    rpc: { getAll: (me) => getAll(me), save, remove, restore, purge, getTrash, getLog, saveTeacher, changePassword, importData, copyCycle, getActivity, saveMany, updateMe,
+      revealAccount, saveOption, removeOption },
     backup, close: () => db.close(),
   };
 }
