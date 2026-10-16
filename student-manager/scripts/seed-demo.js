@@ -36,6 +36,7 @@ const b = save('students', { name: '샘플 학생B', school: 'SAS', grade: 'G12'
 const c = save('students', { name: '샘플 학생C', school: 'HIS', grade: 'G11', curriculum: 'IB', counselor: '', manager: 'staff@demo.test',
   status: '상담중', tracks: ['12년특례'] });
 
+['CISS', 'SAS', 'HIS'].forEach((v) => r.saveOption(me, { kind: 'school', value: v }));
 const ca = save('contracts', { studentId: a, kind: '원서', tier: 'Standard', packages: ['홍콩 패키지', '한국 3특'], startMonth: month,
   signedDate: d(-30), currency: 'RMB', amount: '30000', payDue: d(-3), scope: 'HKU + HKUST + 한국 3특. 미국 에세이 미포함' });
 save('payments', { studentId: a, contractId: ca, date: d(-30), amount: '15000', currency: 'RMB', method: '위챗페이', memo: '1차 분할' });
@@ -49,7 +50,7 @@ save('notes', { studentId: a, date: d(-5), time: 'PM 1:00', place: '상담실', 
   type: '대면상담', content: '1. HKU 심리학 단독 지원 확정\n2. 추천서 3인 확정', nextAction: '출입국사실증명서 수합 안내', nextDue: d(-1) });
 save('notes', { studentId: b, date: d(-2), type: '위챗·문자', content: '어머님 일정 문의 대응', nextAction: '에세이 타임라인 공유', nextDue: d(5) });
 
-save('followups', { studentId: a, title: '출입국사실증명서 받기', assignee: 'staff@demo.test', due: d(-1), category: '서류' });
+save('followups', { studentId: a, title: '출입국사실증명서 받기', assignee: 'staff@demo.test', due: d(-1), category: '서류', detail: '위챗: 출입국사실증명서 이번 주 안에 받아서 스캔해 줄래?', replyFrom: '학생', replyDate: d(0), reply: '금요일에 어머니가 발급받아 주신대요' });
 save('followups', { studentId: a, title: '에세이 2차 피드백 전달', assignee: 'kim@demo.test', due: d(3), status: '진행 중', category: '에세이' });
 save('followups', { studentId: a, title: '추천서 요청 메일 발송', assignee: 'kim@demo.test', status: '완료' });
 save('followups', { studentId: b, title: '어머님께 에세이 타임라인 공유', assignee: 'lee@demo.test', due: d(5) });
@@ -57,7 +58,8 @@ save('followups', { studentId: c, title: '담당 컨설턴트 배정', assignee:
 
 save('majorplans', { studentId: a, date: d(-200), major: 'Biology', field: '자연과학', status: '제외', source: '학부모 의견', reason: '화학 성적이 기대보다 낮아 제외' });
 save('majorplans', { studentId: a, date: d(-90), major: 'Psychology', field: '사회과학', status: '최종', source: '학생 희망', reason: '치료견 봉사·HAI 리서치와 연결', parentConfirmed: true });
-save('majorplans', { studentId: a, date: d(-60), major: 'Neuroscience', field: '자연과학', status: '후보', source: '컨설턴트 제안', reason: 'HKUST 지원 시 대안' });
+const hkust = r.getAll(me).universities.find((u) => u.name === 'HKUST').id;
+save('majorplans', { studentId: a, date: d(-60), universityId: hkust, major: 'Neuroscience', field: '자연과학', status: '후보', source: '컨설턴트 제안', reason: 'HKUST 지원 시 대안' });
 save('schools', { studentId: a, school: '서울 OO초등학교', country: '한국', city: '서울', gradeFrom: 'G1', gradeTo: 'G4', startDate: '2015-03-02', endDate: '2019-02-15' });
 save('schools', { studentId: a, school: 'Shanghai Community International School', country: '중국', city: '상하이', gradeFrom: 'G5', gradeTo: 'G8', startDate: '2019-08-20', endDate: '2023-06-10', memo: '아버지 주재원 발령으로 전학' });
 save('schools', { studentId: a, school: 'Concordia International School Shanghai', country: '중국', city: '상하이', gradeFrom: 'G9', gradeTo: 'G12', startDate: '2023-08-16' });
@@ -70,6 +72,11 @@ r.saveMany(me, { table: 'courses', objs: [
   { studentId: a, grade: 'G12', schoolYear: '2026-2027', subject: 'Statistics', level: 'Regular', termType: 'Trimester', g1: 'B+' },
 ] });
 
+save('accounts', { studentId: a, category: '시험', site: 'College Board (SAT·AP)', url: 'https://www.collegeboard.org', loginId: 'sample.a@example.com', password: 'demo-College1' });
+save('accounts', { studentId: a, category: '원서 포털', site: 'HKU 원서 포털', universityId: r.getAll(me).universities.find((u) => u.name === 'HKU').id, loginId: 'sampleA2027', password: 'demo-Hku-22', memo: '등록 완료' });
+save('accounts', { studentId: a, category: '학교 LMS', site: 'Schoology', url: 'https://app.schoology.com', loginId: 'a.sample' });
+store.db.prepare("UPDATE students SET hopeUnis = ?, focusArea = ?, recommenders = ? WHERE id = ?")
+  .run('1순위 홍콩 HKU 심리 / 3년특례: 성균관대', 'G12 AP Psychology·Biology 유지, 에세이 집중', '카운셀러·영어쌤 요청 완료', a);
 save('scores', { studentId: a, kind: 'SAT', score: '1400', detail: 'RW 700 · Math 700', date: d(-60), memo: '목표 1450' });
 save('scores', { studentId: a, kind: 'TOEFL', score: '118', detail: 'R30 L30 S29 W29', date: d(-90) });
 save('scores', { studentId: a, kind: 'AP', subject: 'Calculus AB', score: '4', date: d(-120) });

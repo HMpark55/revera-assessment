@@ -665,3 +665,62 @@ test('v3: 전공 선정·부모님 확정, 학력, 학년별 수강 과목 일�
   assert.strictEqual(d.me.name, '새이름');
   assert.strictEqual((await con.rpc('updateMe', { name: ' ' })).status, 400);
 });
+
+test('v4: 학교·커리큘럼 목록, 팔로업 답변, 전공 후보 대학, 사이트 계정 비밀번호 보호', async () => {
+  const admin = client();
+  await admin.login('admin@revera.test', 'admin-pass-1');
+  await admin.ok('saveTeacher', { email: 'staff8@revera.test', name: '관리8', role: 'staff', password: '123456' });
+  await admin.ok('saveTeacher', { email: 'con8@revera.test', name: '컨설8', role: 'consultant', password: '123456' });
+  const staff = client(); await staff.login('staff8@revera.test', '123456');
+  const con = client(); await con.login('con8@revera.test', '123456');
+
+  // 목록: 기본 커리큘럼이 들어 있고, 관리팀이 추가·이름 변경(학생 정보도 함께)·삭제, 컨설턴트는 불가
+  let d = await staff.ok('getAll');
+  assert.ok(d.options.some((o) => o.kind === 'curriculum' && o.value === 'IB'));
+  d = await staff.ok('saveOption', { kind: 'school', value: 'SMIC' });
+  const smic = d.savedId;
+  assert.strictEqual((await staff.rpc('saveOption', { kind: 'school', value: 'SMIC' })).status, 400);
+  assert.strictEqual((await con.rpc('saveOption', { kind: 'school', value: 'X' })).status, 403);
+  assert.strictEqual((await staff.rpc('saveOption', { kind: 'bogus', value: 'X' })).status, 400);
+  d = await staff.saveOk('students', { name: '목록학생', school: 'SMIC', counselor: 'con8@revera.test' });
+  const sid = d.savedId;
+  d = await staff.ok('saveOption', { id: smic, kind: 'school', value: 'Shanghai Livingston American School' });
+  assert.strictEqual(d.students.find((s) => s.id === sid).school, 'Shanghai Livingston American School');
+  d = await staff.ok('removeOption', { id: smic });
+  assert.ok(!d.options.some((o) => o.id === smic));
+  assert.strictEqual(d.students.find((s) => s.id === sid).school, 'Shanghai Livingston American School', '삭제해도 학생 값은 유지');
+
+  // 팔로업 답변
+  d = await staff.saveOk('followups', { studentId: sid, title: '시험 일정 확인' });
+  let f = d.followups.find((x) => x.id === d.savedId);
+  assert.strictEqual((await con.save('followups', { id: f.id, updatedAt: f.updatedAt, replyDate: '4/4' })).status, 400);
+  d = await con.saveOk('followups', { id: f.id, updatedAt: f.updatedAt, replyFrom: '학생', replyDate: '2026-10-16', reply: '퀴즈는 다음 주로 미뤄졌어요' });
+  f = d.followups.find((x) => x.id === f.id);
+  assert.strictEqual(f.reply, '퀴즈는 다음 주로 미뤄졌어요');
+
+  // 전공 후보에 대학 (이름 자동), 없는 대학은 거부
+  const hku = d.universities.find((u) => u.name === 'HKU');
+  d = await con.saveOk('majorplans', { studentId: sid, universityId: hku.id, major: 'Psychology', university: '무시됨' });
+  assert.strictEqual(d.majorplans.find((m) => m.id === d.savedId).university, 'HKU');
+  assert.strictEqual((await con.save('majorplans', { studentId: sid, universityId: 'nope', major: 'x' })).status, 400);
+
+  // 계정: 비밀번호는 목록에 안 내려가고, 보기 요청 시에만 + 기록
+  d = await con.saveOk('accounts', { studentId: sid, category: '원서 포털', site: 'HKU 포털', universityId: hku.id, loginId: 'kid01', password: 'S3cret!pw' });
+  let acc = d.accounts.find((a) => a.id === d.savedId);
+  assert.strictEqual(acc.hasPassword, true);
+  assert.ok(!('password' in acc));
+  assert.ok(!JSON.stringify(await admin.ok('getAll')).includes('S3cret!pw'));
+  assert.strictEqual((await con.ok('revealAccount', { id: acc.id })).password, 'S3cret!pw');
+  assert.ok((await staff.ok('getActivity', { studentId: sid })).rows.some((r) => r.action === 'reveal' && r.email === 'con8@revera.test'));
+  // 비밀번호를 비워서 저장하면 기존 값 유지
+  d = await con.saveOk('accounts', { id: acc.id, updatedAt: acc.updatedAt, password: '', memo: '등록 완료' });
+  assert.strictEqual((await con.ok('revealAccount', { id: acc.id })).password, 'S3cret!pw');
+  // 담당이 아닌 컨설턴트는 볼 수 없음
+  await admin.ok('saveTeacher', { email: 'con9@revera.test', name: '컨설9', role: 'consultant', password: '123456' });
+  const other = client(); await other.login('con9@revera.test', '123456');
+  assert.strictEqual((await other.rpc('revealAccount', { id: acc.id })).status, 403);
+  assert.strictEqual((await con.save('accounts', { studentId: sid, site: 'x', url: 'javascript:alert(1)' })).status, 400);
+  // 관리 사항 칸
+  d = await con.saveOk('students', { id: sid, updatedAt: d.students.find((s) => s.id === sid).updatedAt, hopeUnis: 'NUS 1순위', meetingUrl: 'https://docs.google.com/x' });
+  assert.strictEqual(d.students.find((s) => s.id === sid).hopeUnis, 'NUS 1순위');
+});
