@@ -503,7 +503,9 @@ test('대학 정보: 초기 자료, 권한, 전형 마감일 자동 반영', asy
   assert.strictEqual(store.db.prepare('SELECT COUNT(*) n FROM apps WHERE roundId = ?').get(early.id).n, 0);
 
   // 관리자는 대학 추가 가능 + 같은 이름 지원대학 자동 연결
-  await staff.saveOk('apps', { studentId: sid, university: 'Waseda' });
+  // 새 지원대학은 목록에 있는 대학만 (예전 자료·가져오기는 이름 그대로 두었다가 대학 추가 시 연결)
+  assert.match((await staff.save('apps', { studentId: sid, university: 'Waseda' })).data.error, /목록에서 선택/);
+  await admin.ok('importData', { format: 'compass-import-v1', students: [{ name: '와세다지망생', apps: [{ university: 'Waseda' }] }] });
   d = await admin.saveOk('universities', { name: '와세다', country: '일본', aliases: 'Waseda, Waseda University' });
   assert.ok(d.apps.some((a) => a.university === '와세다' && a.universityId === d.savedId));
   const log = (await admin.ok('getLog')).rows;
@@ -611,4 +613,55 @@ test('v4 DB 업그레이드: 비밀번호 변경 강제 해제 + 기존 데이�
   v5.rpc.save(boss, { table: 'followups', obj: { studentId: sid, title: '확인' } });
   assert.ok(v5.rpc.getActivity(boss, { studentId: sid }).rows.length >= 1);
   v5.close();
+});
+
+test('v3: 전공 선정·부모님 확정, 학력, 학년별 수강 과목 일괄 저장, 내 이름 변경', async () => {
+  const admin = client();
+  await admin.login('admin@revera.test', 'admin-pass-1');
+  await admin.ok('saveTeacher', { email: 'con7@revera.test', name: '컨설7', role: 'consultant', password: '123456' });
+  const con = client(); await con.login('con7@revera.test', '123456');
+  let d = await admin.saveOk('students', { name: '전공학생', counselor: 'con7@revera.test' });
+  const sid = d.savedId;
+  const other = (await admin.saveOk('students', { name: '남의학생' })).savedId;
+
+  // 전공 후보 → 최종 + 부모님 확정 (시각·기록자 자동)
+  assert.strictEqual((await con.save('majorplans', { studentId: sid, major: 'x', status: '이상' })).status, 400);
+  d = await con.saveOk('majorplans', { studentId: sid, major: 'Psychology' });
+  let m = d.majorplans.find((x) => x.id === d.savedId);
+  assert.strictEqual(m.status, '후보');
+  assert.match(m.date, /^\d{4}-\d{2}-\d{2}$/);
+  d = await con.saveOk('majorplans', { id: m.id, updatedAt: m.updatedAt, status: '최종', parentConfirmed: true });
+  m = d.majorplans.find((x) => x.id === m.id);
+  assert.strictEqual(m.parentConfirmed, 'TRUE');
+  assert.strictEqual(m.parentConfirmedBy, 'con7@revera.test');
+  d = await con.saveOk('majorplans', { id: m.id, updatedAt: m.updatedAt, parentConfirmed: false });
+  m = d.majorplans.find((x) => x.id === m.id);
+  assert.strictEqual(m.parentConfirmedAt, '');
+  const act = (await con.ok('getActivity', { studentId: sid })).rows;
+  assert.ok(act.some((r) => r.tbl === 'majorplans' && r.summary.includes('부모님 확정')));
+
+  // 학력: 날짜 검증
+  assert.strictEqual((await con.save('schools', { studentId: sid, school: 'A' })).status, 400);
+  assert.strictEqual((await con.save('schools', { studentId: sid, school: 'A', startDate: '2020-03-01', endDate: '2019-01-01' })).status, 400);
+  await con.saveOk('schools', { studentId: sid, school: 'A초', country: '한국', gradeFrom: 'G1', gradeTo: 'G6', startDate: '2014-03-03', endDate: '2020-02-14' });
+
+  // 과목 일괄 저장: 전부 성공 또는 전부 취소, 남의 학생 불가
+  assert.strictEqual((await con.rpc('saveMany', { table: 'courses', objs: [{ studentId: sid, grade: 'G10', subject: 'Math' }, { studentId: sid, grade: 'G10' }] })).status, 400);
+  assert.strictEqual((await con.ok('getAll')).courses.length, 0, '하나라도 틀리면 아무것도 저장 안 됨');
+  assert.strictEqual((await con.rpc('saveMany', { table: 'courses', objs: [{ studentId: other, grade: 'G10', subject: 'Math' }] })).status, 403);
+  assert.strictEqual((await con.rpc('saveMany', { table: 'notes', objs: [{ studentId: sid, content: 'x' }] })).status, 400);
+  d = await con.ok('saveMany', { table: 'courses', objs: [
+    { studentId: sid, grade: 'G10', subject: 'AP Biology', level: 'AP' },
+    { studentId: sid, grade: 'G10', subject: 'Statistics', termType: 'Trimester' }] });
+  assert.strictEqual(d.savedIds.length, 2);
+  const bio = d.courses.find((c) => c.subject === 'AP Biology');
+  assert.strictEqual(bio.termType, '1년(2학기)');
+  assert.strictEqual((await con.rpc('saveMany', { table: 'courses', objs: [{ id: bio.id, updatedAt: bio.updatedAt, termType: '분기' }] })).status, 400);
+  d = await con.ok('saveMany', { table: 'courses', objs: [{ id: bio.id, updatedAt: bio.updatedAt, g1: 'A', g2: 'A-', final: 'A' }] });
+  assert.strictEqual(d.courses.find((c) => c.id === bio.id).final, 'A');
+
+  // 내 이름 변경
+  d = await con.ok('updateMe', { name: '새이름' });
+  assert.strictEqual(d.me.name, '새이름');
+  assert.strictEqual((await con.rpc('updateMe', { name: ' ' })).status, 400);
 });

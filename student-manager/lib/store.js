@@ -77,6 +77,21 @@ const TABLES = {
     fields: ['studentId', 'title', 'detail', 'category', 'assignee', 'due', 'status'],
     summary: (r) => [r.title, r.status].filter(Boolean).join(' · '),
   },
+  majorplans: {
+    label: '전공 선정',
+    fields: ['studentId', 'date', 'major', 'field', 'status', 'source', 'reason', 'parentConfirmed'],
+    summary: (r) => [r.major, r.status, r.parentConfirmed === 'TRUE' ? '부모님 확정' : ''].filter(Boolean).join(' · '),
+  },
+  schools: {
+    label: '학력',
+    fields: ['studentId', 'school', 'country', 'city', 'gradeFrom', 'gradeTo', 'startDate', 'endDate', 'memo'],
+    summary: (r) => [r.school, [r.gradeFrom, r.gradeTo].filter(Boolean).join('~'), [r.startDate, r.endDate || '재학 중'].join('~')].filter(Boolean).join(' '),
+  },
+  courses: {
+    label: '수강 과목',
+    fields: ['studentId', 'grade', 'schoolYear', 'subject', 'level', 'termType', 'g1', 'g2', 'g3', 'final', 'memo'],
+    summary: (r) => [r.grade, r.subject].filter(Boolean).join(' '),
+  },
   payments: {
     label: '입금',
     fields: ['studentId', 'contractId', 'date', 'amount', 'currency', 'method', 'memo'],
@@ -85,6 +100,9 @@ const TABLES = {
 };
 const CURRENCIES = ['RMB', 'KRW'];
 const FOLLOWUP_STATUS = ['할 일', '진행 중', '대기', '완료'];
+const MAJOR_STATUS = ['후보', '유력', '최종', '제외'];
+const COURSE_TERMS = ['1년(2학기)', '1학기만', '2학기만', 'Trimester'];
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const CHILD_TABLES = Object.keys(TABLES).filter((t) => t !== 'students');
 
 /** 대학 정보 (학생과 무관한 공용 자료) */
@@ -130,6 +148,10 @@ const FIELD_LABELS = {
   fullName: '정식 이름', aliases: '다른 이름', website: '홈페이지', tips: '원서 준비 유의사항', sortOrder: '순서',
   year: '입학 연도', term: '입학 학기', requirements: '공식 지원 요건', sourceUrl: '출처', faculty: '단과대',
   code: '코드', cycleId: '입학 연도',
+  field: '계열', source: '제안·계기', reason: '이유', parentConfirmed: '부모님 확정', parentConfirmedAt: '부모님 확정일',
+  parentConfirmedBy: '부모님 확정 기록자', city: '도시', gradeFrom: '시작 학년', gradeTo: '마지막 학년', startDate: '시작일',
+  endDate: '종료일', schoolYear: '학년도', level: '레벨', termType: '학기 구분', g1: '1학기/T1 성적', g2: '2학기/T2 성적',
+  g3: 'T3 성적', final: '최종 성적',
 };
 /** 관리자/관리팀만 다룰 수 있는 테이블 */
 const MANAGER_ONLY = ['notes', 'contracts', 'payments'];
@@ -235,6 +257,7 @@ function migrate(db) {
   }
   ensureColumns(db, 'notes', ['author']);
   ensureColumns(db, 'followups', ['doneAt', 'doneBy']);
+  ensureColumns(db, 'majorplans', ['parentConfirmedAt', 'parentConfirmedBy']);
   ensureColumns(db, 'log', ['studentId']);
   db.exec('CREATE INDEX IF NOT EXISTS log_student ON log(studentId)');
   // v5: 첫 로그인 비밀번호 변경 강제 없앰
@@ -475,6 +498,22 @@ function openStore(dbPath, opts) {
       if (v('status') && !FOLLOWUP_STATUS.includes(v('status'))) throw new UserError('상태가 올바르지 않습니다.');
       if (v('due') && !/^\d{4}-\d{2}-\d{2}$/.test(v('due'))) throw new UserError('기한 형식이 올바르지 않습니다.');
     }
+    if (table === 'majorplans') {
+      need('major', '전공을 입력하세요.');
+      if (v('status') && !MAJOR_STATUS.includes(v('status'))) throw new UserError('상태가 올바르지 않습니다.');
+      if (v('date') && !DATE_RE.test(v('date'))) throw new UserError('날짜 형식이 올바르지 않습니다.');
+    }
+    if (table === 'schools') {
+      need('school', '학교 이름을 입력하세요.');
+      need('startDate', '시작일(입학·전학 온 날)을 입력하세요.');
+      for (const k of ['startDate', 'endDate']) if (v(k) && !DATE_RE.test(v(k))) throw new UserError('날짜 형식이 올바르지 않습니다. (YYYY-MM-DD)');
+      if (v('endDate') && v('endDate') < v('startDate')) throw new UserError('종료일이 시작일보다 빠릅니다.');
+    }
+    if (table === 'courses') {
+      need('grade', '학년을 입력하세요.');
+      need('subject', '과목 이름을 입력하세요.');
+      if (v('termType') && !COURSE_TERMS.includes(v('termType'))) throw new UserError('학기 구분이 올바르지 않습니다.');
+    }
     if (table === 'students') {
       for (const k of ['counselor', 'manager']) {
         const e = v(k);
@@ -548,6 +587,10 @@ function openStore(dbPath, opts) {
         }
         if (table === 'payments' && 'amount' in rec) rec.amount = String(parseAmount(rec.amount));
         if (table === 'apps') resolveApp(rec, cur);
+        if (table === 'majorplans' && 'parentConfirmed' in rec && (rec.parentConfirmed === 'TRUE') !== (cur.parentConfirmed === 'TRUE')) {
+          rec.parentConfirmedAt = rec.parentConfirmed === 'TRUE' ? t : '';
+          rec.parentConfirmedBy = rec.parentConfirmed === 'TRUE' ? me.email : '';
+        }
         if (table === 'followups' && 'status' in rec && rec.status !== cur.status) {
           rec.doneAt = rec.status === '완료' ? t : '';
           rec.doneBy = rec.status === '완료' ? me.email : '';
@@ -580,7 +623,14 @@ function openStore(dbPath, opts) {
         if (table === 'apps') {
           if (!rec.universityId && rec.university) rec.universityId = findUniByName(rec.university);
           resolveApp(rec, null);
+          if (!rec.universityId) throw new UserError('대학은 목록에서 선택하세요. 목록에 없으면 관리자에게 대학 추가를 요청하세요.');
         }
+        if (table === 'majorplans') {
+          if (!rec.status) rec.status = '후보';
+          if (!rec.date) rec.date = t.slice(0, 10);
+          if (rec.parentConfirmed === 'TRUE') { rec.parentConfirmedAt = t; rec.parentConfirmedBy = me.email; }
+        }
+        if (table === 'courses' && !rec.termType) rec.termType = COURSE_TERMS[0];
         if (table === 'followups') {
           if (!rec.status) rec.status = '할 일';
           if (rec.status === '완료') { rec.doneAt = t; rec.doneBy = me.email; }
@@ -596,6 +646,7 @@ function openStore(dbPath, opts) {
         result = rec.id;
       }
     });
+    if (arg.noData) return { savedId: result };
     const data = getAll(me);
     data.savedId = result;
     return data;
@@ -725,6 +776,28 @@ function openStore(dbPath, opts) {
     const data = getAll(me);
     data.savedId = result;
     return data;
+  }
+
+  /** 같은 종류 항목 여러 건을 한 번에 저장 (전부 성공하거나 전부 취소) */
+  function saveMany(me, arg) {
+    const table = arg && arg.table;
+    const objs = (arg && arg.objs) || [];
+    if (!['courses'].includes(table)) throw new UserError('여러 건 저장을 지원하지 않는 항목입니다.');
+    if (!Array.isArray(objs) || !objs.length) throw new UserError('저장할 항목이 없습니다.');
+    if (objs.length > 60) throw new UserError('한 번에 60건까지만 저장할 수 있습니다.');
+    const ids = [];
+    tx(() => { for (const obj of objs) ids.push(save(me, { table, obj, noData: true }).savedId); });
+    return Object.assign(getAll(me), { savedIds: ids });
+  }
+
+  /** 내 정보: 이름 변경 */
+  function updateMe(me, arg) {
+    const name = clean(arg && arg.name).trim();
+    if (!name) throw new UserError('이름을 입력하세요.');
+    if (name.length > 40) throw new UserError('이름이 너무 깁니다.');
+    db.prepare('UPDATE teachers SET name = ?, updatedAt = ? WHERE email = ?').run(name, now(), me.email);
+    log(me.email, 'update', 'teachers', me.email, '내 이름 변경: ' + name);
+    return getAll(Object.assign({}, me, { name }));
   }
 
   /** 입학 연도 정보 복사 (예: 2027 → 2028). 마감일은 1년 뒤로 옮긴 추정치 */
@@ -938,7 +1011,7 @@ function openStore(dbPath, opts) {
     if (!data || data.format !== 'compass-import-v1' || !Array.isArray(data.students)) {
       throw new UserError('Compass 가져오기 파일 형식이 아닙니다.');
     }
-    const CHILD_KEYS = ['contracts', 'apps', 'scores', 'docs', 'links', 'notes', 'followups'];
+    const CHILD_KEYS = ['contracts', 'apps', 'scores', 'docs', 'links', 'notes', 'followups', 'majorplans', 'schools', 'courses'];
     const teachersByName = {};
     db.prepare('SELECT email, name FROM teachers').all().forEach((t) => { teachersByName[t.name] = t.email; });
     const result = { created: [], skipped: [] };
@@ -1030,7 +1103,7 @@ function openStore(dbPath, opts) {
 
   return {
     db, filesDir, listFiles, countTeachers, upsertAdmin, login, logout, authenticate, addFile, getFile,
-    rpc: { getAll: (me) => getAll(me), save, remove, restore, purge, getTrash, getLog, saveTeacher, changePassword, importData, copyCycle, getActivity },
+    rpc: { getAll: (me) => getAll(me), save, remove, restore, purge, getTrash, getLog, saveTeacher, changePassword, importData, copyCycle, getActivity, saveMany, updateMe },
     backup, close: () => db.close(),
   };
 }

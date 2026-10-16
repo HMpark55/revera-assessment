@@ -55,6 +55,21 @@ save('followups', { studentId: a, title: '추천서 요청 메일 발송', assig
 save('followups', { studentId: b, title: '어머님께 에세이 타임라인 공유', assignee: 'lee@demo.test', due: d(5) });
 save('followups', { studentId: c, title: '담당 컨설턴트 배정', assignee: 'admin@demo.test', due: d(7), status: '대기' });
 
+save('majorplans', { studentId: a, date: d(-200), major: 'Biology', field: '자연과학', status: '제외', source: '학부모 의견', reason: '화학 성적이 기대보다 낮아 제외' });
+save('majorplans', { studentId: a, date: d(-90), major: 'Psychology', field: '사회과학', status: '최종', source: '학생 희망', reason: '치료견 봉사·HAI 리서치와 연결', parentConfirmed: true });
+save('majorplans', { studentId: a, date: d(-60), major: 'Neuroscience', field: '자연과학', status: '후보', source: '컨설턴트 제안', reason: 'HKUST 지원 시 대안' });
+save('schools', { studentId: a, school: '서울 OO초등학교', country: '한국', city: '서울', gradeFrom: 'G1', gradeTo: 'G4', startDate: '2015-03-02', endDate: '2019-02-15' });
+save('schools', { studentId: a, school: 'Shanghai Community International School', country: '중국', city: '상하이', gradeFrom: 'G5', gradeTo: 'G8', startDate: '2019-08-20', endDate: '2023-06-10', memo: '아버지 주재원 발령으로 전학' });
+save('schools', { studentId: a, school: 'Concordia International School Shanghai', country: '중국', city: '상하이', gradeFrom: 'G9', gradeTo: 'G12', startDate: '2023-08-16' });
+r.saveMany(me, { table: 'courses', objs: [
+  { studentId: a, grade: 'G11', schoolYear: '2025-2026', subject: 'AP Psychology', level: 'AP', termType: '1년(2학기)', g1: 'A', g2: 'A', final: 'A' },
+  { studentId: a, grade: 'G11', schoolYear: '2025-2026', subject: 'AP Calculus AB', level: 'AP', termType: '1년(2학기)', g1: 'A-', g2: 'A' },
+  { studentId: a, grade: 'G11', schoolYear: '2025-2026', subject: 'Health', level: 'Regular', termType: '1학기만', g1: 'A' },
+  { studentId: a, grade: 'G12', schoolYear: '2026-2027', subject: 'AP Biology', level: 'AP', termType: '1년(2학기)' },
+  { studentId: a, grade: 'G12', schoolYear: '2026-2027', subject: 'English 12', level: 'Honors', termType: '1년(2학기)' },
+  { studentId: a, grade: 'G12', schoolYear: '2026-2027', subject: 'Statistics', level: 'Regular', termType: 'Trimester', g1: 'B+' },
+] });
+
 save('scores', { studentId: a, kind: 'SAT', score: '1400', detail: 'RW 700 · Math 700', date: d(-60), memo: '목표 1450' });
 save('scores', { studentId: a, kind: 'TOEFL', score: '118', detail: 'R30 L30 S29 W29', date: d(-90) });
 save('scores', { studentId: a, kind: 'AP', subject: 'Calculus AB', score: '4', date: d(-120) });
@@ -62,6 +77,7 @@ save('scores', { studentId: c, kind: 'IB', subject: 'Biology HL', score: '7' });
 
 save('apps', { studentId: a, country: '홍콩', university: 'HKU', major: 'Psychology (BPsych)', round: '홍콩 얼리', deadline: d(12), status: '작성중', essay: '수정중' });
 save('apps', { studentId: b, country: '홍콩', university: 'HKUST', major: 'Electronic Engineering', round: '홍콩 얼리', deadline: d(6), status: '준비중', essay: '초안' });
+save('universities', { name: '성균관대', country: '한국', fullName: '성균관대학교' });
 save('apps', { studentId: a, country: '한국', university: '성균관대', major: '심리학', round: '3년특례', deadline: d(40), status: '준비중' });
 save('apps', { studentId: b, country: '싱가폴', university: 'NUS', major: 'Computer Engineering', round: 'RD', deadline: d(-200), status: '합격' });
 save('apps', { studentId: b, country: '홍콩', university: 'HKU', major: 'Engineering', round: '홍콩 얼리', deadline: d(-190), status: '불합격' });
