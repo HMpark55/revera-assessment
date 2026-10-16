@@ -302,6 +302,15 @@ function migrate(db) {
   ensureColumns(db, 'docs', ['receivedAt', 'receivedBy']);
   ensureColumns(db, 'contracts', ['paid']); // 이전 버전 열 (새 버전은 입금 기록으로 계산)
   db.exec('CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
+  ensureColumns(db, 'teachers', ['notify']); // '' = 이메일 알림 받음, 'off' = 안 받음
+  // v8: 미팅 "시간" 칸에 잘못 들어간 긴 글(회의록 가져오기 때 양식 밖 메모)을 본문으로 옮김
+  if (!db.prepare("SELECT 1 FROM meta WHERE key = 'v8_meeting_time'").get()) {
+    db.prepare("SELECT id, time, content FROM meetings WHERE length(time) > 30").all().forEach((m) => {
+      db.prepare("UPDATE meetings SET time = '', content = ? WHERE id = ?")
+        .run([m.content, '[추가 메모 — 원본 시트의 양식 밖에 적혀 있던 글]\n' + m.time].filter(Boolean).join('\n\n'), m.id);
+    });
+    db.prepare("INSERT INTO meta VALUES ('v8_meeting_time', ?)").run(now());
+  }
   db.prepare("UPDATE contracts SET currency = 'RMB' WHERE currency = ''").run();
   // v3: 이전 버전의 '납부 완료' 표시를 입금 기록으로 한 번만 옮김 (입금일 기준 매출 계산을 위해)
   if (!db.prepare("SELECT 1 FROM meta WHERE key = 'v3_paid_to_payments'").get()) {
@@ -451,7 +460,7 @@ function openStore(dbPath, opts) {
         .run(hashPassword(password), t, email);
       db.prepare('DELETE FROM sessions WHERE email = ?').run(email);
     } else {
-      db.prepare('INSERT INTO teachers VALUES (?,?,?,?,?,?,?,?)')
+      db.prepare('INSERT INTO teachers (email, name, role, active, passwordHash, mustChangePassword, createdAt, updatedAt) VALUES (?,?,?,?,?,?,?,?)')
         .run(email, name || email.split('@')[0], 'admin', 1, hashPassword(password), 0, t, t);
     }
     log(email, found ? 'reset-admin' : 'create-admin', 'teachers', email, 'console');
@@ -511,8 +520,8 @@ function openStore(dbPath, opts) {
     const ids = new Set(students.map((s) => s.id));
     const out = {
       me: { email: me.email, name: me.name, role: me.role, mustChangePassword: !!me.mustChangePassword },
-      teachers: db.prepare('SELECT email, name, role, active FROM teachers ORDER BY name').all()
-        .map((t) => ({ email: t.email, name: t.name, role: t.role, active: !!t.active })),
+      teachers: db.prepare('SELECT email, name, role, active, notify FROM teachers ORDER BY name').all()
+        .map((t) => ({ email: t.email, name: t.name, role: t.role, active: !!t.active, notify: t.notify !== 'off' })),
       students,
       serverTime: now(),
     };
@@ -555,6 +564,7 @@ function openStore(dbPath, opts) {
     }
     if (table === 'meetings') {
       need('date', '미팅 날짜를 입력하세요.');
+      if (String(v('time') || '').length > 30) throw new UserError('시간은 30자 이내로 입력하세요. (예: PM 3:00) 긴 메모는 미팅 내용에 적어주세요.');
       if (!DATE_RE.test(v('date'))) throw new UserError('미팅 날짜 형식이 올바르지 않습니다. (YYYY-MM-DD)');
       if (v('status') && !MEETING_STATUS.includes(v('status'))) throw new UserError('미팅 상태가 올바르지 않습니다.');
     }
@@ -1109,7 +1119,7 @@ function openStore(dbPath, opts) {
     rows.forEach((r) => { r.tblLabel = (DEF[r.tbl] && DEF[r.tbl].label) || legacyLabel(r.tbl); });
     return { rows };
   }
-  function legacyLabel(t) { return { teachers: '선생님 계정', options: '목록(학교·커리큘럼)' }[t] || t; }
+  function legacyLabel(t) { return { teachers: '선생님 계정', options: '목록(학교·커리큘럼·사이트)', settings: '설정' }[t] || t; }
 
   /* ----- 파일 ----- */
 
@@ -1296,6 +1306,7 @@ function openStore(dbPath, opts) {
       const t = now();
       if (found) {
         db.prepare('UPDATE teachers SET name=?, role=?, active=?, updatedAt=? WHERE email=?').run(name, role, active, t, email);
+        if ('notify' in obj) db.prepare('UPDATE teachers SET notify=? WHERE email=?').run(obj.notify === false ? 'off' : '', email);
         if (password) {
           db.prepare('UPDATE teachers SET passwordHash=?, mustChangePassword=0 WHERE email=?').run(hashPassword(password), email);
         }
@@ -1303,7 +1314,8 @@ function openStore(dbPath, opts) {
         if (!active || password || role !== found.role) db.prepare('DELETE FROM sessions WHERE email = ?').run(email);
       } else {
         if (!password) throw new UserError('새 계정의 비밀번호를 입력하세요 (6자 이상).');
-        db.prepare('INSERT INTO teachers VALUES (?,?,?,?,?,?,?,?)').run(email, name, role, active, hashPassword(password), 0, t, t);
+        db.prepare('INSERT INTO teachers (email, name, role, active, passwordHash, mustChangePassword, createdAt, updatedAt, notify) VALUES (?,?,?,?,?,?,?,?,?)')
+          .run(email, name, role, active, hashPassword(password), 0, t, t, obj.notify === false ? 'off' : '');
       }
       const roleLabel = { admin: '관리자', staff: '관리팀', consultant: '컨설턴트' }[role];
       log(me.email, found ? 'update' : 'create', 'teachers', email,
@@ -1314,6 +1326,61 @@ function openStore(dbPath, opts) {
   }
 
   async function backup(destPath) { await db.backup(destPath); }
+
+  /* ----- 자동 백업·이메일 알림 설정 (관리자) ----- */
+  const CONFIG_KEYS = { scriptUrl: '', secret: '', siteUrl: '', backupOn: '', backupHour: '3', mailOn: '', mailHour: '8' };
+  function getConfig() {
+    const out = Object.assign({}, CONFIG_KEYS);
+    db.prepare("SELECT key, value FROM meta WHERE key LIKE 'cfg.%'").all().forEach((r) => { out[r.key.slice(4)] = r.value; });
+    return out;
+  }
+  function setMeta(key, value) {
+    db.prepare('INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').run(key, String(value));
+  }
+  function getMeta(key) { const r = db.prepare('SELECT value FROM meta WHERE key = ?').get(key); return r ? r.value : ''; }
+  function getAutomation(me) {
+    requireAdmin(me, '자동 백업·알림 설정');
+    const status = {};
+    ['backup', 'digest'].forEach((k) => { status[k] = { at: getMeta('run.' + k + '.at'), result: getMeta('run.' + k + '.result'), date: getMeta('run.' + k + '.date') }; });
+    return { config: getConfig(), status };
+  }
+  function saveAutomation(me, arg) {
+    requireAdmin(me, '자동 백업·알림 설정');
+    arg = arg || {};
+    const cur = getConfig();
+    const next = {};
+    if ('scriptUrl' in arg) {
+      const u = clean(arg.scriptUrl).trim();
+      if (u && !/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(u)) throw new UserError('Apps Script 주소는 https://script.google.com/macros/s/…/exec 형식이어야 합니다.');
+      next.scriptUrl = u;
+    }
+    if ('siteUrl' in arg) { const u = clean(arg.siteUrl).trim().replace(/\/+$/, ''); if (u) checkUrl(u, '사이트 주소'); next.siteUrl = u; }
+    if ('backupOn' in arg) next.backupOn = arg.backupOn ? 'on' : '';
+    if ('mailOn' in arg) next.mailOn = arg.mailOn ? 'on' : '';
+    for (const k of ['backupHour', 'mailHour']) {
+      if (k in arg) {
+        const h = Number(arg[k]);
+        if (!Number.isInteger(h) || h < 0 || h > 23) throw new UserError('시간은 0~23 사이 숫자로 입력하세요.');
+        next[k] = String(h);
+      }
+    }
+    if (arg.newSecret || !cur.secret) next.secret = crypto.randomBytes(18).toString('base64url');
+    tx(() => {
+      Object.keys(next).forEach((k) => setMeta('cfg.' + k, next[k]));
+      log(me.email, 'update', 'settings', 'automation', '자동 백업·알림 설정 변경: ' + Object.keys(next).filter((k) => k !== 'secret').concat(next.secret ? ['비밀 키 새로 만듦'] : []).join(', '));
+    });
+    return getAutomation(me);
+  }
+  function recordRun(kind, result, date) {
+    setMeta('run.' + kind + '.at', now());
+    setMeta('run.' + kind + '.result', String(result).slice(0, 500));
+    if (date) setMeta('run.' + kind + '.date', date);
+  }
+  /** 활성 선생님 목록 (알림 대상 계산용) */
+  function listTeachers() {
+    return db.prepare('SELECT email, name, role, active, notify FROM teachers').all()
+      .map((t) => ({ email: t.email, name: t.name, role: t.role, active: !!t.active, notify: t.notify !== 'off' }));
+  }
   /** 백업용 전체 파일 목록 (휴지통 포함) */
   function listFiles() {
     return db.prepare(`SELECT f.storedName, f.name, f.category, f.createdAt, f.deletedAt, s.name AS studentName
@@ -1323,8 +1390,8 @@ function openStore(dbPath, opts) {
   return {
     db, filesDir, listFiles, countTeachers, upsertAdmin, login, logout, authenticate, addFile, getFile,
     rpc: { getAll: (me) => getAll(me), save, remove, restore, purge, getTrash, getLog, saveTeacher, changePassword, importData, copyCycle, getActivity, saveMany, updateMe,
-      saveOption, removeOption, deleteTeacher },
-    backup, close: () => db.close(),
+      saveOption, removeOption, deleteTeacher, getAutomation, saveAutomation },
+    backup, getConfig, getMeta, recordRun, listTeachers, close: () => db.close(),
   };
 }
 
