@@ -277,6 +277,8 @@
   .tdi .who { font-size:.8rem; color:var(--muted); white-space:nowrap; }
   .tdi input { width:16px; height:16px; flex-shrink:0; margin:0; }
   .tdi.over .when { color:var(--error); font-weight:bold; }
+  details.nodue { margin-top:6px; border-top:1px dashed var(--border); padding-top:6px; }
+  details.nodue summary { cursor:pointer; font-size:.86rem; color:#374151; padding:4px 2px; }
   .seg { display:inline-flex; border:1px solid var(--border); border-radius:6px; overflow:hidden; }
   .seg a { padding:4px 10px; font-size:.8rem; cursor:pointer; color:#4b5563; text-decoration:none; }
   .seg a.on { background:var(--navy); color:#fff; }
@@ -1053,13 +1055,34 @@ function todayCard() {
   var list = todayItems(UI.todayScope);
   var h = '<div class="card"><div class="sec-h"><h3>오늘 챙길 일 <span class="muted">' + list.length + '건 · 기한 지난 것부터</span></h3>' +
     seg([['me', '내 일'], ['all', '전체']], UI.todayScope, 'todayScope') + '</div>';
-  if (!list.length) return h + '<div class="empty">' + (UI.todayScope === 'me' ? '오늘 챙길 내 일이 없습니다.' : '오늘 챙길 일이 없습니다.') + '</div></div>';
+  var nd = noDueItems(UI.todayScope);
+  if (!list.length) return h + '<div class="empty">' + (UI.todayScope === 'me' ? '오늘 챙길 내 일이 없습니다.' : '오늘 챙길 일이 없습니다.') + '</div>' + nd + '</div>';
   return h + '<div class="today-list">' + list.map(function (i) {
     var when = i.noDate ? '' : i.n < 0 ? (-i.n) + '일 지남' : i.n === 0 ? '오늘' : i.n === 1 ? '내일' : i.n + '일 뒤';
     return '<div class="tdi' + (i.n < 0 ? ' over' : '') + (i.top ? ' asked' : '') + '" onclick="' + esc(i.go) + '">' +
       (i.fu ? '<input type="checkbox" title="완료 처리" onclick="event.stopPropagation()" onchange="toggleFollowup(' + js(i.fu) + ', this.checked)">' : '<span style="width:16px"></span>') +
       '<span class="when">' + (i.top && i.noDate ? '요청' : when) + '</span><span class="kind">' + esc(i.kind) + '</span><span class="txt">' + esc(i.text) + '</span><span class="who">' + esc(i.who) + '</span></div>';
-  }).join('') + '</div></div>';
+  }).join('') + '</div>' + nd + '</div>';
+}
+/** 기한 없는 팔로업: "오늘 챙길 일" 아래 접힌 한 줄. 등록 후 7일이 넘으면 주황색 */
+var NODUE_OLD = 7;
+function noDueItems(scope) {
+  var list = openFollowups().filter(function (f) {
+    if (f.due) return false;
+    if (f.requestedBy && f.requestedBy !== f.assignee && f.assignee === S.me.email) return false; // 위 "요청받음"에 이미 나옴
+    return scope !== 'me' || f.assignee === S.me.email;
+  }).map(function (f) { return { f: f, age: Math.max(0, -dayDiff(f.createdAt.slice(0, 10))) }; })
+    .sort(function (a, b) { return b.age - a.age; });
+  if (!list.length) return '';
+  var old = list.filter(function (x) { return x.age >= NODUE_OLD; }).length;
+  return '<details class="nodue"' + (UI.nodueOpen ? ' open' : '') + ' ontoggle="UI.nodueOpen=this.open"><summary>기한 없는 ' + (scope === 'me' ? '내 ' : '') + '팔로업 <b>' + list.length + '건</b>' +
+    (old ? ' <span class="dday soon">' + NODUE_OLD + '일 넘음 ' + old + '건</span>' : '') + ' <span class="muted">— 언제 확인될지 모르는 일</span></summary>' +
+    list.map(function (x) {
+      var f = x.f, s = studentById(f.studentId);
+      return '<div class="tdi" onclick="openStudent(' + js(s.id) + ',\'followups\')"><input type="checkbox" title="완료 처리" onclick="event.stopPropagation()" onchange="toggleFollowup(' + js(f.id) + ', this.checked)">' +
+        '<span class="when"><span class="dday ' + (x.age >= NODUE_OLD ? 'soon' : 'far') + '">' + (x.age ? x.age + '일째' : '오늘 등록') + '</span></span><span class="kind">기한 없음</span>' +
+        '<span class="txt">' + esc(f.title) + '</span><span class="who">' + esc(s.name + (scope === 'me' ? '' : ' · ' + (teacherName(f.assignee) || '담당 미정'))) + '</span></div>';
+    }).join('') + '</details>';
 }
 
 /* ----- 공용 달력 (이번 달 + 다음 달) ----- */
