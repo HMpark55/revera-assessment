@@ -107,12 +107,22 @@ r.requestFollowup(kimMe, { id: reqFu.id, to: 'staff@demo.test', note: '저 이�
 const hku = store.db.prepare("SELECT id FROM universities WHERE name = 'HKU'").get();
 const hkuCycle = hku && store.db.prepare('SELECT id FROM unicycles WHERE universityId = ? ORDER BY year DESC').get(hku.id);
 if (hkuCycle) store.addUniFile(me, { cycleId: hkuCycle.id, category: '공식 안내', name: 'HKU 입학 안내 (예시).pdf', buffer: Buffer.from('%PDF-1.4\n% demo\n') });
+// 원서 정보 (예시 — 실제 인물 아님)
+const hkuId = store.db.prepare("SELECT id FROM universities WHERE name = 'HKU'").get();
+save('appinfo', { studentId: a, item: '추천인 1', universityId: hkuId ? hkuId.id : '', content: '이름: (예시) Teacher A\n직책: Teacher\n과목: Economics / Mathematics\n이메일: teacher.a@example.org' });
+save('appinfo', { studentId: a, item: '카운슬러', content: '이름: (예시) Counselor B\n이메일: counselor.b@example.org' });
+save('appinfo', { studentId: a, item: '졸업 예정일', content: '2027-06' });
 // 메인 화면 공용 달력 (날짜는 예시)
 r.saveEvent(me, { date: d(9), title: 'SAT 시험 (예시)', category: '시험', memo: '시험장·준비물 학생들에게 안내' });
 r.saveEvent(me, { date: d(2), title: 'SAT 접수 마감 (예시)', category: '시험' });
 r.saveEvent(me, { date: d(20), endDate: d(22), title: '홍콩 대학 설명회 (예시)', category: '설명회·행사' });
 r.saveEvent(me, { date: d(30), endDate: d(36), title: '학원 휴무 (예시)', category: '휴무' });
 r.saveEvent(me, { date: d(14), title: 'CISS 중간고사 시작 (예시)', category: '학교' });
+r.saveEvent(me, { date: d(8), title: 'Immerse essay 마감 (예시)', category: '원서·입시' });
+// 대회·프로그램 (예시 — 일정·조건은 실제와 다를 수 있음)
+r.saveProgram(me, { name: 'Immerse Education Essay Competition (예시)', category: '에세이 대회', target: '13–18세', schedule: '마감·주제는 해마다 홈페이지 확인',
+  deadline: d(8), url: 'https://example.org/immerse', memo: '주제 중 하나를 골라 에세이 제출 (예시 메모)' });
+r.saveProgram(me, { name: '예시 서머 리서치 프로그램', category: '서머 프로그램', target: 'G10–G11', schedule: '봄 지원, 여름 진행', url: 'https://example.org/summer', memo: '추천서 1부 필요 (예시)' });
 
 store.close();
 console.log('데모 DB 생성: ' + dbPath + '\n실행: DB_PATH=' + dbPath + ' npm start\n' +

@@ -1066,3 +1066,91 @@ test('v10 업그레이드: 기존 계약의 시작·종료 연월을 날짜로 �
   assert.deepStrictEqual(rows, [{ id: 'c1', startDate: '2024-02-01', endDate: '2024-02-29' }, { id: 'c2', startDate: '', endDate: '' }]);
   st.close();
 });
+
+test('서식 있는 회의록: 허용한 서식만 저장, 일반 글도 함께 만들어짐', async () => {
+  const admin = client(); await admin.login('admin@revera.test', 'admin-pass-1');
+  let d = await admin.saveOk('students', { name: '서식학생' });
+  const sid = d.savedId;
+  d = await admin.ok('saveWithFollowups', { table: 'meetings', obj: { studentId: sid, date: '2026-10-17',
+    contentHtml: '1. 홍콩대<div><span style="color: rgb(217, 83, 79); font-size: x-large; position: fixed">중요</span> <u>밑줄</u></div>' +
+      '<img src=x onerror=alert(1)><script>alert(2)</script><a href="javascript:alert(3)">링크</a><div><span style="background-color: rgb(255, 243, 163)">형광</span></div>' } });
+  const m = d.meetings.find((x) => x.id === d.savedId);
+  assert.ok(!/script|onerror|img|javascript|position|<a/i.test(m.contentHtml), m.contentHtml);
+  assert.ok(/color: rgb\(217, 83, 79\); font-size: x-large/.test(m.contentHtml) && /<u>밑줄<\/u>/.test(m.contentHtml) && /background-color/.test(m.contentHtml));
+  assert.strictEqual(m.content, '1. 홍콩대\n중요 밑줄링크\n형광'); // 지운 태그 안의 글자(링크)는 남음
+  // 서식 없이 줄바꿈만 있으면 일반 글로만 저장
+  d = await admin.ok('saveWithFollowups', { table: 'notes', obj: { studentId: sid, date: '2026-10-17', contentHtml: '첫 줄<div>둘째 줄</div><div><br></div><div>넷째</div>' } });
+  const n = d.notes.find((x) => x.id === d.savedId);
+  assert.deepStrictEqual([n.content, n.contentHtml], ['첫 줄\n둘째 줄\n\n넷째', '']);
+  // 검색용 글이 비면 상담기록은 거부
+  assert.strictEqual((await admin.rpc('saveWithFollowups', { table: 'notes', obj: { studentId: sid, date: '2026-10-17', contentHtml: '<div><br></div>' } })).status, 400);
+});
+
+test('원서 정보: 항목·내용 자유 목록, 대학 지정, 담당 학생만', async () => {
+  const admin = client(); await admin.login('admin@revera.test', 'admin-pass-1');
+  const kim = await newUser(admin, 'aikim@revera.test', 'consultant');
+  const lee = await newUser(admin, 'ailee@revera.test', 'consultant');
+  let d = await admin.saveOk('students', { name: '원서학생', counselor: 'aikim@revera.test' });
+  const sid = d.savedId, hku = d.universities.find((u) => u.name === 'HKU').id;
+  d = await kim.saveOk('appinfo', { studentId: sid, item: '추천인 1', content: '이름: 예시 선생님\n이메일: teacher@example.org', universityId: hku });
+  const r = d.appinfo.find((x) => x.id === d.savedId);
+  assert.deepStrictEqual([r.item, r.universityId], ['추천인 1', hku]);
+  await kim.saveOk('appinfo', { studentId: sid, item: '학교 코드', content: '000000' });
+  assert.strictEqual((await kim.save('appinfo', { studentId: sid, item: '', content: 'x' })).status, 400);
+  assert.strictEqual((await kim.save('appinfo', { studentId: sid, item: '빈 내용', content: '' })).status, 400);
+  assert.strictEqual((await kim.save('appinfo', { studentId: sid, item: 'x', content: 'y', universityId: 'nope' })).status, 400);
+  assert.strictEqual((await lee.save('appinfo', { studentId: sid, item: 'x', content: 'y' })).status, 403);
+  assert.ok(!(await lee.ok('getAll')).appinfo.some((x) => x.studentId === sid));
+  // 휴지통으로 지우고 되살리기
+  await kim.ok('remove', { table: 'appinfo', id: r.id });
+  assert.ok(!(await kim.ok('getAll')).appinfo.some((x) => x.id === r.id));
+  await admin.ok('restore', { table: 'appinfo', id: r.id });
+  assert.ok((await kim.ok('getAll')).appinfo.some((x) => x.id === r.id));
+});
+
+test('v8: 일정 분류·색 목록(이름 바꾸면 일정도), 대회·프로그램 정보', async () => {
+  const admin = client(); await admin.login('admin@revera.test', 'admin-pass-1');
+  const staff = await newUser(admin, 'v8staff@revera.test', 'staff');
+  const kim = await newUser(admin, 'v8kim@revera.test', 'consultant');
+  const lee = await newUser(admin, 'v8lee@revera.test', 'consultant');
+  let d = await kim.ok('getAll');
+  const cats = d.options.filter((o) => o.kind === 'evcat');
+  assert.deepStrictEqual(cats.map((c) => c.value), ['시험', '원서·입시', '학교', '설명회·행사', '휴무', '기타']);
+  assert.ok(cats.every((c) => /^#[0-9a-f]{6}$/.test(c.color)));
+  // 관리팀이 분류 추가(색 지정), 컨설턴트는 목록 관리 불가
+  d = await staff.ok('saveOption', { kind: 'evcat', value: '에세이 대회', color: '#1d4ed8' });
+  const essay = d.options.find((o) => o.kind === 'evcat' && o.value === '에세이 대회');
+  assert.strictEqual(essay.sortOrder, '7');
+  assert.strictEqual((await kim.rpc('saveOption', { kind: 'evcat', value: 'x', color: '#000000' })).status, 403);
+  assert.strictEqual((await staff.rpc('saveOption', { kind: 'evcat', value: 'y', color: 'red;}' })).status, 400);
+  // 일정은 목록에 있는 분류만
+  d = await kim.ok('saveEvent', { date: '2026-10-25', title: 'Immerse essay 마감', category: '에세이 대회' });
+  const evId = d.savedId;
+  assert.strictEqual((await kim.rpc('saveEvent', { date: '2026-10-25', title: 'x', category: '없는 분류' })).status, 400);
+  // 분류 이름을 바꾸면 그 분류의 일정도 함께, 색만 바꾸면 이름 유지
+  d = await staff.ok('saveOption', { id: essay.id, kind: 'evcat', value: '대회 마감', color: '#0f7a55' });
+  assert.strictEqual(d.events.find((e) => e.id === evId).category, '대회 마감');
+  assert.strictEqual(d.options.find((o) => o.id === essay.id).color, '#0f7a55');
+  // 분류를 지워도 기존 일정은 남고, 그 일정은 분류 그대로 고칠 수 있음
+  d = await staff.ok('removeOption', { id: essay.id });
+  const ev = d.events.find((e) => e.id === evId);
+  assert.strictEqual(ev.category, '대회 마감');
+  await kim.ok('saveEvent', { id: evId, updatedAt: ev.updatedAt, date: '2026-10-26', title: ev.title, category: '대회 마감' });
+
+  // 대회·프로그램
+  d = await kim.ok('saveProgram', { name: 'Immerse Education Essay Competition', category: '에세이 대회', target: 'G9–G12', schedule: '마감 2026-10-25 (예시)',
+    deadline: '2026-10-25', url: 'https://example.org/immerse', memo: '주제 중 하나 골라 500단어' });
+  const pid = d.savedId;
+  assert.ok(d.programs.some((x) => x.id === pid && x.createdBy === 'v8kim@revera.test'));
+  assert.strictEqual((await kim.rpc('saveProgram', { name: '' })).status, 400);
+  assert.strictEqual((await kim.rpc('saveProgram', { name: 'x', url: 'javascript:alert(1)' })).status, 400);
+  assert.strictEqual((await kim.rpc('saveProgram', { name: 'x', deadline: '10/25' })).status, 400);
+  const p0 = d.programs.find((x) => x.id === pid);
+  d = await lee.ok('saveProgram', { id: pid, updatedAt: p0.updatedAt, name: p0.name, category: p0.category, url: p0.url, memo: '모두 수정 가능' });
+  assert.strictEqual(d.programs.find((x) => x.id === pid).memo, '모두 수정 가능');
+  assert.strictEqual((await kim.rpc('saveProgram', { id: pid, updatedAt: p0.updatedAt, name: 'x' })).status, 409);
+  assert.strictEqual((await lee.rpc('removeProgram', { id: pid })).status, 403);
+  await staff.ok('removeProgram', { id: pid });
+  const log = await admin.ok('getLog', {});
+  assert.ok(log.rows.some((r) => r.tbl === 'programs' && r.action === 'delete' && r.tblLabel === '대회·프로그램'));
+});
