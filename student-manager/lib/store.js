@@ -104,6 +104,11 @@ const TABLES = {
     fields: ['studentId', 'category', 'site', 'url', 'universityId', 'loginId', 'password', 'memo'],
     summary: (r) => [r.site, r.loginId].filter(Boolean).join(' · '),
   },
+  appinfo: {
+    label: '원서 정보',
+    fields: ['studentId', 'universityId', 'item', 'content'],
+    summary: (r) => r.item,
+  },
   payments: {
     label: '입금',
     fields: ['studentId', 'contractId', 'date', 'amount', 'currency', 'method', 'memo'],
@@ -183,7 +188,7 @@ const FIELD_LABELS = {
   parentConfirmedBy: '부모님 확정 기록자', city: '도시', gradeFrom: '시작 학년', gradeTo: '마지막 학년', startDate: '시작일',
   endDate: '종료일', schoolYear: '학년도', level: '레벨', termType: '학기 구분', g1: '1학기/T1 성적', g2: '2학기/T2 성적',
   g3: 'T3 성적', final: '최종 성적',
-  nextDate: '다음 미팅 날짜', meetingId: '미팅', noteId: '상담기록', contentHtml: '내용 서식',
+  nextDate: '다음 미팅 날짜', meetingId: '미팅', noteId: '상담기록', contentHtml: '내용 서식', item: '항목',
 };
 /** 관리자/관리팀만 다룰 수 있는 테이블 */
 const MANAGER_ONLY = ['notes', 'contracts', 'payments'];
@@ -589,6 +594,7 @@ function openStore(dbPath, opts) {
     if (table === 'docs') need('name', '서류 이름을 입력하세요.');
     if (table === 'links') { need('url', '링크 주소를 입력하세요.'); checkUrl(v('url')); }
     if (table === 'files') need('name', '파일 이름을 입력하세요.');
+    if (table === 'appinfo') { need('item', '항목 이름을 입력하세요. (예: 추천인 1)'); need('content', '내용을 입력하세요.'); }
     if (table === 'followups') {
       need('title', '할 일을 입력하세요.');
       if (v('status') && !FOLLOWUP_STATUS.includes(v('status'))) throw new UserError('상태가 올바르지 않습니다.');
@@ -911,7 +917,7 @@ function openStore(dbPath, opts) {
 
   /** 전공 후보·계정의 대학 연결 확인 (전공 후보는 대학 이름도 함께 저장) */
   function linkUni(table, rec) {
-    if (!['majorplans', 'accounts'].includes(table) || !('universityId' in rec)) return;
+    if (!['majorplans', 'accounts', 'appinfo'].includes(table) || !('universityId' in rec)) return;
     const u = rec.universityId ? getRow('universities', rec.universityId) : null;
     if (rec.universityId && (!u || u.deletedAt)) throw new UserError('대학 목록에서 대학을 찾을 수 없습니다.');
     if (table === 'majorplans') rec.university = u ? u.name : '';

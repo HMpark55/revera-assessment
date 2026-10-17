@@ -1085,3 +1085,25 @@ test('서식 있는 회의록: 허용한 서식만 저장, 일반 글도 함께 
   // 검색용 글이 비면 상담기록은 거부
   assert.strictEqual((await admin.rpc('saveWithFollowups', { table: 'notes', obj: { studentId: sid, date: '2026-10-17', contentHtml: '<div><br></div>' } })).status, 400);
 });
+
+test('원서 정보: 항목·내용 자유 목록, 대학 지정, 담당 학생만', async () => {
+  const admin = client(); await admin.login('admin@revera.test', 'admin-pass-1');
+  const kim = await newUser(admin, 'aikim@revera.test', 'consultant');
+  const lee = await newUser(admin, 'ailee@revera.test', 'consultant');
+  let d = await admin.saveOk('students', { name: '원서학생', counselor: 'aikim@revera.test' });
+  const sid = d.savedId, hku = d.universities.find((u) => u.name === 'HKU').id;
+  d = await kim.saveOk('appinfo', { studentId: sid, item: '추천인 1', content: '이름: 예시 선생님\n이메일: teacher@example.org', universityId: hku });
+  const r = d.appinfo.find((x) => x.id === d.savedId);
+  assert.deepStrictEqual([r.item, r.universityId], ['추천인 1', hku]);
+  await kim.saveOk('appinfo', { studentId: sid, item: '학교 코드', content: '000000' });
+  assert.strictEqual((await kim.save('appinfo', { studentId: sid, item: '', content: 'x' })).status, 400);
+  assert.strictEqual((await kim.save('appinfo', { studentId: sid, item: '빈 내용', content: '' })).status, 400);
+  assert.strictEqual((await kim.save('appinfo', { studentId: sid, item: 'x', content: 'y', universityId: 'nope' })).status, 400);
+  assert.strictEqual((await lee.save('appinfo', { studentId: sid, item: 'x', content: 'y' })).status, 403);
+  assert.ok(!(await lee.ok('getAll')).appinfo.some((x) => x.studentId === sid));
+  // 휴지통으로 지우고 되살리기
+  await kim.ok('remove', { table: 'appinfo', id: r.id });
+  assert.ok(!(await kim.ok('getAll')).appinfo.some((x) => x.id === r.id));
+  await admin.ok('restore', { table: 'appinfo', id: r.id });
+  assert.ok((await kim.ok('getAll')).appinfo.some((x) => x.id === r.id));
+});

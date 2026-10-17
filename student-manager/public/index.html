@@ -376,6 +376,8 @@
   body.noscroll .ov { overflow:hidden; }
   .body.rich { white-space:pre-wrap; }
   #newver { position:fixed; left:50%; transform:translateX(-50%); top:62px; z-index:65; background:#fffbea; border:1px solid #f1e2b0; color:#6b5512; padding:8px 12px; border-radius:8px; box-shadow:0 6px 20px rgba(0,0,0,.15); font-size:.88rem; display:flex; gap:8px; align-items:center; max-width:94vw; flex-wrap:wrap; }
+  table.appinfo th { width:22%; color:var(--navy); font-weight:bold; font-size:.88rem; white-space:normal; }
+  table.appinfo td { white-space:pre-wrap; word-break:break-word; }
   .linked { font-size:.75rem; color:var(--muted); border:1px solid var(--soft); border-radius:4px; padding:0 5px; flex-shrink:0; }
 </style>
 </head>
@@ -426,7 +428,7 @@ var DOC_DONE = ['수합 완료', '해당 없음'];
 var DOC_PRESETS = ['출입국사실증명서(학생)', '출입국사실증명서(부)', '출입국사실증명서(모)', '재학증명서', '성적증명서', '졸업(예정)증명서', '여권 사본', '가족관계증명서', '추천서'];
 var STORY_STATUS = ['작성 전', '검토 중', '확정'];
 var FILE_CATS = ['성적표', '기타'];
-var CHILD = ['notes', 'contracts', 'payments', 'apps', 'scores', 'activities', 'docs', 'links', 'files', 'followups', 'majorplans', 'schools', 'courses', 'accounts', 'meetings',
+var CHILD = ['appinfo', 'notes', 'contracts', 'payments', 'apps', 'scores', 'activities', 'docs', 'links', 'files', 'followups', 'majorplans', 'schools', 'courses', 'accounts', 'meetings',
   'universities', 'unicycles', 'unirounds', 'unimajors'];
 var CATALOG_TABLES = ['universities', 'unicycles', 'unirounds', 'unimajors'];
 var FOLLOWUP_STATUS = ['할 일', '진행 중', '대기', '완료'];
@@ -437,6 +439,8 @@ var MAJOR_STATUS = ['후보', '유력', '최종', '제외'];
 var MEETING_TYPES = ['대면', 'ZOOM', '전화', '위챗'];
 var REPLY_FROM = ['학생', '어머니', '아버지', '학부모', '답장 없음'];
 var ACCOUNT_CATS = ['원서 포털', '시험', '학교 LMS', '기타'];
+/** 원서 정보 항목 이름 예시 (직접 입력도 가능) */
+var APPINFO_ITEMS = ['추천인 1', '추천인 2', '추천인 3', '카운슬러', '학교 정보 (주소·코드)', '졸업 예정일', '영문 이름 (여권 기준)', '영문 주소', '수상 내역 (영문)', '활동 내역 (영문)', '원서 질문 답변', '기타'];
 /** 자주 쓰는 사이트 (주소는 각 사이트의 대표 주소) */
 function optionList(kind) {
   return (S.options || []).filter(function (o) { return o.kind === kind; })
@@ -476,6 +480,10 @@ var FORMS = {
     { k: 'recommenders', l: '추천서 진행 사항', t: 'textarea', full: 1, ph: '예: 카운셀러·영어쌤·물리쌤 요청 완료' },
     { k: 'onlineCourse', l: '온라인 코스 진행 사항 (어디까지 들었고, 어디까지 정리했는지)', t: 'textarea', full: 1 },
     { k: 'meetingUrl', l: '미팅 회의록 링크', t: 'url', full: 1, ph: 'https://docs.google.com/document/d/...' }] },
+  appinfo: { title: '원서 정보', fields: [
+    { k: 'item', l: '항목', t: 'list', o: APPINFO_ITEMS, req: 1, ph: '예: 추천인 1, 학교 코드, 영문 주소' },
+    { k: 'universityId', l: '대학 (특정 대학 원서에만 해당하면 선택)', t: 'unipick', none: '— 공통 (모든 원서) —' },
+    { k: 'content', l: '내용', t: 'textarea', full: 1, big: 1, req: 1, ph: '예: 이름: Murat Gokalp / 직책: Teacher / 과목: Economics, Mathematics / 이메일: ...' }] },
   accounts: { title: '사이트 계정', fields: [
     { k: 'category', l: '분류', t: 'select', o: ACCOUNT_CATS }, { k: 'site', l: '사이트', t: 'site', req: 1 },
     { k: 'universityId', l: '대학 (원서 포털인 경우)', t: 'unipick', none: '— 해당 없음 —' }, { k: 'url', l: '로그인 주소', t: 'url', ph: 'https://...' },
@@ -1295,11 +1303,11 @@ function viewStudents() {
 }
 
 /* ============================== 학생 상세 ============================== */
-var TAB_LABEL = { summary: '요약', meetings: '미팅', accounts: '계정', followups: '팔로업', notes: '상담기록', contracts: '계약', majors: '전공', apps: '지원대학', scores: '성적', schools: '학력', docs: '서류', profile: '프로필·링크' };
+var TAB_LABEL = { appinfo: '원서 정보', summary: '요약', meetings: '미팅', accounts: '계정', followups: '팔로업', notes: '상담기록', contracts: '계약', majors: '전공', apps: '지원대학', scores: '성적', schools: '학력', docs: '서류', profile: '프로필·링크' };
 /** 학생 화면 탭 묶음: 요약 | 진행 | 입시 | 행정 */
 function tabGroups() {
   return [['', ['summary']], ['진행', ['followups', 'meetings'].concat(isMgr() ? ['notes'] : [])],
-    ['입시', ['majors', 'apps', 'scores', 'schools', 'docs']], ['행정', ['contracts', 'accounts', 'profile']]];
+    ['입시', ['majors', 'apps', 'appinfo', 'scores', 'schools', 'docs']], ['행정', ['contracts', 'accounts', 'profile']]];
 }
 function tabsForRole() { return [].concat.apply([], tabGroups().map(function (g) { return g[1]; })); }
 
@@ -1325,13 +1333,13 @@ function viewStudent(id) {
     var n = t === 'summary' ? null : t === 'followups' ? openFollowups(id).length : t === 'scores' ? childOf('courses', id).length + childOf('scores', id).length + childOf('files', id).filter(function (f) { return !f.docId && !f.meetingId; }).length :
       t === 'accounts' ? childOf('accounts', id).length : t === 'meetings' ? childOf('meetings', id).length :
       t === 'majors' ? childOf('majorplans', id).filter(function (m) { return m.status !== '제외'; }).length :
-      ['notes', 'contracts', 'apps', 'docs', 'schools'].indexOf(t) >= 0 ? childOf(t, id).length : null;
+      ['notes', 'contracts', 'apps', 'docs', 'schools', 'appinfo'].indexOf(t) >= 0 ? childOf(t, id).length : null;
     return '<a class="' + (UI.tab === t ? 'on' : '') + '" onclick="UI.tab=' + js(t) + ';render()">' + TAB_LABEL[t] + (n ? ' (' + n + ')' : '') + '</a>';
   };
   h += '<div class="tabs">' + tabGroups().map(function (g, i) {
     return (i ? '<span class="tsep"></span>' : '') + (g[0] ? '<span class="tg">' + g[0] + '</span>' : '') + g[1].map(tabLink).join('');
   }).join('') + '</div>';
-  return h + { summary: tabSummary, followups: tabFollowups, notes: tabNotes, contracts: tabContracts, scores: tabScores, apps: tabApps,
+  return h + { appinfo: tabAppinfo, summary: tabSummary, followups: tabFollowups, notes: tabNotes, contracts: tabContracts, scores: tabScores, apps: tabApps,
     docs: tabDocs, profile: tabProfile, majors: tabMajors, schools: tabSchools, accounts: tabAccounts, meetings: tabMeetings }[UI.tab](s);
 }
 function addBtn(table, sid, label) { return '<button class="btn" onclick="openForm(' + js(table) + ',null,' + js(sid) + ')">' + label + '</button>'; }
@@ -1395,6 +1403,31 @@ function tabSummary(s) {
   h += '</div></div>';
   return h + activityCard(s, 8);
 }
+
+/* ----- 원서 정보: 원서에 입력할 정보 (추천인·카운슬러·학교 정보 등) 자유 목록 ----- */
+function tabAppinfo(s) {
+  var list = childOf('appinfo', s.id).sort(function (a, b) { return a.createdAt.localeCompare(b.createdAt); });
+  var h = '<div class="card">' + secHead('원서 정보 <span class="muted">원서에 입력해야 하는 정보를 모아두는 곳</span>', addBtn('appinfo', s.id, '+ 항목 추가'));
+  h += '<div class="muted" style="margin-bottom:10px">추천인·카운슬러 연락처, 학교 정보, 영문 표기처럼 정해진 칸이 없는 정보를 “항목 | 내용”으로 적어두세요. 특정 대학 원서에만 해당하면 대학을 고르면 그 대학 아래에 모입니다. 📋 로 내용을 복사해 원서에 붙여넣을 수 있습니다.</div>';
+  if (!list.length) return h + '<div class="empty">아직 기록된 원서 정보가 없습니다. “+ 항목 추가”로 시작하세요. (예: 추천인 1 — 이름·직책·과목·이메일)</div></div>';
+  var appUnis = childOf('apps', s.id).map(function (a) { return a.universityId; });
+  var groups = {}, keys = [];
+  list.forEach(function (r) { var k = r.universityId || ''; if (!groups[k]) { groups[k] = []; keys.push(k); } groups[k].push(r); });
+  keys.sort(function (a, b) {
+    if (!a || !b) return a ? 1 : b ? -1 : 0;
+    var ia = appUnis.indexOf(a), ib = appUnis.indexOf(b);
+    return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib) || uniLabel(a).localeCompare(uniLabel(b));
+  });
+  h += '<div class="tbl-wrap"><table class="appinfo"><tbody>' + keys.map(function (k) {
+    return '<tr class="grp"><td colspan="3">' + (k ? esc(uniLabel(k)) + ' 원서' : '공통 (모든 원서)') + ' <span class="muted">' + groups[k].length + '개</span></td></tr>' +
+      groups[k].map(function (r) {
+        return '<tr><th>' + esc(r.item) + '</th><td>' + esc(r.content) + '</td><td class="nw">' +
+          '<button class="btn ghost sm" title="내용 복사" onclick="copyText(' + js(r.content) + ')">📋 복사</button> <button class="btn ghost sm" onclick="openForm(\'appinfo\',' + js(r.id) + ')">수정</button></td></tr>';
+      }).join('');
+  }).join('') + '</tbody></table></div>';
+  return h + '</div>';
+}
+function uniLabel(id) { var u = findRow('universities', id); return u ? u.name : '(삭제된 대학)'; }
 
 /* ----- 팔로업 ----- */
 function openFollowups(sid) {
@@ -2359,6 +2392,9 @@ function searchAll(q) {
   var dc = S.docs.filter(function (d) { var s = studentById(d.studentId); return s && hit([d.name, d.memo, s.name]); })
     .map(function (d) { var s = studentById(d.studentId); return { title: s.name + ' — ' + d.name, sub: d.status, href: '#/student/' + s.id, tab: 'docs' }; });
   if (dc.length) groups.push({ label: '서류', items: dc });
+  var ai = S.appinfo.filter(function (r) { var s = studentById(r.studentId); return s && hit([r.item, r.content, s.name, r.universityId ? uniLabel(r.universityId) : '']); })
+    .map(function (r) { var s = studentById(r.studentId), c = String(r.content || ''); return { title: s.name + ' — ' + r.item, sub: (r.universityId ? uniLabel(r.universityId) + ' · ' : '') + (c.length > 60 ? c.slice(0, 60) + '…' : c), href: '#/student/' + s.id, tab: 'appinfo' }; });
+  if (ai.length) groups.push({ label: '원서 정보', items: ai });
   var mts = S.meetings.filter(function (m) { var s = studentById(m.studentId); return s && hit([m.topic, m.content, m.parentNote, m.attendees, m.date, s.name]); })
     .map(function (m) { var s = studentById(m.studentId); return { title: s.name + ' — 미팅 ' + m.date, sub: m.topic || String(m.content || '').slice(0, 60), href: '#/student/' + s.id, tab: 'meetings' }; });
   if (mts.length) groups.push({ label: '미팅', items: mts });
