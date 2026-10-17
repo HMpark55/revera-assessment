@@ -38,7 +38,7 @@ const TABLES = {
   },
   contracts: {
     label: '계약',
-    fields: ['studentId', 'kind', 'tier', 'term', 'packages', 'startMonth', 'endMonth', 'signedDate', 'currency', 'amount',
+    fields: ['studentId', 'kind', 'tier', 'term', 'packages', 'startDate', 'endDate', 'startMonth', 'endMonth', 'signedDate', 'currency', 'amount',
       'payDue', 'scope', 'memo'],
     summary: (r) => [r.kind, r.tier, r.term, r.packages].filter(Boolean).join(' '),
   },
@@ -75,7 +75,7 @@ const TABLES = {
   },
   followups: {
     label: '팔로업',
-    fields: ['studentId', 'title', 'detail', 'category', 'assignee', 'due', 'status', 'reply', 'replyDate', 'replyFrom'],
+    fields: ['studentId', 'title', 'detail', 'category', 'assignee', 'due', 'status', 'reply', 'replyDate', 'replyFrom', 'meetingId', 'noteId'],
     summary: (r) => [r.title, r.status].filter(Boolean).join(' · '),
   },
   majorplans: {
@@ -95,7 +95,7 @@ const TABLES = {
   },
   meetings: {
     label: '미팅',
-    fields: ['studentId', 'date', 'time', 'status', 'type', 'place', 'attendees', 'writer', 'topic', 'content', 'parentNote', 'nextStep', 'sourceUrl', 'needsReview'],
+    fields: ['studentId', 'date', 'time', 'status', 'type', 'place', 'attendees', 'writer', 'topic', 'content', 'parentNote', 'nextStep', 'nextDate', 'sourceUrl', 'needsReview'],
     summary: (r) => [r.date, r.status, r.topic].filter(Boolean).join(' · '),
   },
   accounts: {
@@ -182,6 +182,7 @@ const FIELD_LABELS = {
   parentConfirmedBy: '부모님 확정 기록자', city: '도시', gradeFrom: '시작 학년', gradeTo: '마지막 학년', startDate: '시작일',
   endDate: '종료일', schoolYear: '학년도', level: '레벨', termType: '학기 구분', g1: '1학기/T1 성적', g2: '2학기/T2 성적',
   g3: 'T3 성적', final: '최종 성적',
+  nextDate: '다음 미팅 날짜', meetingId: '미팅', noteId: '상담기록',
 };
 /** 관리자/관리팀만 다룰 수 있는 테이블 */
 const MANAGER_ONLY = ['notes', 'contracts', 'payments'];
@@ -305,6 +306,16 @@ function migrate(db) {
   ensureColumns(db, 'contracts', ['paid']); // 이전 버전 열 (새 버전은 입금 기록으로 계산)
   db.exec('CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
   ensureColumns(db, 'teachers', ['notify']); // '' = 이메일 알림 받음, 'off' = 안 받음
+  // v10: 팔로업 요청(휴무 등으로 다른 선생님에게 부탁), 대학 자료 파일
+  ensureColumns(db, 'followups', ['requestedBy', 'requestedAt', 'requestNote']);
+  db.exec('CREATE TABLE IF NOT EXISTS unifiles (id TEXT PRIMARY KEY)');
+  ensureColumns(db, 'unifiles', ['universityId', 'cycleId', 'category', 'name', 'memo', 'mime', 'size', 'storedName', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy']);
+  // v10: 계약 시작·종료를 날짜로 (기존 연월은 시작=1일, 종료=그 달 마지막 날)
+  if (!db.prepare("SELECT 1 FROM meta WHERE key = 'v10_contract_dates'").get()) {
+    db.prepare("UPDATE contracts SET startDate = substr(startMonth, 1, 7) || '-01' WHERE startDate = '' AND startMonth GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]*'").run();
+    db.prepare("UPDATE contracts SET endDate = date(substr(endMonth, 1, 7) || '-01', '+1 month', '-1 day') WHERE endDate = '' AND endMonth GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]*'").run();
+    db.prepare("INSERT INTO meta VALUES ('v10_contract_dates', ?)").run(now());
+  }
   // v8: 미팅 "시간" 칸에 잘못 들어간 긴 글(회의록 가져오기 때 양식 밖 메모)을 본문으로 옮김
   if (!db.prepare("SELECT 1 FROM meta WHERE key = 'v8_meeting_time'").get()) {
     db.prepare("SELECT id, time, content FROM meetings WHERE length(time) > 30").all().forEach((m) => {
@@ -538,6 +549,7 @@ function openStore(dbPath, opts) {
     }
     out.options = db.prepare('SELECT id, kind, value, sortOrder, url, category FROM options').all();
     out.events = db.prepare('SELECT * FROM events ORDER BY date, title').all();
+    out.unifiles = db.prepare('SELECT id, universityId, cycleId, category, name, memo, mime, size, createdAt, createdBy FROM unifiles ORDER BY createdAt DESC').all();
     // 대학 정보는 모두에게 공개
     const unis = db.prepare("SELECT * FROM universities WHERE deletedAt = ''").all();
     const uids = new Set(unis.map((u) => u.id));
@@ -550,12 +562,24 @@ function openStore(dbPath, opts) {
 
   /* ----- 저장 (모든 테이블 공통) ----- */
 
-  function validate(table, rec, cur) {
+  function validate(table, rec, cur, opts) {
     const v = (k) => (k in rec ? rec[k] : cur ? cur[k] : '');
     const need = (k, msg) => { if (!String(v(k) || '').trim()) throw new UserError(msg); };
     if (table === 'students') need('name', '학생 이름은 필수입니다.');
-    if (table === 'notes' && !String(v('content')).trim() && !String(v('nextAction')).trim()) {
-      throw new UserError('상담 내용 또는 다음 할 일을 입력하세요.');
+    if (table === 'notes' && !String(v('content')).trim() && !String(v('nextAction')).trim() && !(opts && opts.hasFollowups)) {
+      throw new UserError('상담 내용을 입력하거나 팔로업을 추가하세요.');
+    }
+    if (table === 'contracts') {
+      for (const k of ['startDate', 'endDate']) if (v(k) && !DATE_RE.test(v(k))) throw new UserError('계약 날짜 형식이 올바르지 않습니다. (YYYY-MM-DD)');
+      if (v('startDate') && v('endDate') && v('endDate') < v('startDate')) throw new UserError('계약 종료일이 시작일보다 빠릅니다.');
+    }
+    if (table === 'meetings' && v('nextDate') && !DATE_RE.test(v('nextDate'))) throw new UserError('다음 미팅 날짜 형식이 올바르지 않습니다.');
+    if (table === 'followups') {
+      for (const [k, t] of [['meetingId', 'meetings'], ['noteId', 'notes']]) {
+        if (!v(k)) continue;
+        const r = getRow(t, v(k));
+        if (!r || r.studentId !== v('studentId')) throw new UserError('팔로업을 연결할 기록을 찾을 수 없습니다.');
+      }
     }
     if (table === 'apps') need('university', '대학명은 필수입니다.');
     if (table === 'contracts') need('kind', '계약 종류(연간/원서)를 선택하세요.');
@@ -680,8 +704,9 @@ function openStore(dbPath, opts) {
         }
         if ('manager' in rec) rec.manager = lower(rec.manager);
         if ('assignee' in rec) rec.assignee = lower(rec.assignee);
+        if (table === 'contracts') contractDates(rec);
         linkUni(table, rec);
-        validate(table, rec, cur);
+        validate(table, rec, cur, arg);
         const keys = Object.keys(rec);
         db.prepare(`UPDATE ${table} SET ${keys.map((k) => k + ' = @' + k).concat(['updatedAt = @updatedAt', 'updatedBy = @updatedBy']).join(', ')} WHERE id = @id`)
           .run(Object.assign({}, rec, { updatedAt: t, updatedBy: me.email, id: cur.id }));
@@ -722,8 +747,9 @@ function openStore(dbPath, opts) {
         }
         if ('manager' in rec) rec.manager = lower(rec.manager);
         if ('assignee' in rec) rec.assignee = lower(rec.assignee);
+        if (table === 'contracts') contractDates(rec);
         linkUni(table, rec);
-        validate(table, rec, null);
+        validate(table, rec, null, arg);
         Object.assign(rec, { id: newId(), createdAt: t, createdBy: me.email, updatedAt: t, updatedBy: me.email });
         if (table === 'notes') rec.author = me.email;
         const keys = Object.keys(rec);
@@ -736,6 +762,16 @@ function openStore(dbPath, opts) {
     const data = getAll(me);
     data.savedId = result;
     return data;
+  }
+
+  /** 계약: 시작일·종료일(날짜)이 기준, 연월 칸은 함께 맞춤. 연월만 들어오면(가져오기 등) 날짜로 채움 */
+  function contractDates(rec) {
+    const lastDay = (ym) => { const d = new Date(Date.UTC(+ym.slice(0, 4), +ym.slice(5, 7), 0)); return d.toISOString().slice(0, 10); };
+    const ymRe = /^\d{4}-\d{2}/;
+    if ('startDate' in rec) rec.startMonth = ymRe.test(rec.startDate) ? rec.startDate.slice(0, 7) : '';
+    else if ('startMonth' in rec) rec.startDate = ymRe.test(rec.startMonth) ? rec.startMonth.slice(0, 7) + '-01' : '';
+    if ('endDate' in rec) rec.endMonth = ymRe.test(rec.endDate) ? rec.endDate.slice(0, 7) : '';
+    else if ('endMonth' in rec) rec.endDate = ymRe.test(rec.endMonth) ? lastDay(rec.endMonth) : '';
   }
 
   /** 로그에 남길 설명: "학생명 · 내용" (대학 정보는 "대학명 · 내용") */
@@ -961,6 +997,116 @@ function openStore(dbPath, opts) {
     return getAll(me);
   }
 
+
+  /** 미팅·상담기록 저장 + 거기서 나온 팔로업을 한 번에 (팔로업에는 어느 기록에서 나왔는지 연결) */
+  function saveWithFollowups(me, arg) {
+    const table = arg && arg.table;
+    if (!['meetings', 'notes'].includes(table)) throw new UserError('팔로업을 함께 저장할 수 없는 항목입니다.');
+    const fus = ((arg && arg.followups) || []).filter((f) => f && String(f.title || '').trim());
+    if (fus.length > 30) throw new UserError('팔로업은 한 번에 30개까지 추가할 수 있습니다.');
+    let id;
+    tx(() => {
+      id = save(me, { table, obj: arg.obj || {}, noData: true, hasFollowups: fus.length > 0 }).savedId;
+      const rec = getRow(table, id);
+      for (const f of fus) {
+        save(me, { table: 'followups', noData: true, obj: { studentId: rec.studentId, title: f.title, assignee: f.assignee === undefined ? me.email : f.assignee, due: f.due || '',
+          category: f.category || '', status: '할 일', [table === 'meetings' ? 'meetingId' : 'noteId']: id } });
+      }
+    });
+    return Object.assign(getAll(me), { savedId: id });
+  }
+
+  /** 팔로업을 다른 선생님에게 요청(담당자 변경 + 누가 왜 요청했는지 기록) → 메일은 server.js 에서 */
+  function requestFollowup(me, arg) {
+    const f = getRow('followups', arg && arg.id);
+    if (!f || f.deletedAt) throw new UserError('팔로업을 찾을 수 없습니다. 새로고침 해주세요.', 404);
+    const s = requireStudent(me, f.studentId);
+    if (f.status === '완료') throw new UserError('이미 완료된 팔로업입니다.');
+    const to = getTeacher(arg.to);
+    if (!to || !to.active) throw new UserError('요청할 선생님을 찾을 수 없습니다.');
+    if (to.email === f.assignee) throw new UserError('이미 ' + to.name + ' 님이 담당입니다.');
+    if (!canSeeStudent({ email: to.email, role: to.role }, s)) {
+      throw new UserError(to.name + ' 님은 이 학생의 담당 컨설턴트가 아니어서 이 학생을 볼 수 없습니다. 학생의 담당자를 먼저 바꾸거나 다른 분께 요청하세요.');
+    }
+    if (arg.updatedAt && arg.updatedAt !== f.updatedAt) throw new UserError('그 사이 다른 선생님이 이 팔로업을 수정했습니다. 새로고침 후 다시 요청하세요.', 409);
+    const note = clean(arg.note).trim().slice(0, 500);
+    const t = now();
+    db.prepare('UPDATE followups SET assignee = ?, requestedBy = ?, requestedAt = ?, requestNote = ?, updatedAt = ?, updatedBy = ? WHERE id = ?')
+      .run(to.email, me.email, t, note, t, me.email, f.id);
+    log(me.email, 'update', 'followups', f.id, s.name + ' · ' + f.title + ' — ' + to.name + ' 님에게 요청' + (note ? ' (' + note + ')' : ''));
+    return Object.assign(getAll(me), { request: { to: to.email, toName: to.name, notify: to.notify !== 'off', from: me.name, student: s.name, studentId: s.id,
+      title: f.title, due: f.due, note } });
+  }
+
+  /** 목록 순서 저장 (드래그): 학교·커리큘럼·사이트 = 관리자·관리팀, 대학 = 관리자 */
+  function saveOrder(me, arg) {
+    const ids = (arg && arg.ids) || [];
+    if (!Array.isArray(ids) || !ids.length || ids.length > 1000) throw new UserError('순서를 저장할 항목이 없습니다.');
+    const t = now();
+    if (arg.kind === 'universities') {
+      requireAdmin(me, '대학 순서 변경');
+      tx(() => ids.forEach((id, i) => db.prepare('UPDATE universities SET sortOrder = ?, updatedAt = ?, updatedBy = ? WHERE id = ?').run(String(i + 1), t, me.email, String(id))));
+      log(me.email, 'update', 'universities', '', '대학 순서 변경 (' + ids.length + '곳)');
+    } else {
+      requireManager(me, '목록 관리');
+      if (!OPTION_KINDS[arg.kind]) throw new UserError('알 수 없는 목록입니다.');
+      tx(() => ids.forEach((id, i) => db.prepare('UPDATE options SET sortOrder = ?, updatedAt = ?, updatedBy = ? WHERE id = ? AND kind = ?').run(String(i + 1), t, me.email, String(id), arg.kind)));
+      log(me.email, 'update', 'options', '', OPTION_KINDS[arg.kind] + ' 순서 변경');
+    }
+    return getAll(me);
+  }
+
+  /* ----- 대학 자료 파일 (모집요강 등, 입학 연도별) ----- */
+  const UNIFILE_CATS = ['모집요강', '공식 안내', '기타 자료'];
+  function addUniFile(me, info) {
+    const c = getRow('unicycles', info.cycleId);
+    if (!c || c.deletedAt) throw new UserError('입학 연도 정보를 찾을 수 없습니다. 새로고침 해주세요.', 404);
+    const u = requireUni(c.universityId);
+    const name = String(info.name || '').replace(/[\\/\r\n]/g, '_').trim().slice(0, 200);
+    const ext = (name.match(/\.([a-z0-9]+)$/i) || [])[1];
+    const type = ext && UPLOAD_TYPES[ext.toLowerCase()];
+    if (!type) throw new UserError('올릴 수 없는 파일 형식입니다. (PDF, 이미지, 워드, 엑셀, 한글 파일만 가능)');
+    if (!info.buffer || !info.buffer.length) throw new UserError('빈 파일입니다.');
+    if (info.buffer.length > MAX_UPLOAD) throw new UserError('파일은 20MB 이하만 올릴 수 있습니다.');
+    const category = UNIFILE_CATS.includes(info.category) ? info.category : (u.country === '한국' ? '모집요강' : '기타 자료');
+    const id = newId(), storedName = id + '.' + ext.toLowerCase(), t = now();
+    const full = path.join(filesDir, storedName);
+    fs.writeFileSync(full, info.buffer);
+    try {
+      db.prepare('INSERT INTO unifiles (id, universityId, cycleId, category, name, memo, mime, size, storedName, createdAt, createdBy, updatedAt, updatedBy) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)')
+        .run(id, u.id, c.id, category, name, '', type, String(info.buffer.length), storedName, t, me.email, t, me.email);
+      log(me.email, 'upload', 'unifiles', id, u.name + ' · ' + cycleLabel(c) + ' · ' + category + ' · ' + name);
+    } catch (e) {
+      fs.rm(full, { force: true }, () => {});
+      throw e;
+    }
+    return getAll(me);
+  }
+  function getUniFile(me, id) {
+    const f = getRow('unifiles', id);
+    if (!f) throw new UserError('파일을 찾을 수 없습니다.', 404);
+    return { path: path.join(filesDir, f.storedName), name: f.name, mime: f.mime || 'application/octet-stream' };
+  }
+  function saveUniFile(me, arg) {
+    const f = getRow('unifiles', arg && arg.id);
+    if (!f) throw new UserError('파일을 찾을 수 없습니다. 새로고침 해주세요.', 404);
+    if (f.createdBy !== me.email && !isManager(me)) throw new UserError('올린 사람이나 관리자·관리팀만 고칠 수 있습니다.', 403);
+    const category = UNIFILE_CATS.includes(arg.category) ? arg.category : f.category;
+    const memo = clean(arg.memo).trim().slice(0, 500);
+    db.prepare('UPDATE unifiles SET category = ?, memo = ?, updatedAt = ?, updatedBy = ? WHERE id = ?').run(category, memo, now(), me.email, f.id);
+    return getAll(me);
+  }
+  function removeUniFile(me, arg) {
+    const f = getRow('unifiles', arg && arg.id);
+    if (!f) throw new UserError('이미 삭제된 파일입니다.', 404);
+    if (f.createdBy !== me.email && !isManager(me)) throw new UserError('올린 사람이나 관리자·관리팀만 지울 수 있습니다.', 403);
+    db.prepare('DELETE FROM unifiles WHERE id = ?').run(f.id);
+    fs.rm(path.join(filesDir, f.storedName), { force: true }, () => {});
+    const u = getRow('universities', f.universityId);
+    log(me.email, 'delete', 'unifiles', f.id, (u ? u.name + ' · ' : '') + f.category + ' · ' + f.name);
+    return getAll(me);
+  }
+
   /** 학생 정보에 쓰인 학교·커리큘럼이 목록에 없으면 목록에 추가 */
   function addOptionsFor(rec, me, t) {
     for (const kind of ['school', 'curriculum']) {
@@ -1172,7 +1318,7 @@ function openStore(dbPath, opts) {
     rows.forEach((r) => { r.tblLabel = (DEF[r.tbl] && DEF[r.tbl].label) || legacyLabel(r.tbl); });
     return { rows };
   }
-  function legacyLabel(t) { return { teachers: '선생님 계정', options: '목록(학교·커리큘럼·사이트)', settings: '설정', events: '달력 일정' }[t] || t; }
+  function legacyLabel(t) { return { teachers: '선생님 계정', options: '목록(학교·커리큘럼·사이트)', settings: '설정', events: '달력 일정', unifiles: '대학 자료 파일' }[t] || t; }
 
   /* ----- 파일 ----- */
 
@@ -1437,13 +1583,16 @@ function openStore(dbPath, opts) {
   /** 백업용 전체 파일 목록 (휴지통 포함) */
   function listFiles() {
     return db.prepare(`SELECT f.storedName, f.name, f.category, f.createdAt, f.deletedAt, s.name AS studentName
-      FROM files f LEFT JOIN students s ON s.id = f.studentId ORDER BY f.createdAt`).all();
+      FROM files f LEFT JOIN students s ON s.id = f.studentId
+      UNION ALL SELECT u.storedName, u.name, u.category, u.createdAt, '' AS deletedAt, IFNULL(v.name, '') || ' (대학 자료)' AS studentName
+      FROM unifiles u LEFT JOIN universities v ON v.id = u.universityId ORDER BY 4`).all();
   }
 
   return {
-    db, filesDir, listFiles, countTeachers, upsertAdmin, login, logout, authenticate, addFile, getFile,
+    db, filesDir, listFiles, countTeachers, upsertAdmin, login, logout, authenticate, addFile, getFile, addUniFile, getUniFile,
     rpc: { getAll: (me) => getAll(me), save, remove, restore, purge, getTrash, getLog, saveTeacher, changePassword, importData, copyCycle, getActivity, saveMany, updateMe,
-      saveOption, removeOption, deleteTeacher, getAutomation, saveAutomation, saveEvent, removeEvent },
+      saveOption, removeOption, deleteTeacher, getAutomation, saveAutomation, saveEvent, removeEvent,
+      saveWithFollowups, requestFollowup, saveOrder, saveUniFile, removeUniFile },
     backup, getConfig, getMeta, recordRun, listTeachers, close: () => db.close(),
   };
 }

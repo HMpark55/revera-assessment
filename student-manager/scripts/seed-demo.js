@@ -25,7 +25,6 @@ r.saveTeacher(me, { email: 'lee@demo.test', name: '이컨설턴트', role: 'cons
 store.db.prepare('UPDATE teachers SET mustChangePassword = 0').run();
 
 const d = (n) => { const x = new Date(Date.now() + 9 * 3600000); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
-const month = d(0).slice(0, 7);
 
 const a = save('students', { name: '샘플 학생A', school: 'CISS', grade: 'G12', curriculum: 'AP', counselor: 'kim@demo.test',
   manager: 'staff@demo.test', status: '진행중', tracks: ['3년특례', '홍콩'], motherName: '학부모A', motherPhone: '010-0000-0000',
@@ -37,12 +36,12 @@ const c = save('students', { name: '샘플 학생C', school: 'HIS', grade: 'G11'
   status: '상담중', tracks: ['12년특례'] });
 
 ['CISS', 'SAS', 'HIS'].forEach((v) => r.saveOption(me, { kind: 'school', value: v }));
-const ca = save('contracts', { studentId: a, kind: '원서', tier: 'Standard', packages: ['홍콩 패키지', '한국 3특'], startMonth: month,
+const ca = save('contracts', { studentId: a, kind: '원서', tier: 'Standard', packages: ['홍콩 패키지', '한국 3특'], startDate: d(-20),
   signedDate: d(-30), currency: 'RMB', amount: '30000', payDue: d(-3), scope: 'HKU + HKUST + 한국 3특. 미국 에세이 미포함' });
 save('payments', { studentId: a, contractId: ca, date: d(-30), amount: '15000', currency: 'RMB', method: '위챗페이', memo: '1차 분할' });
 const ccA = save('contracts', { studentId: c, kind: '연간', tier: 'Standard', term: '1학기', startMonth: d(-150).slice(0, 7), currency: 'KRW', amount: '5000000' });
 save('payments', { studentId: c, contractId: ccA, date: d(-140), amount: '5000000', currency: 'KRW', method: '계좌이체' });
-const cb = save('contracts', { studentId: b, kind: '원서', tier: 'Standard', packages: ['홍콩 패키지', '싱가폴'], startMonth: month, currency: 'RMB', amount: '40000' });
+const cb = save('contracts', { studentId: b, kind: '원서', tier: 'Standard', packages: ['홍콩 패키지', '싱가폴'], startDate: d(-20), currency: 'RMB', amount: '40000' });
 save('contracts', { studentId: b, kind: '연간', tier: 'Standard', term: '1년', startMonth: d(-300).slice(0, 7), currency: 'RMB', amount: '20000' });
 save('payments', { studentId: b, contractId: cb, date: d(-10), amount: '40000', currency: 'RMB', method: '알리페이' });
 
@@ -97,6 +96,17 @@ save('apps', { studentId: b, country: '홍콩', university: 'HKU', major: 'Engin
 save('docs', { studentId: a, name: '출입국사실증명서(학생)', status: '요청함' });
 save('docs', { studentId: a, name: '재학증명서', status: '수합 완료' });
 save('links', { studentId: a, label: '회의록', url: 'https://docs.google.com/spreadsheets/d/sample' });
+// 회의록에서 나온 팔로업 + 다음 미팅 날짜, 다른 선생님에게 요청한 팔로업
+const kimMe = { email: 'kim@demo.test', name: '김컨설턴트', role: 'consultant' };
+const m3 = r.saveWithFollowups(kimMe, { table: 'meetings', obj: { studentId: a, date: d(-1), time: 'PM 4:00', type: 'ZOOM', attendees: '학생, 김컨설턴트', writer: '김컨설턴트',
+  topic: 'PS 2차본 검토', content: '1. PS 2차본 검토 — 도입부 수정\n2. 추천서 진행 상황 확인', nextDate: d(6), status: '완료' },
+  followups: [{ title: 'PS 3차본 받기', assignee: 'kim@demo.test', due: d(3) }, { title: '추천서 제출 여부 학교에 확인', assignee: 'kim@demo.test', due: d(2) }] });
+const reqFu = m3.followups.find((f) => f.meetingId === m3.savedId && f.title.startsWith('추천서'));
+r.requestFollowup(kimMe, { id: reqFu.id, to: 'staff@demo.test', note: '저 이번 주 휴무라 대신 챙겨주세요' });
+// 대학 자료 (예시 파일)
+const hku = store.db.prepare("SELECT id FROM universities WHERE name = 'HKU'").get();
+const hkuCycle = hku && store.db.prepare('SELECT id FROM unicycles WHERE universityId = ? ORDER BY year DESC').get(hku.id);
+if (hkuCycle) store.addUniFile(me, { cycleId: hkuCycle.id, category: '공식 안내', name: 'HKU 입학 안내 (예시).pdf', buffer: Buffer.from('%PDF-1.4\n% demo\n') });
 // 메인 화면 공용 달력 (날짜는 예시)
 r.saveEvent(me, { date: d(9), title: 'SAT 시험 (예시)', category: '시험', memo: '시험장·준비물 학생들에게 안내' });
 r.saveEvent(me, { date: d(2), title: 'SAT 접수 마감 (예시)', category: '시험' });

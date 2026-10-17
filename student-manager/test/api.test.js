@@ -970,3 +970,99 @@ test('공용 달력: 누구나 추가, 수정·삭제는 등록자·관리팀만
   const log = await admin.ok('getLog', {});
   assert.ok(log.rows.some((r) => r.tbl === 'events' && r.action === 'delete' && r.tblLabel === '달력 일정' && /SAT 시험 \(11월\)/.test(r.summary)));
 });
+
+test('v7: 계약 날짜, 회의록·상담기록의 팔로업, 팔로업 요청(메일), 목록 순서, 대학 자료 파일', async () => {
+  const admin = client(); await admin.login('admin@revera.test', 'admin-pass-1');
+  const staff = await newUser(admin, 'v7staff@revera.test', 'staff');
+  const kim = await newUser(admin, 'v7kim@revera.test', 'consultant');
+  const lee = await newUser(admin, 'v7lee@revera.test', 'consultant');
+  let d = await admin.saveOk('students', { name: 'v7학생', counselor: 'v7kim@revera.test', manager: 'v7staff@revera.test' });
+  const sid = d.savedId;
+
+  // 계약: 날짜로 저장하면 연월도 맞춰짐, 연월만 오면 날짜로 채움, 종료일이 빠르면 거부
+  d = await admin.saveOk('contracts', { studentId: sid, kind: '연간', term: '1년', startDate: '2026-03-15' });
+  let c = d.contracts.find((x) => x.id === d.savedId);
+  assert.strictEqual(c.startMonth, '2026-03');
+  d = await admin.saveOk('contracts', { studentId: sid, kind: '원서', startMonth: '2026-05', endMonth: '2027-02' });
+  c = d.contracts.find((x) => x.id === d.savedId);
+  assert.deepStrictEqual([c.startDate, c.endDate], ['2026-05-01', '2027-02-28']);
+  assert.strictEqual((await admin.save('contracts', { studentId: sid, kind: '원서', startDate: '2026-05-01', endDate: '2026-04-01' })).status, 400);
+
+  // 회의록 + 팔로업 한 번에 (팔로업에 미팅 연결)
+  d = await kim.ok('saveWithFollowups', { table: 'meetings', obj: { studentId: sid, date: '2026-10-10', topic: '방향 회의', nextDate: '2026-10-24' },
+    followups: [{ title: '추천서 요청', assignee: 'v7kim@revera.test', due: '2026-10-15' }, { title: '성적표 받기', assignee: 'v7staff@revera.test' }, { title: '  ' }] });
+  const mid = d.savedId;
+  assert.strictEqual(d.meetings.find((m) => m.id === mid).nextDate, '2026-10-24');
+  const fus = d.followups.filter((f) => f.meetingId === mid);
+  assert.deepStrictEqual(fus.map((f) => f.title).sort(), ['성적표 받기', '추천서 요청']);
+  assert.ok(fus.every((f) => f.status === '할 일' && f.studentId === sid));
+  // 상담기록: 내용 없이 팔로업만 있어도 저장, 둘 다 없으면 거부
+  d = await admin.ok('saveWithFollowups', { table: 'notes', obj: { studentId: sid, date: '2026-10-11', type: '전화' }, followups: [{ title: '학부모 회신 확인' }] });
+  assert.ok(d.followups.some((f) => f.noteId === d.savedId && f.assignee === 'admin@revera.test'));
+  assert.strictEqual((await admin.rpc('saveWithFollowups', { table: 'notes', obj: { studentId: sid, date: '2026-10-11' }, followups: [] })).status, 400);
+  // 실패하면 기록도 팔로업도 남지 않음 (잘못된 기한)
+  const before = (await admin.ok('getAll')).meetings.length;
+  assert.strictEqual((await kim.rpc('saveWithFollowups', { table: 'meetings', obj: { studentId: sid, date: '2026-10-12' }, followups: [{ title: 'x', due: '10/15' }] })).status, 400);
+  assert.strictEqual((await admin.ok('getAll')).meetings.length, before);
+  // 컨설턴트는 다른 학생 기록에 팔로업을 붙일 수 없음
+  assert.strictEqual((await lee.rpc('saveWithFollowups', { table: 'meetings', obj: { studentId: sid, date: '2026-10-12' } })).status, 403);
+
+  // 팔로업 요청: 담당자 변경 + 요청 기록 + 메일, 볼 수 없는 컨설턴트에게는 불가
+  const fu = fus.find((f) => f.title === '추천서 요청');
+  assert.strictEqual((await kim.rpc('requestFollowup', { id: fu.id, to: 'v7lee@revera.test' })).status, 400);
+  scriptCalls.length = 0;
+  d = await kim.ok('requestFollowup', { id: fu.id, to: 'v7staff@revera.test', note: '저 휴무라 부탁드려요', updatedAt: fu.updatedAt });
+  const f2 = d.followups.find((f) => f.id === fu.id);
+  assert.deepStrictEqual([f2.assignee, f2.requestedBy, f2.requestNote], ['v7staff@revera.test', 'v7kim@revera.test', '저 휴무라 부탁드려요']);
+  assert.strictEqual(d.mail.sent, true);
+  const mail = scriptCalls.find((x) => x.action === 'mail');
+  assert.ok(mail && mail.messages[0].to === 'v7staff@revera.test' && /추천서 요청/.test(mail.messages[0].subject) && /휴무/.test(mail.messages[0].text));
+  // 이미 담당인 사람에게 다시 요청 불가, 오래된 화면에서 요청하면 충돌
+  assert.strictEqual((await kim.rpc('requestFollowup', { id: fu.id, to: 'v7staff@revera.test' })).status, 400);
+  assert.strictEqual((await staff.rpc('requestFollowup', { id: fu.id, to: 'v7kim@revera.test', updatedAt: fu.updatedAt })).status, 409);
+  // 아침 메일에 "요청받은 일"
+  const dg = require('../lib/automation').buildDigests(store, '2026-10-01').find((m) => m.to === 'v7staff@revera.test');
+  assert.ok(dg && dg.counts.requests >= 1 && /요청받은 일/.test(dg.html));
+
+  // 목록 순서 (드래그): 관리팀은 학교 순서, 대학 순서는 관리자만
+  await admin.ok('saveOption', { kind: 'school', value: 'v7 A학교' });
+  d = await admin.ok('saveOption', { kind: 'school', value: 'v7 B학교' });
+  const sch = d.options.filter((o) => o.kind === 'school' && /^v7/.test(o.value));
+  d = await staff.ok('saveOrder', { kind: 'school', ids: [sch[1].id, sch[0].id] });
+  assert.strictEqual(d.options.find((o) => o.id === sch[1].id).sortOrder, '1');
+  const unis = d.universities.slice(0, 2).map((u) => u.id);
+  assert.strictEqual((await staff.rpc('saveOrder', { kind: 'universities', ids: unis })).status, 403);
+  d = await admin.ok('saveOrder', { kind: 'universities', ids: [unis[1], unis[0]] });
+  assert.strictEqual(d.universities.find((u) => u.id === unis[1]).sortOrder, '1');
+
+  // 대학 자료: 입학 연도별 업로드, 모두 보기, 수정·삭제는 올린 사람·관리팀
+  const cyc = d.unicycles[0];
+  const up = (cl, name, cat) => cl.req('POST', '/api/unifiles/upload?cycleId=' + cyc.id + '&category=' + encodeURIComponent(cat || ''),
+    undefined, { 'Content-Type': 'application/octet-stream', 'X-File-Name': encodeURIComponent(name) }, Buffer.from('%PDF-1.4 test'));
+  let r = await up(kim, '2027 모집요강.pdf', '모집요강');
+  assert.strictEqual(r.status, 200, JSON.stringify(r.data));
+  const uf = r.data.unifiles.find((x) => x.name === '2027 모집요강.pdf');
+  assert.strictEqual(uf.cycleId, cyc.id);
+  assert.strictEqual((await up(kim, 'virus.exe')).status, 400);
+  const dl = await lee.req('GET', '/api/unifiles/' + uf.id);
+  assert.strictEqual(dl.status, 200);
+  assert.strictEqual(String(dl.data).slice(0, 8), '%PDF-1.4');
+  assert.strictEqual((await lee.rpc('removeUniFile', { id: uf.id })).status, 403);
+  await kim.ok('saveUniFile', { id: uf.id, category: '공식 안내', memo: '2027학년도' });
+  assert.ok(store.listFiles().some((f) => f.name === '2027 모집요강.pdf' && /대학 자료/.test(f.studentName)), 'backup includes uni files');
+  await staff.ok('removeUniFile', { id: uf.id });
+  assert.strictEqual((await lee.req('GET', '/api/unifiles/' + uf.id)).status, 404);
+});
+
+test('v10 업그레이드: 기존 계약의 시작·종료 연월을 날짜로 채움', () => {
+  const p = path.join(dir, 'v10.db');
+  let st = openStore(p);
+  st.db.prepare("INSERT INTO students (id, name, createdAt, updatedAt) VALUES ('s1', '옛학생', 'x', 'x')").run();
+  st.db.prepare("INSERT INTO contracts (id, studentId, kind, startMonth, endMonth, startDate, endDate, createdAt, updatedAt) VALUES ('c1','s1','연간','2024-02','2024-02','','','x','x'), ('c2','s1','원서','','','','','x','x')").run();
+  st.db.prepare("DELETE FROM meta WHERE key = 'v10_contract_dates'").run();
+  st.close();
+  st = openStore(p);
+  const rows = st.db.prepare('SELECT id, startDate, endDate FROM contracts ORDER BY id').all();
+  assert.deepStrictEqual(rows, [{ id: 'c1', startDate: '2024-02-01', endDate: '2024-02-29' }, { id: 'c2', startDate: '', endDate: '' }]);
+  st.close();
+});
