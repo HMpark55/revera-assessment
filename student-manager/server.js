@@ -92,6 +92,22 @@ function createApp(store, opts) {
     next();
   };
 
+  // 팔로업 요청: 담당자를 바꾸고, 이메일 알림이 켜져 있으면 받는 선생님에게 바로 메일 (메일 실패해도 요청은 저장됨)
+  app.post('/api/rpc/requestFollowup', requireLogin, async (req, res) => {
+    if (req.me.mustChangePassword) return res.status(403).json({ error: '먼저 비밀번호를 변경해주세요.' });
+    let data;
+    try { data = store.rpc.requestFollowup(req.me, (req.body || {}).arg); } catch (e) { return sendError(res, e); }
+    const r = data.request;
+    delete data.request;
+    try {
+      const m = await automation.sendRequestMail(store, r, opts.fetch);
+      data.mail = m.sent ? { sent: true, note: r.toName + ' 님에게 메일을 보냈습니다.' } : { sent: false, note: m.reason };
+    } catch (e) {
+      data.mail = { sent: false, note: '요청은 저장했지만 메일은 보내지 못했습니다. (' + e.message + ')' };
+    }
+    res.json(data);
+  });
+
   // 화면에서 호출하는 기능들: POST /api/rpc/<기능이름>  { arg: ... }
   app.post('/api/rpc/:fn', requireLogin, (req, res) => {
     const fn = store.rpc[req.params.fn];
@@ -127,6 +143,33 @@ function createApp(store, opts) {
         sendError(res, e);
       }
     });
+
+  // 대학 자료 파일(모집요강 등) 올리기: POST /api/unifiles/upload?cycleId=..&category=..
+  app.post('/api/unifiles/upload', requireLogin,
+    express.raw({ type: () => true, limit: MAX_UPLOAD + 1024 }),
+    (req, res) => {
+      if (req.me.mustChangePassword) return res.status(403).json({ error: '먼저 비밀번호를 변경해주세요.' });
+      try {
+        let name = '';
+        try { name = decodeURIComponent(req.get('X-File-Name') || ''); } catch (e) { name = ''; }
+        res.json(store.addUniFile(req.me, { cycleId: req.query.cycleId, category: req.query.category, name, buffer: Buffer.isBuffer(req.body) ? req.body : null }));
+      } catch (e) {
+        sendError(res, e);
+      }
+    });
+  app.get('/api/unifiles/:id', requireLogin, (req, res) => {
+    try {
+      const f = store.getUniFile(req.me, req.params.id);
+      res.set({
+        'Content-Type': f.mime,
+        'Content-Disposition': (req.query.download ? 'attachment' : 'inline') + "; filename*=UTF-8''" + encodeURIComponent(f.name),
+        'Content-Security-Policy': 'sandbox',
+      });
+      res.sendFile(f.path, (err) => { if (err && !res.headersSent) res.status(404).json({ error: '파일이 서버에 없습니다.' }); });
+    } catch (e) {
+      sendError(res, e);
+    }
+  });
 
   // 파일 보기/다운로드 (로그인 + 담당 학생 권한 확인)
   app.get('/api/files/:id', requireLogin, (req, res) => {
