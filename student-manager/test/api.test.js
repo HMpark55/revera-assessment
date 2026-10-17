@@ -1107,3 +1107,50 @@ test('원서 정보: 항목·내용 자유 목록, 대학 지정, 담당 학생�
   await admin.ok('restore', { table: 'appinfo', id: r.id });
   assert.ok((await kim.ok('getAll')).appinfo.some((x) => x.id === r.id));
 });
+
+test('v8: 일정 분류·색 목록(이름 바꾸면 일정도), 대회·프로그램 정보', async () => {
+  const admin = client(); await admin.login('admin@revera.test', 'admin-pass-1');
+  const staff = await newUser(admin, 'v8staff@revera.test', 'staff');
+  const kim = await newUser(admin, 'v8kim@revera.test', 'consultant');
+  const lee = await newUser(admin, 'v8lee@revera.test', 'consultant');
+  let d = await kim.ok('getAll');
+  const cats = d.options.filter((o) => o.kind === 'evcat');
+  assert.deepStrictEqual(cats.map((c) => c.value), ['시험', '원서·입시', '학교', '설명회·행사', '휴무', '기타']);
+  assert.ok(cats.every((c) => /^#[0-9a-f]{6}$/.test(c.color)));
+  // 관리팀이 분류 추가(색 지정), 컨설턴트는 목록 관리 불가
+  d = await staff.ok('saveOption', { kind: 'evcat', value: '에세이 대회', color: '#1d4ed8' });
+  const essay = d.options.find((o) => o.kind === 'evcat' && o.value === '에세이 대회');
+  assert.strictEqual(essay.sortOrder, '7');
+  assert.strictEqual((await kim.rpc('saveOption', { kind: 'evcat', value: 'x', color: '#000000' })).status, 403);
+  assert.strictEqual((await staff.rpc('saveOption', { kind: 'evcat', value: 'y', color: 'red;}' })).status, 400);
+  // 일정은 목록에 있는 분류만
+  d = await kim.ok('saveEvent', { date: '2026-10-25', title: 'Immerse essay 마감', category: '에세이 대회' });
+  const evId = d.savedId;
+  assert.strictEqual((await kim.rpc('saveEvent', { date: '2026-10-25', title: 'x', category: '없는 분류' })).status, 400);
+  // 분류 이름을 바꾸면 그 분류의 일정도 함께, 색만 바꾸면 이름 유지
+  d = await staff.ok('saveOption', { id: essay.id, kind: 'evcat', value: '대회 마감', color: '#0f7a55' });
+  assert.strictEqual(d.events.find((e) => e.id === evId).category, '대회 마감');
+  assert.strictEqual(d.options.find((o) => o.id === essay.id).color, '#0f7a55');
+  // 분류를 지워도 기존 일정은 남고, 그 일정은 분류 그대로 고칠 수 있음
+  d = await staff.ok('removeOption', { id: essay.id });
+  const ev = d.events.find((e) => e.id === evId);
+  assert.strictEqual(ev.category, '대회 마감');
+  await kim.ok('saveEvent', { id: evId, updatedAt: ev.updatedAt, date: '2026-10-26', title: ev.title, category: '대회 마감' });
+
+  // 대회·프로그램
+  d = await kim.ok('saveProgram', { name: 'Immerse Education Essay Competition', category: '에세이 대회', target: 'G9–G12', schedule: '마감 2026-10-25 (예시)',
+    deadline: '2026-10-25', url: 'https://example.org/immerse', memo: '주제 중 하나 골라 500단어' });
+  const pid = d.savedId;
+  assert.ok(d.programs.some((x) => x.id === pid && x.createdBy === 'v8kim@revera.test'));
+  assert.strictEqual((await kim.rpc('saveProgram', { name: '' })).status, 400);
+  assert.strictEqual((await kim.rpc('saveProgram', { name: 'x', url: 'javascript:alert(1)' })).status, 400);
+  assert.strictEqual((await kim.rpc('saveProgram', { name: 'x', deadline: '10/25' })).status, 400);
+  const p0 = d.programs.find((x) => x.id === pid);
+  d = await lee.ok('saveProgram', { id: pid, updatedAt: p0.updatedAt, name: p0.name, category: p0.category, url: p0.url, memo: '모두 수정 가능' });
+  assert.strictEqual(d.programs.find((x) => x.id === pid).memo, '모두 수정 가능');
+  assert.strictEqual((await kim.rpc('saveProgram', { id: pid, updatedAt: p0.updatedAt, name: 'x' })).status, 409);
+  assert.strictEqual((await lee.rpc('removeProgram', { id: pid })).status, 403);
+  await staff.ok('removeProgram', { id: pid });
+  const log = await admin.ok('getLog', {});
+  assert.ok(log.rows.some((r) => r.tbl === 'programs' && r.action === 'delete' && r.tblLabel === '대회·프로그램'));
+});
