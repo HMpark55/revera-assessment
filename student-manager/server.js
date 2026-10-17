@@ -19,7 +19,11 @@ function createApp(store, opts) {
   if (opts.trustProxy) app.set('trust proxy', 1);
   app.disable('x-powered-by');
 
+  // 화면 코드가 바뀌면(새 배포) 열려 있는 화면이 알 수 있도록 버전 표시
+  let appVersion = '';
+  try { appVersion = require('crypto').createHash('sha1').update(fs.readFileSync(path.join(__dirname, 'public', 'index.html'))).digest('hex').slice(0, 12); } catch (e) { appVersion = ''; }
   app.use((req, res, next) => {
+    if (appVersion) res.set('X-App-Version', appVersion);
     res.set({
       'X-Frame-Options': 'DENY',
       'X-Content-Type-Options': 'nosniff',

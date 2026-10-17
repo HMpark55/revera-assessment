@@ -1066,3 +1066,22 @@ test('v10 업그레이드: 기존 계약의 시작·종료 연월을 날짜로 �
   assert.deepStrictEqual(rows, [{ id: 'c1', startDate: '2024-02-01', endDate: '2024-02-29' }, { id: 'c2', startDate: '', endDate: '' }]);
   st.close();
 });
+
+test('서식 있는 회의록: 허용한 서식만 저장, 일반 글도 함께 만들어짐', async () => {
+  const admin = client(); await admin.login('admin@revera.test', 'admin-pass-1');
+  let d = await admin.saveOk('students', { name: '서식학생' });
+  const sid = d.savedId;
+  d = await admin.ok('saveWithFollowups', { table: 'meetings', obj: { studentId: sid, date: '2026-10-17',
+    contentHtml: '1. 홍콩대<div><span style="color: rgb(217, 83, 79); font-size: x-large; position: fixed">중요</span> <u>밑줄</u></div>' +
+      '<img src=x onerror=alert(1)><script>alert(2)</script><a href="javascript:alert(3)">링크</a><div><span style="background-color: rgb(255, 243, 163)">형광</span></div>' } });
+  const m = d.meetings.find((x) => x.id === d.savedId);
+  assert.ok(!/script|onerror|img|javascript|position|<a/i.test(m.contentHtml), m.contentHtml);
+  assert.ok(/color: rgb\(217, 83, 79\); font-size: x-large/.test(m.contentHtml) && /<u>밑줄<\/u>/.test(m.contentHtml) && /background-color/.test(m.contentHtml));
+  assert.strictEqual(m.content, '1. 홍콩대\n중요 밑줄링크\n형광'); // 지운 태그 안의 글자(링크)는 남음
+  // 서식 없이 줄바꿈만 있으면 일반 글로만 저장
+  d = await admin.ok('saveWithFollowups', { table: 'notes', obj: { studentId: sid, date: '2026-10-17', contentHtml: '첫 줄<div>둘째 줄</div><div><br></div><div>넷째</div>' } });
+  const n = d.notes.find((x) => x.id === d.savedId);
+  assert.deepStrictEqual([n.content, n.contentHtml], ['첫 줄\n둘째 줄\n\n넷째', '']);
+  // 검색용 글이 비면 상담기록은 거부
+  assert.strictEqual((await admin.rpc('saveWithFollowups', { table: 'notes', obj: { studentId: sid, date: '2026-10-17', contentHtml: '<div><br></div>' } })).status, 400);
+});

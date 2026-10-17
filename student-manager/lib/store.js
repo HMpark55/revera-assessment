@@ -11,6 +11,7 @@
  */
 const Database = require('better-sqlite3');
 const crypto = require('crypto');
+const { sanitizeRich, richToText, hasFormatting } = require('./rich');
 const fs = require('fs');
 const path = require('path');
 
@@ -33,7 +34,7 @@ const TABLES = {
   },
   notes: {
     label: '상담기록',
-    fields: ['studentId', 'date', 'time', 'place', 'attendees', 'type', 'content', 'nextAction', 'nextDue', 'done', 'sourceUrl', 'needsReview'],
+    fields: ['studentId', 'date', 'time', 'place', 'attendees', 'type', 'content', 'contentHtml', 'nextAction', 'nextDue', 'done', 'sourceUrl', 'needsReview'],
     summary: (r) => [r.date, r.type].join(' '),
   },
   contracts: {
@@ -95,7 +96,7 @@ const TABLES = {
   },
   meetings: {
     label: '미팅',
-    fields: ['studentId', 'date', 'time', 'status', 'type', 'place', 'attendees', 'writer', 'topic', 'content', 'parentNote', 'nextStep', 'nextDate', 'sourceUrl', 'needsReview'],
+    fields: ['studentId', 'date', 'time', 'status', 'type', 'place', 'attendees', 'writer', 'topic', 'content', 'contentHtml', 'parentNote', 'nextStep', 'nextDate', 'sourceUrl', 'needsReview'],
     summary: (r) => [r.date, r.status, r.topic].filter(Boolean).join(' · '),
   },
   accounts: {
@@ -182,7 +183,7 @@ const FIELD_LABELS = {
   parentConfirmedBy: '부모님 확정 기록자', city: '도시', gradeFrom: '시작 학년', gradeTo: '마지막 학년', startDate: '시작일',
   endDate: '종료일', schoolYear: '학년도', level: '레벨', termType: '학기 구분', g1: '1학기/T1 성적', g2: '2학기/T2 성적',
   g3: 'T3 성적', final: '최종 성적',
-  nextDate: '다음 미팅 날짜', meetingId: '미팅', noteId: '상담기록',
+  nextDate: '다음 미팅 날짜', meetingId: '미팅', noteId: '상담기록', contentHtml: '내용 서식',
 };
 /** 관리자/관리팀만 다룰 수 있는 테이블 */
 const MANAGER_ONLY = ['notes', 'contracts', 'payments'];
@@ -671,6 +672,14 @@ function openStore(dbPath, opts) {
     tx(() => {
       const rec = {};
       TABLES[table].fields.forEach((k) => { if (k in obj) rec[k] = clean(obj[k]); });
+      if ('contentHtml' in obj) {
+        // 서식 있는 회의록: 허용한 서식만 남기고, 검색·메일용 일반 글(content)은 여기서 다시 만듦
+        const raw = String(obj.contentHtml || '');
+        if (raw.length > 400000) throw new UserError('내용이 너무 깁니다. 나눠서 기록해주세요.');
+        const html = sanitizeRich(raw);
+        rec.content = richToText(html);
+        rec.contentHtml = hasFormatting(html) ? html : '';
+      }
       if ('counselor' in rec) rec.counselor = lower(rec.counselor);
       // 컨설턴트에게 숨겨진 칸은 새로 쓰거나 고칠 수도 없음
       if (!isManager(me)) (HIDDEN_FOR_CONSULTANT[table] || []).forEach((k) => delete rec[k]);
