@@ -1330,3 +1330,16 @@ test('확인 요청: 저장하면서 요청, 받은 사람만 확인, 보낸 사
   d = await con.ok('requestReview', { refTable: 'meetings', refId: d.savedId, to: ['rv-staff@revera.test'] });
   assert.strictEqual((await con.rpc('requestReview', { refTable: 'notes', refId: nid, to: ['rv-staff@revera.test'] })).status, 403);
 });
+
+test('선생님 색: 저장·형식 검사, 모두에게 보임', async () => {
+  const admin = client();
+  await admin.login('admin@revera.test', 'admin-pass-1');
+  let d = await admin.ok('saveTeacher', { email: 'color1@revera.test', name: '색관리', role: 'staff', password: '123456', color: '#FFFF00' });
+  assert.strictEqual(d.teachers.find((t) => t.email === 'color1@revera.test').color, '#ffff00');
+  assert.strictEqual((await admin.rpc('saveTeacher', { email: 'color1@revera.test', color: 'red;background:url(x)' })).status, 400);
+  d = await admin.ok('saveTeacher', { email: 'color1@revera.test', name: '색관리', role: 'staff', color: '' });
+  assert.strictEqual(d.teachers.find((t) => t.email === 'color1@revera.test').color, '');
+  await admin.ok('saveTeacher', { email: 'color1@revera.test', name: '색관리', role: 'staff', color: '#cfe2f3' });
+  const c = client(); await c.login('color1@revera.test', '123456');
+  assert.strictEqual((await c.ok('getAll')).teachers.find((t) => t.email === 'color1@revera.test').color, '#cfe2f3');
+});

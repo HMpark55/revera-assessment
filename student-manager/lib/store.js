@@ -319,7 +319,8 @@ function migrate(db) {
   ensureColumns(db, 'contracts', ['paid']); // 이전 버전 열 (새 버전은 입금 기록으로 계산)
   db.exec('CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
   ensureColumns(db, 'teachers', ['notify']); // '' = 이메일 알림 받음, 'off' = 안 받음
-  ensureColumns(db, 'teachers', ['homeLayout']); // 메인 화면 배치(JSON). '' = 관리자가 정한 기본 배치
+  ensureColumns(db, 'teachers', ['homeLayout']);
+  ensureColumns(db, 'teachers', ['color']); // 관리팀 색 (학생 목록 줄 배경). '' = 없음 // 메인 화면 배치(JSON). '' = 관리자가 정한 기본 배치
   // v10: 팔로업 요청(휴무 등으로 다른 선생님에게 부탁), 대학 자료 파일
   ensureColumns(db, 'followups', ['requestedBy', 'requestedAt', 'requestNote']);
   db.exec('CREATE TABLE IF NOT EXISTS unifiles (id TEXT PRIMARY KEY)');
@@ -569,8 +570,8 @@ function openStore(dbPath, opts) {
       me: { email: me.email, name: me.name, role: me.role, mustChangePassword: !!me.mustChangePassword,
         homeLayout: parseLayout((db.prepare('SELECT homeLayout FROM teachers WHERE email = ?').get(me.email) || {}).homeLayout) },
       homeDefault: parseLayout(getMeta('homeLayoutDefault')),
-      teachers: db.prepare('SELECT email, name, role, active, notify FROM teachers ORDER BY name').all()
-        .map((t) => ({ email: t.email, name: t.name, role: t.role, active: !!t.active, notify: t.notify !== 'off' })),
+      teachers: db.prepare('SELECT email, name, role, active, notify, color FROM teachers ORDER BY name').all()
+        .map((t) => ({ email: t.email, name: t.name, role: t.role, active: !!t.active, notify: t.notify !== 'off', color: t.color || '' })),
       students,
       serverTime: now(),
     };
@@ -1698,6 +1699,8 @@ function openStore(dbPath, opts) {
     if (email === me.email && (role !== 'admin' || !active)) throw new UserError('본인의 관리자 권한은 해제할 수 없습니다.');
     const password = obj.password ? String(obj.password) : '';
     if (password) checkPasswordRule(password);
+    const color = String(obj.color || '').toLowerCase();
+    if (color && !/^#[0-9a-f]{6}$/.test(color)) throw new UserError('색상 형식이 올바르지 않습니다.');
     tx(() => {
       const found = getTeacher(email);
       const name = String(obj.name || '').trim() || (found ? found.name : email.split('@')[0]);
@@ -1705,6 +1708,7 @@ function openStore(dbPath, opts) {
       if (found) {
         db.prepare('UPDATE teachers SET name=?, role=?, active=?, updatedAt=? WHERE email=?').run(name, role, active, t, email);
         if ('notify' in obj) db.prepare('UPDATE teachers SET notify=? WHERE email=?').run(obj.notify === false ? 'off' : '', email);
+        if ('color' in obj) db.prepare('UPDATE teachers SET color=? WHERE email=?').run(color, email);
         if (password) {
           db.prepare('UPDATE teachers SET passwordHash=?, mustChangePassword=0 WHERE email=?').run(hashPassword(password), email);
         }
@@ -1712,8 +1716,8 @@ function openStore(dbPath, opts) {
         if (!active || password || role !== found.role) db.prepare('DELETE FROM sessions WHERE email = ?').run(email);
       } else {
         if (!password) throw new UserError('새 계정의 비밀번호를 입력하세요 (6자 이상).');
-        db.prepare('INSERT INTO teachers (email, name, role, active, passwordHash, mustChangePassword, createdAt, updatedAt, notify) VALUES (?,?,?,?,?,?,?,?,?)')
-          .run(email, name, role, active, hashPassword(password), 0, t, t, obj.notify === false ? 'off' : '');
+        db.prepare('INSERT INTO teachers (email, name, role, active, passwordHash, mustChangePassword, createdAt, updatedAt, notify, color) VALUES (?,?,?,?,?,?,?,?,?,?)')
+          .run(email, name, role, active, hashPassword(password), 0, t, t, obj.notify === false ? 'off' : '', color);
       }
       const roleLabel = { admin: '관리자', staff: '관리팀', consultant: '컨설턴트' }[role];
       log(me.email, found ? 'update' : 'create', 'teachers', email,

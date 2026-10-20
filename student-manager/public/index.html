@@ -73,6 +73,7 @@
   th { font-size:.78rem; color:var(--muted); font-weight:normal; white-space:nowrap; }
   tr.click { cursor:pointer; }
   tr.click:hover td { background:#fafbfd; }
+  tr.click[style]:hover td { background:rgba(0,0,0,.05); } /* 관리팀 색이 있는 줄은 색을 유지한 채 살짝 어둡게 */
   .tbl-wrap { overflow-x:auto; }
 
   .pill { display:inline-block; padding:2px 8px; border-radius:10px; font-size:.75rem; background:var(--soft); color:#333; white-space:nowrap; }
@@ -273,6 +274,18 @@
   .note.tl { border-left:3px solid #c9d3e6; }
   .flash { animation:flash 2s ease-out 1; }
   @keyframes flash { 0% { box-shadow:0 0 0 3px #c9a227; } 100% { box-shadow:0 0 0 0 transparent; } }
+  .lb-ov { position:fixed; inset:0; z-index:200; background:rgba(10,15,30,.82); display:flex; align-items:center; justify-content:center; }
+  .lb-ov img { max-width:92vw; max-height:86vh; border-radius:6px; box-shadow:0 10px 40px rgba(0,0,0,.5); background:#fff; cursor:zoom-out; }
+  .lb-top { position:absolute; top:0; left:0; right:0; display:flex; gap:14px; align-items:center; padding:10px 16px; color:#fff; font-size:.9rem; }
+  .lb-top span { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } .lb-top .muted { color:#cbd5e1; }
+  .lb-top a { color:#fff; } .lb-top button { background:transparent; border:0; color:#fff; font-size:1.3rem; cursor:pointer; }
+  .lb-nav { position:absolute; top:50%; transform:translateY(-50%); background:rgba(255,255,255,.15); color:#fff; border:0; border-radius:50%; width:44px; height:44px; font-size:1.1rem; cursor:pointer; }
+  .lb-nav.prev { left:16px; } .lb-nav.next { right:16px; }
+  .swatches { display:flex; gap:6px; flex-wrap:wrap; }
+  .swatches label { cursor:pointer; } .swatches input { display:none; }
+  .swatches span { display:inline-flex; align-items:center; justify-content:center; width:34px; height:26px; border:1px solid #c8cfdc; border-radius:6px; font-size:.7rem; color:#666; }
+  .swatches input:checked + span { outline:3px solid #0B1B45; outline-offset:1px; }
+  .swatch { display:inline-block; width:14px; height:14px; border:1px solid #c8cfdc; border-radius:3px; vertical-align:middle; margin-right:6px; }
   .gauge { height:14px; background:#eef0f4; border-radius:7px; overflow:hidden; margin:8px 0 4px; }
   .gauge span { display:block; height:100%; background:#1f9d6b; }
   .gauge.warn span { background:#e08a00; } .gauge.bad span { background:var(--error); }
@@ -870,6 +883,12 @@ function notesOf(id) { return childOf('notes', id).sort(function (a, b) { return
 function byDate(k) { return function (a, b) { return (a[k] || '9999').localeCompare(b[k] || '9999'); }; }
 function isActive(s) { return s.status !== '완료' && s.status !== '종료'; }
 function isMine(s) { return !!s && (String(s.counselor).toLowerCase() === S.me.email || String(s.manager || '').toLowerCase() === S.me.email); }
+/** 관리팀 색 (계정 관리에서 선택) — 구글 시트 기본 색 중 연한 색 + 노랑 */
+var TEACHER_COLORS = [['#ffff00', '노랑'], ['#fff2cc', '연노랑'], ['#fce5cd', '살구'], ['#f4cccc', '연빨강'], ['#ead1dc', '연분홍'], ['#d9d2e9', '연보라'],
+  ['#cfe2f3', '연파랑'], ['#c9daf8', '하늘'], ['#d0e0e3', '연청록'], ['#d9ead3', '연두'], ['#efefef', '회색']];
+function teacherColor(email) { var t = S.teachers.filter(function (x) { return x.email === String(email || '').toLowerCase(); })[0]; return t && t.role !== 'consultant' && t.color ? t.color : ''; }
+/** 학생 줄 배경: 담당 관리팀 색 */
+function rowColor(s) { var c = teacherColor(s.manager); return c ? ' style="background:' + c + '"' : ''; }
 function ownersText(s) {
   return '관리 ' + (teacherName(s.manager) || '미정') + ' · 컨설턴트 ' + (teacherName(s.counselor) || '미정');
 }
@@ -1518,7 +1537,7 @@ function compactStudentTable(list, dl) {
     list.map(function (s) {
       var next = dl.filter(function (i) { return i.studentId === s.id; })[0];
       var pr = String(s.progress || '');
-      return '<tr class="click" onclick="openStudent(' + js(s.id) + ')"><td class="nw"><b>' + esc(s.name) + '</b><div class="muted" style="font-size:.72rem">' + esc(teacherName(s.manager) || '관리팀 미정') + '</div></td>' +
+      return '<tr class="click"' + rowColor(s) + ' onclick="openStudent(' + js(s.id) + ')"><td class="nw"><b>' + esc(s.name) + '</b><div class="muted" style="font-size:.72rem">' + esc(teacherName(s.manager) || '관리팀 미정') + '</div></td>' +
         '<td class="nw">' + programBadge(s.id) + '</td><td class="muted">' + (pr ? esc(pr.length > 46 ? pr.slice(0, 46) + '…' : pr) : '-') + '</td>' +
         '<td class="nw">' + (next ? esc(next.title) + ' ' + dday(next.date) : '<span class="muted">-</span>') + '</td></tr>';
     }).join('') + '</tbody></table>';
@@ -1543,7 +1562,7 @@ function studentTable(list, dl) {
   return '<table class="stl"><thead><tr><th>이름</th><th>학교 / 학년</th><th>현재 진행 상황</th><th>할 일</th><th>답 안 한 연락</th><th>다음 미팅</th><th>다음 마감</th><th>마지막 미팅</th><th>자료</th><th>관리팀 / 컨설턴트</th><th>상태</th></tr></thead><tbody>' +
     list.map(function (s) {
       var next = dl.filter(function (i) { return i.studentId === s.id; })[0], w = studentWork(s.id), pr = String(s.progress || '');
-      return '<tr class="click" onclick="openStudent(' + js(s.id) + ')"><td class="nw"><b>' + esc(s.name) + '</b></td>' +
+      return '<tr class="click"' + rowColor(s) + ' onclick="openStudent(' + js(s.id) + ')"><td class="nw"><b>' + esc(s.name) + '</b></td>' +
         '<td class="nw">' + esc(s.school) + (s.grade ? ' <span class="muted">' + esc(s.grade) + '</span>' : '') + '</td>' +
         '<td class="prog" title="' + esc(pr) + '">' + (pr ? esc(pr.length > 40 ? pr.slice(0, 40) + '…' : pr) : '<span class="muted">-</span>') + '</td>' +
         '<td class="nw">' + (w.todo ? w.todo + '건' + (w.over ? ' <span class="dday over">기한 지남 ' + w.over + '</span>' : '') : '<span class="muted">-</span>') + '</td>' +
@@ -1673,7 +1692,7 @@ function viewStudent(id) {
   var h = '<div class="toolbar"><a href="#/students">← 학생 목록</a></div>';
   h += '<div class="card"><div class="toolbar" style="margin:0"><div style="margin-right:auto"><h2 style="margin:0">' + esc(s.name) +
     ' <span class="pill s-' + esc(s.status) + '">' + esc(s.status || '-') + '</span> ' + programBadge(s.id) + '</h2>' +
-    '<div class="muted" style="margin-top:4px">' + [s.school, s.grade, s.curriculum].filter(Boolean).map(esc).join(' · ') + ' <span class="owners">' + esc(ownersText(s)) + '</span></div>' +
+    '<div class="muted" style="margin-top:4px">' + [s.school, s.grade, s.curriculum].filter(Boolean).map(esc).join(' · ') + ' <span class="owners"' + (teacherColor(s.manager) ? ' style="background:' + teacherColor(s.manager) + '"' : '') + '>' + esc(ownersText(s)) + '</span></div>' +
     '<div style="margin-top:6px">' + tagHtml(tags(s.tracks)) + (countrySummary(s.id) ? ' <span class="muted">지원: ' + esc(countrySummary(s.id)) + '</span>' : '') + majorChip(s) + meetingLine(s) + '</div></div>' +
     (resume ? '<a class="btn ghost" href="' + esc(resume) + '" target="_blank" rel="noopener">📄 Resume</a>' : '') +
     (drive ? '<a class="btn ghost" href="' + esc(drive) + '" target="_blank" rel="noopener">📁 Drive 폴더</a>' : '') +
@@ -1811,7 +1830,7 @@ function fuRow(f, showStudent, inSource) {
         (done ? ' · ' + esc(fmtTime(f.doneAt).slice(5, 10).replace('-', '/')) + ' 완료' : f.due ? ' · ' + esc(fmtD(f.due)) + ' ' + dday(f.due) : ' · 기한 없음') + '</span></div>' +
       (contact && f.detail && f.detail.trim() !== f.title ? '<div class="l2">' + esc(f.detail.replace(/\s+/g, ' ')) + '</div>' : '') +
       (reply ? '<div class="l2 rp">' + esc(reply) + '</div>' : !contact && f.detail ? '<div class="l2">' + esc(f.detail) + '</div>' : '') +
-      (shots.length ? '<div class="fu-shots">' + shots.slice(0, 4).map(function (x) { return '<a href="/api/files/' + esc(x.id) + '" target="_blank" rel="noopener" onclick="event.stopPropagation()"><img src="/api/files/' + esc(x.id) + '" alt=""></a>'; }).join('') + (shots.length > 4 ? '<span class="muted">+' + (shots.length - 4) + '</span>' : '') + '</div>' : '') +
+      (shots.length ? '<div class="fu-shots">' + shots.slice(0, 4).map(function (x) { return '<a href="/api/files/' + esc(x.id) + '" class="lbimg" data-g="fu-' + esc(f.id) + '" title="' + esc(x.name) + '" target="_blank" rel="noopener" onclick="event.stopPropagation()"><img src="/api/files/' + esc(x.id) + '" alt=""></a>'; }).join('') + (shots.length > 4 ? '<span class="muted">+' + (shots.length - 4) + '</span>' : '') + '</div>' : '') +
       (f.requestNote && !done && f.assignee === S.me.email ? '<div class="l2" style="color:#7a4d00">↪ ' + esc(f.requestNote) + '</div>' : '') +
       (reviewsOf('followups', f.id).length ? '<div onclick="event.stopPropagation()">' + reviewBox('followups', f.id, true) + '</div>' : '') +
     '</div>' + '<button type="button" class="ibtn" title="이 기록을 다른 선생님이 확인하도록 요청" onclick="openReview(\'followups\',' + js(f.id) + ')">👀</button>' + (done ? '' : '<button type="button" class="ibtn" title="다른 선생님에게 요청 (휴무 등)" onclick="openRequest(' + js(f.id) + ')">↪ 요청</button>') +
@@ -2145,7 +2164,7 @@ function meetingItem(m, showStudent) {
       (m.nextDate ? '<div class="note" style="margin:8px 0 0"><b>다음 미팅</b> ' + esc(fmtD(m.nextDate)) + ' ' + dday(m.nextDate) + '</div>' : '') +
       (m.nextStep ? '<div class="body"><b>다음 계획</b> <span class="muted">(예전 기록)</span>\n' + esc(m.nextStep) + '</div>' : '') +
       '<div class="mfiles">' + mf.map(function (f) {
-        return /^image\//.test(f.mime) ? '<a href="/api/files/' + esc(f.id) + '" target="_blank" rel="noopener" title="' + esc(f.name) + '"><img src="/api/files/' + esc(f.id) + '" alt="' + esc(f.name) + '"></a>' :
+        return /^image\//.test(f.mime) ? '<a href="/api/files/' + esc(f.id) + '" class="lbimg" data-g="mt-' + esc(m.id) + '" target="_blank" rel="noopener" title="' + esc(f.name) + '"><img src="/api/files/' + esc(f.id) + '" alt="' + esc(f.name) + '"></a>' :
           '<a class="btn ghost sm" href="/api/files/' + esc(f.id) + '" target="_blank" rel="noopener">📎 ' + esc(f.name) + '</a>';
       }).join('') +
       '<label class="btn ghost sm" style="cursor:pointer">📎 파일 첨부<input type="file" multiple hidden accept=".pdf,.png,.jpg,.jpeg,.webp,.heic,.gif,.doc,.docx,.xls,.xlsx,.hwp" onchange="uploadFiles(this,' + js(m.studentId) + ',null,' + js(m.id) + ')"></label></div></div></div>';
@@ -3210,7 +3229,7 @@ function viewTeachers() {
     S.teachers.map(function (t) {
       var cnt = S.students.filter(function (s) { return isActive(s) && (String(s.counselor).toLowerCase() === t.email.toLowerCase() || String(s.manager || '').toLowerCase() === t.email.toLowerCase()); }).length;
       return '<tr><td><b>' + esc(t.name) + '</b></td><td>' + esc(t.email) + '</td><td>' + esc(ROLE_LABEL[t.role] || t.role) + '</td>' +
-        '<td>' + (t.active ? '<span class="pill s-진행중">활성</span>' : '<span class="pill s-종료">비활성</span>') + '</td><td>' + cnt + '명</td><td>' + (t.notify !== false ? '받음' : '<span class="muted">안 받음</span>') + '</td>' +
+        '<td>' + (t.color && t.role !== 'consultant' ? '<span class="swatch" style="background:' + esc(t.color) + '"></span>' : '') + (t.active ? '<span class="pill s-진행중">활성</span>' : '<span class="pill s-종료">비활성</span>') + '</td><td>' + cnt + '명</td><td>' + (t.notify !== false ? '받음' : '<span class="muted">안 받음</span>') + '</td>' +
         '<td><button class="btn ghost sm" onclick="openTeacherForm(' + js(t.email) + ')">수정</button></td></tr>';
     }).join('') + '</tbody></table></div>';
   return h;
@@ -3240,6 +3259,10 @@ function openTeacherForm(email) {
       return '<option value="' + r + '"' + (t.role === r ? ' selected' : '') + '>' + ROLE_LABEL[r] + '</option>'; }).join('') + '</select>') +
     fld('상태', '<select name="active"><option value="1"' + (t.active ? ' selected' : '') + '>활성</option><option value="0"' + (!t.active ? ' selected' : '') + '>비활성</option></select>') +
     fld('이메일 알림', '<div><label style="display:inline-flex;gap:6px;align-items:center;color:#222"><input type="checkbox" name="notify"' + (t.notify !== false ? ' checked' : '') + '> 매일 아침 “오늘 챙길 일” 메일 받기</label></div>', true) +
+    '<div class="full"><label>색 (관리팀·관리자 — 학생 목록에서 이 선생님이 관리하는 학생 줄의 배경색)</label><div class="swatches">' +
+      [['', '없음']].concat(TEACHER_COLORS).map(function (c) {
+        return '<label title="' + esc(c[1]) + '"><input type="radio" name="color" value="' + c[0] + '"' + ((t.color || '') === c[0] ? ' checked' : '') + '><span style="background:' + (c[0] || '#fff') + '">' + (c[0] ? '' : '없음') + '</span></label>';
+      }).join('') + '</div><div class="muted" style="font-size:.8rem">컨설턴트는 색을 정해도 표시되지 않습니다.</div></div>' +
     fld(email ? '비밀번호 초기화 (바꿀 때만 입력)' : '비밀번호 (6자 이상)', inp('password', '', 'text', ' autocomplete="off"' + (email ? ' placeholder="비워두면 그대로"' : ' required')), true, !email);
   modal(email ? '계정 수정' : '계정 추가', body,
     (email && email !== S.me.email ? '<button class="btn danger left" onclick="deleteTeacher(' + js(email) + ')">계정 삭제</button>' : '') +
@@ -3557,7 +3580,7 @@ function shotsField(rec) {
   var have = rec.id ? S.files.filter(function (f) { return f.followupId === rec.id; }) : [];
   return '<div class="full"><label>스크린샷 (위챗 캡처 등)</label><div class="shots" id="shots" tabindex="0">' +
     '<div class="shots-hint">여기를 누르고 <b>Ctrl+V</b>로 붙여넣기 · 또는 <label class="linkbtn">파일 고르기<input type="file" accept="image/*" multiple hidden onchange="addShots(this.files);this.value=\'\'"></label></div>' +
-    '<div class="shots-list" id="shots-list">' + have.map(function (f) { return '<a href="/api/files/' + esc(f.id) + '" target="_blank" rel="noopener" class="shot"><img src="/api/files/' + esc(f.id) + '" alt="' + esc(f.name) + '"></a>'; }).join('') + '</div></div></div>';
+    '<div class="shots-list" id="shots-list">' + have.map(function (f) { return '<a href="/api/files/' + esc(f.id) + '" target="_blank" rel="noopener" class="shot lbimg" data-g="form" title="' + esc(f.name) + '"><img src="/api/files/' + esc(f.id) + '" alt="' + esc(f.name) + '"></a>'; }).join('') + '</div></div></div>';
 }
 function addShots(files) {
   Array.prototype.forEach.call(files || [], function (f) {
@@ -3768,6 +3791,29 @@ function rowOrder(tr) {
   return Array.prototype.filter.call(tr.parentNode.querySelectorAll('tr.drag'), function (x) { return x.getAttribute('data-grp') === tr.getAttribute('data-grp'); })
     .map(function (x) { return x.getAttribute('data-id'); });
 }
+// 이미지(받은 연락 캡처·미팅 사진)는 새 탭 대신 화면 위 팝업으로 — 같은 묶음은 ◀ ▶ 로 넘김
+document.addEventListener('click', function (e) {
+  var a = e.target.closest && e.target.closest('a.lbimg'); if (!a || e.ctrlKey || e.metaKey || e.shiftKey) return;
+  e.preventDefault(); e.stopPropagation();
+  var g = a.getAttribute('data-g'), list = Array.prototype.slice.call(document.querySelectorAll('a.lbimg[data-g="' + g + '"]'));
+  openLightbox(list.map(function (x) { return { src: x.getAttribute('href'), name: x.getAttribute('title') || '' }; }), Math.max(0, list.indexOf(a)));
+}, true);
+function openLightbox(items, i) {
+  UI.lb = { items: items, i: i }; var el = $('lb');
+  if (!el) { el = document.createElement('div'); el.id = 'lb'; document.body.appendChild(el); }
+  var it = items[i];
+  el.innerHTML = '<div class="lb-ov" onclick="if(event.target===this)closeLightbox()"><div class="lb-top"><span>' + esc(it.name) + (items.length > 1 ? ' <span class="muted">(' + (i + 1) + '/' + items.length + ')</span>' : '') + '</span>' +
+    '<a href="' + esc(it.src) + '" target="_blank" rel="noopener">새 탭에서 열기 ↗</a><button type="button" onclick="closeLightbox()" title="닫기 (Esc)">✕</button></div>' +
+    (items.length > 1 ? '<button type="button" class="lb-nav prev" onclick="moveLightbox(-1)" title="이전 (←)">◀</button><button type="button" class="lb-nav next" onclick="moveLightbox(1)" title="다음 (→)">▶</button>' : '') +
+    '<img src="' + esc(it.src) + '" alt="' + esc(it.name) + '" onclick="closeLightbox()"></div>';
+}
+function moveLightbox(d) { var lb = UI.lb; if (!lb) return; openLightbox(lb.items, (lb.i + d + lb.items.length) % lb.items.length); }
+function closeLightbox() { UI.lb = null; var el = $('lb'); if (el) el.innerHTML = ''; }
+document.addEventListener('keydown', function (e) {
+  if (!UI.lb) return;
+  if (e.key === 'Escape') { e.stopPropagation(); e.preventDefault(); closeLightbox(); }
+  else if (e.key === 'ArrowLeft') moveLightbox(-1); else if (e.key === 'ArrowRight') moveLightbox(1);
+}, true);
 // 열린 메뉴(관리 ▾, 내 이름 ▾)는 바깥을 누르면 닫힘
 document.addEventListener('click', function (e) {
   ['adm', 'who'].forEach(function (id) { var el = $(id); if (el && el.classList.contains('open') && !el.contains(e.target)) el.classList.remove('open'); });
