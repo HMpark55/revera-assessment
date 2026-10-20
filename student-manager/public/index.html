@@ -374,6 +374,7 @@
   .body.rich { white-space:pre-wrap; }
   #newver { position:fixed; left:50%; transform:translateX(-50%); top:62px; z-index:65; background:#fffbea; border:1px solid #f1e2b0; color:#6b5512; padding:8px 12px; border-radius:8px; box-shadow:0 6px 20px rgba(0,0,0,.15); font-size:.88rem; display:flex; gap:8px; align-items:center; max-width:94vw; flex-wrap:wrap; }
   table.pg td:first-child { min-width:200px; }
+  table.stl td.prog { min-width:180px; max-width:260px; font-size:.84rem; color:#374151; }
   table.appinfo th { width:22%; color:var(--navy); font-weight:bold; font-size:.88rem; white-space:normal; }
   table.appinfo td { white-space:pre-wrap; word-break:break-word; }
   .evpal { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
@@ -1278,14 +1279,23 @@ function lastMeetingCell(sid) {
   var n = -dayDiff(d);
   return '<span class="dday ' + (n > 60 ? 'over' : n > 30 ? 'soon' : 'far') + '">' + (n <= 0 ? '오늘' : n + '일 전') + '</span><div class="muted" style="font-size:.72rem">' + esc(fmtD(d)) + '</div>';
 }
+/** 학생별 남은 할 일(받은 연락 제외)·기한 지남·답 안 한 연락·다음 미팅 */
+function studentWork(sid) {
+  var open = openFollowups(sid), todo = open.filter(function (f) { return f.kind !== 'contact'; });
+  var nm = nextMeetings().filter(function (m) { return m.studentId === sid && dayDiff(m.nextDate) >= 0; }).sort(function (a, b) { return a.nextDate.localeCompare(b.nextDate); })[0];
+  return { todo: todo.length, over: todo.filter(function (f) { return f.due && dayDiff(f.due) < 0; }).length,
+    contacts: open.filter(function (f) { return f.kind === 'contact'; }).length, next: nm ? nm.nextDate : '' };
+}
 function studentTable(list, dl) {
-  return '<table><thead><tr><th>이름</th><th>학교 / 학년</th><th>프로그램</th><th>트랙</th><th>지원 국가</th><th>다음 마감</th><th>마지막 미팅</th><th>자료</th><th>관리팀 / 컨설턴트</th><th>상태</th></tr></thead><tbody>' +
+  return '<table class="stl"><thead><tr><th>이름</th><th>학교 / 학년</th><th>현재 진행 상황</th><th>할 일</th><th>답 안 한 연락</th><th>다음 미팅</th><th>다음 마감</th><th>마지막 미팅</th><th>자료</th><th>관리팀 / 컨설턴트</th><th>상태</th></tr></thead><tbody>' +
     list.map(function (s) {
-      var next = dl.filter(function (i) { return i.studentId === s.id; })[0];
+      var next = dl.filter(function (i) { return i.studentId === s.id; })[0], w = studentWork(s.id), pr = String(s.progress || '');
       return '<tr class="click" onclick="openStudent(' + js(s.id) + ')"><td class="nw"><b>' + esc(s.name) + '</b></td>' +
-        '<td>' + esc(s.school) + (s.grade ? ' <span class="muted">' + esc(s.grade) + '</span>' : '') + '</td>' +
-        '<td class="nw">' + programBadge(s.id) + '</td><td>' + tagHtml(tags(s.tracks)) + '</td>' +
-        '<td class="muted">' + esc(countrySummary(s.id)) + '</td>' +
+        '<td class="nw">' + esc(s.school) + (s.grade ? ' <span class="muted">' + esc(s.grade) + '</span>' : '') + '</td>' +
+        '<td class="prog" title="' + esc(pr) + '">' + (pr ? esc(pr.length > 40 ? pr.slice(0, 40) + '…' : pr) : '<span class="muted">-</span>') + '</td>' +
+        '<td class="nw">' + (w.todo ? w.todo + '건' + (w.over ? ' <span class="dday over">기한 지남 ' + w.over + '</span>' : '') : '<span class="muted">-</span>') + '</td>' +
+        '<td class="nw">' + (w.contacts ? '<span class="dday soon">📩 ' + w.contacts + '</span>' : '<span class="muted">-</span>') + '</td>' +
+        '<td class="nw">' + (w.next ? esc(fmtD(w.next)) + ' ' + dday(w.next) : '<span class="muted">-</span>') + '</td>' +
         '<td>' + (next ? esc(next.title) + ' ' + dday(next.date) : '<span class="muted">-</span>') + '</td>' +
         '<td class="nw">' + lastMeetingCell(s.id) + '</td><td class="nw">' + checkBar(s) + '</td><td class="nw" style="font-size:.8rem">' + esc(teacherName(s.manager) || '-') + '<div class="muted">' + esc(teacherName(s.counselor) || '컨설턴트 미정') + '</div></td>' +
         '<td><span class="pill s-' + esc(s.status) + '">' + esc(s.status || '-') + '</span></td></tr>';
@@ -1356,8 +1366,8 @@ function filteredStudents() {
       if (UI.counselor === 'none' && s.counselor) return false; // 컨설턴트 미정
       if (UI.counselor.indexOf('@') > 0 && String(s.counselor).toLowerCase() !== UI.counselor.toLowerCase() && String(s.manager || '').toLowerCase() !== UI.counselor.toLowerCase()) return false;
     }
-    if (UI.track && tags(s.tracks).indexOf(UI.track) < 0) return false;
-    if (UI.program && (programType(s.id) || '계약 없음') !== UI.program) return false;
+    if (UI.stWork === 'over' && !studentWork(s.id).over) return false;
+    if (UI.stWork === 'contact' && !studentWork(s.id).contacts) return false;
     if (q && [s.name, s.school, s.tags, s.tracks, s.curriculum, s.grade, s.parentName, s.fatherName, s.motherName].join(' ').toLowerCase().indexOf(q) < 0) return false;
     return true;
   }).sort(function (a, b) { return a.name.localeCompare(b.name, 'ko'); });
@@ -1377,8 +1387,8 @@ function viewStudents() {
     '<select onchange="UI.status=this.value;render()">' +
     '<option value="active"' + (UI.status === 'active' ? ' selected' : '') + '>진행 중 (완료·종료 제외)</option>' +
     '<option value="all"' + (UI.status === 'all' ? ' selected' : '') + '>전체 상태</option>' + opts(STUDENT_STATUS, UI.status) + '</select>' +
-    '<select onchange="UI.program=this.value;render()"><option value="">모든 프로그램</option>' + opts(['연간+원서', '연간만', '원서만', '계약 없음'], UI.program) + '</select>' +
-    '<select onchange="UI.track=this.value;render()"><option value="">모든 트랙</option>' + opts(TRACKS, UI.track) + '</select>' +
+    '<select onchange="UI.stWork=this.value;render()">' + [['', '모든 학생'], ['over', '할 일 밀린 학생만'], ['contact', '답 안 한 연락 있는 학생만']].map(function (o) {
+      return '<option value="' + o[0] + '"' + ((UI.stWork || '') === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select>' +
     (isMgr() ? '<select onchange="UI.counselor=this.value;render()">' +
       '<option value="all"' + (UI.counselor === 'all' ? ' selected' : '') + '>모든 담당자</option>' +
       '<option value="me"' + (UI.counselor === 'me' ? ' selected' : '') + '>내 담당</option>' +
