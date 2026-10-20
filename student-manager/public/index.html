@@ -1651,7 +1651,10 @@ function viewFollowups() {
     if (q && [s.name, f.title, f.detail, f.category, teacherName(f.assignee)].join(' ').toLowerCase().indexOf(q) < 0) return false;
     return true;
   }).sort(function (a, b) { return (a.due || '9999').localeCompare(b.due || '9999') || a.createdAt.localeCompare(b.createdAt); });
-  var h = '<div class="toolbar"><h2 style="margin:0;margin-right:auto">팔로업·연락 <span class="muted">' + list.length + '건</span></h2></div>';
+  UI.fuGroup = UI.fuGroup || 'due';
+  // 위 버튼 줄은 결과가 0건이어도 항상 보여야 다른 필터로 돌아갈 수 있음
+  var h = '<div class="toolbar"><h2 style="margin:0;margin-right:auto">팔로업·연락 <span class="muted">' + list.length + '건</span></h2>' +
+    seg([['all', '전체'], ['todo', '할 일'], ['contact', '받은 연락']], UI.fuKind, 'fuKind') + seg([['due', '기한별로 보기'], ['student', '학생별로 보기']], UI.fuGroup, 'fuGroup') + '</div>';
   h += '<div class="toolbar"><input type="text" id="q" class="grow" placeholder="학생·할 일·담당자 검색" value="' + esc(UI.fuQ || '') + '" oninput="searchInput(event,\'fuQ\')" oncompositionend="searchInput(event,\'fuQ\')">' +
     '<select onchange="UI.fuWho=this.value;render()">' + [['me', '내가 담당인 일'], ['mystudents', '내 담당 학생의 일'], ['all', '전체'], ['none', '담당자 미정']].map(function (o) {
       return '<option value="' + o[0] + '"' + (UI.fuWho === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') +
@@ -1660,9 +1663,8 @@ function viewFollowups() {
       return '<option value="' + o[0] + '"' + (UI.fuStatus === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select>' +
     '<select onchange="UI.fuDue=this.value;render()">' + [['all', '모든 기한'], ['over', '기한 지남'], ['week', '7일 이내']].map(function (o) {
       return '<option value="' + o[0] + '"' + (UI.fuDue === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></div>';
-  if (!list.length) return h + '<div class="card empty">해당하는 팔로업이 없습니다. 학생 화면의 “팔로업” 탭에서 추가할 수 있습니다.</div>';
-  UI.fuGroup = UI.fuGroup || 'due';
-  h = h.replace('</h2></div>', '</h2>' + seg([['all', '전체'], ['todo', '할 일'], ['contact', '받은 연락']], UI.fuKind, 'fuKind') + seg([['due', '기한별로 보기'], ['student', '학생별로 보기']], UI.fuGroup, 'fuGroup') + '</div>');
+  if (!list.length) return h + '<div class="card empty">' + (UI.fuKind === 'contact' ? '해당하는 받은 연락이 없습니다. 학생 화면의 “팔로업·연락” 탭에서 “📩 받은 연락 추가”로 기록할 수 있습니다.'
+    : '해당하는 팔로업이 없습니다. 학생 화면의 “팔로업·연락” 탭에서 추가할 수 있습니다.') + (UI.fuWho === 'me' ? ' <a href="javascript:void 0" onclick="UI.fuWho=\'all\';render()">전체 담당자 보기</a>' : '') + '</div>';
   if (UI.fuGroup === 'due') {
     var buckets = [['기한 지남', 'over', function (n) { return n !== null && n < 0; }], ['오늘·내일', '', function (n) { return n === 0 || n === 1; }],
       ['이번 주 (7일 이내)', '', function (n) { return n !== null && n > 1 && n <= 7; }], ['그 이후', '', function (n) { return n !== null && n > 7; }], ['기한 없음', '', function (n) { return n === null; }]];
