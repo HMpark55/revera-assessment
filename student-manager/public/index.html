@@ -1196,7 +1196,7 @@ document.addEventListener('dragend', function () {
 
 /* 위젯 내용 */
 function wStudents() {
-  var active = S.students.filter(isActive).sort(function (a, b) { return a.name.localeCompare(b.name, 'ko'); });
+  var active = S.students.filter(isActive).sort(byManager);
   return '<div class="card"><div class="sec-h"><h3>학생 현황 <span class="muted">' + active.length + '명</span></h3><a class="more-link" href="#/students">전체 →</a></div>' +
     (active.length ? '<div class="scroll-box">' + compactStudentTable(active, upcomingDeadlines()) + '</div>' : '<div class="empty">' + (isMgr() ? '등록된 학생이 없습니다.' : '배정된 담당 학생이 없습니다.') + '</div>') + '</div>';
 }
@@ -1644,10 +1644,16 @@ function filteredStudents() {
     return true;
   }).sort(function (a, b) { return a.name.localeCompare(b.name, 'ko'); });
 }
+/** 관리팀 담당자순 (담당자 이름 가나다, 미정은 맨 뒤) → 같은 담당자 안에서는 학생 이름순 */
+function byManager(a, b) {
+  var ma = teacherName(a.manager) || '\uffff', mb = teacherName(b.manager) || '\uffff';
+  return ma.localeCompare(mb, 'ko') || a.name.localeCompare(b.name, 'ko');
+}
 function viewStudents() {
   var list = filteredStudents();
-  UI.stSort = UI.stSort || 'name';
-  if (UI.stSort !== 'name') {
+  UI.stSort = UI.stSort || 'manager';
+  if (UI.stSort === 'manager') list.sort(byManager);
+  else if (UI.stSort !== 'name') {
     var dl0 = upcomingDeadlines(), nextOf = {};
     dl0.forEach(function (i) { if (!nextOf[i.studentId]) nextOf[i.studentId] = i.date; });
     list.sort(UI.stSort === 'deadline' ? function (a, b) { return (nextOf[a.id] || '9999').localeCompare(nextOf[b.id] || '9999'); }
@@ -1666,7 +1672,7 @@ function viewStudents() {
       '<option value="me"' + (UI.counselor === 'me' ? ' selected' : '') + '>내 담당</option>' +
       '<option value="none"' + (UI.counselor === 'none' ? ' selected' : '') + '>컨설턴트 미정</option>' +
       S.teachers.map(function (t) { return '<option value="' + esc(t.email) + '"' + (UI.counselor === t.email ? ' selected' : '') + '>' + esc(t.name) + '</option>'; }).join('') +
-      '</select>' : '') + '<select onchange="UI.stSort=this.value;render()" title="정렬">' + [['name', '이름순'], ['deadline', '마감 임박순'], ['meeting', '미팅 오래된 순']].map(function (o) {
+      '</select>' : '') + '<select onchange="UI.stSort=this.value;render()" title="정렬">' + [['manager', '관리팀 담당순'], ['name', '이름순'], ['deadline', '마감 임박순'], ['meeting', '미팅 오래된 순']].map(function (o) {
         return '<option value="' + o[0] + '"' + (UI.stSort === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></div>';
   if (!list.length) return h + '<div class="card empty">' + (S.students.length ? '조건에 맞는 학생이 없습니다.' : isMgr() ? '등록된 학생이 없습니다. “+ 학생 등록”으로 시작하세요.' : '배정된 담당 학생이 없습니다.') + '</div>';
   return h + '<div class="card tbl-wrap">' + studentTable(list, upcomingDeadlines()) + '</div>';
