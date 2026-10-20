@@ -76,7 +76,8 @@ const TABLES = {
   },
   followups: {
     label: '팔로업',
-    fields: ['studentId', 'title', 'detail', 'category', 'assignee', 'due', 'status', 'reply', 'replyDate', 'replyFrom', 'meetingId', 'noteId'],
+    fields: ['studentId', 'title', 'detail', 'category', 'assignee', 'due', 'status', 'reply', 'replyDate', 'replyFrom', 'meetingId', 'noteId',
+      'kind', 'fromWho', 'channel', 'receivedDate', 'answer', 'answerDate'],
     summary: (r) => [r.title, r.status].filter(Boolean).join(' · '),
   },
   majorplans: {
@@ -117,6 +118,10 @@ const TABLES = {
 };
 const CURRENCIES = ['RMB', 'KRW'];
 const FOLLOWUP_STATUS = ['할 일', '진행 중', '대기', '완료'];
+/** 팔로업 종류: '' = 우리가 챙길 할 일, 'contact' = 학생·학부모에게 받은 연락(질문·확인 요청) */
+const FOLLOWUP_KINDS = ['', 'contact'];
+const CONTACT_FROM = ['학생', '어머니', '아버지', '학부모', '학교', '기타'];
+const CONTACT_CHANNELS = ['위챗', '문자', '이메일', '전화', '대면', '기타'];
 const MAJOR_STATUS = ['후보', '유력', '최종', '제외'];
 const MEETING_STATUS = ['예정', '완료', '취소'];
 const COURSE_TERMS = ['1년(2학기)', '1학기만', '2학기만', 'Trimester'];
@@ -183,7 +188,7 @@ const FIELD_LABELS = {
   year: '입학 연도', term: '입학 학기', requirements: '공식 지원 요건', sourceUrl: '출처', faculty: '단과대',
   code: '코드', cycleId: '입학 연도',
   hopeUnis: '희망 대학·특례', focusArea: '집중 과목·관리 영역', recommenders: '추천서 진행', onlineCourse: '온라인 코스 진행',
-  meetingUrl: '미팅 회의록 링크', reply: '학생·학부모 답변', replyDate: '답변 날짜', replyFrom: '답변한 사람',
+  meetingUrl: '미팅 회의록 링크', reply: '학생·학부모 답변', replyDate: '답변 날짜', replyFrom: '답변한 사람', kind: '종류', fromWho: '보낸 사람', channel: '연락 경로', receivedDate: '받은 날짜', answer: '우리 답변·처리', answerDate: '우리 답변 날짜',
   site: '사이트', loginId: '아이디', password: '비밀번호',
   parentNote: '부모님 전달·대화 내용', writer: '작성자', topic: '안건', nextStep: '다음 계획', needsReview: '확인 필요',
   field: '계열', source: '제안·계기', reason: '이유', parentConfirmed: '부모님 확정', parentConfirmedAt: '부모님 확정일',
@@ -309,7 +314,7 @@ function migrate(db) {
   db.exec('CREATE INDEX IF NOT EXISTS unicycles_uni ON unicycles(universityId)');
   db.exec('CREATE INDEX IF NOT EXISTS unirounds_uni ON unirounds(universityId)');
   db.exec('CREATE INDEX IF NOT EXISTS unimajors_uni ON unimajors(universityId)');
-  ensureColumns(db, 'files', ['mime', 'size', 'storedName', 'docId', 'meetingId']);
+  ensureColumns(db, 'files', ['mime', 'size', 'storedName', 'docId', 'meetingId', 'followupId']);
   ensureColumns(db, 'docs', ['receivedAt', 'receivedBy']);
   ensureColumns(db, 'contracts', ['paid']); // 이전 버전 열 (새 버전은 입금 기록으로 계산)
   db.exec('CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
@@ -446,7 +451,7 @@ function openStore(dbPath, opts) {
   opts = opts || {};
   const db = new Database(dbPath);
   migrate(db);
-  const filesDir = opts.filesDir || path.join(path.dirname(dbPath), 'files');
+  const filesDir = path.resolve(opts.filesDir || path.join(path.dirname(dbPath), 'files')); // 파일 보내기(sendFile)는 절대 경로가 필요
   fs.mkdirSync(filesDir, { recursive: true });
 
   const tx = (fn) => db.transaction(fn)();
@@ -614,6 +619,10 @@ function openStore(dbPath, opts) {
       need('title', '할 일을 입력하세요.');
       if (v('status') && !FOLLOWUP_STATUS.includes(v('status'))) throw new UserError('상태가 올바르지 않습니다.');
       if (v('due') && !/^\d{4}-\d{2}-\d{2}$/.test(v('due'))) throw new UserError('기한 형식이 올바르지 않습니다.');
+      if (!FOLLOWUP_KINDS.includes(v('kind') || '')) throw new UserError('종류가 올바르지 않습니다.');
+      if (v('fromWho') && !CONTACT_FROM.includes(v('fromWho'))) throw new UserError('보낸 사람이 올바르지 않습니다.');
+      if (v('channel') && !CONTACT_CHANNELS.includes(v('channel'))) throw new UserError('연락 경로가 올바르지 않습니다.');
+      for (const k of ['receivedDate', 'answerDate']) if (v(k) && !DATE_RE.test(v(k))) throw new UserError('날짜 형식이 올바르지 않습니다.');
     }
     if (table === 'meetings') {
       need('date', '미팅 날짜를 입력하세요.');
@@ -1410,7 +1419,11 @@ function openStore(dbPath, opts) {
   }
   /** 파일 1개 저장 + 기록 (트랜잭션 안에서 호출, 저장한 경로는 stored 에 추가) */
   function storeFile(me, s, info, stored) {
-    let doc = null, meeting = null;
+    let doc = null, meeting = null, fu = null;
+    if (info.followupId) {
+      fu = getRow('followups', info.followupId);
+      if (!fu || fu.deletedAt || fu.studentId !== s.id) throw new UserError('팔로업을 찾을 수 없습니다. 새로고침 해주세요.', 404);
+    }
     if (info.docId) {
       doc = getRow('docs', info.docId);
       if (!doc || doc.deletedAt || doc.studentId !== s.id) throw new UserError('서류 항목을 찾을 수 없습니다. 새로고침 해주세요.', 404);
@@ -1430,8 +1443,8 @@ function openStore(dbPath, opts) {
     fs.writeFileSync(path.join(filesDir, storedName), info.buffer);
     stored.push(path.join(filesDir, storedName));
     const t = now();
-    const rec = { id, studentId: s.id, category: doc ? '서류' : meeting ? '미팅' : (clean(info.category) || '성적표'), name, memo: clean(info.memo || ''), mime: type,
-      size: String(info.buffer.length), storedName, docId: doc ? doc.id : '', meetingId: meeting ? meeting.id : '',
+    const rec = { id, studentId: s.id, category: doc ? '서류' : meeting ? '미팅' : fu ? '연락' : (clean(info.category) || '성적표'), name, memo: clean(info.memo || ''), mime: type,
+      size: String(info.buffer.length), storedName, docId: doc ? doc.id : '', meetingId: meeting ? meeting.id : '', followupId: fu ? fu.id : '',
       createdAt: t, createdBy: me.email, updatedAt: t, updatedBy: me.email };
     const keys = Object.keys(rec);
     db.prepare(`INSERT INTO files (${keys.join(', ')}) VALUES (${keys.map((k) => '@' + k).join(', ')})`).run(rec);
@@ -1440,7 +1453,7 @@ function openStore(dbPath, opts) {
       db.prepare("UPDATE docs SET status = '수합 완료', receivedAt = ?, receivedBy = ?, updatedAt = ?, updatedBy = ? WHERE id = ?")
         .run(t, me.email, t, me.email, doc.id);
     }
-    log(me.email, 'upload', 'files', id, s.name + ' · ' + (doc ? doc.name + ' · ' : meeting ? '미팅 ' + meeting.date + ' · ' : '') + name);
+    log(me.email, 'upload', 'files', id, s.name + ' · ' + (doc ? doc.name + ' · ' : meeting ? '미팅 ' + meeting.date + ' · ' : fu ? '연락 ' + fu.title.slice(0, 30) + ' · ' : '') + name);
     return rec;
   }
 
