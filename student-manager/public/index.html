@@ -255,8 +255,15 @@
   .wg > .wbody > .card { height:100%; margin:0; box-sizing:border-box; display:flex; flex-direction:column; overflow:hidden; }
   .wg .scroll-box, .wg .today-list, .wg .cals { flex:1 1 auto; min-height:0; max-height:none; overflow:auto; }
   .wg.narrow .cals { grid-template-columns:1fr; }
+  .wg .sec-h h3, .wg .cal-h h3 { font-size:1.05rem; }
+  .wg.ts-l .sec-h h3, .wg.ts-l .cal-h h3 { font-size:1.25rem; }
+  .wg.ts-xl .sec-h h3, .wg.ts-xl .cal-h h3 { font-size:1.5rem; }
+  .wg.ctc .sec-h h3, .wg.ctc .cal-h h3 { color:var(--wtc); }
+  .wg.cbg > .wbody > .card { background:var(--wbg); }
+  .wg.gap > .wbody > .gapcard { background:transparent; border:2px dashed #c8cfdc; color:#9aa3b5; display:flex; align-items:center; justify-content:center; }
   @media (max-width:1500px) { .wgrid { --cols:3; } }
   @media (max-width:1100px) { .wgrid { --cols:2; } }
+  @media (max-width:720px) { .wgrid:not(.editing) .wg.gap { display:none; } }
   @media (max-width:720px) { .wgrid { --cols:1; grid-auto-rows:auto; } .wg { grid-row:auto; } .wg > .wbody > .card { height:auto; }
     .wg .scroll-box, .wg .today-list { max-height:360px; } }
   .wgrid.editing .wg { border:2px dashed #b9c3d9; border-radius:12px; padding:6px; background:#f8faff; }
@@ -1121,12 +1128,41 @@ function homeLayout(src) {
   var base = src || S.me.homeLayout || S.homeDefault || builtinLayout(), seen = {}, out = [];
   base.forEach(function (x) {
     var w = widgetById(x.id); if (!w || seen[x.id]) return;
-    seen[x.id] = 1; out.push({ id: x.id, s: w.sizes.indexOf(x.s) >= 0 ? x.s : w.sizes[0], hide: !!x.hide });
+    seen[x.id] = 1; out.push({ id: x.id, s: w.sizes.indexOf(x.s) >= 0 ? x.s : w.sizes[0], hide: !!x.hide, ts: x.ts || '', tc: x.tc || '', bg: x.bg || '' });
   });
   WIDGETS.forEach(function (w) { if (!seen[w.id]) out.push({ id: w.id, s: w.sizes[0], hide: true }); });
   return out;
 }
-function widgetById(id) { return WIDGETS.filter(function (w) { return w.id === id; })[0]; }
+/** 빈칸: 원하는 자리를 비워두는 투명한 칸 (gap1, gap2 … 여러 개 가능) */
+var GAP_WIDGET = { title: '빈칸', gap: true, sizes: ['1x1', '1x2', '1x3', '2x1', '2x2', '3x1', '4x1'] };
+function widgetById(id) { return /^gap\d+$/.test(id) ? GAP_WIDGET : WIDGETS.filter(function (w) { return w.id === id; })[0]; }
+/** 위젯 꾸미기: 제목 크기·제목 색·배경색 */
+var TITLE_COLORS = [['#0b1b45', '남색'], ['#c0392b', '빨강'], ['#d35400', '주황'], ['#9a7d0a', '겨자'], ['#1e8449', '초록'], ['#1f618d', '파랑'], ['#6c3483', '보라'], ['#222222', '검정']];
+var TITLE_SIZES = [['', '보통'], ['l', '크게'], ['xl', '아주 크게']];
+function openWidgetStyle(id) {
+  var x = UI.homeEdit.filter(function (y) { return y.id === id; })[0], w = widgetById(id); if (!x) return;
+  var sw = function (name, list, cur, none) {
+    return '<div class="swatches">' + [['', none]].concat(list).map(function (c) {
+      return '<label title="' + esc(c[1]) + '"><input type="radio" name="' + name + '" value="' + c[0] + '"' + ((cur || '') === c[0] ? ' checked' : '') + '><span style="background:' + (c[0] && name === 'bg' ? c[0] : '#fff') + ';' + (name === 'tc' && c[0] ? 'color:' + c[0] + ';font-weight:700;font-size:.85rem' : '') + '">' + (c[0] ? (name === 'tc' ? '가' : '') : none) + '</span></label>';
+    }).join('') + '</div>';
+  };
+  modal('위젯 꾸미기 — ' + w.title,
+    '<div class="full"><label>제목 크기</label><div class="multi">' + TITLE_SIZES.map(function (z) { return '<label><input type="radio" name="ts" value="' + z[0] + '"' + ((x.ts || '') === z[0] ? ' checked' : '') + '> ' + z[1] + '</label>'; }).join('') + '</div></div>' +
+    '<div class="full"><label>제목 색</label>' + sw('tc', TITLE_COLORS, x.tc, '기본') + '</div>' +
+    '<div class="full"><label>배경색</label>' + sw('bg', TEACHER_COLORS, x.bg, '흰색') + '</div>' +
+    '<div class="full muted">[저장]을 눌러야 메인 화면에 남습니다.</div>',
+    '<button class="btn ghost" onclick="closeModal()">취소</button><button class="btn" onclick="applyWidgetStyle(' + js(id) + ')">적용</button>');
+}
+function applyWidgetStyle(id) {
+  var o = formData($('mf')), x = UI.homeEdit.filter(function (y) { return y.id === id; })[0];
+  x.ts = o.ts || ''; x.tc = o.tc || ''; x.bg = o.bg || '';
+  closeModal(true); render();
+}
+function homeEditAddGap() {
+  var n = 1; while (UI.homeEdit.some(function (x) { return x.id === 'gap' + n; })) n++;
+  UI.homeEdit.unshift({ id: 'gap' + n, s: '1x1', hide: false }); render(); // 맨 앞에 넣고 끌어서 원하는 자리로
+}
+function homeEditRemove(id) { UI.homeEdit = UI.homeEdit.filter(function (x) { return x.id !== id; }); render(); }
 function homeWidgets() {
   var ed = UI.homeEdit, lay = (ed || homeLayout()).filter(function (x) { return widgetOk(widgetById(x.id)); });
   UI._nodueWidget = lay.some(function (x) { return x.id === 'nodue' && !x.hide; });
@@ -1137,22 +1173,26 @@ function homeWidgets() {
       '<button class="btn ghost sm" onclick="homeEditReset()">기본 배치로 되돌리기</button>' +
       (isAdmin() ? '<button class="btn ghost sm" onclick="homeEditSave(true)" title="새 선생님과 ‘기본 배치로 되돌리기’를 누른 선생님에게 이 배치가 보입니다">모두의 기본 배치로 저장</button>' : '') +
       '<button class="btn ghost sm" onclick="UI.homeEdit=null;render()">취소</button><button class="btn sm" onclick="homeEditSave()">저장</button></span></div>' +
-      '<div class="muted" style="font-size:.85rem">⋮⋮ 를 끌어서 위치를 바꾸고, 카드마다 크기(가로 칸 × 세로 칸)를 고르거나 숨기세요. 화면 폭에 따라 가로 4·3·2칸(스마트폰은 1칸)으로 바뀌고, 빈칸은 뒤의 작은 위젯이 채웁니다. 저장하면 내 계정에만 적용됩니다.</div>' +
-      '<div class="wadd"><b>+ 위젯 추가</b> ' + (hidden.length ? hidden.map(function (x) {
+      '<div class="muted" style="font-size:.85rem">⋮⋮ 를 끌어서 위치를 바꾸고, 카드마다 크기(가로 칸 × 세로 칸)·🎨 꾸미기(제목 크기·색, 배경색)를 고르거나 숨기세요. 비워두고 싶은 자리에는 <b>+ 빈칸</b>을 넣어 끌어다 놓으면 됩니다(빈칸이 없으면 뒤의 작은 위젯이 앞을 채움). 화면 폭에 따라 가로 4·3·2칸(스마트폰은 1칸, 빈칸은 숨김)으로 바뀝니다. 저장하면 내 계정에만 적용됩니다.</div>' +
+      '<div class="wadd"><button class="btn ghost sm" onclick="homeEditAddGap()" title="맨 앞에 빈칸이 생깁니다. 끌어서 원하는 자리로 옮기세요">+ 빈칸</button><b>+ 위젯 추가</b> ' + (hidden.length ? hidden.map(function (x) {
         return '<button class="btn ghost sm" onclick="homeEditSet(' + js(x.id) + ',\'hide\',false,true)">+ ' + esc(widgetById(x.id).title) + '</button>'; }).join('') : '<span class="muted">숨긴 위젯이 없습니다.</span>') + '</div></div>';
   }
   h += '<div class="wgrid' + (ed ? ' editing' : '') + '" id="wgrid">';
   lay.forEach(function (x) {
     if (x.hide) return;
     var w = widgetById(x.id), body;
-    try { body = w.render(); } catch (e) { body = '<div class="card empty">' + esc(w.title) + ' 을(를) 표시할 수 없습니다.</div>'; }
+    if (w.gap) body = ed ? '<div class="card gapcard">빈칸</div>' : '';
+    else { try { body = w.render(); } catch (e) { body = '<div class="card empty">' + esc(w.title) + ' 을(를) 표시할 수 없습니다.</div>'; } }
     var cr = x.s.split('x');
-    h += '<div class="wg' + (Number(cr[0]) <= 2 ? ' narrow' : '') + '" style="--c:' + cr[0] + ';--r:' + cr[1] + '" data-wid="' + x.id + '"' + (ed ? ' draggable="true"' : '') + '>';
+    var st = '--c:' + cr[0] + ';--r:' + cr[1] + (x.bg ? ';--wbg:' + x.bg : '') + (x.tc ? ';--wtc:' + x.tc : '');
+    h += '<div class="wg' + (Number(cr[0]) <= 2 ? ' narrow' : '') + (w.gap ? ' gap' : '') + (x.bg ? ' cbg' : '') + (x.tc ? ' ctc' : '') + (x.ts ? ' ts-' + x.ts : '') + '" style="' + st + '" data-wid="' + x.id + '"' + (ed ? ' draggable="true"' : '') + '>';
     if (ed) {
       h += '<div class="wbar"><span class="grip" title="끌어서 위치 바꾸기">⋮⋮</span><b>' + esc(w.title) + '</b><span class="grow"></span>' +
         '<span class="seg" title="크기 (가로 칸 × 세로 칸)">' + w.sizes.map(function (z) {
           return '<a class="' + (x.s === z ? 'on' : '') + '" onclick="homeEditSet(' + js(x.id) + ',\'s\',' + js(z) + ')">' + z.replace('x', '×') + '</a>'; }).join('') + '</span>' +
-        '<button class="btn ghost sm" onclick="homeEditSet(' + js(x.id) + ',\'hide\',true)" title="숨기기 (위젯 추가에서 다시 꺼낼 수 있음)">숨기기</button></div>';
+        (w.gap ? '<button class="btn ghost sm" onclick="homeEditRemove(' + js(x.id) + ')">빼기</button>' :
+          '<button class="btn ghost sm" onclick="openWidgetStyle(' + js(x.id) + ')" title="제목 크기·색, 배경색">🎨</button>' +
+          '<button class="btn ghost sm" onclick="homeEditSet(' + js(x.id) + ',\'hide\',true)" title="숨기기 (위젯 추가에서 다시 꺼낼 수 있음)">숨기기</button>') + '</div>';
     }
     h += '<div class="wbody">' + body + '</div></div>';
   });
@@ -1170,7 +1210,7 @@ function homeEditReset() {
   mutate('saveHomeLayout', { layout: null }, '기본 배치로 되돌렸습니다.').then(function (d) { if (d) { UI.homeEdit = null; render(); } });
 }
 function homeEditSave(asDefault) {
-  var lay = UI.homeEdit.map(function (x) { return { id: x.id, s: x.s, hide: x.hide }; });
+  var lay = UI.homeEdit.map(function (x) { return { id: x.id, s: x.s, hide: x.hide, ts: x.ts || '', tc: x.tc || '', bg: x.bg || '' }; });
   if (asDefault && !confirm('이 배치를 모두의 기본 배치로 저장할까요?\n배치를 직접 바꾼 적 없는 선생님과 새 선생님에게 이 배치가 보입니다. (내 배치도 이것으로 저장)')) return;
   var p = asDefault ? api('saveHomeLayout', { layout: lay, asDefault: true }).then(function () { return api('saveHomeLayout', { layout: null }); }) : api('saveHomeLayout', { layout: lay });
   p.then(function (d) { UI.homeEdit = null; load(d); toast(asDefault ? '모두의 기본 배치로 저장했습니다.' : '내 화면 배치를 저장했습니다.'); }).catch(function (e) { toast(errMsg(e), true); });

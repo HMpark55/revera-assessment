@@ -1256,7 +1256,10 @@ test('메인 화면 배치: 계정별 저장, 관리자 기본 배치, 형식 �
   assert.strictEqual(d.me.homeLayout, null);
   const mine = [{ id: 'contacts', s: '2x3' }, { id: 'today', s: '9x9', hide: 0 }, { id: 'calendar', s: '<b>', hide: true }];
   d = await con.ok('saveHomeLayout', { layout: mine });
-  assert.deepStrictEqual(d.me.homeLayout, [{ id: 'contacts', s: '2x3', hide: false }, { id: 'today', s: '', hide: false }, { id: 'calendar', s: '', hide: true }]);
+  assert.deepStrictEqual(d.me.homeLayout, [{ id: 'contacts', s: '2x3', hide: false, ts: '', tc: '', bg: '' }, { id: 'today', s: '', hide: false, ts: '', tc: '', bg: '' }, { id: 'calendar', s: '', hide: true, ts: '', tc: '', bg: '' }]);
+  d = await con.ok('saveHomeLayout', { layout: [{ id: 'gap1', s: '1x1' }, { id: 'today', s: '2x2', ts: 'xl', tc: '#C0392B', bg: 'red' }] });
+  assert.deepStrictEqual(d.me.homeLayout[1], { id: 'today', s: '2x2', hide: false, ts: 'xl', tc: '#c0392b', bg: '' });
+  assert.strictEqual(d.me.homeLayout[0].id, 'gap1');
   assert.strictEqual((await con.rpc('saveHomeLayout', { layout: [{ id: 'a' }, { id: 'a' }] })).status, 400, '중복');
   assert.strictEqual((await con.rpc('saveHomeLayout', { layout: [{ id: '<script>' }] })).status, 400);
   assert.strictEqual((await con.rpc('saveHomeLayout', { layout: [], asDefault: true })).status, 403, '기본 배치는 관리자만');
@@ -1264,7 +1267,7 @@ test('메인 화면 배치: 계정별 저장, 관리자 기본 배치, 형식 �
   await admin.ok('saveHomeLayout', { layout: [{ id: 'today', s: '4x2' }, { id: 'review', s: '1x2' }], asDefault: true });
   d = await con.ok('getAll');
   assert.strictEqual(d.homeDefault[1].id, 'review');
-  assert.strictEqual(d.me.homeLayout[0].id, 'contacts');
+  assert.strictEqual(d.me.homeLayout[0].id, 'gap1');
   d = await con.ok('saveHomeLayout', { layout: null });
   assert.strictEqual(d.me.homeLayout, null, '되돌리기 → 기본 배치를 따름');
   await admin.ok('saveHomeLayout', { layout: null, asDefault: true });

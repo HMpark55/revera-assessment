@@ -1324,15 +1324,16 @@ function openStore(dbPath, opts) {
 
   /* ----- 메인 화면 배치 (계정별, 관리자는 모두의 기본 배치) ----- */
   function parseLayout(v) { try { const x = JSON.parse(v || 'null'); return Array.isArray(x) ? x : null; } catch (e) { return null; } }
-  /** [{ id, s: '가로칸x세로칸'(예: 2x3), hide }] 만 받음 */
+  /** [{ id, s: '가로칸x세로칸'(예: 2x3), hide, ts: 제목 크기 ''|'l'|'xl', tc: 제목 색, bg: 배경색 }] 만 받음. 빈칸은 id 가 gap1, gap2 … */
   function cleanLayout(list) {
     if (!Array.isArray(list) || list.length > 40) throw new UserError('화면 배치 형식이 올바르지 않습니다.');
     const seen = new Set();
     return list.map((x) => {
       const id = String(x && x.id || '');
-      if (!/^[a-z]{1,30}$/.test(id) || seen.has(id)) throw new UserError('화면 배치 형식이 올바르지 않습니다.');
+      if (!/^[a-z][a-z0-9]{0,29}$/.test(id) || seen.has(id)) throw new UserError('화면 배치 형식이 올바르지 않습니다.');
       seen.add(id);
-      return { id, s: /^[1-4]x[1-6]$/.test(String(x.s)) ? String(x.s) : '', hide: !!x.hide };
+      const hex = (v) => (/^#[0-9a-f]{6}$/i.test(String(v || '')) ? String(v).toLowerCase() : '');
+      return { id, s: /^[1-4]x[1-6]$/.test(String(x.s)) ? String(x.s) : '', hide: !!x.hide, ts: ['l', 'xl'].includes(x.ts) ? x.ts : '', tc: hex(x.tc), bg: hex(x.bg) };
     });
   }
   function saveHomeLayout(me, arg) {
