@@ -197,12 +197,12 @@ function createApp(store, opts) {
     next(err);
   });
 
-  // 관리자: 백업 다운로드 (ZIP = DB 파일 + 업로드한 파일 전체 + 파일 목록)
+  // 관리자: 백업 다운로드 (ZIP = DB 파일 + 업로드한 파일 전체 + 파일 목록, ?mode=db 면 파일 제외)
   app.get('/api/backup', requireLogin, async (req, res) => {
     if (req.me.role !== 'admin') return res.status(403).json({ error: '관리자만 백업할 수 있습니다.' });
     let z;
     try {
-      z = await automation.buildBackupZip(store);
+      z = await automation.buildBackupZip(store, req.query.mode !== 'db');
       res.download(z.path, z.name, z.cleanup);
     } catch (e) {
       if (z) z.cleanup();
@@ -230,6 +230,7 @@ function createApp(store, opts) {
         store.recordRun('backup', '성공(수동) · ' + r.name + ' (' + Math.round(r.size / 1024) + 'KB)');
         return res.json(r);
       }
+      if (a === 'filesync') return res.json(await automation.runFileSync(store, f, true));
       if (a === 'testmail') return res.json(await automation.sendTestMail(store, req.me.email, f));
       if (a === 'preview') return res.json({ digests: automation.buildDigests(store).map((m) => ({ to: m.to, name: m.name, subject: m.subject, html: m.html, counts: m.counts })) });
       if (a === 'digest') {
