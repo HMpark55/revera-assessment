@@ -1256,7 +1256,10 @@ test('메인 화면 배치: 계정별 저장, 관리자 기본 배치, 형식 �
   assert.strictEqual(d.me.homeLayout, null);
   const mine = [{ id: 'contacts', s: '2x3' }, { id: 'today', s: '9x9', hide: 0 }, { id: 'calendar', s: '<b>', hide: true }];
   d = await con.ok('saveHomeLayout', { layout: mine });
-  assert.deepStrictEqual(d.me.homeLayout, [{ id: 'contacts', s: '2x3', hide: false }, { id: 'today', s: '', hide: false }, { id: 'calendar', s: '', hide: true }]);
+  assert.deepStrictEqual(d.me.homeLayout, [{ id: 'contacts', s: '2x3', hide: false, ts: '', tc: '', bg: '' }, { id: 'today', s: '', hide: false, ts: '', tc: '', bg: '' }, { id: 'calendar', s: '', hide: true, ts: '', tc: '', bg: '' }]);
+  d = await con.ok('saveHomeLayout', { layout: [{ id: 'gap1', s: '1x1' }, { id: 'today', s: '2x2', ts: 'xl', tc: '#C0392B', bg: 'red' }] });
+  assert.deepStrictEqual(d.me.homeLayout[1], { id: 'today', s: '2x2', hide: false, ts: 'xl', tc: '#c0392b', bg: '' });
+  assert.strictEqual(d.me.homeLayout[0].id, 'gap1');
   assert.strictEqual((await con.rpc('saveHomeLayout', { layout: [{ id: 'a' }, { id: 'a' }] })).status, 400, '중복');
   assert.strictEqual((await con.rpc('saveHomeLayout', { layout: [{ id: '<script>' }] })).status, 400);
   assert.strictEqual((await con.rpc('saveHomeLayout', { layout: [], asDefault: true })).status, 403, '기본 배치는 관리자만');
@@ -1264,7 +1267,7 @@ test('메인 화면 배치: 계정별 저장, 관리자 기본 배치, 형식 �
   await admin.ok('saveHomeLayout', { layout: [{ id: 'today', s: '4x2' }, { id: 'review', s: '1x2' }], asDefault: true });
   d = await con.ok('getAll');
   assert.strictEqual(d.homeDefault[1].id, 'review');
-  assert.strictEqual(d.me.homeLayout[0].id, 'contacts');
+  assert.strictEqual(d.me.homeLayout[0].id, 'gap1');
   d = await con.ok('saveHomeLayout', { layout: null });
   assert.strictEqual(d.me.homeLayout, null, '되돌리기 → 기본 배치를 따름');
   await admin.ok('saveHomeLayout', { layout: null, asDefault: true });
@@ -1329,4 +1332,17 @@ test('확인 요청: 저장하면서 요청, 받은 사람만 확인, 보낸 사
   d = await con.saveOk('meetings', { studentId: sid, date: '2026-10-20', content: '미팅' });
   d = await con.ok('requestReview', { refTable: 'meetings', refId: d.savedId, to: ['rv-staff@revera.test'] });
   assert.strictEqual((await con.rpc('requestReview', { refTable: 'notes', refId: nid, to: ['rv-staff@revera.test'] })).status, 403);
+});
+
+test('선생님 색: 저장·형식 검사, 모두에게 보임', async () => {
+  const admin = client();
+  await admin.login('admin@revera.test', 'admin-pass-1');
+  let d = await admin.ok('saveTeacher', { email: 'color1@revera.test', name: '색관리', role: 'staff', password: '123456', color: '#FFFF00' });
+  assert.strictEqual(d.teachers.find((t) => t.email === 'color1@revera.test').color, '#ffff00');
+  assert.strictEqual((await admin.rpc('saveTeacher', { email: 'color1@revera.test', color: 'red;background:url(x)' })).status, 400);
+  d = await admin.ok('saveTeacher', { email: 'color1@revera.test', name: '색관리', role: 'staff', color: '' });
+  assert.strictEqual(d.teachers.find((t) => t.email === 'color1@revera.test').color, '');
+  await admin.ok('saveTeacher', { email: 'color1@revera.test', name: '색관리', role: 'staff', color: '#cfe2f3' });
+  const c = client(); await c.login('color1@revera.test', '123456');
+  assert.strictEqual((await c.ok('getAll')).teachers.find((t) => t.email === 'color1@revera.test').color, '#cfe2f3');
 });

@@ -319,7 +319,9 @@ function migrate(db) {
   ensureColumns(db, 'contracts', ['paid']); // 이전 버전 열 (새 버전은 입금 기록으로 계산)
   db.exec('CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
   ensureColumns(db, 'teachers', ['notify']); // '' = 이메일 알림 받음, 'off' = 안 받음
-  ensureColumns(db, 'teachers', ['homeLayout']); // 메인 화면 배치(JSON). '' = 관리자가 정한 기본 배치
+  ensureColumns(db, 'teachers', ['homeLayout']);
+  ensureColumns(db, 'teachers', ['color']);
+  ensureColumns(db, 'teachers', ['sortOrder']); // 계정 관리에서 끌어서 정한 순서 (학생 목록 관리팀 담당순) // 관리팀 색 (학생 목록 줄 배경). '' = 없음 // 메인 화면 배치(JSON). '' = 관리자가 정한 기본 배치
   // v10: 팔로업 요청(휴무 등으로 다른 선생님에게 부탁), 대학 자료 파일
   ensureColumns(db, 'followups', ['requestedBy', 'requestedAt', 'requestNote']);
   db.exec('CREATE TABLE IF NOT EXISTS unifiles (id TEXT PRIMARY KEY)');
@@ -569,8 +571,8 @@ function openStore(dbPath, opts) {
       me: { email: me.email, name: me.name, role: me.role, mustChangePassword: !!me.mustChangePassword,
         homeLayout: parseLayout((db.prepare('SELECT homeLayout FROM teachers WHERE email = ?').get(me.email) || {}).homeLayout) },
       homeDefault: parseLayout(getMeta('homeLayoutDefault')),
-      teachers: db.prepare('SELECT email, name, role, active, notify FROM teachers ORDER BY name').all()
-        .map((t) => ({ email: t.email, name: t.name, role: t.role, active: !!t.active, notify: t.notify !== 'off' })),
+      teachers: db.prepare("SELECT email, name, role, active, notify, color, sortOrder FROM teachers ORDER BY CASE WHEN sortOrder = '' OR sortOrder IS NULL THEN 1 ELSE 0 END, CAST(sortOrder AS INTEGER), name").all()
+        .map((t) => ({ email: t.email, name: t.name, role: t.role, active: !!t.active, notify: t.notify !== 'off', color: t.color || '', sortOrder: Number(t.sortOrder) || 0 })),
       students,
       serverTime: now(),
     };
@@ -1200,7 +1202,11 @@ function openStore(dbPath, opts) {
     const ids = (arg && arg.ids) || [];
     if (!Array.isArray(ids) || !ids.length || ids.length > 1000) throw new UserError('순서를 저장할 항목이 없습니다.');
     const t = now();
-    if (arg.kind === 'universities') {
+    if (arg.kind === 'teachers') {
+      requireAdmin(me, '계정 순서 변경');
+      tx(() => ids.forEach((email, i) => db.prepare('UPDATE teachers SET sortOrder = ? WHERE email = ?').run(String(i + 1), lower(email))));
+      log(me.email, 'update', 'teachers', '', '계정 순서 변경');
+    } else if (arg.kind === 'universities') {
       requireAdmin(me, '대학 순서 변경');
       tx(() => ids.forEach((id, i) => db.prepare('UPDATE universities SET sortOrder = ?, updatedAt = ?, updatedBy = ? WHERE id = ?').run(String(i + 1), t, me.email, String(id))));
       log(me.email, 'update', 'universities', '', '대학 순서 변경 (' + ids.length + '곳)');
@@ -1318,15 +1324,16 @@ function openStore(dbPath, opts) {
 
   /* ----- 메인 화면 배치 (계정별, 관리자는 모두의 기본 배치) ----- */
   function parseLayout(v) { try { const x = JSON.parse(v || 'null'); return Array.isArray(x) ? x : null; } catch (e) { return null; } }
-  /** [{ id, s: '가로칸x세로칸'(예: 2x3), hide }] 만 받음 */
+  /** [{ id, s: '가로칸x세로칸'(예: 2x3), hide, ts: 제목 크기 ''|'l'|'xl', tc: 제목 색, bg: 배경색 }] 만 받음. 빈칸은 id 가 gap1, gap2 … */
   function cleanLayout(list) {
     if (!Array.isArray(list) || list.length > 40) throw new UserError('화면 배치 형식이 올바르지 않습니다.');
     const seen = new Set();
     return list.map((x) => {
       const id = String(x && x.id || '');
-      if (!/^[a-z]{1,30}$/.test(id) || seen.has(id)) throw new UserError('화면 배치 형식이 올바르지 않습니다.');
+      if (!/^[a-z][a-z0-9]{0,29}$/.test(id) || seen.has(id)) throw new UserError('화면 배치 형식이 올바르지 않습니다.');
       seen.add(id);
-      return { id, s: /^[1-4]x[1-6]$/.test(String(x.s)) ? String(x.s) : '', hide: !!x.hide };
+      const hex = (v) => (/^#[0-9a-f]{6}$/i.test(String(v || '')) ? String(v).toLowerCase() : '');
+      return { id, s: /^[1-4]x[1-6]$/.test(String(x.s)) ? String(x.s) : '', hide: !!x.hide, ts: ['l', 'xl'].includes(x.ts) ? x.ts : '', tc: hex(x.tc), bg: hex(x.bg) };
     });
   }
   function saveHomeLayout(me, arg) {
@@ -1698,6 +1705,8 @@ function openStore(dbPath, opts) {
     if (email === me.email && (role !== 'admin' || !active)) throw new UserError('본인의 관리자 권한은 해제할 수 없습니다.');
     const password = obj.password ? String(obj.password) : '';
     if (password) checkPasswordRule(password);
+    const color = String(obj.color || '').toLowerCase();
+    if (color && !/^#[0-9a-f]{6}$/.test(color)) throw new UserError('색상 형식이 올바르지 않습니다.');
     tx(() => {
       const found = getTeacher(email);
       const name = String(obj.name || '').trim() || (found ? found.name : email.split('@')[0]);
@@ -1705,6 +1714,7 @@ function openStore(dbPath, opts) {
       if (found) {
         db.prepare('UPDATE teachers SET name=?, role=?, active=?, updatedAt=? WHERE email=?').run(name, role, active, t, email);
         if ('notify' in obj) db.prepare('UPDATE teachers SET notify=? WHERE email=?').run(obj.notify === false ? 'off' : '', email);
+        if ('color' in obj) db.prepare('UPDATE teachers SET color=? WHERE email=?').run(color, email);
         if (password) {
           db.prepare('UPDATE teachers SET passwordHash=?, mustChangePassword=0 WHERE email=?').run(hashPassword(password), email);
         }
@@ -1712,8 +1722,8 @@ function openStore(dbPath, opts) {
         if (!active || password || role !== found.role) db.prepare('DELETE FROM sessions WHERE email = ?').run(email);
       } else {
         if (!password) throw new UserError('새 계정의 비밀번호를 입력하세요 (6자 이상).');
-        db.prepare('INSERT INTO teachers (email, name, role, active, passwordHash, mustChangePassword, createdAt, updatedAt, notify) VALUES (?,?,?,?,?,?,?,?,?)')
-          .run(email, name, role, active, hashPassword(password), 0, t, t, obj.notify === false ? 'off' : '');
+        db.prepare('INSERT INTO teachers (email, name, role, active, passwordHash, mustChangePassword, createdAt, updatedAt, notify, color) VALUES (?,?,?,?,?,?,?,?,?,?)')
+          .run(email, name, role, active, hashPassword(password), 0, t, t, obj.notify === false ? 'off' : '', color);
       }
       const roleLabel = { admin: '관리자', staff: '관리팀', consultant: '컨설턴트' }[role];
       log(me.email, found ? 'update' : 'create', 'teachers', email,
