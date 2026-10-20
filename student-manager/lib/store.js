@@ -1262,7 +1262,7 @@ function openStore(dbPath, opts) {
 
   /* ----- 메인 화면 배치 (계정별, 관리자는 모두의 기본 배치) ----- */
   function parseLayout(v) { try { const x = JSON.parse(v || 'null'); return Array.isArray(x) ? x : null; } catch (e) { return null; } }
-  /** [{ id, w: 'h'(반 칸)|'f'(한 줄), h: ''|'s'|'m'|'l'(높이), hide }] 만 받음 */
+  /** [{ id, s: '가로칸x세로칸'(예: 2x3), hide }] 만 받음 */
   function cleanLayout(list) {
     if (!Array.isArray(list) || list.length > 40) throw new UserError('화면 배치 형식이 올바르지 않습니다.');
     const seen = new Set();
@@ -1270,7 +1270,7 @@ function openStore(dbPath, opts) {
       const id = String(x && x.id || '');
       if (!/^[a-z]{1,30}$/.test(id) || seen.has(id)) throw new UserError('화면 배치 형식이 올바르지 않습니다.');
       seen.add(id);
-      return { id, w: x.w === 'f' ? 'f' : 'h', h: ['s', 'm', 'l'].includes(x.h) ? x.h : '', hide: !!x.hide };
+      return { id, s: /^[1-4]x[1-6]$/.test(String(x.s)) ? String(x.s) : '', hide: !!x.hide };
     });
   }
   function saveHomeLayout(me, arg) {
