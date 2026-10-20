@@ -2,7 +2,8 @@
 /**
  * 자동 백업(구글 드라이브) + 이메일 알림.
  * 둘 다 원장님 구글 계정에 설치한 Google Apps Script(웹 앱)로 보냄 — scripts/google-apps-script.gs
- *   백업: 매일 정해진 시각에 백업 ZIP을 "Compass 백업" 폴더에 저장 (최근 30개 유지)
+ *   백업: 매일 정해진 시각에 기록(DB) 백업 ZIP을 "Compass 백업" 폴더에 저장 (최근 30개 유지)
+ *   파일: 업로드한 파일은 새로 올라온 것만 하나씩 "Compass 파일" 폴더에 복사 (10분마다, 한 번에 최대 20개·60MB)
  *   알림: 매일 아침 선생님마다 "오늘 챙길 일"(팔로업 기한·지원 마감)을 메일로 보냄
  * 시각은 중국 시간(UTC+8) 기준.
  */
@@ -17,7 +18,9 @@ const RESTORE_HELP = [
   '',
   '1. 서버를 멈춥니다.',
   '2. compass.db 를 DB_PATH 위치(Railway: /data/revera.db)에 같은 이름으로 덮어씁니다.',
-  '3. files 폴더 안의 파일들을 DB_PATH 와 같은 폴더의 files 폴더(Railway: /data/files)에 넣습니다.',
+  '3. 업로드 파일을 DB_PATH 와 같은 폴더의 files 폴더(Railway: /data/files)에 넣습니다.',
+  '   - 전체 백업 ZIP이면: ZIP 안 files 폴더의 파일들',
+  '   - 매일 자동 백업(기록만)이면: 구글 드라이브 "Compass 파일" 폴더의 파일들을 모두 내려받아 그대로',
   '4. 서버를 다시 시작합니다.',
   '',
   '파일목록.csv 에서 저장 이름과 학생/원래 파일 이름을 확인할 수 있습니다.',
@@ -27,8 +30,9 @@ function localNow(d) { return new Date((d ? d.getTime() : Date.now()) + TZ_OFFSE
 function localDate(d) { return localNow(d).toISOString().slice(0, 10); }
 function addDays(ymd, n) { const x = new Date(ymd + 'T00:00:00Z'); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); }
 
-/** 백업 ZIP 파일을 임시 폴더에 만든다 → { path, name, cleanup } */
-async function buildBackupZip(store) {
+/** 백업 ZIP 파일을 임시 폴더에 만든다 → { path, name, cleanup }. withFiles=false 면 기록(DB)과 파일 목록만 */
+async function buildBackupZip(store, withFiles) {
+  if (withFiles === undefined) withFiles = true;
   const stamp = localNow().toISOString().slice(0, 16).replace(/[-:T]/g, '');
   const tmpDb = path.join(os.tmpdir(), 'compass-backup-' + Date.now() + '-' + Math.random().toString(36).slice(2) + '.db');
   const tmpZip = tmpDb.replace(/\.db$/, '.zip');
@@ -44,8 +48,8 @@ async function buildBackupZip(store) {
       { name: 'compass.db', path: tmpDb },
       { name: '파일목록.csv', data: Buffer.from(csv, 'utf8') },
       { name: '복구방법.txt', data: Buffer.from(RESTORE_HELP, 'utf8') },
-    ].concat(files.map((f) => ({ name: 'files/' + f.storedName, path: path.join(store.filesDir, f.storedName) }))));
-    return { path: tmpZip, name: 'compass-backup-' + stamp + '.zip', cleanup };
+    ].concat((withFiles ? files : []).map((f) => ({ name: 'files/' + f.storedName, path: path.join(store.filesDir, f.storedName) }))));
+    return { path: tmpZip, name: 'compass-backup-' + stamp + (withFiles ? '' : '-기록') + '.zip', cleanup };
   } catch (e) {
     cleanup();
     throw e;
@@ -76,15 +80,60 @@ async function callScript(cfg, payload, fetchImpl) {
   return data;
 }
 
+/** 매일 자동 백업: 기록(DB)만 — 파일은 syncFiles 가 하나씩 따로 보냄 (한 번에 보내는 크기 제한 때문) */
 async function sendBackup(store, fetchImpl) {
   const cfg = store.getConfig();
-  const z = await buildBackupZip(store);
+  const z = await buildBackupZip(store, false);
   try {
     const data = fs.readFileSync(z.path).toString('base64');
     const r = await callScript(cfg, { action: 'backup', name: z.name, data }, fetchImpl);
     return { name: z.name, size: Math.round(data.length * 3 / 4), url: r.url || '' };
   } finally {
     z.cleanup();
+  }
+}
+
+/** 아직 드라이브에 없는 업로드 파일을 하나씩 보냄. 실패하면 그 자리에서 멈추고 다음 번에 이어서 */
+const SYNC_MAX_FILES = 20, SYNC_MAX_BYTES = 60 * 1024 * 1024;
+let syncing = false;
+async function syncFiles(store, fetchImpl, limits) {
+  limits = limits || {};
+  if (syncing) return { sent: 0, left: store.pendingSync().length, busy: true };
+  syncing = true;
+  try {
+    const cfg = store.getConfig();
+    const list = store.pendingSync();
+    let sent = 0, bytes = 0;
+    for (const f of list) {
+      if (sent >= (limits.maxFiles || SYNC_MAX_FILES) || (sent && bytes + (f.size || 0) > (limits.maxBytes || SYNC_MAX_BYTES))) break;
+      const full = path.join(store.filesDir, f.storedName);
+      if (!fs.existsSync(full)) { store.markSync(f.storedName, '서버에 파일이 없습니다'); continue; }
+      const label = [f.studentName, f.category, f.name].filter(Boolean).join(' · ');
+      try {
+        const data = fs.readFileSync(full).toString('base64');
+        await callScript(cfg, { action: 'file', name: f.storedName, label, mime: f.mime || '', data }, fetchImpl);
+      } catch (e) {
+        const msg = /unknown action/.test(e.message) ? 'Apps Script 코드가 예전 버전입니다. 백업·알림 화면에서 코드를 다시 복사해 붙여넣고 새 버전으로 배포하세요.' : e.message;
+        store.markSync(f.storedName, msg);
+        throw new Error(msg + (sent ? ' (' + sent + '개는 보냄)' : ''));
+      }
+      store.markSync(f.storedName);
+      sent++; bytes += f.size || 0;
+    }
+    return { sent, bytes, left: store.pendingSync().length };
+  } finally {
+    syncing = false;
+  }
+}
+const fmtMB = (n) => (n / 1024 / 1024).toFixed(1) + 'MB';
+async function runFileSync(store, fetchImpl, manual) {
+  try {
+    const r = await syncFiles(store, fetchImpl);
+    if (r.sent || manual) store.recordRun('filesync', '성공' + (manual ? '(수동)' : '') + ' · ' + r.sent + '개 보냄 (' + fmtMB(r.bytes || 0) + ')' + (r.left ? ' · 남은 파일 ' + r.left + '개' : ''));
+    return r;
+  } catch (e) {
+    store.recordRun('filesync', '실패 · ' + e.message);
+    throw e;
   }
 }
 
@@ -189,6 +238,8 @@ async function tick(store, opts) {
       store.recordRun(kind, '실패 · ' + e.message, kind === 'digest' ? today : '');
     }
   }
+  // 파일 백업: 자동 백업이 켜져 있으면 시각과 상관없이 매번 새 파일만
+  if (cfg.backupOn === 'on') await runFileSync(store, opts.fetch).catch(() => {});
 }
 
 function startScheduler(store) {
@@ -197,4 +248,4 @@ function startScheduler(store) {
   return setInterval(run, 10 * 60000);
 }
 
-module.exports = { buildBackupZip, callScript, sendBackup, buildDigests, sendDigests, sendTestMail, sendRequestMail, tick, startScheduler, localDate, RESTORE_HELP };
+module.exports = { buildBackupZip, callScript, sendBackup, syncFiles, runFileSync, buildDigests, sendDigests, sendTestMail, sendRequestMail, tick, startScheduler, localDate, RESTORE_HELP };

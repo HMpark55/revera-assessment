@@ -905,15 +905,16 @@ test('자동 백업·이메일 알림: 설정 권한, 백업 전송, 오늘 챙�
   assert.ok(r.data.digests.some((m) => m.to === 'mail1@revera.test'));
 
   // 정해진 시각 이후 하루 한 번만
-  const before = scriptCalls.length;
+  const daily = () => scriptCalls.filter((c) => c.action === 'backup' || c.action === 'mail').length;
+  const before = daily();
   const at = (h) => new Date(Date.UTC(2030, 0, 5, h - 8, 5));
   const fetch = (u, i) => fakeFetch(u, i);
   await automation.tick(store, { now: at(2), fetch });
-  assert.strictEqual(scriptCalls.length, before, '3시 전에는 백업 안 함');
+  assert.strictEqual(daily(), before, '3시 전에는 백업 안 함');
   await automation.tick(store, { now: at(9), fetch });
-  assert.strictEqual(scriptCalls.length, before + 2, '백업 1번 + 메일 1번');
+  assert.strictEqual(daily(), before + 2, '백업 1번 + 메일 1번');
   await automation.tick(store, { now: at(10), fetch });
-  assert.strictEqual(scriptCalls.length, before + 2, '같은 날 다시 안 보냄');
+  assert.strictEqual(daily(), before + 2, '같은 날 다시 안 보냄');
   // 비밀 키가 틀리면 알기 쉬운 오류
   await admin.ok('saveAutomation', { newSecret: true });
   await assert.rejects(automation.callScript(Object.assign({}, store.getConfig(), { secret: 'wrong' }), { action: 'ping' }, fetch), /비밀 키/);
@@ -1180,3 +1181,68 @@ test('받은 연락: 팔로업 종류·보낸 사람·경로·우리 답변, 스
   const other = (await admin.saveOk('students', { name: '다른학생' })).savedId;
   assert.strictEqual((await up(other, fid)).status, 404);
 });
+
+test('저장 공간: 매일 백업은 기록만, 파일은 새것만 하나씩 드라이브로, 실패 3번이면 건너뜀, 사용량·경고', async () => {
+  const automation = require('../lib/automation');
+  const admin = client();
+  await admin.login('admin@revera.test', 'admin-pass-1');
+  await admin.ok('saveAutomation', { scriptUrl: 'https://script.google.com/macros/s/AKfy_abc-123/exec', backupOn: true, volumeGB: 5 });
+  let d = await admin.saveOk('students', { name: '용량학생' });
+  const sid = d.savedId;
+  for (const n of ['a.pdf', 'b.pdf']) {
+    const r = await admin.upload(sid, n, Buffer.alloc(1000, 1));
+    assert.strictEqual(r.status, 200, JSON.stringify(r.data));
+  }
+  // 매일 백업 ZIP 에는 업로드 파일이 들어가지 않음
+  await admin.req('POST', '/api/automation/backup', {});
+  const zip = Buffer.from(scriptCalls.filter((c) => c.action === 'backup').pop().data, 'base64');
+  assert.ok(zip.includes(Buffer.from('compass.db')) && !zip.includes(Buffer.from('files/')), '기록만');
+  // 기록만 다운로드
+  const dl = await admin.req('GET', '/api/backup?mode=db');
+  assert.match(dl.headers.get('content-disposition'), /compass-backup-\d+-/);
+
+  // 파일 백업: 처음엔 전부, 다음엔 새 것만
+  const fetch = (u, i) => fakeFetch(u, i);
+  const files = () => scriptCalls.filter((c) => c.action === 'file');
+  let r = await automation.syncFiles(store, fetch, { maxFiles: 1000, maxBytes: 1e12 });
+  assert.ok(r.sent >= 2 && r.left === 0);
+  const sentNames = files().map((c) => c.name);
+  assert.ok(files().some((c) => /용량학생 · 성적표 · a\.pdf/.test(c.label)));
+  r = await automation.syncFiles(store, fetch);
+  assert.strictEqual(r.sent, 0, '이미 보낸 파일은 다시 안 보냄');
+  await admin.upload(sid, 'c.pdf', Buffer.alloc(500, 1));
+  r = await admin.req('POST', '/api/automation/filesync', {});
+  assert.strictEqual(r.data.sent, 1);
+  assert.ok(!sentNames.includes(files().pop().name));
+
+  // 예전 Apps Script(파일 기능 없음) → 알기 쉬운 오류, 3번 실패하면 건너뛰고 실패 목록에
+  await admin.upload(sid, 'd.pdf', Buffer.alloc(500, 1));
+  const oldScript = async (url, init) => { const body = JSON.parse(init.body); return { status: 200, text: async () => JSON.stringify(body.action === 'file' ? { ok: false, error: 'unknown action' } : { ok: true }) }; };
+  for (let i = 0; i < 3; i++) await assert.rejects(automation.runFileSync(store, oldScript), /예전 버전/);
+  assert.strictEqual(store.pendingSync().length, 0);
+  let st = await admin.ok('getStorage');
+  assert.strictEqual(st.sync.failed.length, 1);
+  assert.match(st.sync.status.result, /^실패/);
+  assert.ok((await admin.ok('getAll')).backupAlert.some((x) => x.kind === 'filesync'));
+  st = await admin.ok('retrySync');
+  assert.strictEqual(st.sync.pending, 1);
+  await automation.runFileSync(store, fetch);
+  assert.ok(!(await admin.ok('getAll')).backupAlert, '성공하면 경고 사라짐');
+
+  // 사용량: 학생별·분류별·큰 파일, 권한
+  st = await admin.ok('getStorage');
+  const me = st.byStudent.find((x) => x.studentId === sid);
+  assert.strictEqual(me.count, 4); assert.strictEqual(me.bytes, 3000);
+  assert.ok(st.byCategory.some((x) => x.category === '성적표'));
+  assert.ok(st.summary.used > 0 && st.summary.limit === 5 * 1024 ** 3);
+  const staff = client(); await staff.login('mail1@revera.test', '123456');
+  assert.strictEqual((await staff.rpc('getStorage')).status, 403);
+  assert.strictEqual((await staff.req('POST', '/api/automation/filesync', {})).status, 403);
+  assert.ok(!(await staff.ok('getAll')).storageAlert);
+  // 80% 넘으면 관리자·관리팀 화면에 경고 (공간 크기를 아주 작게 해서 확인)
+  assert.strictEqual((await admin.rpc('saveAutomation', { volumeGB: 0.1 })).status, 400);
+  store.db.prepare("UPDATE meta SET value = '0.000001' WHERE key = 'cfg.volumeGB'").run();
+  assert.ok((await staff.ok('getAll')).storageAlert.pct >= 80);
+  store.db.prepare("UPDATE meta SET value = '5' WHERE key = 'cfg.volumeGB'").run();
+});
+

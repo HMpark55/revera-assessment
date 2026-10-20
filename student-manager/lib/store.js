@@ -323,6 +323,8 @@ function migrate(db) {
   ensureColumns(db, 'followups', ['requestedBy', 'requestedAt', 'requestNote']);
   db.exec('CREATE TABLE IF NOT EXISTS unifiles (id TEXT PRIMARY KEY)');
   ensureColumns(db, 'unifiles', ['universityId', 'cycleId', 'category', 'name', 'memo', 'mime', 'size', 'storedName', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy']);
+  // v11: 업로드 파일을 구글 드라이브에 하나씩 백업한 기록 (storedName 기준)
+  db.exec("CREATE TABLE IF NOT EXISTS filesync (storedName TEXT PRIMARY KEY, syncedAt TEXT NOT NULL DEFAULT '', fails INTEGER NOT NULL DEFAULT 0, error TEXT NOT NULL DEFAULT '', at TEXT NOT NULL DEFAULT '')");
   // v10: 계약 시작·종료를 날짜로 (기존 연월은 시작=1일, 종료=그 달 마지막 날)
   if (!db.prepare("SELECT 1 FROM meta WHERE key = 'v10_contract_dates'").get()) {
     db.prepare("UPDATE contracts SET startDate = substr(startMonth, 1, 7) || '-01' WHERE startDate = '' AND startMonth GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]*'").run();
@@ -567,6 +569,14 @@ function openStore(dbPath, opts) {
       students,
       serverTime: now(),
     };
+    if (isManager(me)) {
+      const st = storageSummary();
+      if (st.pct >= 80 || st.lowDisk) out.storageAlert = { pct: st.pct, used: st.used, limit: st.limit, lowDisk: st.lowDisk, free: st.disk && st.disk.free };
+    }
+    if (me.role === 'admin') {
+      const failed = ['backup', 'filesync'].filter((k) => /^실패/.test(getMeta('run.' + k + '.result')));
+      if (failed.length) out.backupAlert = failed.map((k) => ({ kind: k, at: getMeta('run.' + k + '.at'), result: getMeta('run.' + k + '.result') }));
+    }
     for (const t of CHILD_TABLES) {
       if (MANAGER_ONLY.includes(t) && t !== 'contracts' && !isManager(me)) { out[t] = []; continue; }
       out[t] = db.prepare(`SELECT * FROM ${t} WHERE deletedAt = ''`).all()
@@ -1619,7 +1629,7 @@ function openStore(dbPath, opts) {
   async function backup(destPath) { await db.backup(destPath); }
 
   /* ----- 자동 백업·이메일 알림 설정 (관리자) ----- */
-  const CONFIG_KEYS = { scriptUrl: '', secret: '', siteUrl: '', backupOn: '', backupHour: '3', mailOn: '', mailHour: '8' };
+  const CONFIG_KEYS = { scriptUrl: '', secret: '', siteUrl: '', backupOn: '', backupHour: '3', mailOn: '', mailHour: '8', volumeGB: '5' };
   function getConfig() {
     const out = Object.assign({}, CONFIG_KEYS);
     db.prepare("SELECT key, value FROM meta WHERE key LIKE 'cfg.%'").all().forEach((r) => { out[r.key.slice(4)] = r.value; });
@@ -1632,7 +1642,7 @@ function openStore(dbPath, opts) {
   function getAutomation(me) {
     requireAdmin(me, '자동 백업·알림 설정');
     const status = {};
-    ['backup', 'digest'].forEach((k) => { status[k] = { at: getMeta('run.' + k + '.at'), result: getMeta('run.' + k + '.result'), date: getMeta('run.' + k + '.date') }; });
+    ['backup', 'digest', 'filesync'].forEach((k) => { status[k] = { at: getMeta('run.' + k + '.at'), result: getMeta('run.' + k + '.result'), date: getMeta('run.' + k + '.date') }; });
     return { config: getConfig(), status };
   }
   function saveAutomation(me, arg) {
@@ -1648,6 +1658,11 @@ function openStore(dbPath, opts) {
     if ('siteUrl' in arg) { const u = clean(arg.siteUrl).trim().replace(/\/+$/, ''); if (u) checkUrl(u, '사이트 주소'); next.siteUrl = u; }
     if ('backupOn' in arg) next.backupOn = arg.backupOn ? 'on' : '';
     if ('mailOn' in arg) next.mailOn = arg.mailOn ? 'on' : '';
+    if ('volumeGB' in arg) {
+      const g = Number(arg.volumeGB);
+      if (!Number.isFinite(g) || g < 0.5 || g > 10000) throw new UserError('저장 공간 크기는 0.5~10000 GB 사이 숫자로 입력하세요.');
+      next.volumeGB = String(g);
+    }
     for (const k of ['backupHour', 'mailHour']) {
       if (k in arg) {
         const h = Number(arg[k]);
@@ -1674,17 +1689,91 @@ function openStore(dbPath, opts) {
   }
   /** 백업용 전체 파일 목록 (휴지통 포함) */
   function listFiles() {
-    return db.prepare(`SELECT f.storedName, f.name, f.category, f.createdAt, f.deletedAt, s.name AS studentName
+    return db.prepare(`SELECT f.storedName, f.name, f.category, f.createdAt, f.deletedAt, s.name AS studentName, f.studentId, CAST(f.size AS INTEGER) AS size, f.mime, 'student' AS kind
       FROM files f LEFT JOIN students s ON s.id = f.studentId
-      UNION ALL SELECT u.storedName, u.name, u.category, u.createdAt, '' AS deletedAt, IFNULL(v.name, '') || ' (대학 자료)' AS studentName
+      UNION ALL SELECT u.storedName, u.name, u.category, u.createdAt, '' AS deletedAt, IFNULL(v.name, '') || ' (대학 자료)' AS studentName, '' AS studentId, CAST(u.size AS INTEGER) AS size, u.mime, 'uni' AS kind
       FROM unifiles u LEFT JOIN universities v ON v.id = u.universityId ORDER BY 4`).all();
   }
 
+  /* ----- 파일 드라이브 백업 기록 ----- */
+  const SYNC_MAX_FAILS = 3; // 같은 파일이 3번 실패하면 건너뛰고 "실패한 파일"로 표시
+  function syncRows() {
+    const m = {};
+    db.prepare('SELECT * FROM filesync').all().forEach((r) => { m[r.storedName] = r; });
+    return m;
+  }
+  /** 아직 드라이브에 안 올라간 파일 (오래된 것부터, 실패 3번 넘은 것 제외) */
+  function pendingSync() {
+    const m = syncRows();
+    return listFiles().filter((f) => f.storedName && !(m[f.storedName] && (m[f.storedName].syncedAt || m[f.storedName].fails >= SYNC_MAX_FAILS)));
+  }
+  function markSync(storedName, error) {
+    const t = now();
+    if (error) {
+      db.prepare(`INSERT INTO filesync (storedName, fails, error, at) VALUES (?, 1, ?, ?)
+        ON CONFLICT(storedName) DO UPDATE SET fails = fails + 1, error = excluded.error, at = excluded.at`).run(storedName, String(error).slice(0, 300), t);
+    } else {
+      db.prepare(`INSERT INTO filesync (storedName, syncedAt, at) VALUES (?, ?, ?)
+        ON CONFLICT(storedName) DO UPDATE SET syncedAt = excluded.syncedAt, error = '', at = excluded.at`).run(storedName, t, t);
+    }
+  }
+  function retrySync(me) {
+    requireAdmin(me, '파일 백업 다시 시도');
+    db.prepare("UPDATE filesync SET fails = 0, error = '' WHERE syncedAt = ''").run();
+    return getStorage(me);
+  }
+
+  /* ----- 저장 공간 현황 ----- */
+  function sizeOf(p) { try { return fs.statSync(p).size; } catch (e) { return 0; } }
+  /** 사용량 요약 (경고 표시용, 가벼운 계산) */
+  function storageSummary() {
+    const fileBytes = db.prepare('SELECT IFNULL(SUM(CAST(size AS INTEGER)), 0) AS n FROM files').get().n + db.prepare('SELECT IFNULL(SUM(CAST(size AS INTEGER)), 0) AS n FROM unifiles').get().n;
+    const dbBytes = sizeOf(dbPath) + sizeOf(dbPath + '-wal');
+    const limit = Math.round(Number(getConfig().volumeGB || 5) * 1024 * 1024 * 1024);
+    let disk = null;
+    try {
+      const st = fs.statfsSync(filesDir);
+      disk = { total: st.blocks * st.bsize, free: st.bavail * st.bsize };
+    } catch (e) { /* 지원하지 않는 환경 */ }
+    const used = fileBytes + dbBytes;
+    // 경고 기준은 "Compass 데이터 ÷ 설정한 볼륨 크기". 서버가 보는 디스크 수치는 환경마다 다르게 나와서(예약 공간 등) 참고만 하고,
+    // 실제로 남은 공간이 500MB 아래로 떨어졌을 때만 따로 경고
+    const lowDisk = !!(disk && disk.total && disk.free < 500 * 1024 * 1024);
+    return { used, fileBytes, dbBytes, limit, disk, lowDisk, pct: Math.round(used / limit * 1000) / 10 };
+  }
+  function getStorage(me) {
+    requireAdmin(me, '저장 공간 보기');
+    const all = listFiles(), m = syncRows();
+    const sum = (list) => list.reduce((a, f) => a + (f.size || 0), 0);
+    const live = all.filter((f) => f.kind === 'student' && !f.deletedAt), trash = all.filter((f) => f.deletedAt), uni = all.filter((f) => f.kind === 'uni');
+    const byStudent = {};
+    live.forEach((f) => { const x = byStudent[f.studentId] || (byStudent[f.studentId] = { studentId: f.studentId, name: f.studentName || '(삭제된 학생)', count: 0, bytes: 0 }); x.count++; x.bytes += f.size || 0; });
+    const byCat = {};
+    live.forEach((f) => { const k = f.category || '기타'; const x = byCat[k] || (byCat[k] = { category: k, count: 0, bytes: 0 }); x.count++; x.bytes += f.size || 0; });
+    const top = (list, n) => list.sort((a, b) => b.bytes - a.bytes).slice(0, n);
+    const synced = all.filter((f) => m[f.storedName] && m[f.storedName].syncedAt);
+    const failed = all.filter((f) => m[f.storedName] && !m[f.storedName].syncedAt && m[f.storedName].fails >= SYNC_MAX_FAILS);
+    const pending = pendingSync();
+    return {
+      summary: storageSummary(), volumeGB: getConfig().volumeGB,
+      students: { count: live.length, bytes: sum(live) }, trash: { count: trash.length, bytes: sum(trash) }, uni: { count: uni.length, bytes: sum(uni) },
+      byStudent: top(Object.values(byStudent), 10), byCategory: top(Object.values(byCat), 20),
+      largest: all.slice().sort((a, b) => (b.size || 0) - (a.size || 0)).slice(0, 10)
+        .map((f) => ({ name: f.name, studentName: f.studentName, studentId: f.studentId, category: f.category, size: f.size || 0, deleted: !!f.deletedAt, createdAt: f.createdAt })),
+      sync: {
+        total: all.length, done: synced.length, pending: pending.length, pendingBytes: sum(pending),
+        failed: failed.map((f) => ({ name: f.name, studentName: f.studentName, size: f.size || 0, error: m[f.storedName].error })),
+        lastError: (pending.map((f) => m[f.storedName]).filter((r) => r && r.error)[0] || {}).error || '',
+        status: { at: getMeta('run.filesync.at'), result: getMeta('run.filesync.result') },
+      },
+    };
+  }
+
   return {
-    db, filesDir, listFiles, countTeachers, upsertAdmin, login, logout, authenticate, addFile, getFile, addUniFile, getUniFile,
+    db, filesDir, listFiles, pendingSync, markSync, countTeachers, upsertAdmin, login, logout, authenticate, addFile, getFile, addUniFile, getUniFile,
     rpc: { getAll: (me) => getAll(me), save, remove, restore, purge, getTrash, getLog, saveTeacher, changePassword, importData, copyCycle, getActivity, saveMany, updateMe,
       saveOption, removeOption, deleteTeacher, getAutomation, saveAutomation, saveEvent, removeEvent,
-      saveWithFollowups, requestFollowup, saveOrder, saveUniFile, removeUniFile, saveProgram, removeProgram },
+      saveWithFollowups, requestFollowup, saveOrder, saveUniFile, removeUniFile, saveProgram, removeProgram, getStorage, retrySync },
     backup, getConfig, getMeta, recordRun, listTeachers, close: () => db.close(),
   };
 }

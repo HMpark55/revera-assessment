@@ -245,6 +245,10 @@
   .mfiles { display:flex; flex-wrap:wrap; gap:8px; margin-top:6px; align-items:center; }
   .mfiles img { max-height:120px; max-width:200px; border:1px solid var(--border); border-radius:6px; }
   .latest { font-size:.7rem; color:#0f7a55; margin-left:4px; }
+  .gauge { height:14px; background:#eef0f4; border-radius:7px; overflow:hidden; margin:8px 0 4px; }
+  .gauge span { display:block; height:100%; background:#1f9d6b; }
+  .gauge.warn span { background:#e08a00; } .gauge.bad span { background:var(--error); }
+  .notice.bad { background:#fff3f2; border-color:#f3c5c0; color:#8a2a1f; }
   .notice { background:#fffaf0; border:1px solid #f1e2b0; border-radius:8px; padding:8px 12px; font-size:.85rem; color:#6b5512; margin-bottom:12px; }
 
   /* ---- v9: 메인 화면 · 한 줄 메뉴 · 달력 · 요약 ---- */
@@ -704,6 +708,7 @@ function load(data) {
   S.events = data.events || [];
   S.unifiles = data.unifiles || [];
   S.programs = data.programs || [];
+  S.storageAlert = data.storageAlert || null; S.backupAlert = data.backupAlert || null;
   UI.pw = {};
   UI.activity = {}; // 최근 활동은 저장할 때마다 새로 불러옴
   $('whoami').textContent = S.me.name;
@@ -817,7 +822,7 @@ function fmtD(d) {
   var x = new Date(d.slice(0, 10) + 'T00:00:00');
   return (d.slice(0, 4) === today().slice(0, 4) ? '' : d.slice(0, 4) + '/') + d.slice(5, 7) + '/' + d.slice(8, 10) + '(' + DOW[x.getDay()] + ')';
 }
-function fmtSize(n) { n = Number(n) || 0; return n > 1048576 ? (n / 1048576).toFixed(1) + 'MB' : Math.max(1, Math.round(n / 1024)) + 'KB'; }
+function fmtSize(n) { n = Number(n) || 0; if (!n) return '0KB'; return n >= 1073741824 ? (n / 1073741824).toFixed(2) + 'GB' : n > 1048576 ? (n / 1048576).toFixed(1) + 'MB' : Math.max(1, Math.round(n / 1024)) + 'KB'; }
 function fmtMoney(v) { var n = Number(String(v).replace(/[^\d.]/g, '')); return v && !isNaN(n) && /\d/.test(v) ? n.toLocaleString('ko-KR') : esc(v); }
 function teacherName(email) {
   if (!email) return '';
@@ -986,7 +991,7 @@ function render() {
   var work = [['students', isMgr() ? '학생' : '담당 학생'], ['followups', '팔로업·연락'], ['meetings', '미팅'], ['deadlines', '마감일정'], ['materials', '자료 현황'], ['unis', '대학 정보'], ['programs', '대회·프로그램'], ['results', '합격 실적']];
   var admin = [];
   if (isMgr()) admin.push(['sales', '매출'], ['unilist', '목록 관리']);
-  if (isAdmin()) admin.push(['teachers', '계정 관리'], ['settings', '백업·알림'], ['log', '변경 기록']);
+  if (isAdmin()) admin.push(['teachers', '계정 관리'], ['settings', '백업·알림'], ['storage', '저장 공간'], ['log', '변경 기록']);
   if (isMgr()) admin.push(['trash', '휴지통']);
   var cur = r.view === 'student' ? 'students' : r.view === 'uni' ? 'unis' : r.view;
   var link = function (i) { return '<a href="#/' + i[0] + '" class="' + (cur === i[0] ? 'on' : '') + '">' + i[1] + '</a>'; };
@@ -998,7 +1003,7 @@ function render() {
   $('who').classList.remove('open');
   var v = { home: viewHome, students: viewStudents, student: viewStudent, materials: viewMaterials, deadlines: viewDeadlines,
     unis: viewUnis, uni: viewUni, followups: viewFollowups, search: viewSearch,
-    results: viewResults, sales: viewSales, trash: viewTrash, teachers: viewTeachers, log: viewLog, me: viewMe, unilist: viewLists, programs: viewPrograms, meetings: viewMeetings, settings: viewSettings }[r.view] || viewHome;
+    results: viewResults, sales: viewSales, trash: viewTrash, teachers: viewTeachers, log: viewLog, me: viewMe, unilist: viewLists, programs: viewPrograms, meetings: viewMeetings, settings: viewSettings, storage: viewStorage }[r.view] || viewHome;
   UI._view = function () { return v(route().id); };
   $('app').innerHTML = v(r.id);
   decorateSearch();
@@ -1021,6 +1026,7 @@ function viewHome() {
     h += chip(active.filter(function (s) { return checkCount(s) < CHECK_ITEMS.length; }).length, '자료가 덜 모인 학생', "go('#/materials')");
   }
   h += '</div></div>';
+  h += systemAlerts();
   h += todayCard() + calendarCard();
   h += '<div class="grid g2">';
   h += '<div class="card"><div class="sec-h"><h3>학생 현황 <span class="muted">' + active.length + '명</span></h3><a class="more-link" href="#/students">전체 →</a></div>' +
@@ -1048,6 +1054,18 @@ function viewHome() {
       }).join('') + '</div>' : '<div class="empty">기록된 미팅이 없습니다.</div>') + '</div></div>';
   }
   return h + '</div>';
+}
+/** 메인 맨 위 경고: 저장 공간 80% 이상(관리자·관리팀), 자동 백업 실패(관리자) */
+function systemAlerts() {
+  var h = '', a = S.storageAlert;
+  if (a) h += '<div class="notice' + (a.pct >= 95 || a.lowDisk ? ' bad' : '') + '">⚠️ <b>저장 공간</b> ' +
+    (a.lowDisk ? '서버에 남은 공간이 ' + fmtSize(a.free) + '뿐입니다. ' : '') + (a.pct >= 80 ? fmtSize(a.used) + ' / ' + fmtSize(a.limit) + ' (' + a.pct + '%) 사용 중입니다. ' : '') +
+    '가득 차면 파일 업로드와 기록 저장이 실패할 수 있습니다. ' + (isAdmin() ? '<a href="#/storage">저장 공간 확인 →</a>' : '관리자에게 알려주세요.') + '</div>';
+  (S.backupAlert || []).forEach(function (b) {
+    h += '<div class="notice bad">⚠️ <b>' + (b.kind === 'filesync' ? '파일 백업' : '자동 백업') + ' 실패</b> ' + esc(fmtTime(b.at)) + ' — ' + esc(String(b.result || '').replace(/^실패 · /, '')) +
+      ' <a href="#/' + (b.kind === 'filesync' ? 'storage' : 'settings') + '">확인 →</a></div>';
+  });
+  return h;
 }
 function chip(n, label, onclick, alert) {
   return '<span class="chip' + (alert ? ' alert' : '') + '" onclick="' + onclick + '">' + esc(label) + ' <b>' + n + '</b></span>';
@@ -2836,8 +2854,8 @@ function viewTeachers() {
     '<b>관리팀</b>: 모든 학생, 상담기록, 계약 금액, 삭제·복구 · ' +
     '<b>컨설턴트</b>: 담당 학생만 (상담기록·계약 금액은 볼 수 없음)<br>' +
     '계정을 추가할 때 <b>임시 비밀번호</b>를 정해서 직접 전달하세요. 처음 로그인하면 본인 비밀번호로 바꾸도록 안내됩니다. 퇴사자는 “비활성”으로 바꾸면 즉시 로그아웃됩니다.</div>';
-  h += '<div class="grid g2"><div class="card"><h3>데이터 백업</h3><div class="muted" style="margin-bottom:10px">학생·기록·계약·입금 데이터와 <b>업로드한 파일 전체</b>를 ZIP 하나로 내려받습니다. 정기적으로(예: 주 1회) 받아서 안전한 곳에 보관하세요.</div>' +
-    '<a class="btn ghost" href="/api/backup" download>백업 파일(ZIP) 다운로드</a></div>' +
+  h += '<div class="grid g2"><div class="card"><h3>데이터 백업</h3><div class="muted" style="margin-bottom:10px"><b>기록만</b>: 학생·기록·계약·입금 데이터와 파일 목록 (가벼움). <b>전체</b>: 여기에 <b>업로드한 파일 전체</b>까지 ZIP 하나로 — 파일이 많으면 오래 걸리고 큽니다. 구글 드라이브 자동 백업을 켜두었다면 파일은 “Compass 파일” 폴더에 따로 쌓입니다.</div>' +
+    '<div class="toolbar" style="margin:0"><a class="btn ghost" href="/api/backup?mode=db" download>기록만 다운로드</a><a class="btn ghost" href="/api/backup" download>전체 다운로드 (파일 포함)</a></div></div>' +
     '<div class="card"><h3>기존 데이터 가져오기</h3><div class="muted" style="margin-bottom:10px">Compass 가져오기 파일(.json)을 선택하면 학생과 기록을 한 번에 등록합니다. 같은 이름의 학생이 이미 있으면 건너뜁니다.</div>' +
     '<label class="btn ghost" style="cursor:pointer">가져오기 파일 선택<input type="file" hidden accept=".json,application/json" onchange="importFile(this)"></label>' +
     (UI.importResult ? '<div style="margin-top:10px;font-size:.88rem"><b>등록 ' + UI.importResult.created.length + '명</b>: ' + esc(UI.importResult.created.join(', ') || '-') +
@@ -2890,6 +2908,56 @@ function deleteTeacher(email) {
     '잠시 쉬는 경우라면 삭제 대신 “비활성”을 권장합니다.')) return;
   mutate('deleteTeacher', { email: email }, '계정을 삭제했습니다.');
 }
+/* ----- 저장 공간 (관리자) ----- */
+function loadStorage() {
+  api('getStorage').then(function (d) { UI.storage = d; if (route().view === 'storage') render(); }).catch(function (e) { toast(errMsg(e), true); });
+}
+function viewStorage() {
+  if (!isAdmin()) return '<div class="card empty">관리자만 볼 수 있습니다.</div>';
+  if (!UI.storage) { loadStorage(); return '<div class="card empty">불러오는 중…</div>'; }
+  var d = UI.storage, sm = d.summary, sy = d.sync;
+  var pct = Math.min(100, sm.pct);
+  var h = '<div class="toolbar"><h2 style="margin:0;margin-right:auto">저장 공간</h2><button class="btn ghost sm" onclick="UI.storage=null;render()">↻ 다시 계산</button></div>';
+  h += systemAlerts();
+  h += '<div class="grid g2"><div class="card"><h3>사용량</h3>' +
+    '<div style="font-size:1.4rem;font-weight:700">' + fmtSize(sm.used) + ' <span class="muted" style="font-size:.95rem;font-weight:400">/ ' + fmtSize(sm.limit) + ' (' + sm.pct + '%)</span></div>' +
+    '<div class="gauge' + (sm.pct >= 95 ? ' bad' : sm.pct >= 80 ? ' warn' : '') + '"><span style="width:' + pct + '%"></span></div>' +
+    '<table style="margin-top:8px"><tbody>' +
+    '<tr><td>학생 파일</td><td>' + d.students.count + '개</td><td>' + fmtSize(d.students.bytes) + '</td></tr>' +
+    '<tr><td>휴지통 파일</td><td>' + d.trash.count + '개</td><td>' + fmtSize(d.trash.bytes) + (d.trash.count ? ' <a class="more-link" href="#/trash">휴지통 →</a>' : '') + '</td></tr>' +
+    '<tr><td>대학 자료(모집요강 등)</td><td>' + d.uni.count + '개</td><td>' + fmtSize(d.uni.bytes) + '</td></tr>' +
+    '<tr><td>기록(DB)</td><td></td><td>' + fmtSize(sm.dbBytes) + '</td></tr></tbody></table>' +
+    '<div class="muted" style="font-size:.8rem;margin-top:8px">80%가 넘으면 메인 화면에 경고가 뜹니다(관리자·관리팀). 휴지통에서 <b>영구 삭제</b>하면 파일도 지워져 공간이 돌아옵니다.' +
+    (sm.disk ? '<br>참고: 서버가 보는 남은 디스크 ' + fmtSize(sm.disk.free) + ' (환경에 따라 실제 볼륨과 다르게 보일 수 있어 경고는 위 계산 기준. 단 500MB 아래로 떨어지면 따로 경고)' : '') + '</div>' +
+    '<form style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap" onsubmit="saveVolume();return false"><label for="volgb"><b>볼륨 크기</b></label>' +
+    '<input type="number" id="volgb" step="0.5" min="0.5" value="' + esc(d.volumeGB) + '" style="width:90px"> GB <button class="btn ghost sm" type="submit">저장</button></form>' +
+    '<div class="muted" style="font-size:.8rem">Railway 프로젝트 화면에서 볼륨을 누르면 크기와 실제 사용량이 보입니다. 볼륨을 늘렸다면 여기 숫자도 같이 바꿔주세요.</div></div>';
+  var donePct = sy.total ? Math.round(sy.done / sy.total * 100) : 100;
+  h += '<div class="card"><h3>구글 드라이브 파일 백업</h3>' +
+    '<div style="font-size:1.2rem;font-weight:700">' + sy.done + ' / ' + sy.total + '개 <span class="muted" style="font-size:.9rem;font-weight:400">백업됨</span></div>' +
+    '<div class="gauge"><span style="width:' + donePct + '%"></span></div>' +
+    '<div>' + (sy.pending ? '남은 파일 <b>' + sy.pending + '개</b> (' + fmtSize(sy.pendingBytes) + ') — 10분마다 최대 20개씩 이어서 보냅니다.' : '<span style="color:#0f7a55">모든 파일이 백업되었습니다.</span>') + '</div>' +
+    (sy.status.at ? '<div style="margin-top:6px"><b>마지막</b> <span class="muted">' + esc(fmtTime(sy.status.at)) + '</span><div style="color:' + (/^실패/.test(sy.status.result) ? 'var(--error)' : '#0f7a55') + '">' + esc(sy.status.result) + '</div></div>' : '') +
+    (sy.failed.length ? '<div class="notice bad" style="margin-top:8px"><b>3번 실패해서 건너뛴 파일 ' + sy.failed.length + '개</b><ul style="margin:4px 0 0;padding-left:18px">' +
+      sy.failed.slice(0, 10).map(function (f) { return '<li>' + esc(f.studentName) + ' · ' + esc(f.name) + ' <span class="muted">' + fmtSize(f.size) + ' — ' + esc(f.error) + '</span></li>'; }).join('') + '</ul>' +
+      '<button class="btn ghost sm" style="margin-top:6px" onclick="retrySync()">다시 시도</button></div>' : '') +
+    '<div class="toolbar" style="margin-top:10px"><button class="btn ghost sm" onclick="runAutomation(\'filesync\')">지금 파일 백업</button><a class="more-link" href="#/settings">백업·알림 설정 →</a></div>' +
+    '<div class="muted" style="font-size:.8rem">자동 백업이 켜져 있을 때만 보냅니다. 기록(DB)은 매일 따로 백업되고, 파일은 드라이브 “Compass 파일” 폴더에 저장 이름(파일 설명에 학생·분류·원래 이름)으로 쌓입니다.</div></div></div>';
+  var rowsT = function (list, cols) { return list.length ? '<table><tbody>' + list.map(cols).join('') + '</tbody></table>' : '<div class="empty">없음</div>'; };
+  h += '<div class="grid g2"><div class="card"><h3>학생별 사용량 <span class="muted">상위 10명</span></h3>' +
+    rowsT(d.byStudent, function (x) { return '<tr' + (x.studentId ? ' style="cursor:pointer" onclick="openStudent(' + js(x.studentId) + ',\'docs\')"' : '') + '><td><b>' + esc(x.name) + '</b></td><td>' + x.count + '개</td><td>' + fmtSize(x.bytes) + '</td></tr>'; }) + '</div>' +
+    '<div class="card"><h3>분류별</h3>' + rowsT(d.byCategory, function (x) { return '<tr><td>' + esc(x.category) + '</td><td>' + x.count + '개</td><td>' + fmtSize(x.bytes) + '</td></tr>'; }) + '</div></div>';
+  h += '<div class="card"><h3>가장 큰 파일 <span class="muted">상위 10개</span></h3>' +
+    rowsT(d.largest, function (f) { return '<tr' + (f.studentId ? ' style="cursor:pointer" onclick="openStudent(' + js(f.studentId) + ',\'docs\')"' : '') + '><td>' + esc(f.name) + (f.deleted ? ' <span class="pill s-종료">휴지통</span>' : '') + '</td><td>' + esc(f.studentName || '') + '</td><td>' + esc(f.category || '') + '</td><td>' + esc(fmtD(String(f.createdAt || '').slice(0, 10))) + '</td><td><b>' + fmtSize(f.size) + '</b></td></tr>'; }) + '</div>';
+  return h;
+}
+function saveVolume() {
+  api('saveAutomation', { volumeGB: Number($('volgb').value) }).then(function () { toast('저장했습니다.'); UI.storage = null; refresh(); })
+    .catch(function (e) { toast(errMsg(e), true); });
+}
+function retrySync() {
+  api('retrySync').then(function (d) { UI.storage = d; render(); toast('다음 파일 백업 때 다시 보냅니다. 바로 보내려면 “지금 파일 백업”.'); }).catch(function (e) { toast(errMsg(e), true); });
+}
 /* ----- 백업·알림 설정 (관리자) ----- */
 function loadAutomation() {
   api('getAutomation').then(function (d) {
@@ -2912,16 +2980,17 @@ function viewSettings() {
     '<div style="display:grid;gap:10px">' +
     '<div>자동 백업: ' + (c.scriptUrl && c.backupOn ? '<span class="pill s-진행중">켜짐</span> 매일 ' + esc(c.backupHour) + '시 (중국 시간)' : '<span class="pill s-종료">꺼짐</span>') + '</div>' +
     '<div>이메일 알림: ' + (c.scriptUrl && c.mailOn ? '<span class="pill s-진행중">켜짐</span> 매일 ' + esc(c.mailHour) + '시 (중국 시간)' : '<span class="pill s-종료">꺼짐</span>') + '</div>' +
-    stat('backup', '마지막 백업') + stat('digest', '마지막 알림') + '</div>' +
+    stat('backup', '마지막 기록 백업') + stat('filesync', '마지막 파일 백업') + stat('digest', '마지막 알림') + '</div>' +
     '<div class="toolbar" style="margin-top:12px"><button class="btn ghost sm" onclick="runAutomation(\'ping\')">연결 확인</button>' +
-    '<button class="btn ghost sm" onclick="runAutomation(\'backup\')">지금 백업 보내기</button>' +
+    '<button class="btn ghost sm" onclick="runAutomation(\'backup\')">지금 기록 백업</button>' +
+    '<button class="btn ghost sm" onclick="runAutomation(\'filesync\')">지금 파일 백업</button>' +
     '<button class="btn ghost sm" onclick="runAutomation(\'testmail\')">나에게 테스트 메일</button>' +
     '<button class="btn ghost sm" onclick="runAutomation(\'preview\')">오늘 알림 미리보기</button>' +
     '<button class="btn ghost sm" onclick="if(confirm(\'오늘 알림을 지금 모든 대상 선생님께 보낼까요?\'))runAutomation(\'digest\')">오늘 알림 지금 보내기</button></div></div>';
   h += '<div class="card"><h3>설정</h3><form class="form" id="autof" onsubmit="saveAutomation();return false">' +
     fld('Apps Script 웹 앱 주소', inp('scriptUrl', c.scriptUrl, 'text', ' placeholder="https://script.google.com/macros/s/…/exec"'), true) +
     fld('Compass 주소 (메일의 링크)', inp('siteUrl', c.siteUrl || location.origin, 'text'), true) +
-    fld('자동 백업', '<div><label style="display:inline-flex;gap:6px;align-items:center;color:#222"><input type="checkbox" name="backupOn"' + (c.backupOn ? ' checked' : '') + '> 매일 구글 드라이브로 백업</label></div>') +
+    fld('자동 백업', '<div><label style="display:inline-flex;gap:6px;align-items:center;color:#222"><input type="checkbox" name="backupOn"' + (c.backupOn ? ' checked' : '') + '> 구글 드라이브로 백업</label><div class="muted" style="font-size:.8rem">기록(DB)은 매일 정한 시각에, 업로드 파일은 10분마다 새로 올라온 것만</div></div>', true) +
     fld('백업 시각', '<select name="backupHour">' + hourOpts(c.backupHour) + '</select>') +
     fld('이메일 알림', '<div><label style="display:inline-flex;gap:6px;align-items:center;color:#222"><input type="checkbox" name="mailOn"' + (c.mailOn ? ' checked' : '') + '> 매일 “오늘 챙길 일” 메일</label></div>') +
     fld('알림 시각', '<select name="mailHour">' + hourOpts(c.mailHour) + '</select>') +
@@ -2942,7 +3011,8 @@ function viewSettings() {
     '<div class="toolbar" style="margin-top:10px"><button class="btn" onclick="copyScript()">코드 복사</button>' +
     '<button class="btn ghost sm" onclick="if(confirm(\'비밀 키를 새로 만들면 Apps Script 코드도 다시 붙여넣고 새로 배포해야 합니다. 계속할까요?\'))saveAutomation(true)">비밀 키 새로 만들기</button></div>' +
     '<details class="major"><summary>코드 직접 보기 (복사 버튼이 안 될 때 — 전체 선택 후 복사)</summary><textarea readonly style="width:100%;height:200px;font-family:monospace;font-size:.75rem" onclick="this.select()">' + esc(UI.scriptCode || '') + '</textarea></details>' +
-    '<div class="muted" style="font-size:.8rem">백업 파일에는 학생 개인정보와 사이트 비밀번호가 들어 있습니다. “Compass 백업” 폴더는 다른 사람과 공유하지 마세요. 최근 30개만 남기고 오래된 백업은 드라이브 휴지통으로 옮깁니다.</div></div>';
+    '<div class="notice" style="margin-top:10px"><b>코드를 바꿔야 할 때</b> (예: “Apps Script 코드가 예전 버전” 오류): 같은 Apps Script 프로젝트에 위 코드를 통째로 다시 붙여넣고 저장 → <b>배포 → 배포 관리</b> → ✏️(수정) → 버전 <b>새 버전</b> → 배포. 웹 앱 주소는 그대로라 Compass 설정은 바꾸지 않아도 됩니다.</div>' +
+    '<div class="muted" style="font-size:.8rem">백업에는 학생 개인정보와 사이트 비밀번호가 들어 있습니다. “Compass 백업”·“Compass 파일” 폴더는 다른 사람과 공유하지 마세요. 기록 백업은 최근 30개만 남기고 오래된 것은 드라이브 휴지통으로 옮기고, 파일은 지우지 않고 계속 쌓습니다.</div></div>';
   return h;
 }
 function saveAutomation(newSecret) {
@@ -2954,10 +3024,12 @@ function saveAutomation(newSecret) {
 function runAutomation(action) {
   post('/api/automation/' + action, {}).then(function (d) {
     if (action === 'preview') { UI.autoPreview = d.digests; render(); return; }
-    toast({ ping: '연결되었습니다' + (d.account ? ' (' + d.account + ')' : ''), backup: '구글 드라이브에 백업했습니다.', testmail: S.me.email + ' 로 테스트 메일을 보냈습니다.',
+    if (action === 'ping' && !(d.version >= 2)) toast('연결은 되었지만 Apps Script 코드가 예전 버전입니다. 아래 “코드를 바꿔야 할 때” 순서대로 새 코드로 바꿔주세요.', true);
+    else toast({ ping: '연결되었습니다' + (d.account ? ' (' + d.account + ')' : ''), backup: '구글 드라이브에 기록을 백업했습니다.',
+      filesync: '파일 ' + (d.sent || 0) + '개를 드라이브로 보냈습니다.' + (d.left ? ' (남은 파일 ' + d.left + '개는 10분마다 이어서)' : ''), testmail: S.me.email + ' 로 테스트 메일을 보냈습니다.',
       digest: (d.sent || 0) + '명에게 알림을 보냈습니다.' }[action] || '완료');
-    loadAutomation();
-  }).catch(function (e) { toast(errMsg(e), true); loadAutomation(); });
+    loadAutomation(); UI.storage = null;
+  }).catch(function (e) { toast(errMsg(e), true); loadAutomation(); UI.storage = null; });
 }
 function copyScript() {
   if (!UI.scriptCode) return toast('코드를 불러오는 중입니다. 잠시 후 다시 눌러주세요.', true);
