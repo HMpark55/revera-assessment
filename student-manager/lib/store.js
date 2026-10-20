@@ -151,12 +151,12 @@ const CATALOG = {
     summary: (r) => r.name,
   },
   unicycles: {
-    label: '입학 연도 정보', fields: ['universityId', 'year', 'term', 'requirements', 'sourceUrl', 'status', 'memo'],
+    label: '입학 연도 정보', fields: ['universityId', 'year', 'term', 'tracks', 'requirements', 'sourceUrl', 'status', 'memo'],
     summary: (r) => cycleLabel(r),
   },
   unirounds: {
-    label: '전형·마감', fields: ['universityId', 'cycleId', 'name', 'deadline', 'memo'],
-    summary: (r) => [r.name, r.deadline].filter(Boolean).join(' '),
+    label: '전형·마감', fields: ['universityId', 'cycleId', 'track', 'name', 'deadline', 'memo'],
+    summary: (r) => [r.track, r.name, r.deadline].filter(Boolean).join(' '),
   },
   unimajors: {
     label: '전공', fields: ['universityId', 'name', 'faculty', 'code', 'detail', 'sourceUrl'],
@@ -683,7 +683,7 @@ function openStore(dbPath, opts) {
     const rid = pick('roundId');
     const r = rid ? getRow('unirounds', rid) : null;
     if (r && !r.deletedAt && r.universityId === uid) {
-      rec.round = r.name;
+      rec.round = r.track ? r.track + ' · ' + r.name : r.name;
       if (pick('deadlineManual') !== 'TRUE') rec.deadline = r.deadline;
     } else if (rid) rec.roundId = '';
     const mid = pick('majorId');
@@ -853,7 +853,10 @@ function openStore(dbPath, opts) {
       checkUrl(v('sourceUrl'), '출처 링크');
       let reqs;
       try { reqs = JSON.parse(v('requirements') || '[]'); } catch (e) { reqs = null; }
-      if (!Array.isArray(reqs)) throw new UserError('공식 지원 요건 형식이 올바르지 않습니다.');
+      if (!Array.isArray(reqs) || reqs.some((x) => !x || typeof x !== 'object')) throw new UserError('공식 지원 요건 형식이 올바르지 않습니다.');
+      // 한국 대학: 전형 구분(예: 3년특례, 12년특례, 외국인 전형) — 쉼표로 구분, 요건·마감일이 전형별로 나뉨
+      const tracks = String(v('tracks') || '').split(',').map((x) => x.trim()).filter(Boolean);
+      if (tracks.some((x) => x.length > 30) || new Set(tracks).size !== tracks.length) throw new UserError('전형 이름은 30자 이내, 중복 없이 입력하세요.');
       const dup = db.prepare("SELECT id FROM unicycles WHERE universityId = ? AND year = ? AND term = ? AND deletedAt = ''")
         .get(v('universityId'), v('year'), v('term'));
       if (dup && (!cur || dup.id !== cur.id)) throw new UserError(v('year') + '년 ' + v('term') + ' 입학 정보가 이미 있습니다.');
@@ -904,9 +907,10 @@ function openStore(dbPath, opts) {
           db.prepare("UPDATE apps SET university = ?, country = ? WHERE universityId = ? AND deletedAt = ''").run(after.name, after.country, cur.id);
         }
         if (table === 'unirounds') {
+          const rn = after.track ? after.track + ' · ' + after.name : after.name;
           const n = db.prepare("UPDATE apps SET deadline = ?, round = ?, updatedAt = ?, updatedBy = ? WHERE roundId = ? AND deletedAt = '' AND deadlineManual != 'TRUE' AND (deadline != ? OR round != ?)")
-            .run(after.deadline, after.name, t, me.email, cur.id, after.deadline, after.name).changes;
-          db.prepare("UPDATE apps SET round = ? WHERE roundId = ? AND deletedAt = '' AND deadlineManual = 'TRUE'").run(after.name, cur.id);
+            .run(after.deadline, rn, t, me.email, cur.id, after.deadline, rn).changes;
+          db.prepare("UPDATE apps SET round = ? WHERE roundId = ? AND deletedAt = '' AND deadlineManual = 'TRUE'").run(rn, cur.id);
           if (n) cascade = ' — 학생 지원대학 ' + n + '건 마감일 자동 반영';
         }
         if (table === 'unimajors' && rec.name !== undefined) {
@@ -1253,7 +1257,7 @@ function openStore(dbPath, opts) {
     let newId_;
     tx(() => {
       const t = now();
-      const rec = { universityId: src.universityId, year, term, requirements: src.requirements, sourceUrl: src.sourceUrl,
+      const rec = { universityId: src.universityId, year, term, tracks: src.tracks || '', requirements: src.requirements, sourceUrl: src.sourceUrl,
         status: '확인 필요', memo: cycleLabel(src) + ' 정보를 복사해 만든 초안입니다. 마감일은 1년 뒤로 옮긴 추정치이니 공식 요강으로 확인하세요.' };
       validateCatalog('unicycles', rec, null);
       Object.assign(rec, { id: newId(), createdAt: t, createdBy: me.email, updatedAt: t, updatedBy: me.email });
@@ -1261,7 +1265,7 @@ function openStore(dbPath, opts) {
       newId_ = rec.id;
       const shift = (d) => /^\d{4}-\d{2}-\d{2}$/.test(d || '') ? (Number(d.slice(0, 4)) + (Number(year) - Number(src.year))) + d.slice(4) : '';
       db.prepare("SELECT * FROM unirounds WHERE cycleId = ? AND deletedAt = ''").all(src.id).forEach((r) => {
-        insert('unirounds', { id: newId(), universityId: r.universityId, cycleId: rec.id, name: r.name, deadline: shift(r.deadline),
+        insert('unirounds', { id: newId(), universityId: r.universityId, cycleId: rec.id, track: r.track || '', name: r.name, deadline: shift(r.deadline),
           memo: (r.memo ? r.memo + ' / ' : '') + '추정 날짜 — 확인 필요', createdAt: t, createdBy: me.email, updatedAt: t, updatedBy: me.email });
       });
       log(me.email, 'create', 'unicycles', rec.id, describe('unicycles', rec) + ' — ' + cycleLabel(src) + '에서 복사');

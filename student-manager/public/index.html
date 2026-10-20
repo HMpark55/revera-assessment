@@ -367,9 +367,9 @@
   .rlbl { font-size:.72rem; color:var(--muted); }
   .rsize { width:auto !important; padding:2px 4px !important; font-size:.8rem !important; }
   .rgrow { flex:1; }
-  .rich-ed { min-height:220px; max-height:55vh; overflow-y:auto; padding:10px 12px; line-height:1.6; outline:none; white-space:pre-wrap; word-break:break-word; }
+  .rich-ed { min-height:220px; height:260px; resize:vertical; overflow:auto; padding:10px 12px; line-height:1.6; outline:none; white-space:pre-wrap; word-break:break-word; }
   .rich-wrap.big { position:fixed; inset:16px; z-index:80; display:flex; flex-direction:column; box-shadow:0 10px 40px rgba(0,0,0,.35); }
-  .rich-wrap.big .rich-ed { flex:1; max-height:none; font-size:15px; padding:16px 20px; }
+  .rich-wrap.big .rich-ed { flex:1; height:auto; resize:none; max-height:none; font-size:15px; padding:16px 20px; }
   body.noscroll .ov { overflow:hidden; }
   .body.rich { white-space:pre-wrap; }
   #newver { position:fixed; left:50%; transform:translateX(-50%); top:62px; z-index:65; background:#fffbea; border:1px solid #f1e2b0; color:#6b5512; padding:8px 12px; border-radius:8px; box-shadow:0 6px 20px rgba(0,0,0,.15); font-size:.88rem; display:flex; gap:8px; align-items:center; max-width:94vw; flex-wrap:wrap; }
@@ -393,6 +393,13 @@
   .shot { position:relative; display:inline-block; }
   .shot img { height:90px; max-width:160px; object-fit:cover; border:1px solid var(--border); border-radius:6px; display:block; }
   .shot button { position:absolute; top:-6px; right:-6px; width:20px; height:20px; border-radius:50%; border:0; background:#333; color:#fff; font-size:.7rem; cursor:pointer; }
+  .mdrag { cursor:move; user-select:none; }
+  body.dragging-modal { user-select:none; }
+  .qwrap { display:flex; align-items:center; gap:6px; position:relative; min-width:180px; flex:1; }
+  .qwrap input { flex:1; }
+  .qclear { border:1px solid var(--border); background:#fff; color:#6b7280; cursor:pointer; font-size:.8rem; border-radius:6px; padding:6px 9px; flex-shrink:0; }
+  .qbtn { flex-shrink:0; }
+  .reqrow.tr { grid-template-columns:110px 26% 1fr auto; }
   .linked { font-size:.75rem; color:var(--muted); border:1px solid var(--soft); border-radius:4px; padding:0 5px; flex-shrink:0; }
 </style>
 </head>
@@ -403,7 +410,7 @@
     <a class="brand" href="#/home" title="메인 화면으로">REVERA <span>Compass</span></a>
     <div class="gsearch" id="gs" style="display:none"><input type="search" id="gq" placeholder="🔍" aria-label="검색" autocomplete="off"
       oninput="gsearch()" onfocus="gsearch()" onkeydown="gsKey(event)"><div id="gsr" class="gsr"></div></div>
-    <button class="hbtn" id="rf" style="display:none" onclick="refresh(true)" title="최신 데이터로 새로고침">↻ 새로고침</button>
+    <button class="hbtn" id="rf" style="display:none" onclick="location.reload()" title="화면을 새로 불러오기 (새 버전이 배포됐으면 함께 적용)">↻ 새로고침</button>
     <div class="um" id="who" style="display:none"><button type="button" class="um-btn" onclick="this.parentNode.classList.toggle('open')"><span class="av" id="um-av"></span><span id="whoami"></span> ▾</button>
       <div class="um-menu"><div class="um-box"><div class="um-h" id="um-h"></div>
         <a href="#/me">MY PAGE</a><a onclick="logout()">LOG OUT</a></div></div></div>
@@ -542,7 +549,6 @@ var FORMS = {
       ph: '예: HKU 심리학 PS 2차 수정 중 / 추천서 3명 확정 / 출입국사실증명서 수합 대기' }] },
   followups: { title: '팔로업', fields: [
     { k: 'title', l: '할 일', req: 1, full: 1, ph: '예: HKU Personal Statement 2차 피드백 전달' },
-    { k: 'category', l: '분류', t: 'list', o: FOLLOWUP_CATS }, { k: 'status', l: '상태', t: 'select', o: FOLLOWUP_STATUS },
     { k: 'assignee', l: '담당자', t: 'teacher' }, { k: 'due', l: '기한', t: 'date' },
     { k: 'detail', l: '세부 내용 / 학생에게 보낸 메시지', t: 'textarea', full: 1 },
     { h: '학생·학부모 답변' },
@@ -597,6 +603,7 @@ var FORMS = {
     { k: 'memo', l: '메모 (출처·확인 관련)', t: 'textarea', full: 1 }],
     defaults: function () { return { year: String(new Date().getFullYear() + 1), term: '9월', status: '확인 필요', requirements: '[]' }; } },
   unirounds: { title: '전형·마감일', fields: [
+    { k: 'track', l: '전형 구분', t: 'track' },
     { k: 'name', l: '전형 이름', t: 'list', o: ['Early', 'Regular', 'Main Round', 'Late', 'Rolling', 'Extended'], req: 1 },
     { k: 'deadline', l: '마감일', t: 'date' }, { k: 'memo', l: '메모 (시간·시간대 등)', full: 1, ph: '예: 12:00 noon HKT' }] },
   unimajors: { title: '전공', fields: [
@@ -757,10 +764,32 @@ function submitPassword() {
 
 /* ============================== 유틸 ============================== */
 function $(id) { return document.getElementById(id); }
-/** 검색창 입력: 한글 조합 중(ㅅ→새→샘)에는 화면을 다시 그리지 않음 — 다시 그리면 조합이 끊겨 글자가 깨짐 */
+/** 검색창 입력: 글자를 칠 때마다 결과만 다시 그림. 검색창 자체는 그대로 두어야 한글 조합(ㅅ→새→샘)이 끊기지 않음 */
 function searchInput(e, key) {
-  if (e.isComposing) return;
-  UI[key] = e.target.value; UI._focusQ = true; render();
+  UI[key] = e.target.value;
+  renderKeepSearch();
+}
+function renderKeepSearch() {
+  var live = $('q'), app = $('app');
+  if (!live || !UI._view) return render();
+  var keep = Array.prototype.filter.call(app.children, function (c) { return c.contains(live); })[0];
+  var tmp = document.createElement('div'); tmp.innerHTML = UI._view();
+  var kids = Array.prototype.slice.call(tmp.children);
+  var k = kids.map(function (c) { return !!c.querySelector('#q'); }).indexOf(true);
+  if (!keep || k < 0) return render();
+  Array.prototype.slice.call(app.children).forEach(function (c) { if (c !== keep) c.remove(); });
+  kids.slice(0, k).forEach(function (c) { app.insertBefore(c, keep); });
+  kids.slice(k + 1).forEach(function (c) { app.appendChild(c); });
+  var clr = keep.querySelector('.qclear'); if (clr) clr.hidden = !live.value;
+}
+/** 검색창마다 [🔍 검색] 버튼과 지우기 ✕ — 결과는 칠 때 바로 바뀌고, 버튼은 입력이 들어갔다는 확인용 */
+function decorateSearch() {
+  var q = $('q'); if (!q || q.parentNode.classList.contains('qwrap')) return;
+  var w = document.createElement('span'); w.className = 'qwrap grow';
+  q.parentNode.insertBefore(w, q); w.appendChild(q); q.classList.remove('grow');
+  w.insertAdjacentHTML('beforeend', '<button type="button" class="qclear" title="검색어 지우기"' + (q.value ? '' : ' hidden') + ' onclick="var q=$(\'q\');q.value=\'\';q.dispatchEvent(new Event(\'input\'));q.focus()">✕</button>' +
+    '<button type="button" class="btn qbtn" onclick="var q=$(\'q\');q.dispatchEvent(new Event(\'input\'));q.blur()">🔍 검색</button>');
+  q.addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.isComposing) { q.dispatchEvent(new Event('input')); } });
 }
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
 /** onclick 속성 안에 넣을 JS 값 */
@@ -969,7 +998,9 @@ function render() {
   var v = { home: viewHome, students: viewStudents, student: viewStudent, materials: viewMaterials, deadlines: viewDeadlines,
     unis: viewUnis, uni: viewUni, followups: viewFollowups, search: viewSearch,
     results: viewResults, sales: viewSales, trash: viewTrash, teachers: viewTeachers, log: viewLog, me: viewMe, unilist: viewLists, programs: viewPrograms, meetings: viewMeetings, settings: viewSettings }[r.view] || viewHome;
+  UI._view = function () { return v(route().id); };
   $('app').innerHTML = v(r.id);
+  decorateSearch();
   var q = $('q'); if (q && UI._focusQ) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); UI._focusQ = false; }
 }
 
@@ -1176,7 +1207,7 @@ function calendarCard() {
     '<span class="cal-legend">' + evCats().map(function (c) { return '<span><i style="background:' + evColor(c.value) + '"></i>' + esc(c.value) + '</span>'; }).join('') +
       (UI.calDl !== false ? '<span><i class="c-마감"></i>지원 마감</span><span><i class="c-미팅"></i>다음 미팅</span>' : '') + '</span></div>' +
     '<div class="cals">' + calMonth(a.y, a.m, by) + calMonth(b.y, b.m, by) + '</div>' +
-    '<div class="muted" style="margin-top:6px">날짜를 누르면 그날 일정을 보고 추가할 수 있습니다. 일정은 모든 선생님이 함께 봅니다.</div></div>';
+    '</div>';
 }
 function openDay(iso) {
   var list = calItems(iso, iso)[iso] || [];
@@ -1208,7 +1239,7 @@ function openEvent(id, date) {
     (id ? hidden('id', e.id) + hidden('updatedAt', e.updatedAt) : '') +
     fld('일정', inp('title', e.title || '', 'text', ' placeholder="예: SAT 시험, 홍콩대 설명회"' + ro), true, true) +
     fld('분류', '<select name="category"' + ro + '>' + opts(evCats().map(function (c) { return c.value; }).concat(e.category && !evCats().some(function (c) { return c.value === e.category; }) ? [e.category] : []), e.category || '') + '</select>' +
-      (isMgr() ? '<div class="muted" style="font-size:.75rem;margin-top:2px">분류·색은 관리 › 목록 관리 › 일정 분류에서 바꿀 수 있습니다</div>' : '')) + '<div></div>' +
+      '') + '<div></div>' +
     fld('날짜', inp('date', e.date || '', 'date', ro), false, true) +
     fld('끝나는 날 (여러 날이면)', inp('endDate', e.endDate || '', 'date', ro)) +
     fld('메모', '<textarea name="memo" placeholder="예: 접수 마감일, 시험장, 준비물"' + ro + '>' + esc(e.memo || '') + '</textarea>', true) +
@@ -2279,7 +2310,7 @@ function viewMaterials() {
     if (q && [s.name, s.school, s.tracks].join(' ').toLowerCase().indexOf(q) < 0) return false;
     return true;
   }).sort(function (a, b) { return checkCount(a) - checkCount(b) || a.name.localeCompare(b.name, 'ko'); });
-  var h = '<div class="toolbar"><h2 style="margin:0;margin-right:auto">자료 현황 <span class="muted">' + list.length + '명 · 덜 모인 학생부터</span></h2></div>';
+  var h = '<div class="toolbar"><h2 style="margin:0;margin-right:auto">자료 현황 <span class="muted">' + list.length + '명</span></h2></div>';
   h += '<div class="toolbar"><input type="text" id="q" class="grow" placeholder="이름, 학교, 트랙 검색" value="' + esc(UI.q) + '" oninput="searchInput(event,\'q\')" oncompositionend="searchInput(event,\'q\')">' +
     '<label class="muted"><input type="checkbox"' + (UI.matAll ? ' checked' : '') + ' onchange="UI.matAll=this.checked;render()"> 완료·종료 학생 포함</label></div>';
   if (!list.length) return h + '<div class="card empty">해당하는 학생이 없습니다.</div>';
@@ -2316,7 +2347,6 @@ function viewUnis() {
   var unis = sortedUnis();
   var h = '<div class="toolbar"><h2 style="margin:0;margin-right:auto">대학 정보 <span class="muted">' + unis.length + '곳</span></h2>' +
     (isAdmin() ? '<button class="btn" onclick="openForm(\'universities\')">+ 대학 추가</button>' : '') + '</div>';
-  h += '<div class="muted" style="margin-bottom:10px">대학별로 입학 연도의 <b>공식</b> 지원 요건과 전형별 마감일을 기록합니다. 학생 지원대학에서 대학·전형을 고르면 마감일이 자동으로 들어가고, 여기서 마감일을 고치면 학생들에게도 함께 반영됩니다.</div>';
   if (!unis.length) return h + '<div class="card empty">등록된 대학이 없습니다.</div>';
   var groups = {};
   unis.forEach(function (u) { (groups[u.country] = groups[u.country] || []).push(u); });
@@ -2332,7 +2362,7 @@ function viewUnis() {
         var n = S.apps.filter(function (a) { return a.universityId === u.id && studentById(a.studentId); }).length;
         return '<tr class="click" onclick="go(\'#/uni/' + esc(u.id) + '\')"><td class="nw"><b>' + esc(u.name) + '</b>' + (u.fullName && u.fullName !== u.name ? '<div class="muted">' + esc(u.fullName) + '</div>' : '') + '</td>' +
           '<td class="nw">' + (cy ? esc(cycleLabel(cy)) : '<span class="muted">없음</span>') + '</td><td>' + (cy ? statusPill(cy) : '') + '</td>' +
-          '<td>' + (next ? esc(next.name) + ' · ' + esc(fmtD(next.deadline)) + ' ' + dday(next.deadline) : '<span class="muted">-</span>') + '</td><td>' + (n ? n + '건' : '<span class="muted">-</span>') + '</td></tr>';
+          '<td>' + (next ? (next.track ? esc(next.track) + ' ' : '') + esc(next.name) + ' · ' + esc(fmtD(next.deadline)) + ' ' + dday(next.deadline) : '<span class="muted">-</span>') + '</td><td>' + (n ? n + '건' : '<span class="muted">-</span>') + '</td></tr>';
       }).join('') + '</tbody></table></div></div>');
   });
   return h;
@@ -2427,27 +2457,42 @@ function viewUni(id) {
   h += '<div class="cycbar"><span class="muted">입학 연도</span> ' + cycles.map(function (c) {
     return '<a class="cyc' + (cy && c.id === cy.id ? ' on' : '') + '" onclick="UI.uniCycle[' + js(id) + ']=' + js(c.id) + ';render()">' + esc(cycleLabel(c)) + '</a>';
   }).join('') + '<button class="btn ghost sm" onclick="openForm(\'unicycles\',null,null,{universityId:' + js(id) + '})">+ 입학 연도 추가</button>' +
-    (cy ? '<button class="btn ghost sm" onclick="copyCycle(' + js(cy.id) + ')">이 연도 복사 → 다음 해</button>' : '') + '</div></div>';
+    (cy ? '<button class="btn ghost sm" onclick="copyCycle(' + js(cy.id) + ')">이 연도 복사 → 다음 해</button>' : '') + '</div>';
+  // 한국 대학: 입학 연도 안에서 전형(3년특례·12년특례·외국인 전형 등)을 골라 요건·마감일을 따로 봄. 모집요강 파일은 연도 공통
+  var trs = cy ? cycleTracks(cy) : [], T = '';
+  if (trs.length) {
+    UI.uniTrack = UI.uniTrack || {};
+    T = trs.indexOf(UI.uniTrack[cy.id]) >= 0 ? UI.uniTrack[cy.id] : trs[0];
+    h += '<div class="cycbar trackbar"><span class="muted">전형</span> ' + trs.map(function (t) {
+      return '<a class="cyc' + (t === T ? ' on' : '') + '" onclick="UI.uniTrack[' + js(cy.id) + ']=' + js(t) + ';render()">' + esc(t) + '</a>';
+    }).join('') + '<button class="btn ghost sm" onclick="addTrack(' + js(cy.id) + ')">+ 전형 추가</button>' +
+      '<button class="btn ghost sm" onclick="removeTrack(' + js(cy.id) + ',' + js(T) + ')">“' + esc(T) + '” 빼기</button></div>';
+  }
+  h += '</div>';
   if (!cy) h += '<div class="card empty">아직 입학 연도 정보가 없습니다. “+ 입학 연도 추가”로 시작하세요.</div>';
   else {
     var reqs = parseReqs(cy.requirements), src = safeUrl(cy.sourceUrl);
-    h += '<div class="card">' + secHead('공식 지원 요건 — ' + esc(cycleLabel(cy)) + ' ' + statusPill(cy),
+    var common = trs.length ? reqs.filter(function (r) { return !r.track; }) : [];
+    if (trs.length) reqs = reqs.filter(function (r) { return r.track === T; });
+    h += '<div class="card">' + secHead('공식 지원 요건 — ' + esc(cycleLabel(cy)) + (T ? ' · ' + esc(T) : '') + ' ' + statusPill(cy),
       (cy.status !== '확인 완료' ? '<button class="btn sm" onclick="verifyCycle(' + js(cy.id) + ')">✓ 공식 확인 완료로 표시</button> ' : '') +
-      '<button class="btn ghost sm" onclick="openForm(\'unicycles\',' + js(cy.id) + ')">수정</button>');
+      '<button class="btn ghost sm" onclick="editCycle(' + js(cy.id) + ',' + js(T) + ')">수정</button>');
     h += '<div class="muted" style="margin-bottom:8px">' + (src ? '출처: <a href="' + esc(src) + '" target="_blank" rel="noopener">' + esc(src) + '</a>' : '출처 링크 없음') +
       (cy.status === '확인 완료' && cy.verifiedAt ? ' · 확인 ' + esc(fmtTime(cy.verifiedAt)) + ' ' + esc(teacherName(cy.verifiedBy)) : '') + '</div>';
     if (cy.memo) h += '<div class="notice" style="white-space:pre-wrap">' + esc(cy.memo) + '</div>';
-    h += reqs.length ? '<table class="reqs"><tbody>' + reqs.map(function (r) {
+    var reqRows = function (list) { return list.map(function (r) {
       var link = safeUrl(r.content);
       return '<tr><th>' + esc(r.item) + '</th><td>' + (link ? '<a href="' + esc(link) + '" target="_blank" rel="noopener">' + esc(r.content) + '</a>' : esc(r.content)) + '</td></tr>';
-    }).join('') + '</tbody></table>' : '<div class="empty">아직 입력된 요건이 없습니다. “수정”에서 항목을 추가하세요. (예: Essay | 영어 500 words)</div>';
+    }).join(''); };
+    h += reqs.length || common.length ? '<table class="reqs"><tbody>' + (common.length ? '<tr class="grp"><td colspan="2">공통 (모든 전형)</td></tr>' + reqRows(common) + (reqs.length ? '<tr class="grp"><td colspan="2">' + esc(T) + '</td></tr>' : '') : '') + reqRows(reqs) + '</tbody></table>'
+      : '<div class="empty">아직 입력된 ' + (T ? esc(T) + ' ' : '') + '요건이 없습니다. “수정”에서 항목을 추가하세요.</div>';
     h += '</div>';
     h += uniFilesCard(u, cy);
-    var rounds = S.unirounds.filter(function (r) { return r.cycleId === cy.id; }).sort(byDate('deadline'));
-    h += '<div class="card">' + secHead('전형별 마감일 — ' + esc(cycleLabel(cy)), '<button class="btn sm" onclick="openForm(\'unirounds\',null,null,{universityId:' + js(id) + ',cycleId:' + js(cy.id) + '})">+ 전형 추가</button>') +
+    var rounds = S.unirounds.filter(function (r) { return r.cycleId === cy.id && (!trs.length || r.track === T || !r.track); }).sort(byDate('deadline'));
+    h += '<div class="card">' + secHead((T ? '마감일 — ' + esc(cycleLabel(cy)) + ' · ' + esc(T) : '전형별 마감일 — ' + esc(cycleLabel(cy))), '<button class="btn sm" onclick="openForm(\'unirounds\',null,null,{universityId:' + js(id) + ',cycleId:' + js(cy.id) + ',track:' + js(T) + '})">+ ' + (T ? '일정' : '전형') + ' 추가</button>') +
       (rounds.length ? '<table><thead><tr><th>전형</th><th>마감일</th><th>메모</th><th>지원 학생</th></tr></thead><tbody>' + rounds.map(function (r) {
         var n = S.apps.filter(function (a) { return a.roundId === r.id && studentById(a.studentId); });
-        return '<tr class="click" onclick="openForm(\'unirounds\',' + js(r.id) + ')"><td><b>' + esc(r.name) + '</b></td><td class="nw">' + esc(r.deadline ? fmtD(r.deadline) : '미정') + ' ' + dday(r.deadline) + '</td>' +
+        return '<tr class="click" onclick="openForm(\'unirounds\',' + js(r.id) + ')"><td><b>' + esc(r.name) + '</b>' + (trs.length && !r.track ? ' <span class="pill d-요청함" title="눌러서 전형을 지정하세요">전형 미지정</span>' : '') + '</td><td class="nw">' + esc(r.deadline ? fmtD(r.deadline) : '미정') + ' ' + dday(r.deadline) + '</td>' +
           '<td class="muted">' + esc(r.memo) + '</td><td>' + (n.length ? n.map(function (a) { return esc(studentById(a.studentId).name); }).join(', ') : '<span class="muted">-</span>') + '</td></tr>';
       }).join('') + '</tbody></table><div class="muted" style="margin-top:6px">마감일을 고치면 이 전형으로 연결된 학생들의 마감일도 자동으로 바뀝니다. (학생별로 “직접 지정”한 경우 제외)</div>'
         : '<div class="empty">등록된 전형이 없습니다. Early / Regular 등 전형별로 추가하세요.</div>') + '</div>';
@@ -2520,6 +2565,38 @@ function openUniFile(id) {
 function removeUniFile(id) {
   if (!confirm('이 파일을 삭제할까요? 삭제하면 화면에서 되돌릴 수 없습니다. (자동 백업을 켜 두었다면 삭제 전에 만들어진 백업에는 남아 있습니다)')) return;
   mutate('removeUniFile', { id: id }, '삭제했습니다.');
+}
+/** 한국 대학 입학 연도의 전형 구분 (지정 안 했으면 3년특례·12년특례) */
+var DEFAULT_KR_TRACKS = ['3년특례', '12년특례'];
+function cycleTracks(cy) {
+  var u = findRow('universities', cy.universityId);
+  if (!u || u.country !== '한국') return [];
+  return cy.tracks ? cy.tracks.split(',').map(function (x) { return x.trim(); }).filter(Boolean) : DEFAULT_KR_TRACKS.slice();
+}
+function editCycle(id, track) {
+  var cy = findRow('unicycles', id);
+  UI.nextReq = { tracks: cycleTracks(cy), def: track || '' };
+  openForm('unicycles', id);
+}
+function saveTracks(cy, list, msg) {
+  mutate('save', { table: 'unicycles', obj: { id: cy.id, updatedAt: cy.updatedAt, tracks: list.join(',') } }, msg);
+}
+function addTrack(id) {
+  var cy = findRow('unicycles', id), list = cycleTracks(cy);
+  var n = prompt('추가할 전형 이름 (예: 외국인 전형, 재외국민 특별전형)');
+  if (!n || !n.trim()) return;
+  n = n.trim().replace(/,/g, ' ');
+  if (list.indexOf(n) >= 0) return toast('이미 있는 전형입니다.', true);
+  UI.uniTrack = UI.uniTrack || {}; UI.uniTrack[id] = n;
+  saveTracks(cy, list.concat([n]), '“' + n + '” 전형을 추가했습니다.');
+}
+function removeTrack(id, name) {
+  var cy = findRow('unicycles', id), list = cycleTracks(cy);
+  var used = S.unirounds.some(function (r) { return r.cycleId === id && r.track === name; }) || parseReqs(cy.requirements).some(function (r) { return r.track === name; });
+  if (used) return toast('“' + name + '”에 입력된 요건이나 마감일이 있어 뺄 수 없습니다. 먼저 지우거나 다른 전형으로 옮기세요.', true);
+  if (list.length <= 1) return toast('전형이 하나는 있어야 합니다.', true);
+  if (!confirm('이 입학 연도에서 “' + name + '” 전형을 뺄까요? (예: 서울대는 3년특례 없음)')) return;
+  saveTracks(cy, list.filter(function (x) { return x !== name; }), '“' + name + '” 전형을 뺐습니다.');
 }
 function verifyCycle(id) {
   var c = findRow('unicycles', id);
@@ -2887,9 +2964,23 @@ function submitTeacher() {
 var modalLocked = false;
 function modal(title, body, foot, locked) {
   modalLocked = !!locked;
-  $('modal').innerHTML = '<div class="ov"><div class="modal"><h3>' + esc(title) + '</h3><form id="mf" class="form" onsubmit="return false" oninput="modalDirty=true" onchange="modalDirty=true">' + body + '</form><div class="foot">' + foot + '</div></div></div>';
+  $('modal').innerHTML = '<div class="ov"><div class="modal"><h3 class="mdrag" onmousedown="modalDrag(event)" title="끌어서 창 옮기기">' + esc(title) + '</h3><form id="mf" class="form" onsubmit="return false" oninput="modalDirty=true" onchange="modalDirty=true">' + body + '</form><div class="foot">' + foot + '</div></div></div>';
   modalDirty = false;
   var first = $('mf').querySelector('input:not([type=hidden]):not([type=checkbox]),textarea,select'); if (first) first.focus();
+}
+/** 팝업 창 제목 줄을 잡고 끌면 창 위치 이동 (창마다 새로 열면 가운데에서 시작) */
+function modalDrag(e) {
+  if (e.button !== 0) return;
+  var m = e.target.closest('.modal'); if (!m) return;
+  e.preventDefault();
+  var sx = e.clientX, sy = e.clientY, ox = m._dx || 0, oy = m._dy || 0;
+  var move = function (ev) {
+    m._dx = ox + ev.clientX - sx; m._dy = oy + ev.clientY - sy;
+    m.style.transform = 'translate(' + m._dx + 'px,' + m._dy + 'px)';
+  };
+  var up = function () { document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up); document.body.classList.remove('dragging-modal'); };
+  document.body.classList.add('dragging-modal');
+  document.addEventListener('mousemove', move); document.addEventListener('mouseup', up);
 }
 function closeModal(force) { if (modalLocked && force !== true && S.me && S.me.mustChangePassword) return; modalLocked = false; $('modal').innerHTML = ''; }
 var modalDirty = false;
@@ -2907,7 +2998,9 @@ function hidden(name, val) { return '<input type="hidden" name="' + name + '" va
 
 function parseReqs(v) { try { var a = JSON.parse(v || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
 function reqRow(r) {
-  return '<div class="reqrow"><input type="text" data-req="item" value="' + esc(r.item) + '" placeholder="항목 (예: Essay)">' +
+  var tr = UI.reqTracks || [];
+  return '<div class="reqrow' + (tr.length ? ' tr' : '') + '">' + (tr.length ? '<select data-req="track" title="전형">' + opts([''].concat(tr), r.track != null ? r.track : (UI.reqTrackDefault || '')).replace('>—</option>', '>공통</option>') + '</select>' : '') +
+    '<input type="text" data-req="item" value="' + esc(r.item) + '" placeholder="항목 (예: Essay)">' +
     '<textarea data-req="content" placeholder="내용 (예: 영어 500 words 이내)">' + esc(r.content) + '</textarea>' +
     '<button type="button" class="btn ghost sm" onclick="this.parentNode.remove()">삭제</button></div>';
 }
@@ -2950,9 +3043,17 @@ function field(f, rec) {
     }).join('') + '</select><div class="muted" style="font-size:.78rem;margin-top:3px">목록에 없는 대학은 관리자가 “대학 목록 관리”에서 추가합니다.</div>';
   else if (f.t === 'round') h = '<select name="roundId" id="f-round" data-cur="' + esc(v) + '" onchange="appFormSync()"></select>';
   else if (f.t === 'major') h = '<select name="majorId" id="f-major" data-cur="' + esc(v) + '" onchange="appFormSync()"></select>';
+  else if (f.t === 'track') {
+    var cyc = findRow('unicycles', rec.cycleId), trs = cyc ? cycleTracks(cyc) : [];
+    if (!trs.length) return hidden('track', rec.track || '');
+    h = '<select name="track">' + opts([''].concat(trs, rec.track && trs.indexOf(rec.track) < 0 ? [rec.track] : []), rec.track || '').replace('>—</option>', '>(전형 미지정)</option>') + '</select>';
+  }
   else if (f.t === 'reqs') {
-    h = '<div id="reqs">' + parseReqs(v).concat(parseReqs(v).length ? [] : [{ item: '', content: '' }]).map(reqRow).join('') + '</div>' +
-      '<button type="button" class="btn ghost sm" onclick="document.getElementById(\'reqs\').insertAdjacentHTML(\'beforeend\', reqRow({item:\'\',content:\'\'}))">+ 항목 추가</button>';
+    // 이미 있는 항목은 저장된 전형 그대로(없으면 공통), 새 줄만 지금 보고 있는 전형으로
+    h = '<div id="reqs">' + parseReqs(v).map(function (r) { return Object.assign({}, r, { track: r.track || '' }); })
+      .concat(parseReqs(v).length ? [] : [{ item: '', content: '' }]).map(reqRow).join('') + '</div>' +
+      '<button type="button" class="btn ghost sm" onclick="document.getElementById(\'reqs\').insertAdjacentHTML(\'beforeend\', reqRow({item:\'\',content:\'\'}))">+ 항목 추가</button>' +
+      (UI.reqTracks && UI.reqTracks.length ? '<div class="muted" style="font-size:.78rem;margin-top:4px">항목마다 어느 전형의 요건인지 고르세요. “공통”은 모든 전형에 보입니다.</div>' : '');
   }
   else if (f.t === 'multi') {
     var cur = tags(v);
@@ -2965,6 +3066,8 @@ function field(f, rec) {
 
 function openForm(key, id, studentId, extra) {
   var F = FORMS[key], table = F.table || key;
+  // 요건 편집 줄의 전형 선택 (한국 대학, editCycle 에서 지정) — 창이 열려 있는 동안 “+ 항목 추가”에도 쓰임
+  UI.reqTracks = UI.nextReq ? UI.nextReq.tracks : null; UI.reqTrackDefault = UI.nextReq ? UI.nextReq.def : ''; UI.nextReq = null;
   var rec = id ? findRow(table, id) : Object.assign({ studentId: studentId }, F.defaults ? F.defaults() : {}, extra || {});
   if (id && !rec) return toast('항목을 찾을 수 없습니다. 새로고침 해주세요.', true);
   if (F.prefill) rec = Object.assign({}, rec, F.prefill(rec));
@@ -3000,7 +3103,7 @@ function appFormSync(uniChanged) {
   var cycles = {}; S.unicycles.forEach(function (c) { cycles[c.id] = c; });
   rounds.sort(function (a, b) { var ca = cycles[a.cycleId] || {}, cb = cycles[b.cycleId] || {}; return (cb.year + cb.term).localeCompare(ca.year + ca.term) || (a.deadline || '9999').localeCompare(b.deadline || '9999'); });
   rsel.innerHTML = '<option value="">' + (u ? (rounds.length ? '— 전형 선택 —' : '— 등록된 전형 없음 —') : '— 대학을 먼저 선택 —') + '</option>' +
-    rounds.map(function (r) { return '<option value="' + esc(r.id) + '"' + (r.id === curR ? ' selected' : '') + '>' + esc(cycleLabel(cycles[r.cycleId])) + ' · ' + esc(r.name) + ' (' + esc(r.deadline || '날짜 미정') + ')</option>'; }).join('');
+    rounds.map(function (r) { return '<option value="' + esc(r.id) + '"' + (r.id === curR ? ' selected' : '') + '>' + esc(cycleLabel(cycles[r.cycleId])) + ' · ' + (r.track ? esc(r.track) + ' · ' : '') + esc(r.name) + ' (' + esc(r.deadline || '날짜 미정') + ')</option>'; }).join('');
   var majors = u ? S.unimajors.filter(function (m) { return m.universityId === uid; }).sort(function (a, b) { return a.name.localeCompare(b.name); }) : [];
   msel.innerHTML = '<option value="">' + (u ? '— 목록에 없음 (아래에 직접 입력) —' : '— 대학을 먼저 선택 —') + '</option>' +
     majors.map(function (m) { return '<option value="' + esc(m.id) + '"' + (m.id === curM ? ' selected' : '') + '>' + esc(m.name) + '</option>'; }).join('');
@@ -3075,7 +3178,7 @@ function richField(f, rec) {
       b('removeFormat', '서식 지우기', '선택한 글자의 서식 지우기') +
       '<span class="rgrow"></span><button type="button" class="btn ghost sm" id="rich-big" onclick="richBig(!$(\'rich-wrap\').classList.contains(\'big\'))">⛶ 크게 쓰기</button></div>' +
     '<div class="rich-ed" id="rich-ed" contenteditable="true" spellcheck="false" onpaste="richPaste(event)" onfocus="richInit()">' + html + '</div></div>' +
-    '<div class="muted" style="font-size:.75rem;margin-top:3px">글자를 선택한 뒤 위 버튼으로 강조하세요. 다른 곳에서 붙여넣으면 서식 없이 글자만 들어갑니다. 크게 쓰기 중에는 Esc로 돌아옵니다.</div></div>';
+    '</div>';
 }
 var richRange = null;
 function richInit() { try { document.execCommand('styleWithCSS', false, true); } catch (e) { /* 일부 브라우저 */ } }
@@ -3160,7 +3263,10 @@ function submitForm(key) {
   if (table === 'payments' && !(amt(o.amount) > 0)) return toast('입금액을 숫자로 입력하세요.', true);
   if (key === 'unicycles') {
     o.requirements = JSON.stringify(Array.prototype.map.call(document.querySelectorAll('#reqs .reqrow'), function (row) {
-      return { item: row.querySelector('[data-req=item]').value.trim(), content: row.querySelector('[data-req=content]').value.trim() };
+      var tsel = row.querySelector('[data-req=track]');
+      var o2 = { item: row.querySelector('[data-req=item]').value.trim(), content: row.querySelector('[data-req=content]').value.trim() };
+      if (tsel && tsel.value) o2.track = tsel.value;
+      return o2;
     }).filter(function (x) { return x.item || x.content; }));
   }
   if (miss) return toast(miss.l + ' 항목을 입력하세요.', true);
