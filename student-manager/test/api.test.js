@@ -1154,3 +1154,29 @@ test('v8: 일정 분류·색 목록(이름 바꾸면 일정도), 대회·프로�
   const log = await admin.ok('getLog', {});
   assert.ok(log.rows.some((r) => r.tbl === 'programs' && r.action === 'delete' && r.tblLabel === '대회·프로그램'));
 });
+
+test('받은 연락: 팔로업 종류·보낸 사람·경로·우리 답변, 스크린샷 연결', async () => {
+  const admin = client(); await admin.login('admin@revera.test', 'admin-pass-1');
+  let d = await admin.saveOk('students', { name: '연락학생' });
+  const sid = d.savedId;
+  d = await admin.saveOk('followups', { studentId: sid, kind: 'contact', fromWho: '어머니', channel: '위챗', receivedDate: '2026-10-20',
+    title: 'IA 초안 월요일까지 내도 되나요?', detail: 'IA 초안 월요일까지 내도 되나요?\n학교는 수요일까지래요' });
+  const fid = d.savedId;
+  assert.strictEqual(d.followups.find((f) => f.id === fid).status, '할 일');
+  assert.strictEqual((await admin.save('followups', { studentId: sid, kind: 'x', title: 't' })).status, 400);
+  assert.strictEqual((await admin.save('followups', { studentId: sid, kind: 'contact', fromWho: '친구', title: 't' })).status, 400);
+  assert.strictEqual((await admin.save('followups', { studentId: sid, kind: 'contact', channel: '팩스', title: 't' })).status, 400);
+  const cur = d.followups.find((f) => f.id === fid);
+  d = await admin.saveOk('followups', { id: fid, updatedAt: cur.updatedAt, answer: '월요일 가능', answerDate: '2026-10-20', status: '완료' });
+  const f2 = d.followups.find((f) => f.id === fid);
+  assert.deepStrictEqual([f2.answer, f2.status, !!f2.doneAt], ['월요일 가능', '완료', true]);
+  // 스크린샷은 그 연락에 연결 (다른 학생 연락에는 불가)
+  const png = Buffer.from('89504e470d0a1a0a', 'hex');
+  const up = (studentId, followupId) => admin.req('POST', '/api/files/upload?studentId=' + studentId + '&followupId=' + followupId, undefined,
+    { 'Content-Type': 'image/png', 'X-File-Name': encodeURIComponent('캡처.png') }, png);
+  let r = await up(sid, fid);
+  assert.strictEqual(r.status, 200, JSON.stringify(r.data));
+  assert.ok(r.data.files.some((f) => f.followupId === fid && f.category === '연락'));
+  const other = (await admin.saveOk('students', { name: '다른학생' })).savedId;
+  assert.strictEqual((await up(other, fid)).status, 404);
+});
