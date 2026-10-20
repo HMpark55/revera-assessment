@@ -1246,3 +1246,37 @@ test('저장 공간: 매일 백업은 기록만, 파일은 새것만 하나씩 �
   store.db.prepare("UPDATE meta SET value = '5' WHERE key = 'cfg.volumeGB'").run();
 });
 
+
+test('메인 화면 배치: 계정별 저장, 관리자 기본 배치, 형식 검사, 전체 최근 활동은 볼 수 있는 학생만', async () => {
+  const admin = client();
+  await admin.login('admin@revera.test', 'admin-pass-1');
+  await admin.ok('saveTeacher', { email: 'lay1@revera.test', name: '배치컨설', role: 'consultant', password: '123456' });
+  const con = client(); await con.login('lay1@revera.test', '123456');
+  let d = await con.ok('getAll');
+  assert.strictEqual(d.me.homeLayout, null);
+  const mine = [{ id: 'contacts', w: 'f', h: 'l' }, { id: 'today', w: 'h', h: 'x', hide: 0 }, { id: 'calendar', hide: true }];
+  d = await con.ok('saveHomeLayout', { layout: mine });
+  assert.deepStrictEqual(d.me.homeLayout, [{ id: 'contacts', w: 'f', h: 'l', hide: false }, { id: 'today', w: 'h', h: '', hide: false }, { id: 'calendar', w: 'h', h: '', hide: true }]);
+  assert.strictEqual((await con.rpc('saveHomeLayout', { layout: [{ id: 'a' }, { id: 'a' }] })).status, 400, '중복');
+  assert.strictEqual((await con.rpc('saveHomeLayout', { layout: [{ id: '<script>' }] })).status, 400);
+  assert.strictEqual((await con.rpc('saveHomeLayout', { layout: [], asDefault: true })).status, 403, '기본 배치는 관리자만');
+  // 관리자 기본 배치: 배치를 안 바꾼 사람에게 보임 (내 배치가 있으면 내 배치)
+  await admin.ok('saveHomeLayout', { layout: [{ id: 'today', w: 'f' }, { id: 'review', w: 'h' }], asDefault: true });
+  d = await con.ok('getAll');
+  assert.strictEqual(d.homeDefault[1].id, 'review');
+  assert.strictEqual(d.me.homeLayout[0].id, 'contacts');
+  d = await con.ok('saveHomeLayout', { layout: null });
+  assert.strictEqual(d.me.homeLayout, null, '되돌리기 → 기본 배치를 따름');
+  await admin.ok('saveHomeLayout', { layout: null, asDefault: true });
+  assert.strictEqual((await con.ok('getAll')).homeDefault, null);
+
+  // 전체 최근 활동: 컨설턴트는 담당 학생 것만
+  d = await admin.saveOk('students', { name: '활동담당', counselor: 'lay1@revera.test' });
+  await admin.saveOk('followups', { studentId: d.savedId, title: '담당 학생 일' });
+  d = await admin.saveOk('students', { name: '활동남의학생' });
+  await admin.saveOk('followups', { studentId: d.savedId, title: '남의 학생 일' });
+  const rows = (await con.ok('getActivity', { all: true })).rows;
+  assert.ok(rows.some((r) => r.studentName === '활동담당'));
+  assert.ok(!rows.some((r) => r.studentName === '활동남의학생'));
+  assert.ok((await admin.ok('getActivity', { all: true })).rows.some((r) => r.studentName === '활동남의학생'));
+});

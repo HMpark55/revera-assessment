@@ -319,6 +319,7 @@ function migrate(db) {
   ensureColumns(db, 'contracts', ['paid']); // 이전 버전 열 (새 버전은 입금 기록으로 계산)
   db.exec('CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
   ensureColumns(db, 'teachers', ['notify']); // '' = 이메일 알림 받음, 'off' = 안 받음
+  ensureColumns(db, 'teachers', ['homeLayout']); // 메인 화면 배치(JSON). '' = 관리자가 정한 기본 배치
   // v10: 팔로업 요청(휴무 등으로 다른 선생님에게 부탁), 대학 자료 파일
   ensureColumns(db, 'followups', ['requestedBy', 'requestedAt', 'requestNote']);
   db.exec('CREATE TABLE IF NOT EXISTS unifiles (id TEXT PRIMARY KEY)');
@@ -563,7 +564,9 @@ function openStore(dbPath, opts) {
     const students = db.prepare("SELECT * FROM students WHERE deletedAt = ''").all().filter((s) => canSeeStudent(me, s));
     const ids = new Set(students.map((s) => s.id));
     const out = {
-      me: { email: me.email, name: me.name, role: me.role, mustChangePassword: !!me.mustChangePassword },
+      me: { email: me.email, name: me.name, role: me.role, mustChangePassword: !!me.mustChangePassword,
+        homeLayout: parseLayout((db.prepare('SELECT homeLayout FROM teachers WHERE email = ?').get(me.email) || {}).homeLayout) },
+      homeDefault: parseLayout(getMeta('homeLayoutDefault')),
       teachers: db.prepare('SELECT email, name, role, active, notify FROM teachers ORDER BY name').all()
         .map((t) => ({ email: t.email, name: t.name, role: t.role, active: !!t.active, notify: t.notify !== 'off' })),
       students,
@@ -1257,6 +1260,33 @@ function openStore(dbPath, opts) {
     return getAll(Object.assign({}, me, { name }));
   }
 
+  /* ----- 메인 화면 배치 (계정별, 관리자는 모두의 기본 배치) ----- */
+  function parseLayout(v) { try { const x = JSON.parse(v || 'null'); return Array.isArray(x) ? x : null; } catch (e) { return null; } }
+  /** [{ id, w: 'h'(반 칸)|'f'(한 줄), h: ''|'s'|'m'|'l'(높이), hide }] 만 받음 */
+  function cleanLayout(list) {
+    if (!Array.isArray(list) || list.length > 40) throw new UserError('화면 배치 형식이 올바르지 않습니다.');
+    const seen = new Set();
+    return list.map((x) => {
+      const id = String(x && x.id || '');
+      if (!/^[a-z]{1,30}$/.test(id) || seen.has(id)) throw new UserError('화면 배치 형식이 올바르지 않습니다.');
+      seen.add(id);
+      return { id, w: x.w === 'f' ? 'f' : 'h', h: ['s', 'm', 'l'].includes(x.h) ? x.h : '', hide: !!x.hide };
+    });
+  }
+  function saveHomeLayout(me, arg) {
+    arg = arg || {};
+    if (arg.asDefault) {
+      requireAdmin(me, '모두의 기본 배치 정하기');
+      const v = arg.layout == null ? '' : JSON.stringify(cleanLayout(arg.layout));
+      setMeta('homeLayoutDefault', v);
+      log(me.email, 'update', 'settings', 'homeLayout', v ? '메인 화면 기본 배치 변경' : '메인 화면 기본 배치를 처음 상태로');
+    } else {
+      const v = arg.layout == null ? '' : JSON.stringify(cleanLayout(arg.layout));
+      db.prepare('UPDATE teachers SET homeLayout = ? WHERE email = ?').run(v, me.email);
+    }
+    return getAll(me);
+  }
+
   /** 입학 연도 정보 복사 (예: 2027 → 2028). 마감일은 1년 뒤로 옮긴 추정치 */
   function copyCycle(me, arg) {
     const src = getRow('unicycles', arg && arg.cycleId);
@@ -1400,8 +1430,19 @@ function openStore(dbPath, opts) {
 
   /** 학생별 최근 활동 (담당자 모두 볼 수 있음, 컨설턴트에게는 상담기록·계약·입금 기록 제외) */
   function getActivity(me, arg) {
-    const s = requireStudent(me, arg && arg.studentId);
     const hidden = isManager(me) ? [] : ['notes', 'contracts', 'payments'];
+    if (arg && arg.all) { // 메인 "최근 활동": 볼 수 있는 학생 전체
+      const seen = new Map();
+      const rows = db.prepare("SELECT at, email, action, tbl, summary, studentId FROM log WHERE studentId != '' ORDER BY id DESC LIMIT 600").all()
+        .filter((r) => {
+          if (hidden.includes(r.tbl)) return false;
+          if (!seen.has(r.studentId)) { const st = getRow('students', r.studentId); seen.set(r.studentId, canSeeStudent(me, st) ? st.name : null); }
+          return seen.get(r.studentId) != null;
+        }).slice(0, 40);
+      rows.forEach((r) => { r.tblLabel = (DEF[r.tbl] && DEF[r.tbl].label) || r.tbl; r.studentName = seen.get(r.studentId); });
+      return { rows };
+    }
+    const s = requireStudent(me, arg && arg.studentId);
     const rows = db.prepare('SELECT at, email, action, tbl, summary FROM log WHERE studentId = ? ORDER BY id DESC LIMIT 200').all(s.id)
       .filter((r) => !hidden.includes(r.tbl)).slice(0, 60);
     rows.forEach((r) => { r.tblLabel = (DEF[r.tbl] && DEF[r.tbl].label) || r.tbl; });
@@ -1773,7 +1814,7 @@ function openStore(dbPath, opts) {
     db, filesDir, listFiles, pendingSync, markSync, countTeachers, upsertAdmin, login, logout, authenticate, addFile, getFile, addUniFile, getUniFile,
     rpc: { getAll: (me) => getAll(me), save, remove, restore, purge, getTrash, getLog, saveTeacher, changePassword, importData, copyCycle, getActivity, saveMany, updateMe,
       saveOption, removeOption, deleteTeacher, getAutomation, saveAutomation, saveEvent, removeEvent,
-      saveWithFollowups, requestFollowup, saveOrder, saveUniFile, removeUniFile, saveProgram, removeProgram, getStorage, retrySync },
+      saveWithFollowups, requestFollowup, saveOrder, saveUniFile, removeUniFile, saveProgram, removeProgram, getStorage, retrySync, saveHomeLayout },
     backup, getConfig, getMeta, recordRun, listTeachers, close: () => db.close(),
   };
 }

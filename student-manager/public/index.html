@@ -245,6 +245,20 @@
   .mfiles { display:flex; flex-wrap:wrap; gap:8px; margin-top:6px; align-items:center; }
   .mfiles img { max-height:120px; max-width:200px; border:1px solid var(--border); border-radius:6px; }
   .latest { font-size:.7rem; color:#0f7a55; margin-left:4px; }
+  .wgrid { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); column-gap:14px; }
+  .wg.f { grid-column:1 / -1; }
+  .wg > .wbody > .card { height:calc(100% - 14px); box-sizing:border-box; }
+  .wg.h-s .scroll-box, .wg.h-s .today-list { max-height:180px; overflow-y:auto; }
+  .wg.h-l .scroll-box, .wg.h-l .today-list { max-height:640px; overflow-y:auto; }
+  .wgrid.editing .wg { position:relative; border:2px dashed #b9c3d9; border-radius:12px; padding:6px 6px 0; margin-bottom:14px; background:#f8faff; }
+  .wgrid.editing .wg.dragging { opacity:.4; }
+  .wgrid.editing .wbody { pointer-events:none; opacity:.85; max-height:420px; overflow:hidden; }
+  .wbar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:2px 4px 8px; }
+  .wbar .grip { cursor:grab; font-size:1.1rem; color:#55627e; }
+  .wbar .grow { flex:1; }
+  .hedit { border-color:#c9a227; background:#fffdf5; }
+  .wadd { margin-top:8px; display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+  @media (max-width:820px) { .wgrid { grid-template-columns:minmax(0,1fr); } }
   .gauge { height:14px; background:#eef0f4; border-radius:7px; overflow:hidden; margin:8px 0 4px; }
   .gauge span { display:block; height:100%; background:#1f9d6b; }
   .gauge.warn span { background:#e08a00; } .gauge.bad span { background:var(--error); }
@@ -708,6 +722,7 @@ function load(data) {
   S.events = data.events || [];
   S.unifiles = data.unifiles || [];
   S.programs = data.programs || [];
+  S.homeDefault = data.homeDefault || null;
   S.storageAlert = data.storageAlert || null; S.backupAlert = data.backupAlert || null;
   UI.pw = {};
   UI.activity = {}; // 최근 활동은 저장할 때마다 새로 불러옴
@@ -1025,35 +1040,198 @@ function viewHome() {
   } else {
     h += chip(active.filter(function (s) { return checkCount(s) < CHECK_ITEMS.length; }).length, '자료가 덜 모인 학생', "go('#/materials')");
   }
+  if (!UI.homeEdit) h += '<button class="btn ghost sm" onclick="homeEditStart()" title="카드 위치·크기를 바꾸고 숨기거나 위젯을 추가">✏️ 화면 편집</button>';
   h += '</div></div>';
   h += systemAlerts();
-  h += todayCard() + calendarCard();
-  h += '<div class="grid g2">';
-  h += '<div class="card"><div class="sec-h"><h3>학생 현황 <span class="muted">' + active.length + '명</span></h3><a class="more-link" href="#/students">전체 →</a></div>' +
-    (active.length ? '<div class="scroll-box">' + compactStudentTable(active, dl) + '</div>' : '<div class="empty">' + (isMgr() ? '등록된 학생이 없습니다.' : '배정된 담당 학생이 없습니다.') + '</div>') + '</div>';
+  return h + homeWidgets();
+}
+
+/* ----- 메인 화면 위젯: 계정별로 순서·크기·숨기기, 관리자는 모두의 기본 배치 ----- */
+var WIDGETS = [
+  { id: 'today', title: '오늘 챙길 일', w: 'f', render: function () { return todayCard(); } },
+  { id: 'calendar', title: '달력', w: 'f', fixedH: true, render: function () { return calendarCard(); } },
+  { id: 'students', title: '학생 현황', w: 'h', render: wStudents },
+  { id: 'followups', title: '팔로업', w: 'h', render: wFollowups },
+  { id: 'deadlines', title: '다가오는 지원 마감', w: 'h', render: wDeadlines },
+  { id: 'money', title: '미수금 · 갱신 예정', w: 'h', mgr: true, render: wMoney },
+  { id: 'meetings', title: '최근 미팅 회의록', w: 'h', hideFor: 'mgr', render: wMeetings },
+  { id: 'contacts', title: '답 안 한 연락', w: 'h', extra: true, render: wContacts },
+  { id: 'nodue', title: '기한 없는 팔로업', w: 'h', extra: true, render: wNoDue },
+  { id: 'programs', title: '대회·프로그램 마감 임박', w: 'h', extra: true, render: wPrograms },
+  { id: 'mystudents', title: '내 담당 학생', w: 'h', extra: true, render: wMyStudents },
+  { id: 'activity', title: '최근 활동', w: 'h', extra: true, render: wActivity },
+  { id: 'review', title: '확인 필요 회의록', w: 'h', extra: true, render: wReview },
+];
+function widgetOk(w) { return !w.mgr || isMgr(); }
+/** 처음 상태 배치 (관리자가 기본 배치를 정하지 않았을 때) */
+function builtinLayout() {
+  return WIDGETS.map(function (w) { return { id: w.id, w: w.w, h: '', hide: !!w.extra || (w.hideFor === 'mgr' && isMgr()) }; });
+}
+/** 내 배치 → 관리자 기본 배치 → 처음 상태. 배치에 없는 위젯(새로 생긴 것)은 숨김으로 뒤에 붙임 */
+function homeLayout(src) {
+  var base = src || S.me.homeLayout || S.homeDefault || builtinLayout(), seen = {}, out = [];
+  base.forEach(function (x) { var w = WIDGETS.filter(function (y) { return y.id === x.id; })[0]; if (w && !seen[x.id]) { seen[x.id] = 1; out.push({ id: x.id, w: x.w || w.w, h: x.h || '', hide: !!x.hide }); } });
+  WIDGETS.forEach(function (w) { if (!seen[w.id]) out.push({ id: w.id, w: w.w, h: '', hide: true }); });
+  return out;
+}
+function widgetById(id) { return WIDGETS.filter(function (w) { return w.id === id; })[0]; }
+function homeWidgets() {
+  var ed = UI.homeEdit, lay = (ed || homeLayout()).filter(function (x) { return widgetOk(widgetById(x.id)); });
+  UI._nodueWidget = lay.some(function (x) { return x.id === 'nodue' && !x.hide; });
+  var h = '';
+  if (ed) {
+    var hidden = lay.filter(function (x) { return x.hide; });
+    h += '<div class="card hedit"><div class="sec-h"><h3>✏️ 메인 화면 편집</h3><span class="toolbar" style="margin:0">' +
+      '<button class="btn ghost sm" onclick="homeEditReset()">기본 배치로 되돌리기</button>' +
+      (isAdmin() ? '<button class="btn ghost sm" onclick="homeEditSave(true)" title="새 선생님과 ‘기본 배치로 되돌리기’를 누른 선생님에게 이 배치가 보입니다">모두의 기본 배치로 저장</button>' : '') +
+      '<button class="btn ghost sm" onclick="UI.homeEdit=null;render()">취소</button><button class="btn sm" onclick="homeEditSave()">저장</button></span></div>' +
+      '<div class="muted" style="font-size:.85rem">⋮⋮ 를 끌어서 위치를 바꾸고, 카드마다 크기(반 칸 / 한 줄)·높이·숨기기를 고르세요. 저장하면 내 계정에만 적용됩니다.</div>' +
+      '<div class="wadd"><b>+ 위젯 추가</b> ' + (hidden.length ? hidden.map(function (x) {
+        return '<button class="btn ghost sm" onclick="homeEditSet(' + js(x.id) + ',\'hide\',false,true)">+ ' + esc(widgetById(x.id).title) + '</button>'; }).join('') : '<span class="muted">숨긴 위젯이 없습니다.</span>') + '</div></div>';
+  }
+  h += '<div class="wgrid' + (ed ? ' editing' : '') + '" id="wgrid">';
+  lay.forEach(function (x) {
+    if (x.hide) return;
+    var w = widgetById(x.id), body;
+    try { body = w.render(); } catch (e) { body = '<div class="card empty">' + esc(w.title) + ' 을(를) 표시할 수 없습니다.</div>'; }
+    h += '<div class="wg ' + (x.w === 'f' ? 'f' : 'hf') + (x.h ? ' h-' + x.h : '') + '" data-wid="' + x.id + '"' + (ed ? ' draggable="true"' : '') + '>';
+    if (ed) {
+      var opt = function (key, val, label) { return '<a class="' + (x[key] === val ? 'on' : '') + '" onclick="homeEditSet(' + js(x.id) + ',' + js(key) + ',' + js(val) + ')">' + label + '</a>'; };
+      h += '<div class="wbar"><span class="grip" title="끌어서 위치 바꾸기">⋮⋮</span><b>' + esc(w.title) + '</b><span class="grow"></span>' +
+        '<span class="seg">' + opt('w', 'h', '반 칸') + opt('w', 'f', '한 줄') + '</span>' +
+        (w.fixedH ? '' : '<span class="seg">' + opt('h', 's', '낮게') + opt('h', '', '보통') + opt('h', 'l', '높게') + '</span>') +
+        '<button class="btn ghost sm" onclick="homeEditSet(' + js(x.id) + ',\'hide\',true)" title="숨기기 (위젯 추가에서 다시 꺼낼 수 있음)">숨기기</button></div>';
+    }
+    h += '<div class="wbody">' + body + '</div></div>';
+  });
+  return h + '</div>';
+}
+function homeEditStart() { UI.homeEdit = homeLayout(); render(); window.scrollTo(0, 0); }
+function homeEditSet(id, key, val, toEnd) {
+  var lay = UI.homeEdit, i = lay.map(function (x) { return x.id; }).indexOf(id); if (i < 0) return;
+  lay[i][key] = val;
+  if (toEnd) lay.push(lay.splice(i, 1)[0]); // 꺼낸 위젯은 맨 아래로
+  render();
+}
+function homeEditReset() {
+  if (!confirm((S.homeDefault ? '관리자가 정한 기본 배치' : '처음 배치') + '로 되돌릴까요? 내가 바꾼 배치는 지워집니다.')) return;
+  mutate('saveHomeLayout', { layout: null }, '기본 배치로 되돌렸습니다.').then(function (d) { if (d) { UI.homeEdit = null; render(); } });
+}
+function homeEditSave(asDefault) {
+  var lay = UI.homeEdit.map(function (x) { return { id: x.id, w: x.w, h: x.h, hide: x.hide }; });
+  if (asDefault && !confirm('이 배치를 모두의 기본 배치로 저장할까요?\n배치를 직접 바꾼 적 없는 선생님과 새 선생님에게 이 배치가 보입니다. (내 배치도 이것으로 저장)')) return;
+  var p = asDefault ? api('saveHomeLayout', { layout: lay, asDefault: true }).then(function () { return api('saveHomeLayout', { layout: null }); }) : api('saveHomeLayout', { layout: lay });
+  p.then(function (d) { UI.homeEdit = null; load(d); toast(asDefault ? '모두의 기본 배치로 저장했습니다.' : '내 화면 배치를 저장했습니다.'); }).catch(function (e) { toast(errMsg(e), true); });
+}
+// 편집 중: 카드를 끌어서 순서 바꾸기 (놓을 때 UI.homeEdit 순서에 반영, 저장은 [저장] 버튼)
+var wdrag = null;
+document.addEventListener('dragstart', function (e) {
+  var el = e.target.closest && e.target.closest('.wgrid.editing .wg'); if (!el) return;
+  wdrag = el; el.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+  try { e.dataTransfer.setData('text/plain', el.getAttribute('data-wid')); } catch (x) { /* 일부 브라우저 */ }
+});
+document.addEventListener('dragover', function (e) {
+  if (!wdrag) return;
+  var el = e.target.closest && e.target.closest('.wgrid.editing .wg');
+  if (!el || el === wdrag) return;
+  e.preventDefault();
+  var r = el.getBoundingClientRect(), half = el.classList.contains('hf');
+  var before = half ? e.clientX < r.left + r.width / 2 : e.clientY < r.top + r.height / 2;
+  el.parentNode.insertBefore(wdrag, before ? el : el.nextSibling);
+});
+document.addEventListener('drop', function (e) { if (wdrag) e.preventDefault(); });
+document.addEventListener('dragend', function () {
+  if (!wdrag) return;
+  wdrag.classList.remove('dragging'); wdrag = null;
+  var order = Array.prototype.map.call(document.querySelectorAll('#wgrid .wg'), function (x) { return x.getAttribute('data-wid'); });
+  var lay = UI.homeEdit, shown = lay.filter(function (x) { return order.indexOf(x.id) >= 0; }).sort(function (a, b) { return order.indexOf(a.id) - order.indexOf(b.id); });
+  UI.homeEdit = shown.concat(lay.filter(function (x) { return order.indexOf(x.id) < 0; }));
+  render();
+});
+
+/* 위젯 내용 */
+function wStudents() {
+  var active = S.students.filter(isActive).sort(function (a, b) { return a.name.localeCompare(b.name, 'ko'); });
+  return '<div class="card"><div class="sec-h"><h3>학생 현황 <span class="muted">' + active.length + '명</span></h3><a class="more-link" href="#/students">전체 →</a></div>' +
+    (active.length ? '<div class="scroll-box">' + compactStudentTable(active, upcomingDeadlines()) + '</div>' : '<div class="empty">' + (isMgr() ? '등록된 학생이 없습니다.' : '배정된 담당 학생이 없습니다.') + '</div>') + '</div>';
+}
+function wFollowups() {
   UI.dashFu = UI.dashFu || 'all';
   var myFu = openFollowups().filter(function (f) { return f.assignee === S.me.email; });
   var fuList = UI.dashFu === 'me' ? myFu : openFollowups();
-  h += '<div class="card"><div class="sec-h"><h3>팔로업 <span class="muted">' + fuList.length + '건</span></h3><span class="toolbar" style="margin:0">' +
+  return '<div class="card"><div class="sec-h"><h3>팔로업 <span class="muted">' + fuList.length + '건</span></h3><span class="toolbar" style="margin:0">' +
     seg([['all', '모든 선생님'], ['me', '내 것만']], UI.dashFu, 'dashFu') +
     '<a class="more-link" href="#/followups" onclick="UI.fuWho=' + js(UI.dashFu === 'me' ? 'me' : 'all') + '">트래커 →</a></span></div>' +
     (fuList.length ? '<div class="scroll-box">' + fuList.map(function (f) { return fuRow(f, true); }).join('') + '</div>' : '<div class="empty">남은 팔로업이 없습니다.</div>') + '</div>';
-  h += '<div class="card"><div class="sec-h"><h3>다가오는 지원 마감 <span class="muted">30일</span></h3><a class="more-link" href="#/deadlines">마감일정 →</a></div><div class="scroll-box sm">' +
-    deadlineTable(dl.filter(function (i) { return dayDiff(i.date) <= 30; }), '30일 안에 마감되는 지원이 없습니다.') + '</div></div>';
-  if (isMgr()) {
-    var un = unpaidContracts(), rn = renewals();
-    h += '<div class="card"><div class="sec-h"><h3>미수금 · 갱신 예정</h3><a class="more-link" href="#/sales">매출 →</a></div><div class="scroll-box sm">' +
-      (un.length ? unpaidTable(un, true) : '<div class="empty">미수금이 없습니다.</div>') + (rn.length ? '<div style="margin-top:10px"></div>' + renewalTable(rn) : '') + '</div></div>';
-  } else {
-    var recent = S.meetings.filter(function (m) { return studentById(m.studentId); }).sort(meetingSort).slice(0, 8);
-    h += '<div class="card"><div class="sec-h"><h3>최근 미팅 회의록</h3><a class="more-link" href="#/meetings">미팅 →</a></div><div class="scroll-box sm">' +
-      (recent.length ? '<div class="sum-list">' + recent.map(function (m) {
-        var st = studentById(m.studentId);
-        return '<div class="row" style="cursor:pointer" onclick="openStudent(' + js(st.id) + ',\'meetings\')"><span class="nw"><b>' + esc(fmtD(m.date)) + '</b></span><span class="nw">' + esc(st.name) + '</span>' +
-          '<span class="grow" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(m.topic || String(m.content || '').split('\n')[0]) + '</span>' + (m.needsReview === 'TRUE' ? '<span class="pill rv">확인 필요</span>' : '') + '</div>';
-      }).join('') + '</div>' : '<div class="empty">기록된 미팅이 없습니다.</div>') + '</div></div>';
-  }
-  return h + '</div>';
+}
+function wDeadlines() {
+  return '<div class="card"><div class="sec-h"><h3>다가오는 지원 마감 <span class="muted">30일</span></h3><a class="more-link" href="#/deadlines">마감일정 →</a></div><div class="scroll-box sm">' +
+    deadlineTable(upcomingDeadlines().filter(function (i) { return dayDiff(i.date) <= 30; }), '30일 안에 마감되는 지원이 없습니다.') + '</div></div>';
+}
+function wMoney() {
+  var un = unpaidContracts(), rn = renewals();
+  return '<div class="card"><div class="sec-h"><h3>미수금 · 갱신 예정</h3><a class="more-link" href="#/sales">매출 →</a></div><div class="scroll-box sm">' +
+    (un.length ? unpaidTable(un, true) : '<div class="empty">미수금이 없습니다.</div>') + (rn.length ? '<div style="margin-top:10px"></div>' + renewalTable(rn) : '') + '</div></div>';
+}
+function meetingRows(list) {
+  return '<div class="sum-list">' + list.map(function (m) {
+    var st = studentById(m.studentId);
+    return '<div class="row" style="cursor:pointer" onclick="openStudent(' + js(st.id) + ',\'meetings\')"><span class="nw"><b>' + esc(fmtD(m.date)) + '</b></span><span class="nw">' + esc(st.name) + '</span>' +
+      '<span class="grow" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(m.topic || String(m.content || '').split('\n')[0]) + '</span>' + (m.needsReview === 'TRUE' ? '<span class="pill rv">확인 필요</span>' : '') + '</div>';
+  }).join('') + '</div>';
+}
+function wMeetings() {
+  var recent = S.meetings.filter(function (m) { return studentById(m.studentId); }).sort(meetingSort).slice(0, 8);
+  return '<div class="card"><div class="sec-h"><h3>최근 미팅 회의록</h3><a class="more-link" href="#/meetings">미팅 →</a></div><div class="scroll-box sm">' +
+    (recent.length ? meetingRows(recent) : '<div class="empty">기록된 미팅이 없습니다.</div>') + '</div></div>';
+}
+function wReview() {
+  var list = S.meetings.filter(function (m) { return m.needsReview === 'TRUE' && studentById(m.studentId); }).sort(meetingSort);
+  return '<div class="card"><div class="sec-h"><h3>확인 필요 회의록 <span class="muted">' + list.length + '건</span></h3><a class="more-link" href="#/meetings">미팅 →</a></div><div class="scroll-box sm">' +
+    (list.length ? meetingRows(list) : '<div class="empty">확인이 필요한 회의록이 없습니다.</div>') + '</div></div>';
+}
+function wContacts() {
+  UI.dashCt = UI.dashCt || 'me';
+  var list = openFollowups().filter(function (f) { return f.kind === 'contact' && (UI.dashCt !== 'me' || f.assignee === S.me.email); })
+    .sort(function (a, b) { return String(a.receivedDate || a.createdAt).localeCompare(String(b.receivedDate || b.createdAt)); });
+  return '<div class="card"><div class="sec-h"><h3>답 안 한 연락 <span class="muted">' + list.length + '건 · 오래된 것부터</span></h3><span class="toolbar" style="margin:0">' +
+    seg([['me', '내 것'], ['all', '전체']], UI.dashCt, 'dashCt') + '<a class="more-link" href="#/followups" onclick="UI.fuKind=\'contact\';UI.fuWho=' + js(UI.dashCt === 'me' ? 'me' : 'all') + '">팔로업·연락 →</a></span></div>' +
+    (list.length ? '<div class="scroll-box sm">' + list.map(function (f) { return fuRow(f, true); }).join('') + '</div>' : '<div class="empty">답이 필요한 연락이 없습니다.</div>') + '</div>';
+}
+function wNoDue() {
+  UI.dashNd = UI.dashNd || 'me';
+  var html = noDueItems(UI.dashNd, true);
+  return '<div class="card"><div class="sec-h"><h3>기한 없는 팔로업 <span class="muted">' + NODUE_OLD + '일 넘으면 주황</span></h3>' + seg([['me', '내 것'], ['all', '전체']], UI.dashNd, 'dashNd') + '</div>' +
+    (html ? '<div class="scroll-box sm">' + html + '</div>' : '<div class="empty">기한 없는 팔로업이 없습니다.</div>') + '</div>';
+}
+function wPrograms() {
+  var list = (S.programs || []).filter(function (p) { var n = dayDiff(p.deadline); return n !== null && n >= 0 && n <= 30; })
+    .sort(function (a, b) { return a.deadline.localeCompare(b.deadline); });
+  return '<div class="card"><div class="sec-h"><h3>대회·프로그램 마감 임박 <span class="muted">30일</span></h3><a class="more-link" href="#/programs">대회·프로그램 →</a></div><div class="scroll-box sm">' +
+    (list.length ? '<div class="sum-list">' + list.map(function (p) {
+      return '<div class="row"><span class="nw"><b>' + esc(fmtD(p.deadline)) + '</b> ' + dday(p.deadline) + '</span><span class="grow">' +
+        (p.url ? '<a href="' + esc(p.url) + '" target="_blank" rel="noopener">' + esc(p.name) + '</a>' : esc(p.name)) + '</span><span class="muted nw">' + esc(p.category || '') + '</span></div>';
+    }).join('') + '</div>' : '<div class="empty">30일 안에 마감되는 대회·프로그램이 없습니다.</div>') + '</div></div>';
+}
+function wMyStudents() {
+  var list = S.students.filter(function (s) { return isActive(s) && isMine(s); }).sort(function (a, b) { return a.name.localeCompare(b.name, 'ko'); });
+  return '<div class="card"><div class="sec-h"><h3>내 담당 학생 <span class="muted">' + list.length + '명</span></h3><a class="more-link" href="#/students">학생 →</a></div><div class="scroll-box sm">' +
+    (list.length ? '<div class="sum-list">' + list.map(function (s) {
+      var w = studentWork(s.id);
+      return '<div class="row" style="cursor:pointer" onclick="openStudent(' + js(s.id) + ')"><span class="nw"><b>' + esc(s.name) + '</b></span>' +
+        '<span class="grow muted" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(String(s.progress || '').split('\n')[0]) + '</span>' +
+        '<span class="nw">' + (w.todo ? '할 일 ' + w.todo + (w.over ? ' <b style="color:var(--error)">지남 ' + w.over + '</b>' : '') : '') + (w.contacts ? ' 📩 ' + w.contacts : '') + (w.next ? ' · 미팅 ' + esc(fmtD(w.next)) : '') + '</span></div>';
+    }).join('') + '</div>' : '<div class="empty">내가 담당인 진행 중 학생이 없습니다.</div>') + '</div></div>';
+}
+function wActivity() {
+  if (!UI.homeAct) { UI.homeAct = 'loading'; api('getActivity', { all: true }).then(function (d) { UI.homeAct = d.rows; if (route().view === 'home') render(); }).catch(function () { UI.homeAct = []; }); }
+  var act = UI.homeAct === 'loading' ? null : UI.homeAct;
+  return '<div class="card"><div class="sec-h"><h3>최근 활동 <span class="muted">누가 어느 학생에 대해 무엇을 했는지</span></h3><button class="btn ghost sm" title="다시 불러오기" onclick="UI.homeAct=null;render()">↻</button></div><div class="scroll-box sm">' +
+    (!act ? '<div class="empty">불러오는 중…</div>' : !act.length ? '<div class="empty">아직 기록된 활동이 없습니다.</div>' : act.map(function (r) {
+      return '<div class="act" style="cursor:pointer" onclick="openStudent(' + js(r.studentId) + ')"><span class="muted nw">' + esc(fmtTime(r.at).slice(5)) + '</span> <b>' + esc(teacherName(r.email)) + '</b> ' +
+        '<span class="pill">' + esc(ACTION_LABEL[r.action] || r.action) + '</span> <span class="muted">' + esc(r.tblLabel) + '</span> ' + esc(r.summary) + '</div>';
+    }).join('')) + '</div></div>';
 }
 /** 메인 맨 위 경고: 저장 공간 80% 이상(관리자·관리팀), 자동 백업 실패(관리자) */
 function systemAlerts() {
@@ -1134,7 +1312,7 @@ function todayCard() {
   var list = todayItems(UI.todayScope);
   var h = '<div class="card"><div class="sec-h"><h3>오늘 챙길 일 <span class="muted">' + list.length + '건 · 기한 지난 것부터</span></h3>' +
     seg([['me', '내 일'], ['all', '전체']], UI.todayScope, 'todayScope') + '</div>';
-  var nd = noDueItems(UI.todayScope);
+  var nd = UI._nodueWidget ? '' : noDueItems(UI.todayScope); // "기한 없는 팔로업" 위젯을 켜두면 여기선 생략
   if (!list.length) return h + '<div class="empty">' + (UI.todayScope === 'me' ? '오늘 챙길 내 일이 없습니다.' : '오늘 챙길 일이 없습니다.') + '</div>' + nd + '</div>';
   return h + '<div class="today-list">' + list.map(function (i) {
     var when = i.noDate ? '' : i.n < 0 ? (-i.n) + '일 지남' : i.n === 0 ? '오늘' : i.n === 1 ? '내일' : i.n + '일 뒤';
@@ -1145,7 +1323,7 @@ function todayCard() {
 }
 /** 기한 없는 팔로업: "오늘 챙길 일" 아래 접힌 한 줄. 등록 후 7일이 넘으면 주황색 */
 var NODUE_OLD = 7;
-function noDueItems(scope) {
+function noDueItems(scope, flat) {
   var list = openFollowups().filter(function (f) {
     if (f.due) return false;
     if (f.requestedBy && f.requestedBy !== f.assignee && f.assignee === S.me.email) return false; // 위 "요청받음"에 이미 나옴
@@ -1154,14 +1332,15 @@ function noDueItems(scope) {
     .sort(function (a, b) { return b.age - a.age; });
   if (!list.length) return '';
   var old = list.filter(function (x) { return x.age >= NODUE_OLD; }).length;
-  return '<details class="nodue"' + (UI.nodueOpen ? ' open' : '') + ' ontoggle="UI.nodueOpen=this.open"><summary>기한 없는 ' + (scope === 'me' ? '내 ' : '') + '팔로업 <b>' + list.length + '건</b>' +
-    (old ? ' <span class="dday soon">' + NODUE_OLD + '일 넘음 ' + old + '건</span>' : '') + ' <span class="muted">— 언제 확인될지 모르는 일</span></summary>' +
-    list.map(function (x) {
+  var rows = list.map(function (x) {
       var f = x.f, s = studentById(f.studentId);
       return '<div class="tdi" onclick="openStudent(' + js(s.id) + ',\'followups\')"><input type="checkbox" title="완료 처리" onclick="event.stopPropagation()" onchange="toggleFollowup(' + js(f.id) + ', this.checked)">' +
         '<span class="when"><span class="dday ' + (x.age >= NODUE_OLD ? 'soon' : 'far') + '">' + (x.age ? x.age + '일째' : '오늘 등록') + '</span></span><span class="kind">기한 없음</span>' +
         '<span class="txt">' + (f.kind === 'contact' ? '📩 ' + esc(f.fromWho || '') + ': ' : '') + esc(f.title) + '</span><span class="who">' + esc(s.name + (scope === 'me' ? '' : ' · ' + (teacherName(f.assignee) || '담당 미정'))) + '</span></div>';
-    }).join('') + '</details>';
+    }).join('');
+  if (flat) return rows;
+  return '<details class="nodue"' + (UI.nodueOpen ? ' open' : '') + ' ontoggle="UI.nodueOpen=this.open"><summary>기한 없는 ' + (scope === 'me' ? '내 ' : '') + '팔로업 <b>' + list.length + '건</b>' +
+    (old ? ' <span class="dday soon">' + NODUE_OLD + '일 넘음 ' + old + '건</span>' : '') + ' <span class="muted">— 언제 확인될지 모르는 일</span></summary>' + rows + '</details>';
 }
 
 /* ----- 공용 달력 (이번 달 + 다음 달) ----- */
