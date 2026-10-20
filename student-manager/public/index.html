@@ -272,6 +272,14 @@
   .rvchip.ok { background:#eaf6f0; color:#0f7a55; border-color:#bfe3d1; }
   .rvchip a { cursor:pointer; text-decoration:underline; margin-left:2px; }
   .note.tl { border-left:3px solid #c9d3e6; }
+  .tlx { border:1px solid var(--border); border-radius:8px; margin-bottom:6px; background:#fff; }
+  .tlh { display:flex; align-items:center; gap:8px; padding:8px 10px; cursor:pointer; flex-wrap:wrap; }
+  .tlh:hover { background:#fafbfd; }
+  .tlh .tg { color:#55627e; font-size:.8rem; width:14px; }
+  .tlh .tlt { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
+  .tlx .tlb { display:none; padding:0 10px 4px; }
+  .tlx.open .tlb { display:block; }
+  .tlx .tlb > .note { margin:0 0 6px; border:0; padding:4px 0; }
   .flash { animation:flash 2s ease-out 1; }
   @keyframes flash { 0% { box-shadow:0 0 0 3px #c9a227; } 100% { box-shadow:0 0 0 0 transparent; } }
   .lb-ov { position:fixed; inset:0; z-index:200; background:rgba(10,15,30,.82); display:flex; align-items:center; justify-content:center; }
@@ -1644,11 +1652,15 @@ function filteredStudents() {
     return true;
   }).sort(function (a, b) { return a.name.localeCompare(b.name, 'ko'); });
 }
-/** 관리팀 담당자순 (담당자 이름 가나다, 미정은 맨 뒤) → 같은 담당자 안에서는 학생 이름순 */
-function byManager(a, b) {
-  var ma = teacherName(a.manager) || '\uffff', mb = teacherName(b.manager) || '\uffff';
-  return ma.localeCompare(mb, 'ko') || a.name.localeCompare(b.name, 'ko');
+/** 관리팀 담당순: 내가 관리하는 학생 맨 위 → 나머지는 계정 관리에서 정한 선생님 순서(근무 시트 순) → 관리팀 미정은 맨 뒤. 같은 담당 안에서는 학생 이름순 */
+function managerRank(email) {
+  email = String(email || '').toLowerCase();
+  if (!email) return 1e6;
+  if (email === S.me.email) return -1;
+  var i = S.teachers.map(function (t) { return t.email; }).indexOf(email);
+  return i < 0 ? 1e5 : i;
 }
+function byManager(a, b) { return managerRank(a.manager) - managerRank(b.manager) || a.name.localeCompare(b.name, 'ko'); }
 function viewStudents() {
   var list = filteredStudents();
   UI.stSort = UI.stSort || 'manager';
@@ -1953,8 +1965,31 @@ function tabNotes(s) {
     seg([['all', '전체 기록 (상담·미팅·연락)'], ['notes', '상담기록만']], UI.noteView, 'noteView') + addBtn('notes', s.id, '+ 상담 기록 작성') + '</span>');
   if (UI.noteView === 'notes') return '<div class="card">' + head + (notes.length ? notes.map(noteItem).join('') : '<div class="empty">아직 상담 기록이 없습니다.</div>') + '</div>';
   var items = timelineOf(s.id);
-  return '<div class="card">' + head + '<div class="muted" style="font-size:.85rem;margin-bottom:8px">상담기록·미팅 회의록·받은 연락(우리 답변 포함)을 날짜순으로 모아 봅니다. 각 기록의 👀 로 다른 선생님에게 확인을 요청하면 그 선생님 “오늘 챙길 일” 맨 위에 뜹니다.</div>' +
-    (items.length ? items.map(timelineItem).join('') : '<div class="empty">아직 기록이 없습니다.</div>') + '</div>';
+  UI.tlOpen = UI.tlOpen || {};
+  return '<div class="card">' + head + '<div class="toolbar" style="margin:0 0 8px"><span class="muted grow" style="font-size:.85rem">상담기록·미팅 회의록·받은 연락(우리 답변 포함)을 날짜순으로 모아 봅니다. 줄을 누르면 펼쳐지고, 👀 로 다른 선생님에게 확인을 요청할 수 있습니다.</span>' +
+    (items.length ? '<button class="btn ghost sm" onclick="tlAll(true)">모두 펼치기</button><button class="btn ghost sm" onclick="tlAll(false)">모두 접기</button>' : '') + '</div>' +
+    (items.length ? items.map(timelineRow).join('') : '<div class="empty">아직 기록이 없습니다.</div>') + '</div>';
+}
+/** 전체 기록 한 줄(접힘) — 누르면 내용 펼침 */
+function timelineRow(x) {
+  var r = x.r, open = !!UI.tlOpen[r.id];
+  var kind = x.t === 'notes' ? '상담' : x.t === 'meetings' ? '미팅' : '받은 연락';
+  var title = x.t === 'notes' ? (r.type || '') + ' · ' + String(r.content || '').split('\n').filter(function (l) { return l.trim(); })[0] :
+    x.t === 'meetings' ? (r.topic || String(r.content || '').split('\n')[0] || '안건 없음') : [r.fromWho, r.channel].filter(Boolean).join(' · ') + ' — ' + (r.title || '');
+  var tail = x.t === 'followups' ? (r.status === '완료' ? '<span class="pill s-진행중">처리 완료</span>' : '<span class="pill d-요청함">답변 필요</span>') + (r.answer ? '<span class="muted nw">↩ 답변 있음</span>' : '') : '';
+  var body = timelineItem(x).replace(' id="ref-' + esc(r.id) + '"', '');
+  return '<div class="tlx' + (open ? ' open' : '') + '" id="ref-' + esc(r.id) + '"><div class="tlh" onclick="tlToggle(' + js(r.id) + ')"><span class="tg">' + (open ? '▲' : '▼') + '</span>' +
+    '<b class="nw">' + esc(fmtD(x.d)) + '</b><span class="pill">' + kind + '</span><span class="grow tlt">' + esc(title || '') + '</span>' + tail + reviewTag(x.t, r.id) + '</div>' +
+    '<div class="tlb">' + body + '</div></div>';
+}
+function tlToggle(id) {
+  UI.tlOpen = UI.tlOpen || {}; UI.tlOpen[id] = !UI.tlOpen[id];
+  var el = $('ref-' + id); if (el) { el.classList.toggle('open', UI.tlOpen[id]); el.querySelector('.tg').textContent = UI.tlOpen[id] ? '▲' : '▼'; }
+}
+function tlAll(on) {
+  var sid = route().id; UI.tlOpen = UI.tlOpen || {};
+  timelineOf(sid).forEach(function (x) { UI.tlOpen[x.r.id] = on; });
+  render();
 }
 /** 학생의 상담기록·미팅·받은 연락을 날짜 내림차순으로 */
 function timelineOf(sid) {
@@ -1998,7 +2033,7 @@ function reviewRef(r) {
 function openRef(table, id) {
   var r = findRow(table, id); if (!r) return toast('기록을 찾을 수 없습니다. 삭제되었을 수 있습니다.', true);
   var tab = table === 'notes' || (isMgr() && table !== 'meetings') ? 'notes' : table === 'meetings' ? 'meetings' : 'followups';
-  if (tab === 'notes') UI.noteView = 'all';
+  if (tab === 'notes') { UI.noteView = 'all'; UI.tlOpen = UI.tlOpen || {}; UI.tlOpen[id] = true; }
   if (table === 'meetings') { UI.mtOpen = UI.mtOpen || {}; UI.mtOpen[id] = true; }
   if (table === 'followups' && r.status === '완료') UI.fuKind = 'all';
   UI.focusRef = id; openStudent(r.studentId, tab);
@@ -3231,10 +3266,11 @@ function viewTeachers() {
       '<br><b>건너뜀 ' + UI.importResult.skipped.length + '명</b> (이미 있음): ' + esc(UI.importResult.skipped.join(', ') || '-') +
       ((UI.importResult.appended || []).length ? '<br><b>기존 학생에 기록 추가</b>: ' + esc(UI.importResult.appended.join(', ')) : '') +
       (UI.importResult.duplicates ? '<br><span class="muted">이미 가져온 기록 ' + UI.importResult.duplicates + '건은 건너뜀</span>' : '') + '</div>' : '') + '</div></div>';
-  h += '<div class="card tbl-wrap"><table><thead><tr><th>이름</th><th>이메일</th><th>역할</th><th>상태</th><th>담당 학생</th><th>메일 알림</th><th></th></tr></thead><tbody>' +
+  h += '<div class="card tbl-wrap"><div class="muted" style="margin-bottom:6px">⋮⋮ 를 끌어서 순서를 바꾸면 바로 저장됩니다. 학생 목록 “관리팀 담당순”에서 내 담당 학생 다음에 이 순서(예: 근무 시트 순서)로 나옵니다.</div>' +
+    '<table><thead><tr><th class="gripc"></th><th>이름</th><th>이메일</th><th>역할</th><th>상태</th><th>담당 학생</th><th>메일 알림</th><th></th></tr></thead><tbody data-order="teachers">' +
     S.teachers.map(function (t) {
       var cnt = S.students.filter(function (s) { return isActive(s) && (String(s.counselor).toLowerCase() === t.email.toLowerCase() || String(s.manager || '').toLowerCase() === t.email.toLowerCase()); }).length;
-      return '<tr><td><b>' + esc(t.name) + '</b></td><td>' + esc(t.email) + '</td><td>' + esc(ROLE_LABEL[t.role] || t.role) + '</td>' +
+      return '<tr class="drag" draggable="true" data-id="' + esc(t.email) + '" data-grp=""><td class="nw gripc"><span class="grip" title="끌어서 순서 바꾸기">⋮⋮</span></td><td><b>' + esc(t.name) + '</b></td><td>' + esc(t.email) + '</td><td>' + esc(ROLE_LABEL[t.role] || t.role) + '</td>' +
         '<td>' + (t.color && t.role !== 'consultant' ? '<span class="swatch" style="background:' + esc(t.color) + '"></span>' : '') + (t.active ? '<span class="pill s-진행중">활성</span>' : '<span class="pill s-종료">비활성</span>') + '</td><td>' + cnt + '명</td><td>' + (t.notify !== false ? '받음' : '<span class="muted">안 받음</span>') + '</td>' +
         '<td><button class="btn ghost sm" onclick="openTeacherForm(' + js(t.email) + ')">수정</button></td></tr>';
     }).join('') + '</tbody></table></div>';

@@ -320,7 +320,8 @@ function migrate(db) {
   db.exec('CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
   ensureColumns(db, 'teachers', ['notify']); // '' = 이메일 알림 받음, 'off' = 안 받음
   ensureColumns(db, 'teachers', ['homeLayout']);
-  ensureColumns(db, 'teachers', ['color']); // 관리팀 색 (학생 목록 줄 배경). '' = 없음 // 메인 화면 배치(JSON). '' = 관리자가 정한 기본 배치
+  ensureColumns(db, 'teachers', ['color']);
+  ensureColumns(db, 'teachers', ['sortOrder']); // 계정 관리에서 끌어서 정한 순서 (학생 목록 관리팀 담당순) // 관리팀 색 (학생 목록 줄 배경). '' = 없음 // 메인 화면 배치(JSON). '' = 관리자가 정한 기본 배치
   // v10: 팔로업 요청(휴무 등으로 다른 선생님에게 부탁), 대학 자료 파일
   ensureColumns(db, 'followups', ['requestedBy', 'requestedAt', 'requestNote']);
   db.exec('CREATE TABLE IF NOT EXISTS unifiles (id TEXT PRIMARY KEY)');
@@ -570,8 +571,8 @@ function openStore(dbPath, opts) {
       me: { email: me.email, name: me.name, role: me.role, mustChangePassword: !!me.mustChangePassword,
         homeLayout: parseLayout((db.prepare('SELECT homeLayout FROM teachers WHERE email = ?').get(me.email) || {}).homeLayout) },
       homeDefault: parseLayout(getMeta('homeLayoutDefault')),
-      teachers: db.prepare('SELECT email, name, role, active, notify, color FROM teachers ORDER BY name').all()
-        .map((t) => ({ email: t.email, name: t.name, role: t.role, active: !!t.active, notify: t.notify !== 'off', color: t.color || '' })),
+      teachers: db.prepare("SELECT email, name, role, active, notify, color, sortOrder FROM teachers ORDER BY CASE WHEN sortOrder = '' OR sortOrder IS NULL THEN 1 ELSE 0 END, CAST(sortOrder AS INTEGER), name").all()
+        .map((t) => ({ email: t.email, name: t.name, role: t.role, active: !!t.active, notify: t.notify !== 'off', color: t.color || '', sortOrder: Number(t.sortOrder) || 0 })),
       students,
       serverTime: now(),
     };
@@ -1201,7 +1202,11 @@ function openStore(dbPath, opts) {
     const ids = (arg && arg.ids) || [];
     if (!Array.isArray(ids) || !ids.length || ids.length > 1000) throw new UserError('순서를 저장할 항목이 없습니다.');
     const t = now();
-    if (arg.kind === 'universities') {
+    if (arg.kind === 'teachers') {
+      requireAdmin(me, '계정 순서 변경');
+      tx(() => ids.forEach((email, i) => db.prepare('UPDATE teachers SET sortOrder = ? WHERE email = ?').run(String(i + 1), lower(email))));
+      log(me.email, 'update', 'teachers', '', '계정 순서 변경');
+    } else if (arg.kind === 'universities') {
       requireAdmin(me, '대학 순서 변경');
       tx(() => ids.forEach((id, i) => db.prepare('UPDATE universities SET sortOrder = ?, updatedAt = ?, updatedBy = ? WHERE id = ?').run(String(i + 1), t, me.email, String(id))));
       log(me.email, 'update', 'universities', '', '대학 순서 변경 (' + ids.length + '곳)');
