@@ -14,13 +14,13 @@
   a { color:var(--navy); }
 
   header.top { background:var(--navy); color:#fff; position:sticky; top:0; z-index:20; }
-  .top-in { max-width:1200px; margin:0 auto; padding:9px 16px; display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+  .top-in { max-width:1920px; margin:0 auto; padding:9px 24px; /* 머리글·메뉴는 모든 화면에서 같은 폭 (화면을 옮겨도 위치가 그대로) */ display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
   .brand { font-weight:bold; font-size:1.05rem; white-space:nowrap; }
   .brand span { color:var(--gold); }
   #nav { background:#fff; color:#333; border-bottom:1px solid var(--border); }
   #nav:empty { display:none; }
   .navrow-o + .navrow-o { border-top:1px solid var(--soft); }
-  .navrow { max-width:1200px; margin:0 auto; padding:0 16px; display:flex; align-items:center; gap:2px; overflow-x:auto; scrollbar-width:none; }
+  .navrow { max-width:1920px; margin:0 auto; padding:0 24px; display:flex; align-items:center; gap:2px; overflow-x:auto; scrollbar-width:none; }
   .navrow .nl { font-size:.72rem; color:var(--muted); width:40px; flex-shrink:0; }
   .navrow a { color:#4a5468; text-decoration:none; padding:9px 12px 7px; white-space:nowrap; border-bottom:3px solid transparent; font-size:.9rem; }
   .navrow a:hover { color:var(--navy); }
@@ -246,7 +246,7 @@
   .mfiles img { max-height:120px; max-width:200px; border:1px solid var(--border); border-radius:6px; }
   .latest { font-size:.7rem; color:#0f7a55; margin-left:4px; }
   /* 메인 위젯: 같은 크기 칸(가로 4·3·2·1칸, 세로 150px) 위에 위젯마다 정해진 크기(가로×세로 칸)로 놓음 */
-  body.wide main, body.wide .top-in, body.wide .navrow, body.wide .nav-in { max-width:1920px; }
+  body.wide main { max-width:1920px; }
   body.wide main { padding:16px 24px; }
   .wgrid { --cols:4; display:grid; grid-template-columns:repeat(var(--cols), minmax(0,1fr)); grid-auto-rows:150px; gap:14px; grid-auto-flow:row dense; }
   .wg { min-width:0; min-height:0; display:flex; flex-direction:column; grid-column:span min(var(--c), var(--cols)); grid-row:span var(--r); }
@@ -286,8 +286,9 @@
   /* ---- v9: 메인 화면 · 한 줄 메뉴 · 달력 · 요약 ---- */
   a.brand { color:#fff; text-decoration:none; }
   a.brand:hover { opacity:.85; }
-  .nav-in { max-width:1200px; margin:0 auto; padding:0 16px; display:flex; align-items:stretch; }
+  .nav-in { max-width:1920px; margin:0 auto; padding:0 24px; display:flex; align-items:stretch; }
   .nav-in .navrow { flex:1; min-width:0; margin:0; padding:0; }
+  @media (max-width:720px) { .top-in { padding:9px 16px; } .navrow, .nav-in { padding-left:16px; padding-right:16px; } .nav-in .navrow { padding:0; } }
   .navrow a.home { font-weight:bold; color:var(--navy); }
   .nsep { width:1px; background:var(--border); margin:9px 8px; flex-shrink:0; align-self:stretch; }
   .adm { position:relative; flex-shrink:0; display:flex; align-items:stretch; }
