@@ -324,6 +324,8 @@ function migrate(db) {
   ensureColumns(db, 'followups', ['requestedBy', 'requestedAt', 'requestNote']);
   db.exec('CREATE TABLE IF NOT EXISTS unifiles (id TEXT PRIMARY KEY)');
   ensureColumns(db, 'unifiles', ['universityId', 'cycleId', 'category', 'name', 'memo', 'mime', 'size', 'storedName', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy']);
+  // v12: 확인 요청 — 이 기록(상담·미팅·연락)을 다른 선생님이 꼭 보도록 (휴무 후 출근해서 확인 등)
+  db.exec("CREATE TABLE IF NOT EXISTS reviews (id TEXT PRIMARY KEY, studentId TEXT NOT NULL, refTable TEXT NOT NULL, refId TEXT NOT NULL, toEmail TEXT NOT NULL, fromEmail TEXT NOT NULL, note TEXT NOT NULL DEFAULT '', createdAt TEXT NOT NULL, doneAt TEXT NOT NULL DEFAULT '')");
   // v11: 업로드 파일을 구글 드라이브에 하나씩 백업한 기록 (storedName 기준)
   db.exec("CREATE TABLE IF NOT EXISTS filesync (storedName TEXT PRIMARY KEY, syncedAt TEXT NOT NULL DEFAULT '', fails INTEGER NOT NULL DEFAULT 0, error TEXT NOT NULL DEFAULT '', at TEXT NOT NULL DEFAULT '')");
   // v10: 계약 시작·종료를 날짜로 (기존 연월은 시작=1일, 종료=그 달 마지막 날)
@@ -589,6 +591,9 @@ function openStore(dbPath, opts) {
     out.programs = db.prepare('SELECT * FROM programs ORDER BY name').all();
     out.events = db.prepare('SELECT * FROM events ORDER BY date, title').all();
     out.unifiles = db.prepare('SELECT id, universityId, cycleId, category, name, memo, mime, size, createdAt, createdBy FROM unifiles ORDER BY createdAt DESC').all();
+    // 확인 요청: 관리자·관리팀은 전부, 컨설턴트는 나에게 온 것·내가 보낸 것 (볼 수 있는 학생만, 상담기록 건은 제외)
+    out.reviews = db.prepare('SELECT * FROM reviews ORDER BY createdAt DESC').all()
+      .filter((r) => ids.has(r.studentId) && (isManager(me) || ((r.toEmail === me.email || r.fromEmail === me.email) && r.refTable !== 'notes')));
     // 대학 정보는 모두에게 공개
     const unis = db.prepare("SELECT * FROM universities WHERE deletedAt = ''").all();
     const uids = new Set(unis.map((u) => u.id));
@@ -809,6 +814,7 @@ function openStore(dbPath, opts) {
         log(me.email, 'create', table, rec.id, describe(table, rec));
         result = rec.id;
       }
+      if (arg.review && result) addReviews(me, table, result, arg.review);
     });
     if (arg.noData) return { savedId: result };
     const data = getAll(me);
@@ -1107,7 +1113,7 @@ function openStore(dbPath, opts) {
     if (fus.length > 30) throw new UserError('팔로업은 한 번에 30개까지 추가할 수 있습니다.');
     let id;
     tx(() => {
-      id = save(me, { table, obj: arg.obj || {}, noData: true, hasFollowups: fus.length > 0 }).savedId;
+      id = save(me, { table, obj: arg.obj || {}, noData: true, hasFollowups: fus.length > 0, review: arg.review }).savedId;
       const rec = getRow(table, id);
       for (const f of fus) {
         save(me, { table: 'followups', noData: true, obj: { studentId: rec.studentId, title: f.title, assignee: f.assignee === undefined ? me.email : f.assignee, due: f.due || '',
@@ -1115,6 +1121,56 @@ function openStore(dbPath, opts) {
       }
     });
     return Object.assign(getAll(me), { savedId: id });
+  }
+
+  /* ----- 확인 요청: 기록을 다른 선생님이 확인하도록 ----- */
+  const REVIEW_TABLES = ['notes', 'meetings', 'followups'];
+  /** review = { to: [이메일], note }. 받는 사람이 그 학생·기록을 볼 수 있어야 함 (상담기록은 관리자·관리팀만) */
+  function addReviews(me, table, refId, review) {
+    const to = [...new Set(((review && review.to) || []).map(lower).filter(Boolean))];
+    if (!to.length) return 0;
+    if (!REVIEW_TABLES.includes(table)) throw new UserError('확인 요청을 할 수 없는 항목입니다.');
+    if (to.length > 20) throw new UserError('확인 요청은 한 번에 20명까지입니다.');
+    const rec = getRow(table, refId);
+    if (!rec || rec.deletedAt) throw new UserError('기록을 찾을 수 없습니다. 새로고침 해주세요.', 404);
+    const st = requireStudent(me, rec.studentId);
+    if (table === 'notes') requireManager(me, '상담기록 확인 요청');
+    const note = clean(review.note).trim().slice(0, 300);
+    let n = 0;
+    for (const email of to) {
+      const t = getTeacher(email);
+      if (!t || !t.active) throw new UserError('확인 요청을 받을 선생님을 찾을 수 없습니다: ' + email);
+      const who = { email: t.email, role: t.role };
+      if (!canSeeStudent(who, st)) throw new UserError(t.name + ' 님은 ' + st.name + ' 학생을 볼 수 없어 확인 요청을 보낼 수 없습니다.');
+      if (table === 'notes' && !isManager(who)) throw new UserError('상담기록은 관리자·관리팀만 볼 수 있어 ' + t.name + ' 님에게는 확인 요청을 보낼 수 없습니다.');
+      if (db.prepare("SELECT 1 FROM reviews WHERE refTable = ? AND refId = ? AND toEmail = ? AND doneAt = ''").get(table, rec.id, t.email)) continue; // 이미 요청 중
+      db.prepare('INSERT INTO reviews (id, studentId, refTable, refId, toEmail, fromEmail, note, createdAt) VALUES (?,?,?,?,?,?,?,?)')
+        .run(newId(), st.id, table, rec.id, t.email, me.email, note, now());
+      n++;
+    }
+    if (n) log(me.email, 'review', table, rec.id, st.name + ' · 확인 요청 → ' + to.map((e) => (getTeacher(e) || {}).name || e).join(', ') + (note ? ' — ' + note : ''));
+    return n;
+  }
+  function requestReview(me, arg) {
+    arg = arg || {};
+    tx(() => addReviews(me, arg.refTable, arg.refId, { to: arg.to, note: arg.note }));
+    return getAll(me);
+  }
+  /** 받은 사람이 "확인함" (다시 누르면 취소) */
+  function doneReview(me, arg) {
+    const r = db.prepare('SELECT * FROM reviews WHERE id = ?').get(String(arg && arg.id || ''));
+    if (!r) throw new UserError('확인 요청을 찾을 수 없습니다. 새로고침 해주세요.', 404);
+    if (r.toEmail !== me.email) throw new UserError('나에게 온 확인 요청만 확인 처리할 수 있습니다.', 403);
+    db.prepare('UPDATE reviews SET doneAt = ? WHERE id = ?').run(arg.undo ? '' : now(), r.id);
+    return getAll(me);
+  }
+  /** 보낸 사람(또는 관리자)이 요청 취소 */
+  function cancelReview(me, arg) {
+    const r = db.prepare('SELECT * FROM reviews WHERE id = ?').get(String(arg && arg.id || ''));
+    if (!r) throw new UserError('이미 취소된 요청입니다.', 404);
+    if (r.fromEmail !== me.email && me.role !== 'admin') throw new UserError('요청한 사람이나 관리자만 취소할 수 있습니다.', 403);
+    db.prepare('DELETE FROM reviews WHERE id = ?').run(r.id);
+    return getAll(me);
   }
 
   /** 팔로업을 다른 선생님에게 요청(담당자 변경 + 누가 왜 요청했는지 기록) → 메일은 server.js 에서 */
@@ -1262,7 +1318,7 @@ function openStore(dbPath, opts) {
 
   /* ----- 메인 화면 배치 (계정별, 관리자는 모두의 기본 배치) ----- */
   function parseLayout(v) { try { const x = JSON.parse(v || 'null'); return Array.isArray(x) ? x : null; } catch (e) { return null; } }
-  /** [{ id, w: 'h'(반 칸)|'f'(한 줄), h: ''|'s'|'m'|'l'(높이), hide }] 만 받음 */
+  /** [{ id, s: '가로칸x세로칸'(예: 2x3), hide }] 만 받음 */
   function cleanLayout(list) {
     if (!Array.isArray(list) || list.length > 40) throw new UserError('화면 배치 형식이 올바르지 않습니다.');
     const seen = new Set();
@@ -1270,7 +1326,7 @@ function openStore(dbPath, opts) {
       const id = String(x && x.id || '');
       if (!/^[a-z]{1,30}$/.test(id) || seen.has(id)) throw new UserError('화면 배치 형식이 올바르지 않습니다.');
       seen.add(id);
-      return { id, w: x.w === 'f' ? 'f' : 'h', h: ['s', 'm', 'l'].includes(x.h) ? x.h : '', hide: !!x.hide };
+      return { id, s: /^[1-4]x[1-6]$/.test(String(x.s)) ? String(x.s) : '', hide: !!x.hide };
     });
   }
   function saveHomeLayout(me, arg) {
@@ -1814,7 +1870,7 @@ function openStore(dbPath, opts) {
     db, filesDir, listFiles, pendingSync, markSync, countTeachers, upsertAdmin, login, logout, authenticate, addFile, getFile, addUniFile, getUniFile,
     rpc: { getAll: (me) => getAll(me), save, remove, restore, purge, getTrash, getLog, saveTeacher, changePassword, importData, copyCycle, getActivity, saveMany, updateMe,
       saveOption, removeOption, deleteTeacher, getAutomation, saveAutomation, saveEvent, removeEvent,
-      saveWithFollowups, requestFollowup, saveOrder, saveUniFile, removeUniFile, saveProgram, removeProgram, getStorage, retrySync, saveHomeLayout },
+      saveWithFollowups, requestFollowup, saveOrder, saveUniFile, removeUniFile, saveProgram, removeProgram, getStorage, retrySync, saveHomeLayout, requestReview, doneReview, cancelReview },
     backup, getConfig, getMeta, recordRun, listTeachers, close: () => db.close(),
   };
 }
