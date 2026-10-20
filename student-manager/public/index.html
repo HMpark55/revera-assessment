@@ -14,13 +14,13 @@
   a { color:var(--navy); }
 
   header.top { background:var(--navy); color:#fff; position:sticky; top:0; z-index:20; }
-  .top-in { max-width:1920px; margin:0 auto; padding:9px 24px; /* 머리글·메뉴는 모든 화면에서 같은 폭 (화면을 옮겨도 위치가 그대로) */ display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+  .top-in { max-width:1200px; margin:0 auto; padding:9px 16px; /* 머리글·메뉴는 모든 화면에서 가운데 같은 폭 (메인 본문만 넓게) */ display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
   .brand { font-weight:bold; font-size:1.05rem; white-space:nowrap; }
   .brand span { color:var(--gold); }
   #nav { background:#fff; color:#333; border-bottom:1px solid var(--border); }
   #nav:empty { display:none; }
   .navrow-o + .navrow-o { border-top:1px solid var(--soft); }
-  .navrow { max-width:1920px; margin:0 auto; padding:0 24px; display:flex; align-items:center; gap:2px; overflow-x:auto; scrollbar-width:none; }
+  .navrow { max-width:1200px; margin:0 auto; padding:0 16px; display:flex; align-items:center; gap:2px; overflow-x:auto; scrollbar-width:none; }
   .navrow .nl { font-size:.72rem; color:var(--muted); width:40px; flex-shrink:0; }
   .navrow a { color:#4a5468; text-decoration:none; padding:9px 12px 7px; white-space:nowrap; border-bottom:3px solid transparent; font-size:.9rem; }
   .navrow a:hover { color:var(--navy); }
@@ -286,9 +286,8 @@
   /* ---- v9: 메인 화면 · 한 줄 메뉴 · 달력 · 요약 ---- */
   a.brand { color:#fff; text-decoration:none; }
   a.brand:hover { opacity:.85; }
-  .nav-in { max-width:1920px; margin:0 auto; padding:0 24px; display:flex; align-items:stretch; }
+  .nav-in { max-width:1200px; margin:0 auto; padding:0 16px; display:flex; align-items:stretch; }
   .nav-in .navrow { flex:1; min-width:0; margin:0; padding:0; }
-  @media (max-width:720px) { .top-in { padding:9px 16px; } .navrow, .nav-in { padding-left:16px; padding-right:16px; } .nav-in .navrow { padding:0; } }
   .navrow a.home { font-weight:bold; color:var(--navy); }
   .nsep { width:1px; background:var(--border); margin:9px 8px; flex-shrink:0; align-self:stretch; }
   .adm { position:relative; flex-shrink:0; display:flex; align-items:stretch; }
@@ -1070,20 +1069,20 @@ function viewHome() {
 
 /* ----- 메인 화면 위젯: 계정별로 순서·크기·숨기기, 관리자는 모두의 기본 배치 ----- */
 var WIDGETS = [ // sizes: 고를 수 있는 크기(가로칸x세로칸), 첫 번째가 처음 크기
-  { id: 'today', title: '오늘 챙길 일', sizes: ['2x3', '2x2', '3x2', '4x2', '4x3'], render: function () { return todayCard(); } },
-  { id: 'followups', title: '팔로업', sizes: ['2x3', '1x3', '2x2', '2x4'], render: wFollowups },
-  { id: 'calendar', title: '달력', sizes: ['4x4', '2x5', '3x4'], render: function () { return calendarCard(); } },
-  { id: 'students', title: '학생 현황', sizes: ['2x2', '2x3', '3x2', '4x3'], render: wStudents },
-  { id: 'deadlines', title: '다가오는 지원 마감', sizes: ['2x2', '1x2', '2x3'], render: wDeadlines },
-  { id: 'money', title: '미수금 · 갱신 예정', sizes: ['2x2', '2x3', '1x3'], mgr: true, render: wMoney },
-  { id: 'meetings', title: '최근 미팅 회의록', sizes: ['2x2', '1x2', '2x3'], hideFor: 'mgr', render: wMeetings },
-  { id: 'contacts', title: '답 안 한 연락', sizes: ['1x2', '2x2', '1x3', '2x3'], extra: true, render: wContacts },
-  { id: 'nodue', title: '기한 없는 팔로업', sizes: ['1x2', '2x2', '1x3', '2x3'], extra: true, render: wNoDue },
-  { id: 'programs', title: '대회·프로그램 마감 임박', sizes: ['1x2', '2x2', '1x3'], extra: true, render: wPrograms },
-  { id: 'mystudents', title: '내 담당 학생', sizes: ['2x2', '1x3', '2x3'], extra: true, render: wMyStudents },
-  { id: 'activity', title: '최근 활동', sizes: ['1x3', '2x2', '2x3'], extra: true, render: wActivity },
-  { id: 'reviews', title: '확인 요청', sizes: ['1x2', '2x2', '1x3', '2x3'], extra: true, render: wReviews },
-  { id: 'review', title: '확인 필요 회의록', sizes: ['1x2', '2x2', '1x3'], extra: true, render: wReview },
+  { id: 'today', title: '오늘 챙길 일', sizes: ['2x3', '1x2', '1x3', '2x2', '3x2', '4x2', '4x3'], render: function () { return todayCard(); } },
+  { id: 'followups', title: '팔로업', sizes: ['2x3', '1x2', '1x3', '2x2', '2x4'], render: wFollowups },
+  { id: 'calendar', title: '달력', sizes: ['4x4', '1x4', '2x5', '3x4'], render: function () { return calendarCard(); } },
+  { id: 'students', title: '학생 현황', sizes: ['2x2', '1x2', '1x3', '2x3', '3x2', '4x3'], render: wStudents },
+  { id: 'deadlines', title: '다가오는 지원 마감', sizes: ['2x2', '1x2', '1x3', '2x3'], render: wDeadlines },
+  { id: 'money', title: '미수금 · 갱신 예정', sizes: ['2x2', '1x2', '1x3', '2x3'], mgr: true, render: wMoney },
+  { id: 'meetings', title: '최근 미팅 회의록', sizes: ['2x2', '1x2', '1x3', '2x3'], hideFor: 'mgr', render: wMeetings },
+  { id: 'contacts', title: '답 안 한 연락', sizes: ['1x2', '1x1', '1x3', '2x2', '2x3'], extra: true, render: wContacts },
+  { id: 'nodue', title: '기한 없는 팔로업', sizes: ['1x2', '1x1', '1x3', '2x2', '2x3'], extra: true, render: wNoDue },
+  { id: 'programs', title: '대회·프로그램 마감 임박', sizes: ['1x2', '1x1', '1x3', '2x2'], extra: true, render: wPrograms },
+  { id: 'mystudents', title: '내 담당 학생', sizes: ['2x2', '1x2', '1x3', '2x3'], extra: true, render: wMyStudents },
+  { id: 'activity', title: '최근 활동', sizes: ['1x3', '1x2', '2x2', '2x3'], extra: true, render: wActivity },
+  { id: 'reviews', title: '확인 요청', sizes: ['1x2', '1x1', '1x3', '2x2', '2x3'], extra: true, render: wReviews },
+  { id: 'review', title: '확인 필요 회의록', sizes: ['1x2', '1x1', '1x3', '2x2'], extra: true, render: wReview },
 ];
 function widgetOk(w) { return !w.mgr || isMgr(); }
 /** 처음 상태 배치 (관리자가 기본 배치를 정하지 않았을 때) */
