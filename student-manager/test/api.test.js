@@ -1280,3 +1280,53 @@ test('메인 화면 배치: 계정별 저장, 관리자 기본 배치, 형식 �
   assert.ok(!rows.some((r) => r.studentName === '활동남의학생'));
   assert.ok((await admin.ok('getActivity', { all: true })).rows.some((r) => r.studentName === '활동남의학생'));
 });
+
+test('확인 요청: 저장하면서 요청, 받은 사람만 확인, 보낸 사람 취소, 볼 수 없는 사람·상담기록은 컨설턴트에게 못 보냄', async () => {
+  const admin = client();
+  await admin.login('admin@revera.test', 'admin-pass-1');
+  await admin.ok('saveTeacher', { email: 'rv-staff@revera.test', name: '확인관리', role: 'staff', password: '123456' });
+  await admin.ok('saveTeacher', { email: 'rv-con@revera.test', name: '확인컨설', role: 'consultant', password: '123456' });
+  await admin.ok('saveTeacher', { email: 'rv-other@revera.test', name: '남의컨설', role: 'consultant', password: '123456' });
+  const staff = client(); await staff.login('rv-staff@revera.test', '123456');
+  const con = client(); await con.login('rv-con@revera.test', '123456');
+  let d = await admin.saveOk('students', { name: '확인학생', counselor: 'rv-con@revera.test' });
+  const sid = d.savedId;
+  // 받은 연락 저장 + 확인 요청 (관리팀·담당 컨설턴트)
+  d = await admin.ok('save', { table: 'followups', obj: { studentId: sid, kind: 'contact', title: '어머님 문의', detail: '어머님 문의', status: '완료', answer: '답변 완료' },
+    review: { to: ['rv-staff@revera.test', 'rv-con@revera.test'], note: '참고만 해주세요' } });
+  const fid = d.savedId;
+  assert.strictEqual(d.reviews.filter((r) => r.refId === fid).length, 2);
+  // 볼 수 없는 컨설턴트 → 거절, 저장도 안 됨
+  let r = await admin.rpc('save', { table: 'followups', obj: { studentId: sid, title: '거절될 일' }, review: { to: ['rv-other@revera.test'] } });
+  assert.strictEqual(r.status, 400);
+  assert.ok(!(await admin.ok('getAll')).followups.some((f) => f.title === '거절될 일'), '요청이 실패하면 기록도 저장 안 됨');
+  // 상담기록은 컨설턴트에게 못 보냄, 관리팀에는 됨 (팔로업과 함께 저장하는 경로)
+  r = await admin.rpc('saveWithFollowups', { table: 'notes', obj: { studentId: sid, date: '2026-10-20', content: '상담' }, followups: [], review: { to: ['rv-con@revera.test'] } });
+  assert.strictEqual(r.status, 400);
+  d = await admin.ok('saveWithFollowups', { table: 'notes', obj: { studentId: sid, date: '2026-10-20', content: '상담' }, followups: [], review: { to: ['rv-staff@revera.test'] } });
+  const nid = d.savedId;
+  // 받은 사람에게 보임 (컨설턴트는 상담기록 건은 안 보임)
+  const sv = (await staff.ok('getAll')).reviews.filter((x) => x.toEmail === 'rv-staff@revera.test');
+  assert.strictEqual(sv.length, 2);
+  const cv = (await con.ok('getAll')).reviews;
+  assert.ok(cv.every((x) => x.refTable !== 'notes') && cv.some((x) => x.refId === fid));
+  // 같은 사람에게 중복 요청은 하나만
+  d = await admin.ok('requestReview', { refTable: 'followups', refId: fid, to: ['rv-staff@revera.test'] });
+  assert.strictEqual(d.reviews.filter((x) => x.refId === fid && x.toEmail === 'rv-staff@revera.test').length, 1);
+  // 확인은 받은 사람만
+  const mine = sv.find((x) => x.refId === nid);
+  assert.strictEqual((await con.rpc('doneReview', { id: mine.id })).status, 403);
+  d = await staff.ok('doneReview', { id: mine.id });
+  assert.ok(d.reviews.find((x) => x.id === mine.id).doneAt);
+  d = await staff.ok('doneReview', { id: mine.id, undo: true });
+  assert.strictEqual(d.reviews.find((x) => x.id === mine.id).doneAt, '');
+  // 취소는 보낸 사람(또는 관리자)만
+  const cr = cv.find((x) => x.refId === fid);
+  assert.strictEqual((await con.rpc('cancelReview', { id: cr.id })).status, 403);
+  d = await admin.ok('cancelReview', { id: cr.id });
+  assert.ok(!d.reviews.some((x) => x.id === cr.id));
+  // 컨설턴트도 담당 학생의 미팅은 관리팀에 요청 가능, 상담기록은 불가
+  d = await con.saveOk('meetings', { studentId: sid, date: '2026-10-20', content: '미팅' });
+  d = await con.ok('requestReview', { refTable: 'meetings', refId: d.savedId, to: ['rv-staff@revera.test'] });
+  assert.strictEqual((await con.rpc('requestReview', { refTable: 'notes', refId: nid, to: ['rv-staff@revera.test'] })).status, 403);
+});
