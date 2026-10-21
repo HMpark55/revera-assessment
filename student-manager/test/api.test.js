@@ -1404,3 +1404,72 @@ test('원장님 스케줄 가져오기: 우리 학생 일정만 저장, 권한�
   await admin.ok('saveAutomation', { schedOn: false });
 });
 
+test('달력 자동 표시(원장님 미팅·다음 미팅·지원 마감): 이름 고정, 색·보이기·순서만, 지울 수 없음', async () => {
+  const admin = client();
+  await admin.login('admin@revera.test', 'admin-pass-1');
+  let d = await admin.ok('getAll');
+  const autos = d.options.filter((o) => o.kind === 'evauto');
+  assert.deepStrictEqual(autos.map((o) => o.value).sort(), ['deadline', 'nextmeet', 'sched']);
+  const sc = autos.find((o) => o.value === 'sched');
+  d = await admin.ok('saveAutoCat', { id: sc.id, color: '#FF0000', hidden: true });
+  const after = d.options.find((o) => o.id === sc.id);
+  assert.deepStrictEqual([after.value, after.color, after.category], ['sched', '#ff0000', 'off']);
+  assert.strictEqual((await admin.rpc('saveAutoCat', { id: sc.id, color: 'red' })).status, 400);
+  assert.strictEqual((await admin.rpc('removeOption', { id: sc.id })).status, 400, '지울 수 없음');
+  assert.strictEqual((await admin.rpc('saveOption', { kind: 'evauto', value: '새 항목' })).status, 400, '추가 안 됨');
+  d = await admin.ok('saveOrder', { kind: 'evauto', ids: [autos[2].id, autos[1].id, autos[0].id] });
+  assert.strictEqual(d.options.find((o) => o.id === autos[2].id).sortOrder, '1');
+  await admin.ok('saveAutoCat', { id: sc.id, hidden: false, color: '#7c5cc4' });
+  await admin.ok('saveTeacher', { email: 'auto-con@revera.test', name: '자동컨설', role: 'consultant', password: '123456' });
+  const con = client(); await con.login('auto-con@revera.test', '123456');
+  assert.strictEqual((await con.rpc('saveAutoCat', { id: sc.id, hidden: true })).status, 403, '컨설턴트는 못 바꿈');
+});
+
+
+test('v11: 공통 팔로업(학생마다 하나, 관리팀 담당), 여러 개 삭제·복구·영구 삭제, 점수 파일 첨부, 트랙 목록 이름 변경', async () => {
+  const admin = client();
+  await admin.login('admin@revera.test', 'admin-pass-1');
+  await admin.ok('saveTeacher', { email: 'v11-mgr@revera.test', name: '관리A', role: 'staff', password: '123456' });
+  let d = await admin.saveOk('students', { name: '공통1', manager: 'v11-mgr@revera.test', tracks: '3년특례, 홍콩' });
+  const s1 = d.savedId;
+  d = await admin.saveOk('students', { name: '공통2' });
+  const s2 = d.savedId;
+  // 공통 팔로업
+  assert.strictEqual((await admin.rpc('addFollowupMany', { title: '', studentIds: [s1] })).status, 400);
+  d = await admin.ok('addFollowupMany', { title: '1학기 성적표 받기', due: '2030-01-10', assignee: 'manager', studentIds: [s1, s2] });
+  const g = d.followups.filter((f) => f.groupId === d.groupId);
+  assert.strictEqual(g.length, 2);
+  assert.strictEqual(g.find((f) => f.studentId === s1).assignee, 'v11-mgr@revera.test', '각 학생 관리팀 담당');
+  assert.strictEqual(g.find((f) => f.studentId === s2).assignee, '', '관리팀 없으면 미정');
+  // 컨설턴트는 볼 수 없는 학생에게 못 만듦
+  await admin.ok('saveTeacher', { email: 'v11-con@revera.test', name: '컨설B', role: 'consultant', password: '123456' });
+  const con = client(); await con.login('v11-con@revera.test', '123456');
+  assert.strictEqual((await con.rpc('addFollowupMany', { title: 'x', studentIds: [s1] })).status, 403);
+  // 점수 + 파일 첨부
+  d = await admin.saveOk('scores', { studentId: s1, kind: 'SAT', score: '1500' });
+  const scoreId = d.savedId;
+  let r = await admin.req('POST', '/api/files/upload?studentId=' + s1 + '&scoreId=' + scoreId, undefined, { 'Content-Type': 'application/octet-stream', 'X-File-Name': encodeURIComponent('sat.pdf') }, Buffer.from('%PDF-1.4 x'));
+  assert.strictEqual(r.status, 200, JSON.stringify(r.data));
+  const sf = r.data.files.find((f) => f.scoreId === scoreId);
+  assert.strictEqual(sf.category, '어학·표준화 점수');
+  r = await admin.req('POST', '/api/files/upload?studentId=' + s2 + '&scoreId=' + scoreId, undefined, { 'Content-Type': 'application/octet-stream', 'X-File-Name': encodeURIComponent('x.pdf') }, Buffer.from('%PDF'));
+  assert.strictEqual(r.status, 404, '다른 학생 점수에는 못 붙임');
+  // 여러 개 삭제 → 복구 → 다시 삭제 → 영구 삭제
+  const f2 = (await admin.upload(s1, 'b.pdf', Buffer.from('%PDF b'))).data.files.find((f) => f.name === 'b.pdf');
+  const items = [{ table: 'files', id: sf.id }, { table: 'files', id: f2.id }];
+  d = await admin.ok('removeMany', { items });
+  assert.ok(!d.files.some((f) => f.id === sf.id || f.id === f2.id));
+  assert.strictEqual((await admin.rpc('removeMany', { items })).status, 404, '이미 삭제된 것이 있으면 전체 취소');
+  d = await admin.ok('restoreMany', { items });
+  assert.strictEqual(d.files.filter((f) => f.id === sf.id || f.id === f2.id).length, 2);
+  await admin.ok('removeMany', { items });
+  d = await admin.ok('purgeMany', { items: items.concat([{ table: 'files', id: 'nope' }]) });
+  assert.strictEqual(d.count, 2); assert.strictEqual(d.failed.length, 1);
+  assert.strictEqual((await con.rpc('purgeMany', { items })).status, 403);
+  // 트랙 목록: 이름을 바꾸면 학생 트랙도 바뀜
+  d = await admin.ok('getAll');
+  const hk = d.options.find((o) => o.kind === 'track' && o.value === '홍콩');
+  assert.ok(hk && d.options.filter((o) => o.kind === 'track').length >= 10);
+  d = await admin.ok('saveOption', { id: hk.id, kind: 'track', value: '홍콩(HK)' });
+  assert.strictEqual(d.students.find((s) => s.id === s1).tracks, '3년특례, 홍콩(HK)');
+});
