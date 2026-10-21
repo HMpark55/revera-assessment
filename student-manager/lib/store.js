@@ -993,6 +993,39 @@ function openStore(dbPath, opts) {
     return data;
   }
 
+  /** 전공 여러 개 한 번에 추가 (붙여넣기) — 같은 이름(대소문자 무시)이 이미 있으면 건너뜀 */
+  function addMajorsMany(me, arg) {
+    arg = arg || {};
+    const u = requireUni(arg.universityId);
+    const rows = Array.isArray(arg.rows) ? arg.rows : [];
+    if (!rows.length) throw new UserError('추가할 전공이 없습니다.');
+    if (rows.length > 500) throw new UserError('한 번에 500개까지 추가할 수 있습니다.');
+    const have = new Set(db.prepare("SELECT name FROM unimajors WHERE universityId = ? AND deletedAt = ''").all(u.id).map((r) => r.name.trim().toLowerCase()));
+    const t = now();
+    let added = 0, skipped = 0;
+    tx(() => {
+      for (const r of rows) {
+        const name = clean(r && r.name).trim().slice(0, 200);
+        if (!name || have.has(name.toLowerCase())) { skipped++; continue; }
+        have.add(name.toLowerCase());
+        insert('unimajors', { id: newId(), universityId: u.id, name, faculty: clean(r.faculty || '').trim().slice(0, 200), code: clean(r.code || '').trim().slice(0, 50),
+          detail: '', sourceUrl: '', createdAt: t, createdBy: me.email, updatedAt: t, updatedBy: me.email });
+        added++;
+      }
+      if (added) log(me.email, 'create', 'unimajors', u.id, u.name + ' · 전공 ' + added + '개 한 번에 추가');
+    });
+    return Object.assign(getAll(me), { added, skipped });
+  }
+  /** 학부 이름 한꺼번에 바꾸기 (그 대학에서 같은 학부로 적힌 전공 전체). to 가 이미 있는 학부면 합쳐짐 */
+  function renameFaculty(me, arg) {
+    arg = arg || {};
+    const u = requireUni(arg.universityId);
+    const from = String(arg.from == null ? '' : arg.from), to = clean(arg.to).trim().slice(0, 200);
+    const n = db.prepare("UPDATE unimajors SET faculty = ?, updatedAt = ?, updatedBy = ? WHERE universityId = ? AND faculty = ? AND deletedAt = ''").run(to, now(), me.email, u.id, from).changes;
+    if (n) log(me.email, 'update', 'unimajors', u.id, u.name + ' · 학부 이름 변경: ' + (from || '(학부 미지정)') + ' → ' + (to || '(학부 미지정)') + ' (' + n + '개)');
+    return Object.assign(getAll(me), { changed: n });
+  }
+
   /** 전공 후보·계정의 대학 연결 확인 (전공 후보는 대학 이름도 함께 저장) */
   function linkUni(table, rec) {
     if (!['majorplans', 'accounts', 'appinfo'].includes(table) || !('universityId' in rec)) return;
@@ -2030,7 +2063,7 @@ function openStore(dbPath, opts) {
     db, filesDir, listFiles, pendingSync, markSync, replaceSchedule, countTeachers, upsertAdmin, login, logout, authenticate, addFile, getFile, addUniFile, getUniFile,
     rpc: { getAll: (me) => getAll(me), save, remove, restore, purge, getTrash, getLog, saveTeacher, changePassword, importData, copyCycle, getActivity, saveMany, updateMe,
       saveOption, removeOption, deleteTeacher, getAutomation, saveAutomation, saveEvent, removeEvent,
-      saveWithFollowups, requestFollowup, saveOrder, saveUniFile, removeUniFile, saveProgram, removeProgram, getStorage, retrySync, saveHomeLayout, requestReview, doneReview, cancelReview, excludeSched, unexcludeSched, saveAutoCat, removeMany, restoreMany, purgeMany, addFollowupMany },
+      saveWithFollowups, requestFollowup, saveOrder, saveUniFile, removeUniFile, saveProgram, removeProgram, getStorage, retrySync, saveHomeLayout, requestReview, doneReview, cancelReview, excludeSched, unexcludeSched, saveAutoCat, removeMany, restoreMany, purgeMany, addFollowupMany, addMajorsMany, renameFaculty },
     backup, getConfig, getMeta, recordRun, listTeachers, close: () => db.close(),
   };
 }

@@ -304,6 +304,11 @@
   .fugrp-b { padding-left:18px; border-left:3px solid #dfe5f1; margin-left:6px; }
   .fm-list { display:grid; grid-template-columns:repeat(auto-fill, minmax(170px, 1fr)); gap:4px; max-height:260px; overflow-y:auto; border:1px solid var(--border); border-radius:6px; padding:6px; }
   .fm-list label { display:flex; gap:6px; align-items:center; font-size:.85rem; padding:2px 4px; border-radius:4px; color:#222; }
+  .majbox { max-height:520px; overflow-y:auto; }
+  details.facgrp { border:1px solid var(--border); border-radius:8px; margin-bottom:6px; }
+  details.facgrp > summary { display:flex; align-items:center; gap:8px; padding:7px 10px; cursor:pointer; background:#f7f8fb; border-radius:8px; }
+  details.facgrp[open] > summary { border-bottom:1px solid var(--border); border-radius:8px 8px 0 0; }
+  details.facgrp > details.major { margin:0 10px; }
   .rvbox { display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-top:6px; }
   .rvchip { font-size:.78rem; background:#fff4e0; color:#7a4d00; border:1px solid #f1d9a8; border-radius:999px; padding:2px 8px; }
   .rvchip.ok { background:#eaf6f0; color:#0f7a55; border-color:#bfe3d1; }
@@ -3108,6 +3113,119 @@ function removeProgram(id) {
 }
 
 /** 대학 정보 나라별 접기 상태 (이 브라우저에만 기억) */
+/* ----- 대학 전공: 학부별로 접어서, 검색, 여러 개 붙여넣기 ----- */
+function majFold() {
+  if (!UI.majFold) { try { UI.majFold = JSON.parse(localStorage.getItem('compass.majFold') || '{}') || {}; } catch (e) { UI.majFold = {}; } }
+  return UI.majFold;
+}
+function setMajFold(key, open) {
+  var f = majFold(); f[key] = open ? 1 : 0;
+  try { localStorage.setItem('compass.majFold', JSON.stringify(f)); } catch (e) { /* 저장 못 해도 화면은 동작 */ }
+}
+/** 학부별 묶음 [{ fac, list }] — 학부 이름순, 학부 미지정은 맨 뒤 */
+function majorGroups(majors) {
+  var by = {};
+  majors.forEach(function (m) { var k = (m.faculty || '').trim(); (by[k] = by[k] || []).push(m); });
+  return Object.keys(by).sort(function (a, b) { return (a ? 0 : 1) - (b ? 0 : 1) || a.localeCompare(b); }).map(function (k) { return { fac: k, list: by[k] }; });
+}
+function majorList(uid, majors) {
+  if (!majors.length) return '<div class="empty">등록된 전공이 없습니다. “여러 개 붙여넣기”로 한 번에 넣을 수 있습니다.</div>';
+  UI.majQ = UI.majQ || {}; UI.majFac = UI.majFac || {};
+  var q = String(UI.majQ[uid] || '').toLowerCase(), facSel = UI.majFac[uid] == null ? '*' : UI.majFac[uid];
+  var groups = majorGroups(majors), fold = majFold();
+  var shown = groups.filter(function (g) { return facSel === '*' || g.fac === facSel; }).map(function (g) {
+    return { fac: g.fac, all: g.list, list: q ? g.list.filter(function (m) { return [m.name, m.faculty, m.code].join(' ').toLowerCase().indexOf(q) >= 0; }) : g.list };
+  }).filter(function (g) { return g.list.length; });
+  var h = '<div class="toolbar majtools" style="margin:0 0 8px"><input type="text" class="grow" placeholder="전공·학부 검색" value="' + esc(UI.majQ[uid] || '') + '" oninput="UI.majQ[' + js(uid) + ']=this.value;majRefresh(' + js(uid) + ')">' +
+    (groups.length > 1 ? '<select onchange="UI.majFac[' + js(uid) + ']=this.value;render()"><option value="*">모든 학부 (' + groups.length + ')</option>' + groups.map(function (g) {
+      return '<option value="' + esc(g.fac) + '"' + (facSel === g.fac ? ' selected' : '') + '>' + esc(g.fac || '학부 미지정') + ' (' + g.list.length + ')</option>'; }).join('') + '</select>' +
+      '<button class="btn ghost sm" onclick="majAll(' + js(uid) + ',true)">모두 펼치기</button><button class="btn ghost sm" onclick="majAll(' + js(uid) + ',false)">모두 접기</button>' : '') + '</div>';
+  h += '<div class="majbox" id="majbox-' + esc(uid) + '">' + (shown.length ? shown.map(function (g) {
+    var key = uid + '|' + g.fac, open = q ? true : groups.length === 1 ? true : !!fold[key];
+    return '<details class="facgrp"' + (open ? ' open' : '') + ' ontoggle="' + (q ? '' : 'setMajFold(' + js(key) + ',this.open)') + '"><summary><b>' + esc(g.fac || '학부 미지정') + '</b> <span class="muted">' + g.list.length + (q && g.list.length !== g.all.length ? ' / ' + g.all.length : '') + '개</span>' +
+      '<button type="button" class="btn ghost sm" style="margin-left:auto" onclick="event.preventDefault();event.stopPropagation();renameFaculty(' + js(uid) + ',' + js(g.fac) + ')" title="이 학부 전공 전체의 학부 이름을 바꿉니다 (다른 학부 이름으로 바꾸면 합쳐짐)">학부 이름 변경</button></summary>' +
+      g.list.map(function (m) {
+        var ms = safeUrl(m.sourceUrl);
+        return '<details class="major"><summary><b>' + esc(m.name) + '</b>' + (m.code ? ' <span class="muted">' + esc(m.code) + '</span>' : '') + (m.detail ? ' <span class="muted" title="상세 내용 있음">📝</span>' : '') + '</summary>' +
+          '<div class="body">' + (m.detail ? esc(m.detail) : '<span class="muted">상세 내용이 없습니다.</span>') + '</div>' +
+          (ms ? '<div class="muted">출처: <a href="' + esc(ms) + '" target="_blank" rel="noopener">' + esc(ms) + '</a></div>' : '') +
+          '<div style="margin-top:6px"><button class="btn ghost sm" onclick="openForm(\'unimajors\',' + js(m.id) + ')">수정</button></div></details>';
+      }).join('') + '</details>';
+  }).join('') : '<div class="empty">검색 결과가 없습니다.</div>') + '</div>';
+  return h;
+}
+/** 검색어 입력 중에는 목록만 다시 그림 (한글 입력이 끊기지 않게) */
+function majRefresh(uid) {
+  var box = $('majbox-' + uid); if (!box) return render();
+  var majors = S.unimajors.filter(function (m) { return m.universityId === uid; }).sort(function (a, b) { return a.name.localeCompare(b.name); });
+  var tmp = document.createElement('div'); tmp.innerHTML = majorList(uid, majors);
+  var nb = tmp.querySelector('.majbox'); if (nb) box.replaceWith(nb);
+}
+function majAll(uid, open) {
+  majorGroups(S.unimajors.filter(function (m) { return m.universityId === uid; })).forEach(function (g) { setMajFold(uid + '|' + g.fac, open); });
+  render();
+}
+function renameFaculty(uid, from) {
+  var to = prompt('“' + (from || '학부 미지정') + '” 학부 이름을 무엇으로 바꿀까요?\n(이미 있는 학부 이름을 넣으면 그 학부로 합쳐집니다. 비우면 학부 미지정)', from);
+  if (to === null || to.trim() === from) return;
+  mutate('renameFaculty', { universityId: uid, from: from, to: to.trim() }, '학부 이름을 바꿨습니다.');
+}
+/** 붙여넣은 글 → 전공 목록. 엑셀 칸(전공 탭 학부 탭 코드), "학부 이름:" 제목 줄, 한 줄에 전공 하나 */
+function parseMajors(text, defFac, existing) {
+  var cur = '', out = [], seen = {};
+  String(text || '').split(/\r?\n/).forEach(function (line) {
+    var row;
+    if (line.indexOf('\t') >= 0) {
+      var c = line.split('\t').map(function (x) { return x.trim(); });
+      if (!c[0]) return;
+      row = { name: c[0], faculty: c[1] || cur || defFac, code: c[2] || '' };
+    } else {
+      var t = line.trim(); if (!t) return;
+      if (/[:：]$/.test(t)) { cur = t.replace(/[:：]+$/, '').trim(); return; }
+      t = t.replace(/^([-•·*▪◦]+|\d{1,3}[.)])\s*/, '').trim(); if (!t) return;
+      row = { name: t, faculty: cur || defFac, code: '' };
+    }
+    var k = row.name.toLowerCase();
+    row.exists = !!existing[k]; row.dup = !!seen[k]; seen[k] = 1;
+    row.on = !row.exists && !row.dup && row.name.length <= 200;
+    out.push(row);
+  });
+  return out;
+}
+function openMajorPaste(uid) {
+  var u = findRow('universities', uid);
+  var facs = majorGroups(S.unimajors.filter(function (m) { return m.universityId === uid; })).map(function (g) { return g.fac; }).filter(Boolean);
+  UI.majPaste = { uid: uid, rows: [] };
+  modal('전공 여러 개 붙여넣기 — ' + (u ? u.name : ''),
+    '<div class="full muted" style="font-size:.85rem;line-height:1.6">이런 형식을 읽습니다: ① 한 줄에 전공 하나 ② 엑셀·구글 시트에서 <b>전공 | 학부 | 코드</b> 칸을 그대로 복사 ③ <b>Faculty of Arts:</b> 처럼 끝에 <b>:</b> 가 붙은 줄은 학부 제목 — 다음 제목까지 아래 전공들이 그 학부로. 대학 홈페이지 전공 목록을 복사해 붙여넣고 필요 없는 줄은 아래 미리보기에서 체크를 푸세요.</div>' +
+    fld('학부 (학부가 따로 안 적힌 줄에 넣을 학부, 선택)', '<input type="text" id="mp-fac" list="mp-facs" oninput="majPastePreview()"><datalist id="mp-facs">' + facs.map(function (f) { return '<option value="' + esc(f) + '">'; }).join('') + '</datalist>', true) +
+    fld('붙여넣기', '<textarea id="mp-text" style="min-height:160px" placeholder="Faculty of Arts:\nBachelor of Arts\nBachelor of Arts in Architectural Studies\n\nHKU Business School:\nBusiness Administration" oninput="majPastePreview()"></textarea>', true) +
+    '<div class="full" id="mp-prev"></div>',
+    '<button class="btn ghost" onclick="closeModal()">취소</button><button class="btn" id="mp-go" onclick="submitMajorPaste()">추가</button>');
+  majPastePreview();
+}
+function majPastePreview() {
+  var mp = UI.majPaste; if (!mp || !$('mp-prev')) return;
+  var existing = {}; S.unimajors.forEach(function (m) { if (m.universityId === mp.uid) existing[m.name.trim().toLowerCase()] = 1; });
+  var prevOff = {}; (mp.rows || []).forEach(function (r) { if (!r.on && !r.exists && !r.dup) prevOff[r.name] = 1; });
+  mp.rows = parseMajors($('mp-text').value, $('mp-fac').value.trim(), existing);
+  mp.rows.forEach(function (r) { if (prevOff[r.name]) r.on = false; });
+  var n = mp.rows.filter(function (r) { return r.on; }).length;
+  $('mp-go').textContent = n ? n + '개 추가' : '추가';
+  $('mp-prev').innerHTML = mp.rows.length ? '<label>미리보기 — ' + mp.rows.length + '줄 중 <b>' + n + '개</b> 추가</label><div class="tbl-wrap" style="max-height:260px;overflow:auto"><table class="compact"><thead><tr><th></th><th>전공</th><th>학부</th><th>코드</th><th></th></tr></thead><tbody>' +
+    mp.rows.map(function (r, i) {
+      return '<tr' + (r.on ? '' : ' style="opacity:.55"') + '><td><input type="checkbox"' + (r.on ? ' checked' : '') + (r.exists || r.dup ? ' disabled' : '') + ' onchange="UI.majPaste.rows[' + i + '].on=this.checked;majPasteCount()"></td>' +
+        '<td>' + esc(r.name) + '</td><td class="muted">' + esc(r.faculty || '-') + '</td><td class="muted">' + esc(r.code) + '</td><td class="muted nw">' + (r.exists ? '이미 있음' : r.dup ? '위와 중복' : '') + '</td></tr>';
+    }).join('') + '</tbody></table></div>' : '<div class="muted">위에 붙여넣으면 여기에 미리보기가 나옵니다.</div>';
+}
+function majPasteCount() { var n = UI.majPaste.rows.filter(function (r) { return r.on; }).length; $('mp-go').textContent = n ? n + '개 추가' : '추가'; }
+function submitMajorPaste() {
+  var mp = UI.majPaste, rows = (mp.rows || []).filter(function (r) { return r.on; }).map(function (r) { return { name: r.name, faculty: r.faculty, code: r.code }; });
+  if (!rows.length) return toast('추가할 전공이 없습니다.', true);
+  api('addMajorsMany', { universityId: mp.uid, rows: rows }).then(function (d) {
+    load(d); closeModal(true); toast('전공 ' + d.added + '개를 추가했습니다.' + (d.skipped ? ' (' + d.skipped + '개는 이미 있어 건너뜀)' : ''));
+  }).catch(function (e) { toast(errMsg(e), true); });
+}
 function uniFold() {
   if (!UI.uniFold) { try { UI.uniFold = JSON.parse(localStorage.getItem('compass.uniFold') || '{}') || {}; } catch (e) { UI.uniFold = {}; } }
   return UI.uniFold;
@@ -3175,14 +3293,8 @@ function viewUni(id) {
         : '<div class="empty">등록된 전형이 없습니다. Early / Regular 등 전형별로 추가하세요.</div>') + '</div>';
   }
   var majors = S.unimajors.filter(function (m) { return m.universityId === id; }).sort(function (a, b) { return a.name.localeCompare(b.name); });
-  h += '<div class="grid g2"><div class="card">' + secHead('전공 <span class="muted">' + majors.length + '개</span>', '<button class="btn sm" onclick="openForm(\'unimajors\',null,null,{universityId:' + js(id) + '})">+ 전공 추가</button>') +
-    (majors.length ? majors.map(function (m) {
-      var ms = safeUrl(m.sourceUrl);
-      return '<details class="major"><summary><b>' + esc(m.name) + '</b>' + (m.faculty || m.code ? ' <span class="muted">' + esc([m.faculty, m.code].filter(Boolean).join(' · ')) + '</span>' : '') + '</summary>' +
-        '<div class="body">' + (m.detail ? esc(m.detail) : '<span class="muted">상세 내용이 없습니다.</span>') + '</div>' +
-        (ms ? '<div class="muted">출처: <a href="' + esc(ms) + '" target="_blank" rel="noopener">' + esc(ms) + '</a></div>' : '') +
-        '<div style="margin-top:6px"><button class="btn ghost sm" onclick="openForm(\'unimajors\',' + js(m.id) + ')">수정</button></div></details>';
-    }).join('') : '<div class="empty">등록된 전공이 없습니다.</div>') + '</div>';
+  h += '<div class="grid g2"><div class="card">' + secHead('전공 <span class="muted">' + majors.length + '개</span>', '<span class="toolbar" style="margin:0"><button class="btn ghost sm" onclick="openMajorPaste(' + js(id) + ')" title="엑셀·홈페이지에서 복사한 목록을 붙여넣어 한 번에 추가">여러 개 붙여넣기</button><button class="btn sm" onclick="openForm(\'unimajors\',null,null,{universityId:' + js(id) + '})">+ 전공 추가</button></span>') +
+    majorList(id, majors) + '</div>';
   h += '<div class="card">' + secHead('원서 준비 유의사항 <span class="muted">(내부 메모)</span>', '<button class="btn ghost sm" onclick="openForm(\'unitips\',' + js(id) + ')">수정</button>') +
     (u.tips ? '<div style="white-space:pre-wrap;line-height:1.6">' + esc(u.tips) + '</div>' : '<div class="empty">아직 작성된 유의사항이 없습니다.</div>') + '</div></div>';
   var apps = S.apps.filter(function (a) { return a.universityId === id && studentById(a.studentId); }).sort(byDate('deadline'));
@@ -3894,8 +4006,10 @@ function appFormSync(uniChanged) {
   rsel.innerHTML = '<option value="">' + (u ? (rounds.length ? '— 전형 선택 —' : '— 등록된 전형 없음 —') : '— 대학을 먼저 선택 —') + '</option>' +
     rounds.map(function (r) { return '<option value="' + esc(r.id) + '"' + (r.id === curR ? ' selected' : '') + '>' + esc(cycleLabel(cycles[r.cycleId])) + ' · ' + (r.track ? esc(r.track) + ' · ' : '') + esc(r.name) + ' (' + esc(r.deadline || '날짜 미정') + ')</option>'; }).join('');
   var majors = u ? S.unimajors.filter(function (m) { return m.universityId === uid; }).sort(function (a, b) { return a.name.localeCompare(b.name); }) : [];
+  var mo = function (m) { return '<option value="' + esc(m.id) + '"' + (m.id === curM ? ' selected' : '') + '>' + esc(m.name) + '</option>'; };
+  var mg = majorGroups(majors);
   msel.innerHTML = '<option value="">' + (u ? '— 목록에 없음 (아래에 직접 입력) —' : '— 대학을 먼저 선택 —') + '</option>' +
-    majors.map(function (m) { return '<option value="' + esc(m.id) + '"' + (m.id === curM ? ' selected' : '') + '>' + esc(m.name) + '</option>'; }).join('');
+    (mg.length > 1 ? mg.map(function (g) { return '<optgroup label="' + esc(g.fac || '학부 미지정') + '">' + g.list.map(mo).join('') + '</optgroup>'; }).join('') : majors.map(mo).join(''));
   rsel.disabled = !u; msel.disabled = !u;
   var set = function (name, val, lock) { var el = f.elements[name]; if (!el) return; if (lock) el.value = val; el.readOnly = lock; el.disabled = false; if (el.tagName === 'SELECT') el.disabled = lock; };
   set('university', u ? u.name : f.elements.university.value, !!u);

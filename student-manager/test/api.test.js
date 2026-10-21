@@ -1473,3 +1473,18 @@ test('v11: 공통 팔로업(학생마다 하나, 관리팀 담당), 여러 개 �
   d = await admin.ok('saveOption', { id: hk.id, kind: 'track', value: '홍콩(HK)' });
   assert.strictEqual(d.students.find((s) => s.id === s1).tracks, '3년특례, 홍콩(HK)');
 });
+
+test('대학 전공: 여러 개 한 번에 추가(중복 건너뜀), 학부 이름 한꺼번에 바꾸기', async () => {
+  const admin = client();
+  await admin.login('admin@revera.test', 'admin-pass-1');
+  let d = await admin.ok('getAll');
+  const u = d.universities[0];
+  d = await admin.ok('addMajorsMany', { universityId: u.id, rows: [{ name: 'Bachelor of Arts', faculty: 'Faculty of Arts' }, { name: 'bachelor of arts', faculty: 'X' }, { name: 'Business Administration', faculty: 'Arts Faculty', code: 'BBA' }, { name: '' }] });
+  assert.deepStrictEqual([d.added, d.skipped], [2, 2]);
+  d = await admin.ok('addMajorsMany', { universityId: u.id, rows: [{ name: 'BACHELOR OF ARTS' }] });
+  assert.deepStrictEqual([d.added, d.skipped], [0, 1], '이미 있는 이름은 건너뜀');
+  d = await admin.ok('renameFaculty', { universityId: u.id, from: 'Arts Faculty', to: 'Faculty of Arts' });
+  assert.strictEqual(d.changed, 1);
+  assert.strictEqual(d.unimajors.filter((m) => m.universityId === u.id && m.faculty === 'Faculty of Arts').length, 2);
+  assert.strictEqual((await admin.rpc('addMajorsMany', { universityId: 'nope', rows: [{ name: 'x' }] })).status, 404);
+});
