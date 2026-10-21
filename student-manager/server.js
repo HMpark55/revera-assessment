@@ -231,6 +231,7 @@ function createApp(store, opts) {
         return res.json(r);
       }
       if (a === 'filesync') return res.json(await automation.runFileSync(store, f, true));
+      if (a === 'schedule') return res.json(await automation.syncSchedule(store, f, true));
       if (a === 'testmail') return res.json(await automation.sendTestMail(store, req.me.email, f));
       if (a === 'preview') return res.json({ digests: automation.buildDigests(store).map((m) => ({ to: m.to, name: m.name, subject: m.subject, html: m.html, counts: m.counts })) });
       if (a === 'digest') {

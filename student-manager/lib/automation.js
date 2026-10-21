@@ -11,6 +11,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { writeZip } = require('./zip');
+const schedule = require('./schedule');
 
 const TZ_OFFSET_H = 8; // 중국 표준시
 const RESTORE_HELP = [
@@ -137,6 +138,34 @@ async function runFileSync(store, fetchImpl, manual) {
   }
 }
 
+/** 원장님 상담 스케줄: 이번 달·다음 달 탭을 읽어서 Compass 학생과 연결된 일정만 저장 (시트는 읽기만) */
+async function syncSchedule(store, fetchImpl, manual) {
+  const cfg = store.getConfig();
+  try {
+    if (!cfg.schedSheet) throw new Error('원장님 스케줄 시트 주소가 설정되지 않았습니다.');
+    const now = localNow(), y = now.getUTCFullYear(), m = now.getUTCMonth() + 1;
+    const tabs = [schedule.tabName(y, m), m === 12 ? schedule.tabName(y + 1, 1) : schedule.tabName(y, m + 1)];
+    let r;
+    try {
+      r = await callScript(cfg, { action: 'sheet', id: cfg.schedSheet, tabs }, fetchImpl);
+    } catch (e) {
+      throw new Error(/unknown action/.test(e.message) ? 'Apps Script 코드가 예전 버전입니다. 백업·알림 화면에서 코드를 다시 복사해 붙여넣고 새 버전으로 배포하세요.' : e.message);
+    }
+    const got = tabs.filter((t) => r.tabs && Array.isArray(r.tabs[t]));
+    if (!got.length) throw new Error('시트에서 "' + tabs.join('", "') + '" 탭을 찾을 수 없습니다. 탭 이름을 확인하세요.' + (r.names ? ' (있는 탭: ' + r.names.slice(-6).join(', ') + ')' : ''));
+    const events = [];
+    got.forEach((t) => { events.push(...schedule.parseSheet(r.tabs[t], t)); });
+    const res = store.replaceSchedule(got, events);
+    const msg = '성공' + (manual ? '(수동)' : '') + ' · ' + got.join(', ') + ' — 우리 학생 일정 ' + res.saved + '건' + (res.excluded ? ' (뺀 일정 ' + res.excluded + '건 제외)' : '') +
+      ' · 그 외 일정 ' + res.unmatched + '건은 가져오지 않음' + (got.length < tabs.length ? ' · "' + tabs.filter((t) => got.indexOf(t) < 0).join(', ') + '" 탭 없음' : '');
+    store.recordRun('schedule', msg);
+    return Object.assign({ tabs: got }, res);
+  } catch (e) {
+    store.recordRun('schedule', '실패 · ' + e.message);
+    throw e;
+  }
+}
+
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const APP_FINAL = ['제출완료', '대기', '합격', '불합격', '철회'];
 
@@ -238,6 +267,8 @@ async function tick(store, opts) {
       store.recordRun(kind, '실패 · ' + e.message, kind === 'digest' ? today : '');
     }
   }
+  // 원장님 스케줄: 켜져 있으면 1시간마다
+  if (cfg.schedOn === 'on' && Date.now() - Date.parse(store.getMeta('run.schedule.at') || 0) >= 55 * 60000) await syncSchedule(store, opts.fetch).catch(() => {});
   // 파일 백업: 자동 백업이 켜져 있으면 시각과 상관없이 매번 새 파일만
   if (cfg.backupOn === 'on') await runFileSync(store, opts.fetch).catch(() => {});
 }
@@ -248,4 +279,4 @@ function startScheduler(store) {
   return setInterval(run, 10 * 60000);
 }
 
-module.exports = { buildBackupZip, callScript, sendBackup, syncFiles, runFileSync, buildDigests, sendDigests, sendTestMail, sendRequestMail, tick, startScheduler, localDate, RESTORE_HELP };
+module.exports = { buildBackupZip, callScript, sendBackup, syncFiles, runFileSync, syncSchedule, buildDigests, sendDigests, sendTestMail, sendRequestMail, tick, startScheduler, localDate, RESTORE_HELP };
