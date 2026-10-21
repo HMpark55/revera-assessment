@@ -174,7 +174,7 @@ function buildDigests(store, today) {
   today = today || localDate();
   const cfg = store.getConfig();
   const site = cfg.siteUrl || '';
-  const soon = addDays(today, 3), week = addDays(today, 7);
+  const soon = addDays(today, 1), week = addDays(today, 7); // 팔로업: 기한 지남·오늘·내일, 지원 마감: 7일
   const out = [];
   for (const t of store.listTeachers()) {
     if (!t.active || !t.notify) continue;
@@ -202,7 +202,7 @@ function buildDigests(store, today) {
       text += '\n[요청받은 일]\n' + asked.map((f) => '- ' + (student[f.studentId] || {}).name + ' — ' + f.title + ' (' + nameOf(f.requestedBy) + ' 님 요청)').join('\n') + '\n';
     }
     if (fu.length) {
-      html += '<h3 style="color:#0B1B45;margin:16px 0 4px">내 팔로업 (기한 지남·3일 이내) ' + fu.length + '건</h3><ul>' +
+      html += '<h3 style="color:#0B1B45;margin:16px 0 4px">내 팔로업 (기한 지남·오늘·내일) ' + fu.length + '건</h3><ul>' +
         fu.map((f) => li((student[f.studentId] || {}).name + ' — ' + f.title, '기한 ' + f.due + ' ' + dd(f.due), f.studentId)).join('') + '</ul>';
       text += '\n[내 팔로업]\n' + fu.map((f) => '- ' + (student[f.studentId] || {}).name + ' — ' + f.title + ' (기한 ' + f.due + ' ' + dd(f.due) + ')').join('\n') + '\n';
     }

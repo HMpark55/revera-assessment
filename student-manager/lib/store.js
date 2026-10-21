@@ -78,7 +78,7 @@ const TABLES = {
   followups: {
     label: '팔로업',
     fields: ['studentId', 'title', 'detail', 'category', 'assignee', 'due', 'status', 'reply', 'replyDate', 'replyFrom', 'meetingId', 'noteId',
-      'kind', 'fromWho', 'channel', 'receivedDate', 'answer', 'answerDate'],
+      'kind', 'fromWho', 'channel', 'receivedDate', 'answer', 'answerDate', 'groupId'],
     summary: (r) => [r.title, r.status].filter(Boolean).join(' · '),
   },
   majorplans: {
@@ -130,9 +130,10 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 /** 관리 페이지에서 고르는 목록 (학교·커리큘럼) → 학생 정보의 해당 칸 */
 /** 달력 자동 표시 항목 (키, 처음 색) — 화면 이름은 원장님 미팅·다음 미팅·지원 마감 */
 const AUTO_CATS = [['sched', '#7c5cc4'], ['nextmeet', '#0b1b45'], ['deadline', '#9ca3af']];
-const OPTION_KINDS = { school: '학교', curriculum: '커리큘럼', site: '사이트', evcat: '일정 분류' };
+const OPTION_KINDS = { school: '학교', curriculum: '커리큘럼', site: '사이트', evcat: '일정 분류', track: '트랙' };
+const DEFAULT_TRACKS = ['3년특례', '12년특례', '홍콩', '싱가폴', '미국', '캐나다', '영국', '일본', '한국 일반', '기타'];
 /** 목록 이름을 바꾸면 함께 바뀌는 곳 */
-const OPTION_TARGET = { school: ['students', 'school'], curriculum: ['students', 'curriculum'], site: ['accounts', 'site'], evcat: ['events', 'category'] };
+const OPTION_TARGET = { school: ['students', 'school'], curriculum: ['students', 'curriculum'], site: ['accounts', 'site'], evcat: ['events', 'category'], track: ['students', 'tracks'] };
 const ACCOUNT_CATS = ['원서 포털', '시험', '학교 LMS', '기타'];
 /** 메인 화면 공용 달력의 일정 분류 */
 /** 달력 일정 분류 초기값 (목록 관리 › 일정 분류에서 이름·색·순서 변경) */
@@ -317,7 +318,7 @@ function migrate(db) {
   db.exec('CREATE INDEX IF NOT EXISTS unicycles_uni ON unicycles(universityId)');
   db.exec('CREATE INDEX IF NOT EXISTS unirounds_uni ON unirounds(universityId)');
   db.exec('CREATE INDEX IF NOT EXISTS unimajors_uni ON unimajors(universityId)');
-  ensureColumns(db, 'files', ['mime', 'size', 'storedName', 'docId', 'meetingId', 'followupId']);
+  ensureColumns(db, 'files', ['mime', 'size', 'storedName', 'docId', 'meetingId', 'followupId', 'scoreId']);
   ensureColumns(db, 'docs', ['receivedAt', 'receivedBy']);
   ensureColumns(db, 'contracts', ['paid']); // 이전 버전 열 (새 버전은 입금 기록으로 계산)
   db.exec('CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
@@ -389,6 +390,16 @@ function migrate(db) {
       db.prepare('INSERT INTO options (id, kind, value, sortOrder, category, color, createdAt, createdBy, updatedAt, updatedBy) VALUES (?,?,?,?,?,?,?,?,?,?)')
         .run(crypto.randomUUID(), 'evauto', v, String(i + 1), '', c, ts, 'system', ts, 'system');
     });
+  }
+  // v15: 학생 트랙을 목록 관리에서 (처음엔 기존 고정 목록)
+  if (!db.prepare("SELECT 1 FROM meta WHERE key = 'v15_tracks'").get()) {
+    const ts = now();
+    DEFAULT_TRACKS.forEach((v, i) => {
+      if (db.prepare("SELECT 1 FROM options WHERE kind = 'track' AND value = ?").get(v)) return;
+      db.prepare('INSERT INTO options (id, kind, value, sortOrder, createdAt, createdBy, updatedAt, updatedBy) VALUES (?,?,?,?,?,?,?,?)')
+        .run(crypto.randomUUID(), 'track', v, String(i + 1), ts, 'system', ts, 'system');
+    });
+    db.prepare("INSERT INTO meta VALUES ('v15_tracks', ?)").run(ts);
   }
   db.exec('CREATE TABLE IF NOT EXISTS programs (id TEXT PRIMARY KEY)');
   ensureColumns(db, 'programs', ['name', 'category', 'target', 'schedule', 'deadline', 'url', 'memo', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy']);
@@ -1015,7 +1026,14 @@ function openStore(dbPath, opts) {
           .run(value, clean(arg.sortOrder !== undefined ? arg.sortOrder : cur.sortOrder), url, category, kind === 'evcat' ? (arg.color === undefined ? cur.color : color) : '', t, me.email, id);
         let n = 0;
         const [tbl, col] = OPTION_TARGET[kind];
-        if (cur.value !== value) n = db.prepare(`UPDATE ${tbl} SET ${col} = ? WHERE ${col} = ?`).run(value, cur.value).changes;
+        if (cur.value !== value && kind === 'track') {
+          // 트랙은 학생마다 쉼표로 여러 개 → 그 이름만 바꿈
+          for (const st of db.prepare("SELECT id, tracks FROM students WHERE ',' || REPLACE(tracks, ', ', ',') || ',' LIKE ?").all('%,' + cur.value + ',%')) {
+            const list = String(st.tracks).split(',').map((x) => x.trim()).filter(Boolean).map((x) => (x === cur.value ? value : x));
+            db.prepare('UPDATE students SET tracks = ? WHERE id = ?').run([...new Set(list)].join(', '), st.id);
+            n++;
+          }
+        } else if (cur.value !== value) n = db.prepare(`UPDATE ${tbl} SET ${col} = ? WHERE ${col} = ?`).run(value, cur.value).changes;
         log(me.email, 'update', 'options', id, OPTION_KINDS[kind] + ' ' + cur.value + (cur.value !== value ? ' → ' + value + (n ? ' (' + n + '건 함께 변경)' : '') : ''));
       } else {
         id = newId();
@@ -1154,6 +1172,28 @@ function openStore(dbPath, opts) {
       }
     });
     return Object.assign(getAll(me), { savedId: id });
+  }
+
+  /** 공통 팔로업: 여러 학생에게 같은 할 일 — 학생마다 하나씩 만들고 groupId 로 묶음. 담당: 'manager'(각 학생 관리팀) 또는 선생님 이메일 */
+  function addFollowupMany(me, arg) {
+    arg = arg || {};
+    const ids = [...new Set((arg.studentIds || []).map(String))];
+    if (!ids.length) throw new UserError('학생을 한 명 이상 고르세요.');
+    if (ids.length > 300) throw new UserError('한 번에 300명까지 가능합니다.');
+    const title = clean(arg.title).trim();
+    if (!title) throw new UserError('할 일을 입력하세요.');
+    if (arg.due && !DATE_RE.test(arg.due)) throw new UserError('기한 형식이 올바르지 않습니다.');
+    const mode = arg.assignee === 'manager' ? 'manager' : lower(arg.assignee || '');
+    if (mode !== 'manager' && mode && !getTeacher(mode)) throw new UserError('담당 선생님을 찾을 수 없습니다.');
+    const groupId = newId();
+    tx(() => {
+      for (const sid of ids) {
+        const st = requireStudent(me, sid);
+        save(me, { table: 'followups', noData: true, obj: { studentId: st.id, title, detail: clean(arg.detail || ''), due: arg.due || '', status: '할 일', groupId,
+          assignee: mode === 'manager' ? lower(st.manager || '') : mode } });
+      }
+    });
+    return Object.assign(getAll(me), { count: ids.length, groupId });
   }
 
   /* ----- 원장님 상담 스케줄 (구글 시트 → Compass, 읽기만) ----- */
@@ -1472,7 +1512,31 @@ function openStore(dbPath, opts) {
       db.prepare(`UPDATE ${table} SET deletedAt = ?, deletedBy = ? WHERE id = ?`).run(now(), me.email, cur.id);
       log(me.email, 'delete', table, cur.id, describe(table, cur));
     });
-    return getAll(me);
+    return arg.noData ? null : getAll(me);
+  }
+  /** 여러 개 한꺼번에: items = [{ table, id }] (최대 200개). 삭제·복구는 모두 되거나 하나도 안 됨 */
+  function manyItems(arg) {
+    const items = (arg && arg.items) || [];
+    if (!Array.isArray(items) || !items.length || items.length > 200) throw new UserError('선택한 항목이 없습니다.');
+    return items;
+  }
+  function removeMany(me, arg) {
+    const items = manyItems(arg);
+    tx(() => items.forEach((x) => remove(me, { table: x && x.table, id: x && x.id, noData: true })));
+    return Object.assign(getAll(me), { count: items.length });
+  }
+  function restoreMany(me, arg) {
+    const items = manyItems(arg);
+    tx(() => items.forEach((x) => restore(me, { table: x && x.table, id: x && x.id, noData: true })));
+    return Object.assign(getAll(me), { count: items.length });
+  }
+  /** 영구 삭제 여러 개 (하나씩 — 실패한 것은 남기고 이유를 알려줌) */
+  function purgeMany(me, arg) {
+    requireAdmin(me, '영구 삭제');
+    const items = manyItems(arg), failed = [];
+    let n = 0;
+    items.forEach((x) => { try { purge(me, { table: x && x.table, id: x && x.id, noData: true }); n++; } catch (e) { failed.push(e.message); } });
+    return Object.assign(getTrash(me), { count: n, failed });
   }
 
   /** 휴지통에서 복구 (관리자·관리팀) */
@@ -1499,7 +1563,7 @@ function openStore(dbPath, opts) {
       db.prepare(`UPDATE ${table} SET deletedAt = '', deletedBy = '' WHERE id = ?`).run(cur.id);
       log(me.email, 'restore', table, cur.id, describe(table, cur));
     });
-    return getAll(me);
+    return arg.noData ? null : getAll(me);
   }
 
   /** 영구 삭제 (관리자, 휴지통에 있는 것만) */
@@ -1533,7 +1597,7 @@ function openStore(dbPath, opts) {
       db.prepare(`DELETE FROM ${table} WHERE id = ?`).run(cur.id);
     });
     files.filter(Boolean).forEach((f) => fs.rm(path.join(filesDir, f), { force: true }, () => {}));
-    return getTrash(me);
+    return arg.noData ? null : getTrash(me);
   }
 
   function getTrash(me) {
@@ -1611,7 +1675,11 @@ function openStore(dbPath, opts) {
   }
   /** 파일 1개 저장 + 기록 (트랜잭션 안에서 호출, 저장한 경로는 stored 에 추가) */
   function storeFile(me, s, info, stored) {
-    let doc = null, meeting = null, fu = null;
+    let doc = null, meeting = null, fu = null, score = null;
+    if (info.scoreId) {
+      score = getRow('scores', info.scoreId);
+      if (!score || score.deletedAt || score.studentId !== s.id) throw new UserError('점수 기록을 찾을 수 없습니다. 새로고침 해주세요.', 404);
+    }
     if (info.followupId) {
       fu = getRow('followups', info.followupId);
       if (!fu || fu.deletedAt || fu.studentId !== s.id) throw new UserError('팔로업을 찾을 수 없습니다. 새로고침 해주세요.', 404);
@@ -1635,8 +1703,8 @@ function openStore(dbPath, opts) {
     fs.writeFileSync(path.join(filesDir, storedName), info.buffer);
     stored.push(path.join(filesDir, storedName));
     const t = now();
-    const rec = { id, studentId: s.id, category: doc ? '서류' : meeting ? '미팅' : fu ? '연락' : (clean(info.category) || '성적표'), name, memo: clean(info.memo || ''), mime: type,
-      size: String(info.buffer.length), storedName, docId: doc ? doc.id : '', meetingId: meeting ? meeting.id : '', followupId: fu ? fu.id : '',
+    const rec = { id, studentId: s.id, category: doc ? '서류' : meeting ? '미팅' : fu ? '연락' : score ? '어학·표준화 점수' : (clean(info.category) || '성적표'), name, memo: clean(info.memo || ''), mime: type,
+      size: String(info.buffer.length), storedName, docId: doc ? doc.id : '', meetingId: meeting ? meeting.id : '', followupId: fu ? fu.id : '', scoreId: score ? score.id : '',
       createdAt: t, createdBy: me.email, updatedAt: t, updatedBy: me.email };
     const keys = Object.keys(rec);
     db.prepare(`INSERT INTO files (${keys.join(', ')}) VALUES (${keys.map((k) => '@' + k).join(', ')})`).run(rec);
@@ -1962,7 +2030,7 @@ function openStore(dbPath, opts) {
     db, filesDir, listFiles, pendingSync, markSync, replaceSchedule, countTeachers, upsertAdmin, login, logout, authenticate, addFile, getFile, addUniFile, getUniFile,
     rpc: { getAll: (me) => getAll(me), save, remove, restore, purge, getTrash, getLog, saveTeacher, changePassword, importData, copyCycle, getActivity, saveMany, updateMe,
       saveOption, removeOption, deleteTeacher, getAutomation, saveAutomation, saveEvent, removeEvent,
-      saveWithFollowups, requestFollowup, saveOrder, saveUniFile, removeUniFile, saveProgram, removeProgram, getStorage, retrySync, saveHomeLayout, requestReview, doneReview, cancelReview, excludeSched, unexcludeSched, saveAutoCat },
+      saveWithFollowups, requestFollowup, saveOrder, saveUniFile, removeUniFile, saveProgram, removeProgram, getStorage, retrySync, saveHomeLayout, requestReview, doneReview, cancelReview, excludeSched, unexcludeSched, saveAutoCat, removeMany, restoreMany, purgeMany, addFollowupMany },
     backup, getConfig, getMeta, recordRun, listTeachers, close: () => db.close(),
   };
 }
