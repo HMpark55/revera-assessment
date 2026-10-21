@@ -1404,3 +1404,24 @@ test('원장님 스케줄 가져오기: 우리 학생 일정만 저장, 권한�
   await admin.ok('saveAutomation', { schedOn: false });
 });
 
+test('달력 자동 표시(원장님 미팅·다음 미팅·지원 마감): 이름 고정, 색·보이기·순서만, 지울 수 없음', async () => {
+  const admin = client();
+  await admin.login('admin@revera.test', 'admin-pass-1');
+  let d = await admin.ok('getAll');
+  const autos = d.options.filter((o) => o.kind === 'evauto');
+  assert.deepStrictEqual(autos.map((o) => o.value).sort(), ['deadline', 'nextmeet', 'sched']);
+  const sc = autos.find((o) => o.value === 'sched');
+  d = await admin.ok('saveAutoCat', { id: sc.id, color: '#FF0000', hidden: true });
+  const after = d.options.find((o) => o.id === sc.id);
+  assert.deepStrictEqual([after.value, after.color, after.category], ['sched', '#ff0000', 'off']);
+  assert.strictEqual((await admin.rpc('saveAutoCat', { id: sc.id, color: 'red' })).status, 400);
+  assert.strictEqual((await admin.rpc('removeOption', { id: sc.id })).status, 400, '지울 수 없음');
+  assert.strictEqual((await admin.rpc('saveOption', { kind: 'evauto', value: '새 항목' })).status, 400, '추가 안 됨');
+  d = await admin.ok('saveOrder', { kind: 'evauto', ids: [autos[2].id, autos[1].id, autos[0].id] });
+  assert.strictEqual(d.options.find((o) => o.id === autos[2].id).sortOrder, '1');
+  await admin.ok('saveAutoCat', { id: sc.id, hidden: false, color: '#7c5cc4' });
+  await admin.ok('saveTeacher', { email: 'auto-con@revera.test', name: '자동컨설', role: 'consultant', password: '123456' });
+  const con = client(); await con.login('auto-con@revera.test', '123456');
+  assert.strictEqual((await con.rpc('saveAutoCat', { id: sc.id, hidden: true })).status, 403, '컨설턴트는 못 바꿈');
+});
+

@@ -128,6 +128,8 @@ const MEETING_STATUS = ['예정', '완료', '취소'];
 const COURSE_TERMS = ['1년(2학기)', '1학기만', '2학기만', 'Trimester'];
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 /** 관리 페이지에서 고르는 목록 (학교·커리큘럼) → 학생 정보의 해당 칸 */
+/** 달력 자동 표시 항목 (키, 처음 색) — 화면 이름은 원장님 미팅·다음 미팅·지원 마감 */
+const AUTO_CATS = [['sched', '#7c5cc4'], ['nextmeet', '#0b1b45'], ['deadline', '#9ca3af']];
 const OPTION_KINDS = { school: '학교', curriculum: '커리큘럼', site: '사이트', evcat: '일정 분류' };
 /** 목록 이름을 바꾸면 함께 바뀌는 곳 */
 const OPTION_TARGET = { school: ['students', 'school'], curriculum: ['students', 'curriculum'], site: ['accounts', 'site'], evcat: ['events', 'category'] };
@@ -378,6 +380,15 @@ function migrate(db) {
         .run(crypto.randomUUID(), 'evcat', v, String(i + 1), c, ts, 'system', ts, 'system');
     });
     db.prepare("INSERT INTO meta VALUES ('v11_evcats', ?)").run(ts);
+  }
+  // v14: 달력 자동 표시 항목(원장님 미팅·다음 미팅·지원 마감) — 이름 고정, 색·순서·보이기만 바꿀 수 있음 (category = 'off' 이면 숨김)
+  {
+    const ts = now();
+    AUTO_CATS.forEach(([v, c], i) => {
+      if (db.prepare("SELECT 1 FROM options WHERE kind = 'evauto' AND value = ?").get(v)) return;
+      db.prepare('INSERT INTO options (id, kind, value, sortOrder, category, color, createdAt, createdBy, updatedAt, updatedBy) VALUES (?,?,?,?,?,?,?,?,?,?)')
+        .run(crypto.randomUUID(), 'evauto', v, String(i + 1), '', c, ts, 'system', ts, 'system');
+    });
   }
   db.exec('CREATE TABLE IF NOT EXISTS programs (id TEXT PRIMARY KEY)');
   ensureColumns(db, 'programs', ['name', 'category', 'target', 'schedule', 'deadline', 'url', 'memo', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy']);
@@ -1017,10 +1028,23 @@ function openStore(dbPath, opts) {
     });
     return Object.assign(getAll(me), { savedId: id });
   }
+  /** 자동 표시 항목: 색·보이기만 (이름 고정, 추가·삭제 없음) */
+  function saveAutoCat(me, arg) {
+    requireManager(me, '목록 관리');
+    const cur = db.prepare("SELECT * FROM options WHERE id = ? AND kind = 'evauto'").get(arg && arg.id);
+    if (!cur) throw new UserError('항목을 찾을 수 없습니다. 새로고침 해주세요.', 404);
+    const color = arg.color === undefined ? cur.color : clean(arg.color).trim().toLowerCase();
+    if (!HEX_COLOR.test(color)) throw new UserError('색을 다시 골라주세요.');
+    const hidden = arg.hidden === undefined ? cur.category === 'off' : !!arg.hidden;
+    db.prepare('UPDATE options SET color = ?, category = ?, updatedAt = ?, updatedBy = ? WHERE id = ?').run(color, hidden ? 'off' : '', now(), me.email, cur.id);
+    log(me.email, 'update', 'options', cur.id, '달력 자동 표시 ' + cur.value + ' — 색 ' + color + (hidden ? ', 숨김' : ''));
+    return getAll(me);
+  }
   function removeOption(me, arg) {
     requireManager(me, '목록 관리');
     const cur = db.prepare('SELECT * FROM options WHERE id = ?').get(arg && arg.id);
     if (!cur) throw new UserError('이미 삭제된 항목입니다.', 404);
+    if (cur.kind === 'evauto') throw new UserError('자동 표시 항목은 지울 수 없습니다. 숨기려면 “달력에 보이기”를 끄세요.');
     db.prepare('DELETE FROM options WHERE id = ?').run(cur.id);
     log(me.email, 'delete', 'options', cur.id, (OPTION_KINDS[cur.kind] || cur.kind) + ' ' + cur.value + (cur.kind === 'evcat' ? ' (이 분류의 기존 일정은 회색으로 표시)' : ' (학생 정보의 기존 값은 그대로)'));
     return getAll(me);
@@ -1252,6 +1276,10 @@ function openStore(dbPath, opts) {
       requireAdmin(me, '계정 순서 변경');
       tx(() => ids.forEach((email, i) => db.prepare('UPDATE teachers SET sortOrder = ? WHERE email = ?').run(String(i + 1), lower(email))));
       log(me.email, 'update', 'teachers', '', '계정 순서 변경');
+    } else if (arg.kind === 'evauto') {
+      requireManager(me, '목록 관리');
+      tx(() => ids.forEach((id, i) => db.prepare("UPDATE options SET sortOrder = ?, updatedAt = ?, updatedBy = ? WHERE id = ? AND kind = 'evauto'").run(String(i + 1), t, me.email, String(id))));
+      log(me.email, 'update', 'options', '', '달력 자동 표시 순서 변경');
     } else if (arg.kind === 'universities') {
       requireAdmin(me, '대학 순서 변경');
       tx(() => ids.forEach((id, i) => db.prepare('UPDATE universities SET sortOrder = ?, updatedAt = ?, updatedBy = ? WHERE id = ?').run(String(i + 1), t, me.email, String(id))));
@@ -1934,7 +1962,7 @@ function openStore(dbPath, opts) {
     db, filesDir, listFiles, pendingSync, markSync, replaceSchedule, countTeachers, upsertAdmin, login, logout, authenticate, addFile, getFile, addUniFile, getUniFile,
     rpc: { getAll: (me) => getAll(me), save, remove, restore, purge, getTrash, getLog, saveTeacher, changePassword, importData, copyCycle, getActivity, saveMany, updateMe,
       saveOption, removeOption, deleteTeacher, getAutomation, saveAutomation, saveEvent, removeEvent,
-      saveWithFollowups, requestFollowup, saveOrder, saveUniFile, removeUniFile, saveProgram, removeProgram, getStorage, retrySync, saveHomeLayout, requestReview, doneReview, cancelReview, excludeSched, unexcludeSched },
+      saveWithFollowups, requestFollowup, saveOrder, saveUniFile, removeUniFile, saveProgram, removeProgram, getStorage, retrySync, saveHomeLayout, requestReview, doneReview, cancelReview, excludeSched, unexcludeSched, saveAutoCat },
     backup, getConfig, getMeta, recordRun, listTeachers, close: () => db.close(),
   };
 }

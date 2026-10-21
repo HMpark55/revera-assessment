@@ -1413,7 +1413,7 @@ function todayItems(scope) {
   (S.sched || []).forEach(function (x) {
     var n = dayDiff(x.startAt.slice(0, 10)), s = studentById(x.studentId);
     if (n === null || n < 0 || n > 1 || !s || (mine && !isMine(s))) return;
-    out.push({ n: n, kind: '원장님 상담', text: x.startAt.slice(11, 16) + ' ' + x.title + (x.detail ? ' · ' + x.detail : ''), who: s.name, go: 'openStudent(' + js(s.id) + ',\'meetings\')' });
+    out.push({ n: n, kind: '원장님 미팅', text: x.startAt.slice(11, 16) + ' ' + x.title + (x.detail ? ' · ' + x.detail : ''), who: s.name, go: 'openStudent(' + js(s.id) + ',\'meetings\')' });
   });
   nextMeetings().forEach(function (m) {
     var n = dayDiff(m.nextDate), s = studentById(m.studentId);
@@ -1480,6 +1480,11 @@ function noDueItems(scope, flat) {
 function evCats() { return (S.options || []).filter(function (o) { return o.kind === 'evcat'; }).sort(function (a, b) { return (Number(a.sortOrder) || 999) - (Number(b.sortOrder) || 999) || a.value.localeCompare(b.value); }); }
 function evColor(cat) { var o = evCats().filter(function (x) { return x.value === cat; })[0]; return o && /^#[0-9a-f]{6}$/i.test(o.color) ? o.color : '#9ca3af'; }
 /** 칩 색: 왼쪽 막대는 분류 색, 바탕은 같은 색을 옅게 */
+/** 달력 자동 표시 항목 (목록 관리 › 일정 분류 › 자동 표시) — 이름 고정, 색·순서·보이기만 */
+var AUTO_LABEL = { sched: '원장님 미팅', nextmeet: '다음 미팅', deadline: '지원 마감' };
+function autoCats() { return (S.options || []).filter(function (o) { return o.kind === 'evauto' && AUTO_LABEL[o.value]; }).sort(function (a, b) { return (Number(a.sortOrder) || 999) - (Number(b.sortOrder) || 999); }); }
+function autoCat(key) { return autoCats().filter(function (o) { return o.value === key; })[0] || { value: key, color: { sched: '#7c5cc4', nextmeet: '#0b1b45', deadline: '#9ca3af' }[key], category: '' }; }
+function autoOn(key) { return autoCat(key).category !== 'off'; }
 function evStyle(cat) { var c = evColor(cat); return 'border-left-color:' + c + ';background:' + c + '1f'; }
 function ymOf(off) { var d = new Date(); d.setDate(1); d.setMonth(d.getMonth() + off); return { y: d.getFullYear(), m: d.getMonth() }; }
 function isoDate(y, m, d) { return y + '-' + pad(m + 1) + '-' + pad(d); }
@@ -1493,24 +1498,24 @@ function calItems(from, to) {
     for (var d = a < from ? from : a; d <= b && d <= to; d = addDays(d, 1)) add(d, { ev: e });
   });
   if (UI.calDl !== false) {
-    deadlineItems(false).forEach(function (i) { if (i.date >= from && i.date <= to) add(i.date, { dl: i }); });
-    nextMeetings().forEach(function (m) { if (m.nextDate >= from && m.nextDate <= to) add(m.nextDate, { nm: m }); });
-    (S.sched || []).forEach(function (x) { var d = x.startAt.slice(0, 10); if (d >= from && d <= to && studentById(x.studentId)) add(d, { sc: x }); });
+    if (autoOn('deadline')) deadlineItems(false).forEach(function (i) { if (i.date >= from && i.date <= to) add(i.date, { dl: i }); });
+    if (autoOn('nextmeet')) nextMeetings().forEach(function (m) { if (m.nextDate >= from && m.nextDate <= to) add(m.nextDate, { nm: m }); });
+    if (autoOn('sched')) (S.sched || []).forEach(function (x) { var d = x.startAt.slice(0, 10); if (d >= from && d <= to && studentById(x.studentId)) add(d, { sc: x }); });
   }
   return by;
 }
 function calChip(it) {
   if (it.sc) {
     var ss = studentById(it.sc.studentId);
-    return '<span class="ev sc" title="' + esc('원장님 ' + schedTime(it.sc) + ' · ' + it.sc.title + (it.sc.detail ? ' · ' + it.sc.detail : '')) + '" onclick="event.stopPropagation();openStudent(' + js(ss.id) + ',\'meetings\')">' + esc(it.sc.startAt.slice(11, 16) + ' 원장님 · ' + ss.name) + '</span>';
+    return '<span class="ev sc" style="border-left-color:' + autoCat('sched').color + ';background:' + autoCat('sched').color + '1f" title="' + esc('원장님 ' + schedTime(it.sc) + ' · ' + it.sc.title + (it.sc.detail ? ' · ' + it.sc.detail : '')) + '" onclick="event.stopPropagation();openStudent(' + js(ss.id) + ',\'meetings\')">' + esc(it.sc.startAt.slice(11, 16) + ' 원장님 · ' + ss.name) + '</span>';
   }
   if (it.ev) return '<span class="ev' + (it.cont ? ' cont' : '') + '" style="' + evStyle(it.ev.category) + '" title="' + esc(it.ev.title + (it.ev.memo ? '\n' + it.ev.memo : '')) + '" onclick="event.stopPropagation();openEvent(' + js(it.ev.id) + ')">' + esc(it.ev.title) + '</span>';
   if (it.nm) {
     var st = studentById(it.nm.studentId);
-    return '<span class="ev nm" title="' + esc(st.name + ' 다음 미팅 (' + fmtD(it.nm.date) + ' 회의록에서)') + '" onclick="event.stopPropagation();openStudent(' + js(st.id) + ',\'meetings\')">미팅 · ' + esc(st.name) + '</span>';
+    return '<span class="ev nm" style="border-left-color:' + autoCat('nextmeet').color + '" title="' + esc(st.name + ' 다음 미팅 (' + fmtD(it.nm.date) + ' 회의록에서)') + '" onclick="event.stopPropagation();openStudent(' + js(st.id) + ',\'meetings\')">미팅 · ' + esc(st.name) + '</span>';
   }
   var s = studentById(it.dl.studentId);
-  return '<span class="ev dl" title="' + esc(s.name + ' · ' + it.dl.title + ' ' + (it.dl.sub || '') + ' 마감') + '" onclick="event.stopPropagation();openStudent(' + js(s.id) + ',\'apps\')">' + esc(it.dl.title + ' · ' + s.name) + '</span>';
+  return '<span class="ev dl" style="border-left-color:' + autoCat('deadline').color + '" title="' + esc(s.name + ' · ' + it.dl.title + ' ' + (it.dl.sub || '') + ' 마감') + '" onclick="event.stopPropagation();openStudent(' + js(s.id) + ',\'apps\')">' + esc(it.dl.title + ' · ' + s.name) + '</span>';
 }
 function calMonth(y, m, by) {
   var first = new Date(y, m, 1).getDay(), days = new Date(y, m + 1, 0).getDate(), td = today();
@@ -1540,7 +1545,8 @@ function calendarCard() {
     '<label class="muted" style="margin-left:6px"><input type="checkbox"' + (UI.calDl !== false ? ' checked' : '') + ' onchange="UI.calDl=this.checked;render()"> 학생 지원 마감·다음 미팅도 보기</label>' +
     '<button class="btn sm" onclick="openEvent(null,today())">+ 일정 추가</button>' +
     '<span class="cal-legend">' + evCats().map(function (c) { return '<span><i style="background:' + evColor(c.value) + '"></i>' + esc(c.value) + '</span>'; }).join('') +
-      (UI.calDl !== false ? '<span><i class="c-마감"></i>지원 마감</span><span><i class="c-미팅"></i>다음 미팅</span>' + ((S.sched || []).length ? '<span><i class="c-원장"></i>원장님 상담</span>' : '') : '') + '</span></div>' +
+      (UI.calDl !== false ? autoCats().filter(function (o) { return o.category !== 'off'; }).map(function (o) {
+        return '<span><i style="background:' + (o.value === 'sched' ? o.color + '33' : '#fff') + ';border:1px ' + (o.value === 'deadline' ? 'dashed' : 'solid') + ' ' + o.color + '"></i>' + AUTO_LABEL[o.value] + '</span>'; }).join('') : '') + '</span></div>' +
     '<div class="cals">' + calMonth(a.y, a.m, by) + calMonth(b.y, b.m, by) + '</div>' +
     '</div>';
 }
@@ -2276,7 +2282,7 @@ function reviewMeeting(id) {
   mutate('save', { table: 'meetings', obj: { id: id, updatedAt: m.updatedAt, needsReview: false } }, '확인 완료로 표시했습니다.');
 }
 function meetingSort(a, b) { return (b.date + b.time).localeCompare(a.date + a.time); }
-/* ----- 원장님 상담 일정 (구글 시트에서 가져옴, 읽기만) ----- */
+/* ----- 원장님 미팅 일정 (구글 시트에서 가져옴, 읽기만) ----- */
 function schedOf(sid) { return (S.sched || []).filter(function (x) { return x.studentId === sid; }); }
 /** 앞으로의 원장님 일정 (오늘 이후, 시작 시각순) */
 function upcomingSched(sid) { var t = today(); return (S.sched || []).filter(function (x) { return (!sid || x.studentId === sid) && x.startAt.slice(0, 10) >= t; }); }
@@ -2289,7 +2295,7 @@ function schedRow(x) {
 function schedCard(s) {
   var all = schedOf(s.id); if (!all.length) return '';
   var t = today(), up = all.filter(function (x) { return x.startAt.slice(0, 10) >= t; }), past = all.filter(function (x) { return x.startAt.slice(0, 10) < t; }).reverse();
-  return '<div class="card">' + secHead('원장님 상담 일정 <span class="muted">구글 시트에서 · 상해 시간</span>', '') +
+  return '<div class="card">' + secHead('원장님 미팅 일정 <span class="muted">구글 시트에서 · 상해 시간</span>', '') +
     (up.length ? '<div class="sum-list">' + up.map(schedRow).join('') + '</div>' : '<div class="empty">앞으로 잡힌 원장님 일정이 없습니다.</div>') +
     (past.length ? '<details class="donebox"><summary>지난 일정 ' + past.length + '건</summary><div class="sum-list">' + past.map(schedRow).join('') + '</div></details>' : '') + '</div>';
 }
@@ -2426,8 +2432,19 @@ function viewEvcatList() {
         '<td><span class="ev" style="display:inline-block;' + evStyle(o.value) + '">' + esc(o.value) + '</span></td><td class="nw"><span class="sw" style="display:inline-block;vertical-align:middle;cursor:default;background:' + evColor(o.value) + '"></span> <span class="muted">' + esc(o.color || '') + '</span></td>' +
         '<td class="nw">' + (used[o.value] || 0) + '건</td><td class="nw"><button class="btn ghost sm" onclick="openEvcat(' + js(o.id) + ')">수정</button> <button class="btn ghost sm" onclick="removeOption(' + js(o.id) + ')">삭제</button></td></tr>';
     }).join('') : '<tr><td colspan="5" class="empty">분류가 없습니다. “+ 분류 추가”로 만드세요.</td></tr>') + '</tbody></table></div>';
+  h += '<div class="card tbl-wrap"><h3>자동 표시</h3><div class="muted" style="margin-bottom:6px">Compass가 자동으로 달력에 보여주는 항목입니다. 이름은 고정이고 지울 수 없으며, “+ 일정 추가”의 분류 선택에는 나오지 않습니다. 색·순서(⋮⋮ 끌기)·달력에 보이기만 바꿀 수 있습니다. 달력 위 “학생 지원 마감·다음 미팅도 보기”를 끄면 모두 숨겨집니다.</div>' +
+    '<table><thead><tr><th class="gripc"></th><th>항목</th><th>색</th><th>달력에 보이기</th><th>내용</th></tr></thead><tbody data-order="evauto">' +
+    autoCats().map(function (o) {
+      var note = { sched: '원장님 스케줄 시트에서 가져온 우리 학생 일정', nextmeet: '회의록에 적은 “다음 미팅 날짜”', deadline: '학생 지원대학 마감일' }[o.value];
+      return '<tr class="drag" draggable="true" data-id="' + esc(o.id) + '" data-grp=""><td class="nw gripc"><span class="grip" title="끌어서 순서 바꾸기">⋮⋮</span></td>' +
+        '<td class="nw"><span class="ev" style="display:inline-block;border-left-color:' + o.color + ';background:' + o.color + '1f">' + esc(AUTO_LABEL[o.value]) + '</span></td>' +
+        '<td class="nw"><input type="color" value="' + esc(o.color) + '" onchange="saveAutoCat(' + js(o.id) + ',{color:this.value})" title="색 고르기"></td>' +
+        '<td class="nw"><label style="display:inline-flex;gap:6px;align-items:center"><input type="checkbox"' + (o.category !== 'off' ? ' checked' : '') + ' onchange="saveAutoCat(' + js(o.id) + ',{hidden:!this.checked})"> 보이기</label></td>' +
+        '<td class="muted">' + esc(note) + '</td></tr>';
+    }).join('') + '</tbody></table></div>';
   return h;
 }
+function saveAutoCat(id, o) { mutate('saveAutoCat', Object.assign({ id: id }, o), '저장했습니다.'); }
 function openEvcat(id) {
   var o = id ? (S.options || []).filter(function (x) { return x.id === id; })[0] : { color: EV_PALETTE[7] };
   modal(id ? '일정 분류 수정' : '일정 분류 추가',
@@ -3489,7 +3506,7 @@ function viewSettings() {
       }).join('') : '<div class="empty">오늘 보낼 내용이 있는 선생님이 없습니다.</div>') + '</div>';
   }
   var sc = st.schedule || {};
-  h += '<div class="card"><h3>원장님 상담 스케줄 (구글 시트 → Compass)</h3>' +
+  h += '<div class="card"><h3>원장님 미팅 스케줄 (구글 시트 → Compass)</h3>' +
     '<div class="muted" style="font-size:.85rem;margin-bottom:8px">시트의 이번 달·다음 달 탭(예: “10 Oct 2026”)을 1시간마다 읽어서, <b>Compass 학생 이름이 들어간 일정만</b> 학생 화면(미팅 탭·요약)·메인 달력·오늘 챙길 일·학생 목록 다음 미팅에 보여줍니다. 그 외 일정(1:1 유료 상담, 다른 지점 학생 등)은 가져오지 않습니다. 시간은 상해 기준이고, 그날 첫 칸에 “미국”·“한국”이 적혀 있으면 그 나라 시간으로 보고 상해 시간으로 바꿉니다. <b>시트는 읽기만 하고 수정하지 않습니다.</b></div>' +
     '<form class="form" id="schf" onsubmit="saveSched();return false">' +
     fld('시트 주소', inp('schedSheet', c.schedSheet ? 'https://docs.google.com/spreadsheets/d/' + c.schedSheet + '/edit' : '', 'text', ' placeholder="https://docs.google.com/spreadsheets/d/…"'), true) +
