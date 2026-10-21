@@ -26,7 +26,7 @@ const ROLES = ['admin', 'staff', 'consultant'];
 const TABLES = {
   students: {
     label: '학생',
-    fields: ['name', 'dob', 'school', 'grade', 'curriculum', 'counselor', 'manager', 'status', 'tracks', 'studentPhone', 'progress',
+    fields: ['name', 'dob', 'school', 'grade', 'curriculum', 'counselor', 'manager', 'status', 'tracks', 'tracksNote', 'studentPhone', 'progress',
       'parentName', 'parentPhone', 'email', 'tags', 'memo', 'driveUrl', 'resumeUrl',
       'hopeUnis', 'focusArea', 'recommenders', 'onlineCourse', 'meetingUrl',
       'fatherName', 'fatherPhone', 'fatherWechat', 'fatherEmail', 'motherName', 'motherPhone', 'motherWechat', 'motherEmail',
@@ -88,8 +88,8 @@ const TABLES = {
   },
   schools: {
     label: '학력',
-    fields: ['studentId', 'school', 'country', 'city', 'gradeFrom', 'gradeTo', 'startDate', 'endDate', 'memo'],
-    summary: (r) => [r.school, [r.gradeFrom, r.gradeTo].filter(Boolean).join('~'), [r.startDate, r.endDate || '재학 중'].join('~')].filter(Boolean).join(' '),
+    fields: ['studentId', 'school', 'country', 'city', 'gradeFrom', 'termFrom', 'gradeTo', 'termTo', 'startDate', 'endDate', 'memo'],
+    summary: (r) => [r.school, [[r.gradeFrom, r.termFrom].filter(Boolean).join(' '), [r.gradeTo, r.termTo].filter(Boolean).join(' ')].filter(Boolean).join('~'), [r.startDate, r.endDate || '재학 중'].join('~')].filter(Boolean).join(' '),
   },
   courses: {
     label: '수강 과목',
@@ -175,7 +175,7 @@ function cycleLabel(c) { return c ? (c.year || '') + '년 ' + (c.term || '') + '
 /** 변경 기록에 표시할 항목 이름 */
 const FIELD_LABELS = {
   name: '이름', dob: '생년월일', school: '학교', grade: '학년', curriculum: '커리큘럼', counselor: '담당 컨설턴트',
-  status: '상태', tracks: '트랙', studentPhone: '학생 연락처', parentName: '학부모 이름', parentPhone: '학부모 연락처',
+  status: '상태', tracks: '트랙', tracksNote: '트랙 기타 내용', termFrom: '시작 학기', termTo: '마지막 학기', studentPhone: '학생 연락처', parentName: '학부모 이름', parentPhone: '학부모 연락처',
   email: '이메일', tags: '태그', memo: '메모', driveUrl: 'Drive 링크', storyTrigger: '스토리①계기', storyProcess: '스토리②탐구',
   storyLink: '스토리③연결', storyConclusion: '스토리④결론', storyStatus: '스토리 상태', date: '날짜', time: '시간',
   place: '장소', attendees: '참석자', type: '유형', content: '내용', nextAction: '다음 할 일', nextDue: '할 일 기한',
