@@ -12,11 +12,14 @@ const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'compass-test-'));
 let store, server, base;
 // Apps Script 대신 받는 가짜 응답 (자동 백업·메일 테스트용)
 const scriptCalls = [];
+let sheetTabs = {}; // 원장님 스케줄 시트 (테스트에서 채움)
 async function fakeFetch(url, init) {
   const body = JSON.parse(init.body);
   scriptCalls.push(body);
   const out = body.secret !== store.getConfig().secret ? { ok: false, error: 'secret' }
-    : body.action === 'mail' ? { ok: true, sent: body.messages.length, remaining: 99 } : { ok: true, url: 'https://drive.google.com/x' };
+    : body.action === 'mail' ? { ok: true, sent: body.messages.length, remaining: 99 }
+    : body.action === 'sheet' ? { ok: true, names: Object.keys(sheetTabs), tabs: Object.fromEntries((body.tabs || []).map((t) => [t, sheetTabs[t] || null])) }
+    : { ok: true, url: 'https://drive.google.com/x' };
   return { status: 200, text: async () => JSON.stringify(out) };
 }
 
@@ -1346,3 +1349,58 @@ test('선생님 색: 저장·형식 검사, 모두에게 보임', async () => {
   const c = client(); await c.login('color1@revera.test', '123456');
   assert.strictEqual((await c.ok('getAll')).teachers.find((t) => t.email === 'color1@revera.test').color, '#cfe2f3');
 });
+
+test('원장님 스케줄 가져오기: 우리 학생 일정만 저장, 권한대로 보임, 우리 학생 아님으로 빼면 다음에도 안 들어옴', async () => {
+  const automation = require('../lib/automation');
+  const schedule = require('../lib/schedule');
+  const admin = client();
+  await admin.login('admin@revera.test', 'admin-pass-1');
+  await admin.ok('saveTeacher', { email: 'sch-con@revera.test', name: '일정컨설', role: 'consultant', password: '123456' });
+  let d = await admin.saveOk('students', { name: '일정학생', counselor: 'sch-con@revera.test' });
+  const sid = d.savedId;
+  await admin.saveOk('students', { name: '남의일정' });
+  assert.strictEqual((await admin.rpc('saveAutomation', { schedSheet: 'https://evil.example.com/x' })).status, 400);
+  d = await admin.ok('saveAutomation', { scriptUrl: 'https://script.google.com/macros/s/AKfy_abc-123/exec', schedSheet: 'https://docs.google.com/spreadsheets/d/17qMPa0jnDnGrGCIg6UkjPg6gKy4K5mw3plmqR_0-GXs/edit#gid=1', schedOn: true });
+  assert.strictEqual(d.config.schedSheet, '17qMPa0jnDnGrGCIg6UkjPg6gKy4K5mw3plmqR_0-GXs');
+  // 이번 달 탭: 우리 학생 2명 + 유료 상담(다른 사람)
+  const now = new Date(Date.now() + 8 * 3600000), y = now.getUTCFullYear(), m = now.getUTCMonth() + 1;
+  const ymd = (dd) => (m) + '/' + dd + '/' + y;
+  const grid = [['', 'Mon'], ['', ymd(1), ymd(2), ymd(3), ymd(4), ymd(5), ymd(6), ymd(7), 'Weekly Total'], ['Daily Total']];
+  for (let k = 0; k < 32; k++) grid.push([(k < 8 ? '0' : '') + 'x:00 - y'.replace('x', String(8 + Math.floor(k / 2))).replace(/^0(\d\d)/, '$1'), '', '', '', '', '', '', '']);
+  grid.forEach((r, i) => { if (i > 2) r[0] = '08:00 - 08:30'; });
+  grid[3 + 4][1] = '일정학생 학생'; grid[3 + 5][1] = 'ZOOM 미팅';
+  grid[3 + 8][2] = '남의일정 부모님 미팅';
+  grid[3 + 10][3] = '윤바다 덜위치 Y12'; grid[3 + 11][3] = '1:1 유료 상담';
+  sheetTabs = { [schedule.tabName(y, m)]: grid };
+  const fetch = (u, i) => fakeFetch(u, i);
+  let r = await automation.syncSchedule(store, fetch, true);
+  assert.deepStrictEqual([r.saved, r.unmatched], [2, 1]);
+  assert.match((await admin.ok('getAutomation')).status.schedule.result, /우리 학생 일정 2건.*그 외 일정 1건/);
+  d = await admin.ok('getAll');
+  const mine = d.sched.find((x) => x.studentId === sid);
+  assert.strictEqual(mine.startAt, y + '-' + String(m).padStart(2, '0') + '-01T10:00');
+  assert.strictEqual(mine.detail, 'ZOOM 미팅');
+  assert.ok(!d.sched.some((x) => /윤바다/.test(x.title)), '우리 학생이 아닌 일정은 저장 안 함');
+  // 컨설턴트는 담당 학생 일정만
+  const con = client(); await con.login('sch-con@revera.test', '123456');
+  assert.deepStrictEqual((await con.ok('getAll')).sched.map((x) => x.studentId), [sid]);
+  // 우리 학생 아님 → 지워지고 다시 가져와도 안 들어옴, 관리자가 되돌리면 다시 들어옴
+  const other = d.sched.find((x) => /남의일정/.test(x.title));
+  assert.strictEqual((await con.rpc('excludeSched', { key: other.key })).status, 403, '볼 수 없는 학생 일정은 못 뺌');
+  d = await admin.ok('excludeSched', { key: other.key });
+  assert.ok(!d.sched.some((x) => x.key === other.key));
+  r = await automation.syncSchedule(store, fetch);
+  assert.deepStrictEqual([r.saved, r.excluded], [1, 1]);
+  const ex = (await admin.ok('getAutomation')).schedEx;
+  assert.strictEqual(ex[0].key, other.key);
+  await admin.ok('unexcludeSched', { key: other.key });
+  r = await automation.syncSchedule(store, fetch);
+  assert.strictEqual(r.saved, 2);
+  // 탭이 없으면 알기 쉬운 오류
+  sheetTabs = {};
+  await assert.rejects(automation.syncSchedule(store, fetch), /탭을 찾을 수 없습니다/);
+  // 예전 Apps Script
+  await assert.rejects(automation.syncSchedule(store, async () => ({ status: 200, text: async () => JSON.stringify({ ok: false, error: 'unknown action' }) })), /예전 버전/);
+  await admin.ok('saveAutomation', { schedOn: false });
+});
+

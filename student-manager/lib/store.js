@@ -12,6 +12,7 @@
 const Database = require('better-sqlite3');
 const crypto = require('crypto');
 const { sanitizeRich, richToText, hasFormatting } = require('./rich');
+const schedule = require('./schedule');
 const fs = require('fs');
 const path = require('path');
 
@@ -328,6 +329,9 @@ function migrate(db) {
   ensureColumns(db, 'unifiles', ['universityId', 'cycleId', 'category', 'name', 'memo', 'mime', 'size', 'storedName', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy']);
   // v12: 확인 요청 — 이 기록(상담·미팅·연락)을 다른 선생님이 꼭 보도록 (휴무 후 출근해서 확인 등)
   db.exec("CREATE TABLE IF NOT EXISTS reviews (id TEXT PRIMARY KEY, studentId TEXT NOT NULL, refTable TEXT NOT NULL, refId TEXT NOT NULL, toEmail TEXT NOT NULL, fromEmail TEXT NOT NULL, note TEXT NOT NULL DEFAULT '', createdAt TEXT NOT NULL, doneAt TEXT NOT NULL DEFAULT '')");
+  // v13: 원장님 상담 스케줄(구글 시트)에서 가져온 일정 — Compass 학생과 연결된 것만. schedex = "우리 학생 아님"으로 뺀 일정
+  db.exec("CREATE TABLE IF NOT EXISTS sched (key TEXT PRIMARY KEY, tab TEXT NOT NULL, studentId TEXT NOT NULL, startAt TEXT NOT NULL, endAt TEXT NOT NULL, title TEXT NOT NULL, detail TEXT NOT NULL DEFAULT '', zone TEXT NOT NULL DEFAULT '', sheetLabel TEXT NOT NULL DEFAULT '', syncedAt TEXT NOT NULL)");
+  db.exec("CREATE TABLE IF NOT EXISTS schedex (key TEXT PRIMARY KEY, studentId TEXT NOT NULL DEFAULT '', title TEXT NOT NULL DEFAULT '', startAt TEXT NOT NULL DEFAULT '', by TEXT NOT NULL, at TEXT NOT NULL)");
   // v11: 업로드 파일을 구글 드라이브에 하나씩 백업한 기록 (storedName 기준)
   db.exec("CREATE TABLE IF NOT EXISTS filesync (storedName TEXT PRIMARY KEY, syncedAt TEXT NOT NULL DEFAULT '', fails INTEGER NOT NULL DEFAULT 0, error TEXT NOT NULL DEFAULT '', at TEXT NOT NULL DEFAULT '')");
   // v10: 계약 시작·종료를 날짜로 (기존 연월은 시작=1일, 종료=그 달 마지막 날)
@@ -593,6 +597,9 @@ function openStore(dbPath, opts) {
     out.programs = db.prepare('SELECT * FROM programs ORDER BY name').all();
     out.events = db.prepare('SELECT * FROM events ORDER BY date, title').all();
     out.unifiles = db.prepare('SELECT id, universityId, cycleId, category, name, memo, mime, size, createdAt, createdBy FROM unifiles ORDER BY createdAt DESC').all();
+    // 원장님 상담 일정 (구글 시트) — 볼 수 있는 학생 것만, 최근 120일부터
+    const since = new Date(Date.now() - 120 * 86400000).toISOString().slice(0, 10);
+    out.sched = db.prepare('SELECT key, studentId, startAt, endAt, title, detail, zone, sheetLabel FROM sched WHERE startAt >= ? ORDER BY startAt').all(since).filter((r) => ids.has(r.studentId));
     // 확인 요청: 관리자·관리팀은 전부, 컨설턴트는 나에게 온 것·내가 보낸 것 (볼 수 있는 학생만, 상담기록 건은 제외)
     out.reviews = db.prepare('SELECT * FROM reviews ORDER BY createdAt DESC').all()
       .filter((r) => ids.has(r.studentId) && (isManager(me) || ((r.toEmail === me.email || r.fromEmail === me.email) && r.refTable !== 'notes')));
@@ -1123,6 +1130,45 @@ function openStore(dbPath, opts) {
       }
     });
     return Object.assign(getAll(me), { savedId: id });
+  }
+
+  /* ----- 원장님 상담 스케줄 (구글 시트 → Compass, 읽기만) ----- */
+  /** 가져온 탭들의 일정을 통째로 바꿈. 학생과 연결된 것만, "우리 학생 아님"으로 뺀 것은 제외 → { saved, unmatched, excluded } */
+  function replaceSchedule(tabs, events) {
+    const students = db.prepare("SELECT id, name FROM students WHERE deletedAt = ''").all();
+    const ex = new Set(db.prepare('SELECT key FROM schedex').all().map((r) => r.key));
+    const t = now();
+    let saved = 0, unmatched = 0, excluded = 0;
+    tx(() => {
+      for (const tab of tabs) db.prepare('DELETE FROM sched WHERE tab = ?').run(tab);
+      for (const e of events) {
+        const st = schedule.matchStudent(e, students);
+        if (!st) { unmatched++; continue; }
+        if (ex.has(e.key)) { excluded++; continue; }
+        const r = db.prepare('INSERT OR IGNORE INTO sched (key, tab, studentId, startAt, endAt, title, detail, zone, sheetLabel, syncedAt) VALUES (?,?,?,?,?,?,?,?,?,?)')
+          .run(e.key, e.tab, st.id, e.startAt, e.endAt, e.title.slice(0, 200), String(e.detail || '').slice(0, 500), e.zone, e.sheetLabel, t);
+        saved += r.changes;
+      }
+    });
+    return { saved, unmatched, excluded };
+  }
+  /** "우리 학생 아님" — 그 일정을 지우고 다음 가져오기에서도 뺌 (같은 이름의 다른 학생 등) */
+  function excludeSched(me, arg) {
+    const r = db.prepare('SELECT * FROM sched WHERE key = ?').get(String(arg && arg.key || ''));
+    if (!r) throw new UserError('일정을 찾을 수 없습니다. 새로고침 해주세요.', 404);
+    const st = requireStudent(me, r.studentId);
+    tx(() => {
+      db.prepare('INSERT OR REPLACE INTO schedex (key, studentId, title, startAt, by, at) VALUES (?,?,?,?,?,?)').run(r.key, r.studentId, r.title, r.startAt, me.email, now());
+      db.prepare('DELETE FROM sched WHERE key = ?').run(r.key);
+      log(me.email, 'update', 'students', st.id, st.name + ' · 원장님 일정 "' + r.title + '" (' + r.startAt.replace('T', ' ') + ') 우리 학생 아님으로 뺌');
+    });
+    return getAll(me);
+  }
+  /** 뺀 일정 되돌리기 (관리자) — 다음 가져오기 때 다시 들어옴 */
+  function unexcludeSched(me, arg) {
+    requireAdmin(me, '뺀 일정 되돌리기');
+    db.prepare('DELETE FROM schedex WHERE key = ?').run(String(arg && arg.key || ''));
+    return getAutomation(me);
   }
 
   /* ----- 확인 요청: 기록을 다른 선생님이 확인하도록 ----- */
@@ -1736,7 +1782,7 @@ function openStore(dbPath, opts) {
   async function backup(destPath) { await db.backup(destPath); }
 
   /* ----- 자동 백업·이메일 알림 설정 (관리자) ----- */
-  const CONFIG_KEYS = { scriptUrl: '', secret: '', siteUrl: '', backupOn: '', backupHour: '3', mailOn: '', mailHour: '8', volumeGB: '5' };
+  const CONFIG_KEYS = { scriptUrl: '', secret: '', siteUrl: '', backupOn: '', backupHour: '3', mailOn: '', mailHour: '8', volumeGB: '5', schedSheet: '', schedOn: '' };
   function getConfig() {
     const out = Object.assign({}, CONFIG_KEYS);
     db.prepare("SELECT key, value FROM meta WHERE key LIKE 'cfg.%'").all().forEach((r) => { out[r.key.slice(4)] = r.value; });
@@ -1749,8 +1795,9 @@ function openStore(dbPath, opts) {
   function getAutomation(me) {
     requireAdmin(me, '자동 백업·알림 설정');
     const status = {};
-    ['backup', 'digest', 'filesync'].forEach((k) => { status[k] = { at: getMeta('run.' + k + '.at'), result: getMeta('run.' + k + '.result'), date: getMeta('run.' + k + '.date') }; });
-    return { config: getConfig(), status };
+    ['backup', 'digest', 'filesync', 'schedule'].forEach((k) => { status[k] = { at: getMeta('run.' + k + '.at'), result: getMeta('run.' + k + '.result'), date: getMeta('run.' + k + '.date') }; });
+    return { config: getConfig(), status, schedEx: db.prepare('SELECT * FROM schedex ORDER BY at DESC').all(),
+      schedCount: db.prepare('SELECT COUNT(*) AS n FROM sched').get().n };
   }
   function saveAutomation(me, arg) {
     requireAdmin(me, '자동 백업·알림 설정');
@@ -1765,6 +1812,13 @@ function openStore(dbPath, opts) {
     if ('siteUrl' in arg) { const u = clean(arg.siteUrl).trim().replace(/\/+$/, ''); if (u) checkUrl(u, '사이트 주소'); next.siteUrl = u; }
     if ('backupOn' in arg) next.backupOn = arg.backupOn ? 'on' : '';
     if ('mailOn' in arg) next.mailOn = arg.mailOn ? 'on' : '';
+    if ('schedSheet' in arg) {
+      const v = clean(arg.schedSheet).trim();
+      const m = /\/spreadsheets\/d\/([\w-]{20,})/.exec(v) || /^([\w-]{20,})$/.exec(v);
+      if (v && !m) throw new UserError('구글 시트 주소(https://docs.google.com/spreadsheets/d/…)를 붙여넣으세요.');
+      next.schedSheet = m ? m[1] : '';
+    }
+    if ('schedOn' in arg) next.schedOn = arg.schedOn ? 'on' : '';
     if ('volumeGB' in arg) {
       const g = Number(arg.volumeGB);
       if (!Number.isFinite(g) || g < 0.5 || g > 10000) throw new UserError('저장 공간 크기는 0.5~10000 GB 사이 숫자로 입력하세요.');
@@ -1877,10 +1931,10 @@ function openStore(dbPath, opts) {
   }
 
   return {
-    db, filesDir, listFiles, pendingSync, markSync, countTeachers, upsertAdmin, login, logout, authenticate, addFile, getFile, addUniFile, getUniFile,
+    db, filesDir, listFiles, pendingSync, markSync, replaceSchedule, countTeachers, upsertAdmin, login, logout, authenticate, addFile, getFile, addUniFile, getUniFile,
     rpc: { getAll: (me) => getAll(me), save, remove, restore, purge, getTrash, getLog, saveTeacher, changePassword, importData, copyCycle, getActivity, saveMany, updateMe,
       saveOption, removeOption, deleteTeacher, getAutomation, saveAutomation, saveEvent, removeEvent,
-      saveWithFollowups, requestFollowup, saveOrder, saveUniFile, removeUniFile, saveProgram, removeProgram, getStorage, retrySync, saveHomeLayout, requestReview, doneReview, cancelReview },
+      saveWithFollowups, requestFollowup, saveOrder, saveUniFile, removeUniFile, saveProgram, removeProgram, getStorage, retrySync, saveHomeLayout, requestReview, doneReview, cancelReview, excludeSched, unexcludeSched },
     backup, getConfig, getMeta, recordRun, listTeachers, close: () => db.close(),
   };
 }

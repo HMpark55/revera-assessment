@@ -274,6 +274,8 @@
   .wbar .grow { flex:1; }
   .hedit { border-color:#c9a227; background:#fffdf5; }
   .wadd { margin-top:8px; display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+  .ev.sc { background:#efe7fb; border-left:3px solid #7c5cc4; color:#4b2f86; }
+  .row.sch .btn { flex:none; }
   .rvbox { display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-top:6px; }
   .rvchip { font-size:.78rem; background:#fff4e0; color:#7a4d00; border:1px solid #f1d9a8; border-radius:999px; padding:2px 8px; }
   .rvchip.ok { background:#eaf6f0; color:#0f7a55; border-color:#bfe3d1; }
@@ -368,6 +370,7 @@
   .ev.more { background:none; border:0; color:var(--muted); padding-left:2px; }
   .ev.nm { background:#fff; border:1px solid #c7cbd6; border-left:3px solid var(--navy); color:var(--navy); }
   i.c-미팅 { background:#fff; border:1px solid var(--navy); }
+  i.c-원장 { background:#efe7fb; border:1px solid #7c5cc4; }
   i.c-마감 { background:#fff; border:1px dashed #9ca3af; }
   .dayitem { display:flex; gap:8px; align-items:flex-start; padding:7px 0; border-bottom:1px solid var(--soft); }
   .dayitem .ev { flex-shrink:0; margin-top:3px; width:8px; padding:0; height:14px; }
@@ -770,6 +773,7 @@ function load(data) {
   S.programs = data.programs || [];
   S.homeDefault = data.homeDefault || null;
   S.reviews = data.reviews || [];
+  S.sched = data.sched || [];
   S.storageAlert = data.storageAlert || null; S.backupAlert = data.backupAlert || null;
   UI.pw = {};
   UI.activity = {}; // 최근 활동은 저장할 때마다 새로 불러옴
@@ -1406,6 +1410,11 @@ function todayItems(scope) {
     var s = studentById(c.studentId), p = contractPay(c);
     out.push({ n: n, kind: '입금', text: '미수금 ' + money(p.due, p.cur) + ' (' + contractLabel(c) + ')', who: s.name, go: 'openStudent(' + js(s.id) + ',\'contracts\')' });
   });
+  (S.sched || []).forEach(function (x) {
+    var n = dayDiff(x.startAt.slice(0, 10)), s = studentById(x.studentId);
+    if (n === null || n < 0 || n > 1 || !s || (mine && !isMine(s))) return;
+    out.push({ n: n, kind: '원장님 상담', text: x.startAt.slice(11, 16) + ' ' + x.title + (x.detail ? ' · ' + x.detail : ''), who: s.name, go: 'openStudent(' + js(s.id) + ',\'meetings\')' });
+  });
   nextMeetings().forEach(function (m) {
     var n = dayDiff(m.nextDate), s = studentById(m.studentId);
     if (n < 0 || n > 1 || (mine && !isMine(s))) return;
@@ -1486,10 +1495,15 @@ function calItems(from, to) {
   if (UI.calDl !== false) {
     deadlineItems(false).forEach(function (i) { if (i.date >= from && i.date <= to) add(i.date, { dl: i }); });
     nextMeetings().forEach(function (m) { if (m.nextDate >= from && m.nextDate <= to) add(m.nextDate, { nm: m }); });
+    (S.sched || []).forEach(function (x) { var d = x.startAt.slice(0, 10); if (d >= from && d <= to && studentById(x.studentId)) add(d, { sc: x }); });
   }
   return by;
 }
 function calChip(it) {
+  if (it.sc) {
+    var ss = studentById(it.sc.studentId);
+    return '<span class="ev sc" title="' + esc('원장님 ' + schedTime(it.sc) + ' · ' + it.sc.title + (it.sc.detail ? ' · ' + it.sc.detail : '')) + '" onclick="event.stopPropagation();openStudent(' + js(ss.id) + ',\'meetings\')">' + esc(it.sc.startAt.slice(11, 16) + ' 원장님 · ' + ss.name) + '</span>';
+  }
   if (it.ev) return '<span class="ev' + (it.cont ? ' cont' : '') + '" style="' + evStyle(it.ev.category) + '" title="' + esc(it.ev.title + (it.ev.memo ? '\n' + it.ev.memo : '')) + '" onclick="event.stopPropagation();openEvent(' + js(it.ev.id) + ')">' + esc(it.ev.title) + '</span>';
   if (it.nm) {
     var st = studentById(it.nm.studentId);
@@ -1526,7 +1540,7 @@ function calendarCard() {
     '<label class="muted" style="margin-left:6px"><input type="checkbox"' + (UI.calDl !== false ? ' checked' : '') + ' onchange="UI.calDl=this.checked;render()"> 학생 지원 마감·다음 미팅도 보기</label>' +
     '<button class="btn sm" onclick="openEvent(null,today())">+ 일정 추가</button>' +
     '<span class="cal-legend">' + evCats().map(function (c) { return '<span><i style="background:' + evColor(c.value) + '"></i>' + esc(c.value) + '</span>'; }).join('') +
-      (UI.calDl !== false ? '<span><i class="c-마감"></i>지원 마감</span><span><i class="c-미팅"></i>다음 미팅</span>' : '') + '</span></div>' +
+      (UI.calDl !== false ? '<span><i class="c-마감"></i>지원 마감</span><span><i class="c-미팅"></i>다음 미팅</span>' + ((S.sched || []).length ? '<span><i class="c-원장"></i>원장님 상담</span>' : '') : '') + '</span></div>' +
     '<div class="cals">' + calMonth(a.y, a.m, by) + calMonth(b.y, b.m, by) + '</div>' +
     '</div>';
 }
@@ -1604,7 +1618,8 @@ function studentWork(sid) {
   var open = openFollowups(sid), todo = open.filter(function (f) { return f.kind !== 'contact'; });
   var nm = nextMeetings().filter(function (m) { return m.studentId === sid && dayDiff(m.nextDate) >= 0; }).sort(function (a, b) { return a.nextDate.localeCompare(b.nextDate); })[0];
   return { todo: todo.length, over: todo.filter(function (f) { return f.due && dayDiff(f.due) < 0; }).length,
-    contacts: open.filter(function (f) { return f.kind === 'contact'; }).length, next: nm ? nm.nextDate : '' };
+    contacts: open.filter(function (f) { return f.kind === 'contact'; }).length,
+    next: [nm ? nm.nextDate : '', (upcomingSched(sid)[0] || { startAt: '' }).startAt.slice(0, 10)].filter(Boolean).sort()[0] || '' };
 }
 function studentTable(list, dl) {
   return '<table class="stl"><thead><tr><th>이름</th><th>학교 / 학년</th><th>현재 진행 상황</th><th>할 일</th><th>답 안 한 연락</th><th>다음 미팅</th><th>다음 마감</th><th>마지막 미팅</th><th>자료</th><th>관리팀 / 컨설턴트</th><th>상태</th></tr></thead><tbody>' +
@@ -1806,6 +1821,7 @@ function tabSummary(s) {
       (last.content ? '<div class="clip">' + esc(last.content) + '</div>' : '') +
       linkedFuBox(linkedFollowups('meetings', last.id), '이 미팅에서 나온 팔로업') +
       (nm ? '<div class="note" style="margin:8px 0 0"><b>다음 미팅</b> ' + esc(fmtD(nm.nextDate)) + ' ' + dday(nm.nextDate) + '</div>' : '') +
+      (upcomingSched(s.id)[0] ? '<div class="note" style="margin:8px 0 0"><b>원장님 일정</b> ' + esc(schedTime(upcomingSched(s.id)[0]) + ' · ' + upcomingSched(s.id)[0].title) + ' ' + dday(upcomingSched(s.id)[0].startAt.slice(0, 10)) + '</div>' : '') +
       (last.nextStep ? '<div class="note" style="margin:8px 0 0"><b>다음 계획</b> <span class="muted">(예전 기록)</span> ' + esc(last.nextStep) + '</div>' : '')
       : '<div class="empty">기록된 미팅이 없습니다. ' + more('meetings', '회의록 추가') + '</div>') + '</div>';
   h += '</div><div>';
@@ -2260,10 +2276,31 @@ function reviewMeeting(id) {
   mutate('save', { table: 'meetings', obj: { id: id, updatedAt: m.updatedAt, needsReview: false } }, '확인 완료로 표시했습니다.');
 }
 function meetingSort(a, b) { return (b.date + b.time).localeCompare(a.date + a.time); }
+/* ----- 원장님 상담 일정 (구글 시트에서 가져옴, 읽기만) ----- */
+function schedOf(sid) { return (S.sched || []).filter(function (x) { return x.studentId === sid; }); }
+/** 앞으로의 원장님 일정 (오늘 이후, 시작 시각순) */
+function upcomingSched(sid) { var t = today(); return (S.sched || []).filter(function (x) { return (!sid || x.studentId === sid) && x.startAt.slice(0, 10) >= t; }); }
+function schedTime(x) { return fmtD(x.startAt.slice(0, 10)) + ' ' + x.startAt.slice(11, 16) + '~' + x.endAt.slice(11, 16); }
+function schedRow(x) {
+  return '<div class="row sch"><span class="nw"><b>' + esc(schedTime(x)) + '</b> ' + dday(x.startAt.slice(0, 10)) + '</span><span class="grow">' + esc(x.title) +
+    (x.detail ? ' <span class="muted">' + esc(x.detail) + '</span>' : '') + (x.sheetLabel ? ' <span class="pill" title="시트에 적힌 시간 (출장 중 현지 시간 → 상해 시간으로 바꿈)">시트: ' + esc(x.sheetLabel) + '</span>' : '') + '</span>' +
+    '<button type="button" class="btn ghost sm" title="같은 이름의 다른 학생 일정 등 — 지우고 다음 가져오기에서도 뺍니다" onclick="excludeSched(' + js(x.key) + ')">우리 학생 아님</button></div>';
+}
+function schedCard(s) {
+  var all = schedOf(s.id); if (!all.length) return '';
+  var t = today(), up = all.filter(function (x) { return x.startAt.slice(0, 10) >= t; }), past = all.filter(function (x) { return x.startAt.slice(0, 10) < t; }).reverse();
+  return '<div class="card">' + secHead('원장님 상담 일정 <span class="muted">구글 시트에서 · 상해 시간</span>', '') +
+    (up.length ? '<div class="sum-list">' + up.map(schedRow).join('') + '</div>' : '<div class="empty">앞으로 잡힌 원장님 일정이 없습니다.</div>') +
+    (past.length ? '<details class="donebox"><summary>지난 일정 ' + past.length + '건</summary><div class="sum-list">' + past.map(schedRow).join('') + '</div></details>' : '') + '</div>';
+}
+function excludeSched(key) {
+  if (!confirm('이 일정을 이 학생 일정에서 뺄까요?\n(같은 이름의 다른 학생 일정일 때 — 다음 가져오기에서도 들어오지 않습니다. 관리자가 백업·알림 화면에서 되돌릴 수 있어요)')) return;
+  mutate('excludeSched', { key: key }, '일정을 뺐습니다.');
+}
 function tabMeetings(s) {
   var ms = childOf('meetings', s.id).sort(meetingSort);
   var rv = ms.filter(function (m) { return m.needsReview === 'TRUE'; }).length;
-  return '<div class="card">' + secHead('미팅 회의록 <span class="muted">' + ms.length + '건' + (rv ? ' · 확인 필요 ' + rv + '건' : '') + '</span>', addBtn('meetings', s.id, '+ 회의록 추가')) +
+  return schedCard(s) + '<div class="card">' + secHead('미팅 회의록 <span class="muted">' + ms.length + '건' + (rv ? ' · 확인 필요 ' + rv + '건' : '') + '</span>', addBtn('meetings', s.id, '+ 회의록 추가')) +
     (ms.length ? ms.map(function (m) { return meetingItem(m, false); }).join('') : '<div class="empty">기록된 미팅이 없습니다.</div>') + '</div>';
 }
 function viewMeetings() {
@@ -3451,6 +3488,21 @@ function viewSettings() {
         return '<details class="major"><summary><b>' + esc(m.name) + '</b> <span class="muted">' + esc(m.to) + ' · ' + esc(m.subject) + '</span></summary><iframe sandbox="" style="width:100%;height:260px;border:1px solid var(--border);border-radius:6px;margin-top:6px" srcdoc="' + esc(m.html) + '"></iframe></details>';
       }).join('') : '<div class="empty">오늘 보낼 내용이 있는 선생님이 없습니다.</div>') + '</div>';
   }
+  var sc = st.schedule || {};
+  h += '<div class="card"><h3>원장님 상담 스케줄 (구글 시트 → Compass)</h3>' +
+    '<div class="muted" style="font-size:.85rem;margin-bottom:8px">시트의 이번 달·다음 달 탭(예: “10 Oct 2026”)을 1시간마다 읽어서, <b>Compass 학생 이름이 들어간 일정만</b> 학생 화면(미팅 탭·요약)·메인 달력·오늘 챙길 일·학생 목록 다음 미팅에 보여줍니다. 그 외 일정(1:1 유료 상담, 다른 지점 학생 등)은 가져오지 않습니다. 시간은 상해 기준이고, 그날 첫 칸에 “미국”·“한국”이 적혀 있으면 그 나라 시간으로 보고 상해 시간으로 바꿉니다. <b>시트는 읽기만 하고 수정하지 않습니다.</b></div>' +
+    '<form class="form" id="schf" onsubmit="saveSched();return false">' +
+    fld('시트 주소', inp('schedSheet', c.schedSheet ? 'https://docs.google.com/spreadsheets/d/' + c.schedSheet + '/edit' : '', 'text', ' placeholder="https://docs.google.com/spreadsheets/d/…"'), true) +
+    fld('자동 가져오기', '<div><label style="display:inline-flex;gap:6px;align-items:center;color:#222"><input type="checkbox" name="schedOn"' + (c.schedOn ? ' checked' : '') + '> 1시간마다 가져오기</label></div>') +
+    '<div class="toolbar" style="margin:0;align-self:end"><button class="btn sm" type="submit">저장</button><button type="button" class="btn ghost sm" onclick="runAutomation(\'schedule\')">지금 가져오기</button></div></form>' +
+    '<div style="margin-top:8px"><b>마지막 가져오기</b> <span class="muted">' + (sc.at ? esc(fmtTime(sc.at)) : '아직 실행 안 됨') + '</span><div style="color:' + (/^실패/.test(sc.result || '') ? 'var(--error)' : '#0f7a55') + '">' + esc(sc.result || '') + '</div>' +
+    '<div class="muted" style="font-size:.85rem">지금 Compass에 있는 원장님 일정 ' + (UI.auto.schedCount || 0) + '건</div></div>' +
+    ((UI.auto.schedEx || []).length ? '<details class="major"><summary>“우리 학생 아님”으로 뺀 일정 ' + UI.auto.schedEx.length + '건</summary>' + UI.auto.schedEx.map(function (x) {
+      var s0 = studentById(x.studentId);
+      return '<div class="row" style="display:flex;gap:8px;align-items:center;padding:4px 0"><span class="grow">' + esc(String(x.startAt).replace('T', ' ') + ' · ' + x.title) + ' <span class="muted">(' + esc(s0 ? s0.name : '') + '에 연결됐던 것 · ' + esc(teacherName(x.by)) + ')</span></span>' +
+        '<button class="btn ghost sm" onclick="unexcludeSched(' + js(x.key) + ')">되돌리기</button></div>';
+    }).join('') + '</details>' : '') +
+    '<div class="muted" style="font-size:.8rem;margin-top:6px">처음 켤 때: 아래 “코드를 바꿔야 할 때” 순서로 새 코드를 붙여넣고, 편집기 위쪽 함수 목록에서 <b>authorize</b>를 골라 ▶실행 → 시트 읽기 권한을 허용한 뒤 새 버전으로 배포하세요. Apps Script를 설치한 구글 계정이 시트를 볼 수 있어야 합니다.</div></div>';
   h += '<div class="card"><h3>처음 연결하는 방법 (한 번만)</h3><ol style="line-height:1.9;padding-left:20px;margin:0">' +
     '<li>위 <b>설정</b>을 한 번 저장합니다. (비밀 키가 만들어집니다)</li>' +
     '<li>백업을 저장할 <b>구글 계정</b>으로 <a href="https://script.google.com" target="_blank" rel="noopener">script.google.com</a> → <b>새 프로젝트</b>를 엽니다.</li>' +
@@ -3460,10 +3512,16 @@ function viewSettings() {
     '<div class="toolbar" style="margin-top:10px"><button class="btn" onclick="copyScript()">코드 복사</button>' +
     '<button class="btn ghost sm" onclick="if(confirm(\'비밀 키를 새로 만들면 Apps Script 코드도 다시 붙여넣고 새로 배포해야 합니다. 계속할까요?\'))saveAutomation(true)">비밀 키 새로 만들기</button></div>' +
     '<details class="major"><summary>코드 직접 보기 (복사 버튼이 안 될 때 — 전체 선택 후 복사)</summary><textarea readonly style="width:100%;height:200px;font-family:monospace;font-size:.75rem" onclick="this.select()">' + esc(UI.scriptCode || '') + '</textarea></details>' +
-    '<div class="notice" style="margin-top:10px"><b>코드를 바꿔야 할 때</b> (예: “Apps Script 코드가 예전 버전” 오류): 같은 Apps Script 프로젝트에 위 코드를 통째로 다시 붙여넣고 저장 → <b>배포 → 배포 관리</b> → ✏️(수정) → 버전 <b>새 버전</b> → 배포. 웹 앱 주소는 그대로라 Compass 설정은 바꾸지 않아도 됩니다.</div>' +
+    '<div class="notice" style="margin-top:10px"><b>코드를 바꿔야 할 때</b> (예: “Apps Script 코드가 예전 버전” 오류): 같은 Apps Script 프로젝트에 위 코드를 통째로 다시 붙여넣고 저장 → (새 권한이 필요할 때) 편집기 위쪽 함수 목록에서 <b>authorize</b> 선택 → ▶실행 → 권한 허용 → <b>배포 → 배포 관리</b> → ✏️(수정) → 버전 <b>새 버전</b> → 배포. 웹 앱 주소는 그대로라 Compass 설정은 바꾸지 않아도 됩니다.</div>' +
     '<div class="muted" style="font-size:.8rem">백업에는 학생 개인정보와 사이트 비밀번호가 들어 있습니다. “Compass 백업”·“Compass 파일” 폴더는 다른 사람과 공유하지 마세요. 기록 백업은 최근 30개만 남기고 오래된 것은 드라이브 휴지통으로 옮기고, 파일은 지우지 않고 계속 쌓습니다.</div></div>';
   return h;
 }
+function saveSched() {
+  var o = formData($('schf'));
+  api('saveAutomation', { schedSheet: o.schedSheet, schedOn: o.schedOn }).then(function (d) { UI.auto = d; loadAutomation(); toast('저장했습니다.'); })
+    .catch(function (e) { toast(errMsg(e), true); });
+}
+function unexcludeSched(key) { api('unexcludeSched', { key: key }).then(function (d) { UI.auto = d; render(); toast('되돌렸습니다. 다음 가져오기 때 다시 들어옵니다.'); }).catch(function (e) { toast(errMsg(e), true); }); }
 function saveAutomation(newSecret) {
   var f = $('autof'), o = formData(f);
   var arg = newSecret === true ? { newSecret: true } : { scriptUrl: o.scriptUrl, siteUrl: o.siteUrl, backupOn: o.backupOn, backupHour: Number(o.backupHour), mailOn: o.mailOn, mailHour: Number(o.mailHour) };
@@ -3473,11 +3531,12 @@ function saveAutomation(newSecret) {
 function runAutomation(action) {
   post('/api/automation/' + action, {}).then(function (d) {
     if (action === 'preview') { UI.autoPreview = d.digests; render(); return; }
-    if (action === 'ping' && !(d.version >= 2)) toast('연결은 되었지만 Apps Script 코드가 예전 버전입니다. 아래 “코드를 바꿔야 할 때” 순서대로 새 코드로 바꿔주세요.', true);
+    if (action === 'ping' && !(d.version >= 3)) toast('연결은 되었지만 Apps Script 코드가 예전 버전입니다. 아래 “코드를 바꿔야 할 때” 순서대로 새 코드로 바꿔주세요.', true);
     else toast({ ping: '연결되었습니다' + (d.account ? ' (' + d.account + ')' : ''), backup: '구글 드라이브에 기록을 백업했습니다.',
+      schedule: '원장님 일정을 가져왔습니다: 우리 학생 일정 ' + (d.saved || 0) + '건',
       filesync: '파일 ' + (d.sent || 0) + '개를 드라이브로 보냈습니다.' + (d.left ? ' (남은 파일 ' + d.left + '개는 10분마다 이어서)' : ''), testmail: S.me.email + ' 로 테스트 메일을 보냈습니다.',
       digest: (d.sent || 0) + '명에게 알림을 보냈습니다.' }[action] || '완료');
-    loadAutomation(); UI.storage = null;
+    loadAutomation(); UI.storage = null; if (action === 'schedule') refresh();
   }).catch(function (e) { toast(errMsg(e), true); loadAutomation(); UI.storage = null; });
 }
 function copyScript() {
