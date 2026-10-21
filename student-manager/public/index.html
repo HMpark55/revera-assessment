@@ -311,6 +311,7 @@
   details.facgrp > details.major { margin:0 10px; }
   .contract.sel { outline:2px solid #9fb3e3; }
   .contract .h input[type=checkbox] { width:16px; height:16px; margin:0 4px 0 0; }
+  .portal { display:flex; gap:4px; align-items:center; flex-wrap:wrap; padding:1px 0; }
   .rvbox { display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-top:6px; }
   .rvchip { font-size:.78rem; background:#fff4e0; color:#7a4d00; border:1px solid #f1d9a8; border-radius:999px; padding:2px 8px; }
   .rvchip.ok { background:#eaf6f0; color:#0f7a55; border-color:#bfe3d1; }
@@ -1824,7 +1825,7 @@ function boardData(s) {
   var apps = childOf('apps', s.id).slice().sort(function (a, b) { return (a.deadline || '9999').localeCompare(b.deadline || '9999'); });
   return {
     majors: (top.length ? top : majors).map(function (m) { return [m.university, m.major].filter(Boolean).join(' · ') + ' (' + m.status + (m.parentConfirmed === 'TRUE' ? '·부모님 확정' : '') + ')'; }),
-    apps: apps.map(function (a) { return { uni: a.university, sub: [a.country, a.major, a.round].filter(Boolean).join(' · '), deadline: a.deadline, status: a.status }; })
+    apps: apps.map(function (a) { return { uni: a.university, sub: [a.country, a.major, a.round].filter(Boolean).join(' · '), deadline: a.deadline, status: a.status, portal: portalAccounts(s.id, a.universityId).length > 0 }; })
   };
 }
 function appBoard(list) {
@@ -1835,7 +1836,7 @@ function appBoard(list) {
       '<td>' + (tags(s.tracks).length ? tagHtml(trackTags(s)) : '<span class="muted">-</span>') + '</td>' +
       '<td>' + (d.majors.length ? d.majors.map(function (x) { return '<div>' + esc(x) + '</div>'; }).join('') : '<span class="muted">-</span>') + '</td>' +
       '<td>' + (d.apps.length ? d.apps.map(function (a) {
-        return '<div class="bapp"><b>' + esc(a.uni) + '</b> <span class="muted">' + esc(a.sub) + '</span> ' + (a.deadline ? '<span class="nw">' + esc(fmtD(a.deadline)) + ' ' + dday(a.deadline) + '</span> ' : '') +
+        return '<div class="bapp"><b>' + esc(a.uni) + '</b>' + (a.portal ? ' <span title="원서 포털 계정 저장됨">🔑</span>' : '') + ' <span class="muted">' + esc(a.sub) + '</span> ' + (a.deadline ? '<span class="nw">' + esc(fmtD(a.deadline)) + ' ' + dday(a.deadline) + '</span> ' : '') +
           (a.status ? '<span class="pill a-' + esc(a.status) + '">' + esc(a.status) + '</span>' : '') + '</div>';
       }).join('') : '<span class="muted">-</span>') + '</td></tr>';
   }).join('') + '</tbody></table>';
@@ -2529,6 +2530,26 @@ function tabAccounts(s) {
   }).join('') + '</tbody></table></div>' : '<div class="empty">등록된 계정이 없습니다. 원서 포털·College Board·TOEFL·학교 LMS(스쿨로지·Teams) 계정을 추가하세요.</div>';
   return h + '</div>';
 }
+/** 학생의 그 대학 계정 (연결 대학이 같은 사이트 계정, 원서 포털 먼저) */
+function portalAccounts(sid, uid) {
+  if (!uid) return [];
+  return childOf('accounts', sid).filter(function (x) { return x.universityId === uid; })
+    .sort(function (a, b) { return (a.category === '원서 포털' ? 0 : 1) - (b.category === '원서 포털' ? 0 : 1); });
+}
+/** 지원대학 줄의 포털 계정 칸: 아이디·[ID 복사][PW 복사][열기], 없으면 [+ 포털 계정] */
+function portalCell(s, a) {
+  var acc = portalAccounts(s.id, a.universityId), uni = a.universityId && findRow('universities', a.universityId);
+  if (!acc.length) return uni ? '<button class="btn ghost sm" onclick="openForm(\'accounts\',null,' + js(s.id) + ',{category:\'원서 포털\',universityId:' + js(uni.id) + ',site:' + js(uni.name + ' 원서 포털') + '})" title="이 대학 원서 포털 아이디·비밀번호 저장">+ 포털 계정</button>'
+    : '<span class="muted" title="대학을 목록에서 고르면 포털 계정을 연결할 수 있어요">-</span>';
+  return acc.map(function (x) {
+    var u = accountUrl(x);
+    return '<div class="portal"><span class="pw" title="' + esc(x.site) + '">' + esc(x.loginId || '(아이디 없음)') + '</span> ' +
+      (x.loginId ? '<button class="btn ghost sm" onclick="copyText(' + js(x.loginId) + ')">ID 복사</button> ' : '') +
+      (x.password ? '<button class="btn ghost sm" onclick="copyText(' + js(x.password) + ')">PW 복사</button> ' : '') +
+      (u ? '<a class="btn ghost sm" href="' + esc(u) + '" target="_blank" rel="noopener">열기 ↗</a> ' : '') +
+      '<button class="btn ghost sm" onclick="openForm(\'accounts\',' + js(x.id) + ')" title="계정 수정">✏️</button></div>';
+  }).join('');
+}
 function accountUrl(a) {
   var u = safeUrl(a.url); if (u) return u;
   var uni = a.universityId && findRow('universities', a.universityId); if (uni && safeUrl(uni.website)) return uni.website;
@@ -2911,13 +2932,13 @@ function tabApps(s) {
   list.forEach(function (a) { var c = a.country || '국가 미지정'; (groups[c] = groups[c] || []).push(a); });
   var keys = Object.keys(groups).sort(function (a, b) { return (COUNTRIES.indexOf(a) + 1 || 99) - (COUNTRIES.indexOf(b) + 1 || 99); });
   return '<div class="card">' + secHead('지원 대학' + (list.length ? ' <span class="muted">' + esc(countrySummary(s.id)) + '</span>' : ''), addBtn('apps', s.id, '+ 지원 대학 추가')) +
-    (list.length ? '<div class="tbl-wrap"><table><thead><tr><th>대학 / 전공</th><th>전형</th><th>마감</th><th>상태</th><th>에세이</th><th>메모</th></tr></thead><tbody>' +
+    (list.length ? '<div class="tbl-wrap"><table><thead><tr><th>대학 / 전공</th><th>전형</th><th>마감</th><th>상태</th><th>🔑 원서 포털 계정</th><th>에세이</th><th>메모</th></tr></thead><tbody>' +
       keys.map(function (k) {
-        return '<tr class="grp"><td colspan="6">' + esc(k) + ' <span class="muted">' + groups[k].length + '곳</span></td></tr>' +
+        return '<tr class="grp"><td colspan="7">' + esc(k) + ' <span class="muted">' + groups[k].length + '곳</span></td></tr>' +
           groups[k].sort(byDate('deadline')).map(function (a) {
             return '<tr class="click" onclick="openForm(\'apps\',' + js(a.id) + ')"><td><b>' + (a.universityId && findRow('universities', a.universityId) ? '<a href="#/uni/' + esc(a.universityId) + '" onclick="event.stopPropagation()">' + esc(a.university) + ' ↗</a>' : esc(a.university)) + '</b>' + (a.major ? '<div class="muted">' + esc(a.major) + '</div>' : '') + '</td>' +
               '<td>' + esc(a.round) + '</td><td class="nw">' + esc(fmtD(a.deadline)) + (APP_FINAL.indexOf(a.status) < 0 ? ' ' + dday(a.deadline) : '') + '</td>' +
-              '<td><span class="pill a-' + esc(a.status) + '">' + esc(a.status) + '</span></td><td class="nw">' + esc(a.essay) + '</td><td class="muted">' + esc(a.memo) + '</td></tr>';
+              '<td><span class="pill a-' + esc(a.status) + '">' + esc(a.status) + '</span></td><td class="nw" onclick="event.stopPropagation()">' + portalCell(s, a) + '</td><td class="nw">' + esc(a.essay) + '</td><td class="muted">' + esc(a.memo) + '</td></tr>';
           }).join('');
       }).join('') + '</tbody></table></div>' : '<div class="empty">등록된 지원 대학이 없습니다.</div>') + '</div>';
 }
@@ -3320,11 +3341,12 @@ function viewUni(id) {
     (u.tips ? '<div style="white-space:pre-wrap;line-height:1.6">' + esc(u.tips) + '</div>' : '<div class="empty">아직 작성된 유의사항이 없습니다.</div>') + '</div></div>';
   var apps = S.apps.filter(function (a) { return a.universityId === id && studentById(a.studentId); }).sort(byDate('deadline'));
   h += '<div class="card"><h3>이 대학을 지원하는 학생 <span class="muted">' + apps.length + '건' + (isMgr() ? '' : ' · 담당 학생만') + '</span></h3>' +
-    (apps.length ? '<div class="tbl-wrap"><table><thead><tr><th>학생</th><th>전공</th><th>전형</th><th>마감</th><th>상태</th></tr></thead><tbody>' + apps.map(function (a) {
+    (apps.length ? '<div class="tbl-wrap"><table><thead><tr><th>학생</th><th>전공</th><th>전형</th><th>마감</th><th>상태</th><th>원서 포털 계정</th></tr></thead><tbody>' + apps.map(function (a) {
       var s = studentById(a.studentId);
       return '<tr class="click" onclick="openStudent(' + js(s.id) + ',\'apps\')"><td class="nw"><b>' + esc(s.name) + '</b></td><td>' + esc(a.major) + '</td><td>' + esc(a.round) + '</td>' +
         '<td class="nw">' + esc(fmtD(a.deadline)) + (APP_FINAL.indexOf(a.status) < 0 ? ' ' + dday(a.deadline) : '') + (a.deadlineManual === 'TRUE' ? ' <span class="muted">(직접 지정)</span>' : '') + '</td>' +
-        '<td><span class="pill a-' + esc(a.status) + '">' + esc(a.status) + '</span></td></tr>';
+        '<td><span class="pill a-' + esc(a.status) + '">' + esc(a.status) + '</span></td>' +
+        '<td class="nw">' + (portalAccounts(s.id, a.universityId).length ? '<span style="color:#0f7a55">✓ 있음</span>' : '<span class="muted">없음</span>') + '</td></tr>';
     }).join('') + '</tbody></table></div>' : '<div class="empty">연결된 학생 지원대학이 없습니다. 학생 → 지원대학에서 이 대학을 선택하면 여기에 표시됩니다.</div>') + '</div>';
   return h;
 }
