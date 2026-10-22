@@ -1488,3 +1488,37 @@ test('대학 전공: 여러 개 한 번에 추가(중복 건너뜀), 학부 이�
   assert.strictEqual(d.unimajors.filter((m) => m.universityId === u.id && m.faculty === 'Faculty of Arts').length, 2);
   assert.strictEqual((await admin.rpc('addMajorsMany', { universityId: 'nope', rows: [{ name: 'x' }] })).status, 404);
 });
+
+test('백업으로 복구: 전체 백업 ZIP → 기록·파일 되돌림, 직전 상태 자동 백업, 관리자만, 잘못된 파일 거절', async () => {
+  const admin = client();
+  await admin.login('admin@revera.test', 'admin-pass-1');
+  let d = await admin.saveOk('students', { name: '복구전학생' });
+  const sid = d.savedId;
+  const up = await admin.upload(sid, 'keep.pdf', Buffer.from('%PDF keep me'));
+  const fileId = up.data.files.find((f) => f.name === 'keep.pdf').id;
+  const stored = store.db.prepare('SELECT storedName FROM files WHERE id = ?').get(fileId).storedName;
+  const zip = (await admin.req('GET', '/api/backup')).data;
+  assert.ok(Buffer.isBuffer(zip) && zip.slice(0, 2).toString() === 'PK');
+  // 백업 뒤 변경: 학생 추가, 학생 삭제, 파일 지움
+  await admin.saveOk('students', { name: '백업뒤학생' });
+  await admin.ok('remove', { table: 'students', id: sid });
+  fs.rmSync(path.join(store.filesDir, stored), { force: true });
+  // 권한·잘못된 파일
+  await admin.ok('saveTeacher', { email: 'rs-staff@revera.test', name: '복구관리', role: 'staff', password: '123456' });
+  const staff = client(); await staff.login('rs-staff@revera.test', '123456');
+  assert.strictEqual((await staff.req('POST', '/api/restore', undefined, { 'Content-Type': 'application/zip' }, zip)).status, 403);
+  assert.strictEqual((await admin.req('POST', '/api/restore', undefined, { 'Content-Type': 'application/zip' }, Buffer.from('not a zip'))).status, 400);
+  // 복구
+  const r = await admin.req('POST', '/api/restore', undefined, { 'Content-Type': 'application/zip' }, zip);
+  assert.strictEqual(r.status, 200, JSON.stringify(r.data));
+  assert.ok(r.data.filesWritten >= 1 && /^before-restore-\d+\.zip$/.test(r.data.before));
+  d = await admin.ok('getAll'); // 로그인 유지
+  assert.ok(d.students.some((s) => s.name === '복구전학생'), '지운 학생이 돌아옴');
+  assert.ok(!d.students.some((s) => s.name === '백업뒤학생'), '백업 뒤에 만든 학생은 없어짐');
+  assert.ok(fs.existsSync(path.join(store.filesDir, stored)), '지운 파일이 돌아옴');
+  assert.ok(d.options.some((o) => o.kind === 'evauto'), '복구 뒤에도 새 구조 유지');
+  const list = (await admin.req('GET', '/api/restore-backups')).data.list;
+  assert.ok(list.some((f) => f.name === r.data.before));
+  assert.strictEqual((await admin.req('GET', '/api/restore-backups/' + r.data.before)).status, 200);
+  assert.strictEqual((await admin.req('GET', '/api/restore-backups/..%2Ftest.db')).status, 404);
+});

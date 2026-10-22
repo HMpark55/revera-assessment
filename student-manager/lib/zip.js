@@ -89,4 +89,39 @@ function writeZip(destPath, entries) {
   }
 }
 
-module.exports = { writeZip, crc32 };
+/**
+ * ZIP 읽기 (복구용) — 목록 → [{ name, size, read() }]. 압축 안 함(0)·deflate(8)만, ZIP64 안 됨
+ * buf: ZIP 파일 전체 Buffer
+ */
+function readZip(buf) {
+  let eocd = -1;
+  for (let i = buf.length - 22; i >= Math.max(0, buf.length - 22 - 65535); i--) {
+    if (buf.readUInt32LE(i) === 0x06054b50) { eocd = i; break; }
+  }
+  if (eocd < 0) throw new Error('ZIP 파일이 아닙니다.');
+  const count = buf.readUInt16LE(eocd + 10);
+  let p = buf.readUInt32LE(eocd + 16);
+  const out = [];
+  for (let n = 0; n < count; n++) {
+    if (buf.readUInt32LE(p) !== 0x02014b50) throw new Error('ZIP 파일이 손상되었습니다.');
+    const method = buf.readUInt16LE(p + 10), crc = buf.readUInt32LE(p + 16), csize = buf.readUInt32LE(p + 20), size = buf.readUInt32LE(p + 24);
+    const nlen = buf.readUInt16LE(p + 28), xlen = buf.readUInt16LE(p + 30), clen = buf.readUInt16LE(p + 32), local = buf.readUInt32LE(p + 42);
+    const name = buf.slice(p + 46, p + 46 + nlen).toString('utf8');
+    p += 46 + nlen + xlen + clen;
+    out.push({
+      name, size,
+      read() {
+        if (buf.readUInt32LE(local) !== 0x04034b50) throw new Error('ZIP 파일이 손상되었습니다: ' + name);
+        const start = local + 30 + buf.readUInt16LE(local + 26) + buf.readUInt16LE(local + 28);
+        const body = buf.slice(start, start + csize);
+        const data = method === 0 ? body : method === 8 ? zlib.inflateRawSync(body) : null;
+        if (!data) throw new Error('지원하지 않는 압축 방식입니다: ' + name);
+        if (crc32(data) !== crc) throw new Error('ZIP 안 파일이 손상되었습니다: ' + name);
+        return data;
+      },
+    });
+  }
+  return out;
+}
+
+module.exports = { writeZip, readZip, crc32 };

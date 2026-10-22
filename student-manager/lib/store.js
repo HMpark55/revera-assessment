@@ -1026,6 +1026,41 @@ function openStore(dbPath, opts) {
     return Object.assign(getAll(me), { changed: n });
   }
 
+  /**
+   * 백업 DB 로 지금 기록을 통째로 바꿈 (관리자, 복구 버튼). 같은 연결 안에서 표마다 지우고 백업 내용을 넣어서 전부 되거나 하나도 안 됨.
+   * 로그인 상태(sessions)는 유지. 백업에 없는 표(그 뒤에 생긴 기능)는 비움. 끝나면 새 구조로 다시 맞춤(migrate)
+   */
+  function restoreFromDb(me, srcPath) {
+    requireAdmin(me, '백업으로 복구');
+    const tables = (schema) => db.prepare(`SELECT name FROM ${schema}.sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'`).all().map((r) => r.name);
+    const cols = (schema, t) => db.prepare(`PRAGMA ${schema}.table_info(${t})`).all().map((c) => c.name);
+    db.pragma('foreign_keys = OFF');
+    db.prepare('ATTACH DATABASE ? AS rs').run(srcPath);
+    let counts;
+    try {
+      const have = new Set(tables('rs'));
+      if (!have.has('students') || !have.has('teachers')) throw new UserError('Compass 백업 파일이 아닙니다 (compass.db 안에 학생·계정 표가 없음).');
+      if (!db.prepare("SELECT 1 FROM rs.teachers WHERE role = 'admin' AND active = 1").get()) throw new UserError('백업 안에 활성 관리자 계정이 없어 복구하면 아무도 관리할 수 없습니다.');
+      tx(() => {
+        for (const t of tables('main')) {
+          if (t === 'sessions') continue;
+          db.prepare(`DELETE FROM main.${t}`).run();
+          if (!have.has(t)) continue;
+          const theirs = new Set(cols('rs', t));
+          const c = cols('main', t).filter((x) => theirs.has(x)).map((x) => '"' + x + '"').join(', ');
+          if (c) db.prepare(`INSERT INTO main.${t} (${c}) SELECT ${c} FROM rs.${t}`).run();
+        }
+      });
+      counts = { students: db.prepare("SELECT COUNT(*) n FROM students WHERE deletedAt = ''").get().n, files: db.prepare('SELECT COUNT(*) n FROM files').get().n };
+    } finally {
+      db.prepare('DETACH DATABASE rs').run();
+      db.pragma('foreign_keys = ON');
+    }
+    migrate(db); // 예전 백업이면 새 칸·기본 목록을 다시 채움
+    log(me.email, 'restore', 'settings', 'backup', '백업으로 전체 복구 — 학생 ' + counts.students + '명, 파일 ' + counts.files + '개');
+    return counts;
+  }
+
   /** 전공 후보·계정의 대학 연결 확인 (전공 후보는 대학 이름도 함께 저장) */
   function linkUni(table, rec) {
     if (!['majorplans', 'accounts', 'appinfo'].includes(table) || !('universityId' in rec)) return;
@@ -2060,7 +2095,7 @@ function openStore(dbPath, opts) {
   }
 
   return {
-    db, filesDir, listFiles, pendingSync, markSync, replaceSchedule, countTeachers, upsertAdmin, login, logout, authenticate, addFile, getFile, addUniFile, getUniFile,
+    db, filesDir, dbPath, listFiles, pendingSync, markSync, replaceSchedule, restoreFromDb, countTeachers, upsertAdmin, login, logout, authenticate, addFile, getFile, addUniFile, getUniFile,
     rpc: { getAll: (me) => getAll(me), save, remove, restore, purge, getTrash, getLog, saveTeacher, changePassword, importData, copyCycle, getActivity, saveMany, updateMe,
       saveOption, removeOption, deleteTeacher, getAutomation, saveAutomation, saveEvent, removeEvent,
       saveWithFollowups, requestFollowup, saveOrder, saveUniFile, removeUniFile, saveProgram, removeProgram, getStorage, retrySync, saveHomeLayout, requestReview, doneReview, cancelReview, excludeSched, unexcludeSched, saveAutoCat, removeMany, restoreMany, purgeMany, addFollowupMany, addMajorsMany, renameFaculty },

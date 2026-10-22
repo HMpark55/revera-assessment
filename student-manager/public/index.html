@@ -3686,7 +3686,12 @@ function viewTeachers() {
     '<b>컨설턴트</b>: 담당 학생만 (상담기록·계약 금액은 볼 수 없음)<br>' +
     '계정을 추가할 때 <b>임시 비밀번호</b>를 정해서 직접 전달하세요. 처음 로그인하면 본인 비밀번호로 바꾸도록 안내됩니다. 퇴사자는 “비활성”으로 바꾸면 즉시 로그아웃됩니다.</div>';
   h += '<div class="grid g2"><div class="card"><h3>데이터 백업</h3><div class="muted" style="margin-bottom:10px"><b>기록만</b>: 학생·기록·계약·입금 데이터와 파일 목록 (가벼움). <b>전체</b>: 여기에 <b>업로드한 파일 전체</b>까지 ZIP 하나로 — 파일이 많으면 오래 걸리고 큽니다. 구글 드라이브 자동 백업을 켜두었다면 파일은 “Compass 파일” 폴더에 따로 쌓입니다.</div>' +
-    '<div class="toolbar" style="margin:0"><a class="btn ghost" href="/api/backup?mode=db" download>기록만 다운로드</a><a class="btn ghost" href="/api/backup" download>전체 다운로드 (파일 포함)</a></div></div>' +
+    '<div class="toolbar" style="margin:0"><a class="btn ghost" href="/api/backup?mode=db" download>기록만 다운로드</a><a class="btn ghost" href="/api/backup" download>전체 다운로드 (파일 포함)</a></div>' +
+    '<div style="margin-top:14px;padding-top:12px;border-top:1px dashed var(--border)"><h3 style="margin-bottom:6px">백업으로 복구</h3>' +
+    '<div class="muted" style="margin-bottom:8px;font-size:.85rem;line-height:1.6">위에서 받은 백업 ZIP을 고르면 <b>지금 기록 전체를 그 백업 시점으로 바꿉니다</b>(학생·기록·계약·계정·설정 모두). 전체 백업이면 업로드 파일도 함께 되살립니다. 기록만 백업이면 파일은 지금 것 그대로 — 필요하면 구글 드라이브 “Compass 파일”에서. ' +
+    '<b>복구 직전 상태는 자동으로 한 번 더 백업</b>해 두고(최근 2개), 아래에서 내려받을 수 있습니다. 로그인은 유지됩니다.</div>' +
+    '<label class="btn danger" style="cursor:pointer">백업 ZIP 골라서 복구…<input type="file" hidden accept=".zip,application/zip" onchange="restoreBackup(this)"></label>' +
+    restoreBackupList() + '</div></div>' +
     '<div class="card"><h3>기존 데이터 가져오기</h3><div class="muted" style="margin-bottom:10px">Compass 가져오기 파일(.json)을 선택하면 학생과 기록을 한 번에 등록합니다. 같은 이름의 학생이 이미 있으면 건너뜁니다.</div>' +
     '<label class="btn ghost" style="cursor:pointer">가져오기 파일 선택<input type="file" hidden accept=".json,application/json" onchange="importFile(this)"></label>' +
     (UI.importResult ? '<div style="margin-top:10px;font-size:.88rem"><b>등록 ' + UI.importResult.created.length + '명</b>: ' + esc(UI.importResult.created.join(', ') || '-') +
@@ -3702,6 +3707,32 @@ function viewTeachers() {
         '<td><button class="btn ghost sm" onclick="openTeacherForm(' + js(t.email) + ')">수정</button></td></tr>';
     }).join('') + '</tbody></table></div>';
   return h;
+}
+/* ----- 백업으로 복구 (관리자) ----- */
+function restoreBackupList() {
+  if (!UI.rbList) { UI.rbList = 'loading'; fetch('/api/restore-backups', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) { UI.rbList = d.list || []; if (route().view === 'teachers') render(); }).catch(function () { UI.rbList = []; }); }
+  var l = Array.isArray(UI.rbList) ? UI.rbList : [];
+  return l.length ? '<div style="margin-top:8px;font-size:.85rem"><b>복구 직전 자동 백업</b> ' + l.map(function (f) {
+    var m = /(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})/.exec(f.name);
+    return '<a class="btn ghost sm" href="/api/restore-backups/' + esc(f.name) + '" download>' + (m ? m[1] + '-' + m[2] + '-' + m[3] + ' ' + m[4] + ':' + m[5] : esc(f.name)) + ' · ' + fmtSize(f.size) + '</a>';
+  }).join(' ') + '</div>' : '';
+}
+function restoreBackup(input) {
+  var f = input.files[0]; input.value = '';
+  if (!f) return;
+  if (!/\.zip$/i.test(f.name)) return toast('Compass 백업 ZIP 파일(.zip)을 골라주세요.', true);
+  if (!confirm('“' + f.name + '” (' + fmtSize(f.size) + ') 으로 복구합니다.\n\n지금 Compass의 기록 전체가 이 백업 시점으로 바뀝니다. (복구 직전 상태는 자동으로 백업해 둡니다)\n계속할까요?')) return;
+  var typed = prompt('정말 복구하려면 아래 칸에 복구 라고 입력하세요.');
+  if (typed === null) return;
+  if (typed.trim() !== '복구') return toast('“복구”라고 입력하지 않아 취소했습니다.', true);
+  busy(true); toast('복구 중입니다… 창을 닫지 마세요.');
+  fetch('/api/restore', { method: 'POST', credentials: 'same-origin', body: f, headers: { 'X-Requested-With': 'revera', 'Content-Type': 'application/zip' } })
+    .then(function (r) { return r.json().then(function (d) { if (!r.ok) throw new Error(d.error || '복구에 실패했습니다.'); return d; }); })
+    .then(function (d) {
+      busy(false);
+      alert('복구했습니다.\n학생 ' + d.students + '명 · 파일 ' + d.filesWritten + '개 되살림\n복구 직전 상태는 “' + d.before + '”로 백업해 두었습니다.\n\n화면을 새로 불러옵니다.');
+      location.reload();
+    }).catch(function (e) { busy(false); toast(errMsg(e), true); });
 }
 function importFile(input) {
   var f = input.files[0];
