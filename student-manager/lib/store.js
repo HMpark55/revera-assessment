@@ -27,7 +27,7 @@ const TABLES = {
   students: {
     label: '학생',
     fields: ['name', 'dob', 'school', 'grade', 'curriculum', 'counselor', 'manager', 'status', 'tracks', 'tracksNote', 'studentPhone', 'progress',
-      'parentName', 'parentPhone', 'email', 'tags', 'memo', 'driveUrl', 'resumeUrl',
+      'parentName', 'parentPhone', 'email', 'tags', 'memo', 'driveUrl', 'resumeUrl', 'englishName', 'address', 'addressEn',
       'hopeUnis', 'focusArea', 'recommenders', 'onlineCourse', 'meetingUrl',
       'fatherName', 'fatherPhone', 'fatherWechat', 'fatherEmail', 'motherName', 'motherPhone', 'motherWechat', 'motherEmail',
       'storyTrigger', 'storyProcess', 'storyLink', 'storyConclusion', 'storyStatus'],
@@ -113,7 +113,7 @@ const TABLES = {
   },
   appinfo: {
     label: '원서 정보',
-    fields: ['studentId', 'universityId', 'item', 'content'],
+    fields: ['studentId', 'universityId', 'item', 'content', 'sent'], // sent: 추천인에게 질문지 맞춰 이메일 보냄
     summary: (r) => r.item,
   },
   payments: {
@@ -217,6 +217,7 @@ const FIELD_LABELS = {
   fullName: '정식 이름', aliases: '다른 이름', website: '홈페이지', tips: '원서 준비 유의사항', sortOrder: '순서',
   year: '입학 연도', term: '입학 학기', requirements: '공식 지원 요건', sourceUrl: '출처', faculty: '단과대',
   code: '코드', cycleId: '입학 연도',
+  englishName: '영문 이름', address: '주소', addressEn: '영문 주소', sent: '추천인 이메일 보냄', sentAt: '이메일 보낸 날', sentBy: '이메일 체크한 사람',
   hopeUnis: '희망 대학·특례', focusArea: '집중 과목·관리 영역', recommenders: '추천서 진행', onlineCourse: '온라인 코스 진행',
   who: '답변한 사람', meetingUrl: '미팅 회의록 링크', reply: '학생·학부모 답변', replyDate: '답변 날짜', replyFrom: '답변한 사람', kind: '종류', fromWho: '보낸 사람', channel: '연락 경로', receivedDate: '받은 날짜', answer: '우리 답변·처리', answerDate: '우리 답변 날짜',
   site: '사이트', loginId: '아이디', password: '비밀번호',
@@ -333,6 +334,7 @@ function migrate(db) {
   ensureColumns(db, 'followups', ['doneAt', 'doneBy']);
   ensureColumns(db, 'majorplans', ['parentConfirmedAt', 'parentConfirmedBy']);
   ensureColumns(db, 'apps', ['parentConfirmedAt', 'parentConfirmedBy']);
+  ensureColumns(db, 'appinfo', ['sentAt', 'sentBy']);
   ensureColumns(db, 'log', ['studentId']);
   db.exec('CREATE INDEX IF NOT EXISTS log_student ON log(studentId)');
   // v5: 첫 로그인 비밀번호 변경 강제 없앰
@@ -477,6 +479,26 @@ function migrate(db) {
         }
       }
       db.prepare("INSERT INTO meta VALUES ('v18_app_parent', ?)").run(now());
+    })();
+  }
+  // v19: 학생 정보 정리 — 원서 정보의 공통 "영문 이름·영문 주소" → 학생 정보 칸, 추천서 진행·온라인 코스(관리 메모) → 학생 메모 끝에 붙임
+  if (!db.prepare("SELECT 1 FROM meta WHERE key = 'v19_profile'").get()) {
+    const ts = now();
+    db.transaction(() => {
+      const MOVE = [[/^영문\s*이름/, 'englishName'], [/^영문\s*주소/, 'addressEn']];
+      for (const r of db.prepare("SELECT id, studentId, item, content FROM appinfo WHERE universityId = '' AND deletedAt = '' ORDER BY createdAt").all()) {
+        const m = MOVE.find(([re]) => re.test(r.item || ''));
+        if (!m) continue;
+        const st = db.prepare(`SELECT ${m[1]} v FROM students WHERE id = ?`).get(r.studentId);
+        if (!st || st.v) continue; // 이미 칸에 값이 있으면 원서 정보에 그대로 둠
+        db.prepare(`UPDATE students SET ${m[1]} = ? WHERE id = ?`).run(r.content, r.studentId);
+        db.prepare("UPDATE appinfo SET deletedAt = ?, deletedBy = 'system' WHERE id = ?").run(ts, r.id);
+      }
+      for (const st of db.prepare("SELECT id, memo, recommenders, onlineCourse FROM students WHERE recommenders != '' OR onlineCourse != ''").all()) {
+        const add = [st.recommenders && '[추천서 진행] ' + st.recommenders, st.onlineCourse && '[온라인 코스] ' + st.onlineCourse].filter(Boolean).join('\n');
+        db.prepare("UPDATE students SET memo = ?, recommenders = '', onlineCourse = '' WHERE id = ?").run([st.memo, add].filter(Boolean).join('\n'), st.id);
+      }
+      db.prepare("INSERT INTO meta VALUES ('v19_profile', ?)").run(ts);
     })();
   }
   db.exec('CREATE TABLE IF NOT EXISTS programs (id TEXT PRIMARY KEY)');
@@ -871,6 +893,10 @@ function openStore(dbPath, opts) {
           rec.parentConfirmedAt = rec.parentConfirmed === 'TRUE' ? t : '';
           rec.parentConfirmedBy = rec.parentConfirmed === 'TRUE' ? me.email : '';
         }
+        if (table === 'appinfo' && 'sent' in rec && (rec.sent === 'TRUE') !== (cur.sent === 'TRUE')) {
+          rec.sentAt = rec.sent === 'TRUE' ? t : '';
+          rec.sentBy = rec.sent === 'TRUE' ? me.email : '';
+        }
         if (table === 'followups' && 'status' in rec && rec.status !== cur.status) {
           rec.doneAt = rec.status === '완료' ? t : '';
           rec.doneBy = rec.status === '완료' ? me.email : '';
@@ -908,6 +934,7 @@ function openStore(dbPath, opts) {
           if (!rec.universityId) throw new UserError('대학은 목록에서 선택하세요. 목록에 없으면 관리자에게 대학 추가를 요청하세요.');
           if (rec.parentConfirmed === 'TRUE') { rec.parentConfirmedAt = t; rec.parentConfirmedBy = me.email; }
         }
+        if (table === 'appinfo' && rec.sent === 'TRUE') { rec.sentAt = t; rec.sentBy = me.email; }
         if (table === 'majorplans') {
           if (!rec.status) rec.status = '후보';
           if (!rec.date) rec.date = t.slice(0, 10);

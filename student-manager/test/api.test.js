@@ -1619,3 +1619,34 @@ test('부모님 확정은 지원대학에서: 체크하면 날짜·기록자, �
   assert.strictEqual(st.db.prepare("SELECT parentConfirmed FROM majorplans WHERE id = 'm1'").get().parentConfirmed, 'TRUE', '전공 기록은 그대로');
   st.close();
 });
+
+test('학생 정보 정리: 영문 이름·영문 주소를 원서 정보에서 학생 칸으로, 추천서·온라인 코스는 메모로, 추천인 이메일 보냄 체크', async () => {
+  const p = path.join(dir, 'v19.db');
+  let st = openStore(p);
+  st.db.prepare("INSERT INTO students (id, name, memo, recommenders, onlineCourse, createdAt, updatedAt) VALUES ('s1','옛학생','원래 메모','영어쌤 요청 완료','Coursera 3주차','x','x'), ('s2','둘째','','','','x','x')").run();
+  st.db.prepare("UPDATE students SET englishName = 'ALREADY' WHERE id = 's2'").run();
+  st.db.prepare(`INSERT INTO appinfo (id, studentId, universityId, item, content, createdAt, updatedAt) VALUES
+    ('i1','s1','','영문 이름 (여권 기준)','HONG GILDONG','1','x'), ('i2','s1','','영문 주소','12 Main St','2','x'),
+    ('i3','s1','u1','영문 이름 (여권 기준)','HKU용','3','x'), ('i4','s2','','영문 이름 (여권 기준)','OTHER','4','x'), ('i5','s1','','추천인 1','Mr. Kim','5','x')`).run();
+  st.db.prepare("DELETE FROM meta WHERE key = 'v19_profile'").run();
+  st.close();
+  st = openStore(p);
+  assert.deepStrictEqual(st.db.prepare("SELECT englishName, addressEn, memo, recommenders, onlineCourse FROM students WHERE id = 's1'").get(),
+    { englishName: 'HONG GILDONG', addressEn: '12 Main St', memo: '원래 메모\n[추천서 진행] 영어쌤 요청 완료\n[온라인 코스] Coursera 3주차', recommenders: '', onlineCourse: '' });
+  const live = st.db.prepare("SELECT id FROM appinfo WHERE deletedAt = '' ORDER BY id").all().map((x) => x.id);
+  assert.deepStrictEqual(live, ['i3', 'i4', 'i5'], '대학별 항목·이미 값이 있는 학생·추천인은 그대로');
+  st.close();
+
+  const admin = client(); await admin.login('admin@revera.test', 'admin-pass-1');
+  let d = await admin.saveOk('students', { name: '추천학생', englishName: 'KIM A', address: '서울', addressEn: 'Seoul' });
+  const sid = d.savedId;
+  assert.strictEqual(d.students.find((x) => x.id === sid).englishName, 'KIM A');
+  d = await admin.saveOk('appinfo', { studentId: sid, item: '추천인 1', content: 'Ms. Lee' });
+  let r = d.appinfo.find((x) => x.id === d.savedId);
+  d = await admin.saveOk('appinfo', { id: r.id, updatedAt: r.updatedAt, sent: 'TRUE' });
+  r = d.appinfo.find((x) => x.id === r.id);
+  assert.ok(r.sent === 'TRUE' && r.sentAt && r.sentBy === 'admin@revera.test');
+  d = await admin.saveOk('appinfo', { id: r.id, updatedAt: r.updatedAt, sent: '' });
+  r = d.appinfo.find((x) => x.id === r.id);
+  assert.deepStrictEqual([r.sent, r.sentAt], ['', '']);
+});

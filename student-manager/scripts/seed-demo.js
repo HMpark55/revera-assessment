@@ -75,8 +75,8 @@ r.saveMany(me, { table: 'courses', objs: [
 save('accounts', { studentId: a, category: '시험', site: 'College Board (SAT·AP)', url: 'https://www.collegeboard.org', loginId: 'sample.a@example.com', password: 'demo-College1' });
 save('accounts', { studentId: a, category: '원서 포털', site: 'HKU 원서 포털', universityId: r.getAll(me).universities.find((u) => u.name === 'HKU').id, loginId: 'sampleA2027', password: 'demo-Hku-22', memo: '등록 완료' });
 save('accounts', { studentId: a, category: '학교 LMS', site: 'Schoology', url: 'https://app.schoology.com', loginId: 'a.sample' });
-store.db.prepare("UPDATE students SET hopeUnis = ?, focusArea = ?, recommenders = ? WHERE id = ?")
-  .run('1순위 홍콩 HKU 심리 / 3년특례: 성균관대', 'G12 AP Psychology·Biology 유지, 에세이 집중', '카운셀러·영어쌤 요청 완료', a);
+store.db.prepare("UPDATE students SET hopeUnis = ?, focusArea = ?, englishName = ?, address = ?, addressEn = ? WHERE id = ?")
+  .run('1순위 홍콩 HKU 심리 / 3년특례: 성균관대', 'G12 AP Psychology·Biology 유지, 에세이 집중', 'SAMPLE STUDENT A', '(예시) 상하이시 푸둥신구 ○○로 100', '(Example) 100 ○○ Road, Pudong, Shanghai', a);
 save('meetings', { studentId: a, date: d(-5), time: 'PM 1:00', type: '대면', place: '상담실', attendees: '원장님, 학생, 어머님, 김컨설턴트', writer: '김컨설턴트',
   topic: 'HKU 심리학 단독 지원 확정', content: '1. HKU 심리학 단독 지원 확정\n2. 추천서 3인 확정\n3. Science Fair 주제: 치료견 프로그램 효과', nextStep: '다음 미팅에서 PS 2차본 검토', status: '완료' });
 save('meetings', { studentId: a, date: d(-30), time: 'AM 11:00', type: 'ZOOM', place: 'ZOOM', attendees: '원장님, 학생', writer: '최관리', topic: '첫 미팅 — Resume 시작',
@@ -111,6 +111,7 @@ if (hkuCycle) store.addUniFile(me, { cycleId: hkuCycle.id, category: '공식 안
 // 원서 정보 (예시 — 실제 인물 아님)
 const hkuId = store.db.prepare("SELECT id FROM universities WHERE name = 'HKU'").get();
 save('appinfo', { studentId: a, item: '추천인 1', universityId: hkuId ? hkuId.id : '', content: '이름: (예시) Teacher A\n직책: Teacher\n과목: Economics / Mathematics\n이메일: teacher.a@example.org' });
+save('appinfo', { studentId: a, item: '추천인 2', content: '이름: (예시) Teacher C\n과목: Biology\n이메일: teacher.c@example.org', sent: 'TRUE' });
 save('appinfo', { studentId: a, item: '카운슬러', content: '이름: (예시) Counselor B\n이메일: counselor.b@example.org' });
 save('appinfo', { studentId: a, item: '졸업 예정일', content: '2027-06' });
 // 메인 화면 공용 달력 (날짜는 예시)
