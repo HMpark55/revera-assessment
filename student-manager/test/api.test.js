@@ -1591,3 +1591,31 @@ test('서류 분류: 기본 목록, 파일·서류 분류 옮기기, 점수 첨�
   d = await admin.ok('saveOption', { id: opt.id, kind: 'doccat', value: '지원자격증빙' });
   assert.strictEqual(d.docs.find((x) => x.id === docId).category, '지원자격증빙');
 });
+
+test('부모님 확정은 지원대학에서: 체크하면 날짜·기록자, 전공 탭 확정 기록은 같은 대학·전공 지원대학으로 옮김', async () => {
+  const admin = client(); await admin.login('admin@revera.test', 'admin-pass-1');
+  let d = await admin.ok('getAll');
+  const u = d.universities[0];
+  d = await admin.saveOk('students', { name: '확정학생' });
+  const sid = d.savedId;
+  d = await admin.saveOk('apps', { studentId: sid, universityId: u.id, major: 'Psychology', status: '준비중', parentConfirmed: 'TRUE' });
+  let a = d.apps.find((x) => x.id === d.savedId);
+  assert.strictEqual(a.parentConfirmed, 'TRUE');
+  assert.ok(a.parentConfirmedAt && a.parentConfirmedBy === 'admin@revera.test');
+  d = await admin.saveOk('apps', { id: a.id, updatedAt: a.updatedAt, parentConfirmed: '' });
+  a = d.apps.find((x) => x.id === a.id);
+  assert.deepStrictEqual([a.parentConfirmed, a.parentConfirmedAt], ['', '']);
+
+  const p = path.join(dir, 'v18.db');
+  let st = openStore(p);
+  st.db.prepare("INSERT INTO students (id, name, createdAt, updatedAt) VALUES ('s1', '옛학생', 'x', 'x')").run();
+  st.db.prepare("INSERT INTO majorplans (id, studentId, universityId, major, status, parentConfirmed, parentConfirmedAt, parentConfirmedBy, createdAt, updatedAt) VALUES ('m1','s1','u1','Psychology','최종','TRUE','2026-10-01T10:00','k@x','x','x')").run();
+  st.db.prepare("INSERT INTO apps (id, studentId, universityId, major, createdAt, updatedAt) VALUES ('a1','s1','u1',' psychology ','x','x'), ('a2','s1','u1','Law','x','x'), ('a3','s1','u2','Psychology','x','x')").run();
+  st.db.prepare("DELETE FROM meta WHERE key = 'v18_app_parent'").run();
+  st.close();
+  st = openStore(p);
+  assert.deepStrictEqual(st.db.prepare('SELECT id, parentConfirmed, parentConfirmedBy FROM apps ORDER BY id').all(),
+    [{ id: 'a1', parentConfirmed: 'TRUE', parentConfirmedBy: 'k@x' }, { id: 'a2', parentConfirmed: '', parentConfirmedBy: '' }, { id: 'a3', parentConfirmed: '', parentConfirmedBy: '' }]);
+  assert.strictEqual(st.db.prepare("SELECT parentConfirmed FROM majorplans WHERE id = 'm1'").get().parentConfirmed, 'TRUE', '전공 기록은 그대로');
+  st.close();
+});

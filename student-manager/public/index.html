@@ -717,6 +717,7 @@ var FORMS = {
     { k: 'majorId', l: '전공 (목록)', t: 'major' }, { k: 'major', l: '전공 이름', lock: 1 },
     { k: 'deadline', l: '마감일', t: 'date' }, { k: 'deadlineManual', l: '마감일', t: 'check', cl: '이 학생만 마감일 직접 지정' },
     { k: 'status', l: '진행 상태', t: 'select', o: APP_STATUS }, { k: 'essay', l: '에세이', t: 'select', o: ESSAY_STATUS },
+    { k: 'parentConfirmed', l: '부모님', t: 'check', cl: '부모님 확정 (이 대학·전공으로 지원)' },
     { k: 'memo', l: '메모 (추천서·장학금 등)', t: 'textarea', full: 1 }],
     defaults: function () { return { status: '준비중' }; } },
   universities: { title: '대학', fields: [
@@ -1840,17 +1841,15 @@ function viewStudents() {
 }
 /* ----- 지원 현황표: 학생별 트랙(특례 전형)·전공·지원 대학을 한 페이지에 ----- */
 function boardData(s) {
-  var majors = childOf('majorplans', s.id).filter(function (m) { return m.status !== '제외'; })
-    .sort(function (a, b) { return MAJOR_STATUS.indexOf(b.status) - MAJOR_STATUS.indexOf(a.status); });
-  var top = majors.filter(function (m) { return m.status === '최종' || m.status === '유력'; });
+  var am = appMajors(s.id), ok = am.filter(function (a) { return a.parentConfirmed === 'TRUE'; });
   var apps = childOf('apps', s.id).slice().sort(function (a, b) { return (a.deadline || '9999').localeCompare(b.deadline || '9999'); });
   return {
-    majors: (top.length ? top : majors).map(function (m) { return [m.university, m.major].filter(Boolean).join(' · ') + ' (' + m.status + (m.parentConfirmed === 'TRUE' ? '·부모님 확정' : '') + ')'; }),
+    majors: (ok.length ? ok : am).map(function (a) { return a.university + ' · ' + a.major + (a.parentConfirmed === 'TRUE' ? ' (부모님 확정)' : ''); }),
     apps: apps.map(function (a) { return { uni: a.university, sub: [a.country, a.major, a.round].filter(Boolean).join(' · '), deadline: a.deadline, status: a.status, portal: portalAccounts(s.id, a.universityId).length > 0 }; })
   };
 }
 function appBoard(list) {
-  return '<table class="boardt"><thead><tr><th>학생</th><th>담당</th><th>트랙</th><th>전공 (최종·유력)</th><th>지원 대학 · 전형 · 마감 · 상태</th></tr></thead><tbody>' + list.map(function (s) {
+  return '<table class="boardt"><thead><tr><th>학생</th><th>담당</th><th>트랙</th><th>전공 (부모님 확정 먼저)</th><th>지원 대학 · 전형 · 마감 · 상태</th></tr></thead><tbody>' + list.map(function (s) {
     var d = boardData(s);
     return '<tr' + rowColor(s) + '><td class="nw"><a href="#/student/' + esc(s.id) + '"><b>' + esc(s.name) + '</b></a><div class="muted">' + esc([s.school, s.grade].filter(Boolean).join(' ')) + '</div></td>' +
       '<td class="nw" style="font-size:.82rem">' + esc(teacherName(s.manager) || '-') + '<div class="muted">' + esc(teacherName(s.counselor) || '컨설턴트 미정') + '</div></td>' +
@@ -1865,7 +1864,7 @@ function appBoard(list) {
 /** 엑셀에서 열 수 있는 CSV (한 학생 한 줄, 지원 대학은 칸 안에서 줄바꿈) */
 function downloadBoard() {
   var cell = function (v) { return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"'; };
-  var rows = [['학생', '학교', '학년', '관리팀', '컨설턴트', '트랙', '전공 (최종·유력)', '지원 대학 · 전형 · 마감 · 상태', '지원 수']].concat((UI._boardList || []).map(function (s) {
+  var rows = [['학생', '학교', '학년', '관리팀', '컨설턴트', '트랙', '전공 (부모님 확정 먼저)', '지원 대학 · 전형 · 마감 · 상태', '지원 수']].concat((UI._boardList || []).map(function (s) {
     var d = boardData(s);
     return [s.name, s.school, s.grade, teacherName(s.manager), teacherName(s.counselor), trackTags(s).join(', '), d.majors.join('\n'),
       d.apps.map(function (a) { return [a.uni, a.sub, a.deadline, a.status].filter(Boolean).join(' · '); }).join('\n'), d.apps.length];
@@ -1881,7 +1880,7 @@ var TAB_LABEL = { appinfo: '원서 정보', summary: '요약', meetings: '미팅
 /** 학생 화면 탭 묶음: 요약 | 진행 | 입시 | 행정 */
 function tabGroups() {
   return [['', ['summary']], ['진행', ['followups', 'meetings'].concat(isMgr() ? ['notes'] : [])],
-    ['입시', ['majors', 'apps', 'appinfo', 'scores', 'docs']], ['행정', ['contracts', 'profile']]];
+    ['입시', ['apps', 'appinfo', 'scores', 'docs']], ['행정', ['contracts', 'profile']]];
 }
 function tabsForRole() { return [].concat.apply([], tabGroups().map(function (g) { return g[1]; })); }
 
@@ -1891,7 +1890,7 @@ function viewStudent(id) {
   var tabs = tabsForRole();
   if (UI.tab === 'schools') UI.tab = 'scores'; // 학력은 성적·학력 탭 안으로
   if (UI.tab === 'accounts') UI.tab = 'profile'; // 계정(ID/PW)은 프로필·계정 탭 안으로
-  if (tabs.indexOf(UI.tab) < 0) UI.tab = tabs[0];
+  if (tabs.indexOf(UI.tab) < 0 && UI.tab !== 'majors') UI.tab = tabs[0]; // 전공 탭은 숨김 — 지원대학 탭의 “예전 전공 후보 기록”으로만
   var drive = safeUrl(s.driveUrl), resume = safeUrl(s.resumeUrl);
   var h = '<div class="toolbar"><a href="#/students">← 학생 목록</a></div>';
   h += '<div class="card"><div class="toolbar" style="margin:0"><div style="margin-right:auto"><h2 style="margin:0">' + esc(s.name) +
@@ -1970,10 +1969,10 @@ function tabSummary(s) {
   childOf('scores', s.id).sort(function (a, b) { return (b.date || '').localeCompare(a.date || ''); }).forEach(function (r) {
     var k = r.kind + '|' + (r.subject || ''); if (!latest[k]) { latest[k] = 1; scores.push(r); }
   });
-  var major = majorsOf(s.id).filter(function (x) { return x.status !== '제외'; })[0];
+  var am = appMajors(s.id);
   h += '<div class="card">' + secHead('전공 · 시험', more('scores', '성적')) + '<div class="sum-list">' +
-    '<div class="row"><span class="muted" style="width:44px">전공</span><span class="grow">' + (major ? (major.universityId ? esc(uniName(major)) + ' ' : '') + '<b>' + esc(major.major) + '</b> <span class="pill ' + (major.status === '최종' ? 's-진행중' : 'd-요청함') + '">' + esc(major.status) + '</span>' +
-      (major.parentConfirmed === 'TRUE' ? ' <span class="pill d-수합">부모님 확정</span>' : ' <span class="pill d-미확정">부모님 미확정</span>') : '<span class="muted">정해진 전공 후보 없음</span>') + '</span></div>' +
+    (am.length ? am.slice(0, 3).map(function (a) { return '<div class="row"><span class="muted" style="width:44px">전공</span><span class="grow">' + esc(a.university) + ' <b>' + esc(a.major) + '</b>' + parentPill(a.parentConfirmed === 'TRUE') + '</span></div>'; }).join('')
+      : '<div class="row"><span class="muted" style="width:44px">전공</span><span class="grow"><span class="muted">지원대학에 적힌 전공이 없습니다</span></span></div>') +
     (scores.length ? scores.slice(0, 5).map(function (r) {
       return '<div class="row"><span class="muted" style="width:44px">' + esc(r.kind) + '</span><span class="grow">' + (r.subject ? esc(r.subject) + ' ' : '') + '<b>' + esc(r.score) + '</b> <span class="muted">' + esc(r.detail || '') + '</span></span><span class="muted nw">' + esc(fmtD(r.date)) + '</span></div>';
     }).join('') : '<div class="row"><span class="muted">입력된 어학·표준화 점수가 없습니다.</span></div>') + '</div></div>';
@@ -2849,17 +2848,26 @@ var MAJOR_ORDER = { '최종': 0, '유력': 1, '후보': 2, '제외': 3 };
 function majorsOf(sid) {
   return childOf('majorplans', sid).sort(function (a, b) { return (MAJOR_ORDER[a.status] - MAJOR_ORDER[b.status]) || (b.date || '').localeCompare(a.date || ''); });
 }
+/** 지원대학 중 전공이 적힌 것 — 부모님 확정 먼저, 그다음 마감 빠른 순 */
+function appMajors(sid) {
+  return childOf('apps', sid).filter(function (a) { return a.major; })
+    .sort(function (a, b) { return ((b.parentConfirmed === 'TRUE') - (a.parentConfirmed === 'TRUE')) || (a.deadline || '9999').localeCompare(b.deadline || '9999'); });
+}
+function parentPill(on) { return on ? ' <span class="pill d-수합">부모님 확정</span>' : ' <span class="pill d-미확정">부모님 미확정</span>'; }
+/** 학생 화면 위 전공 한 줄: 지원대학 기준 (확정된 것, 없으면 첫 번째) */
 function majorChip(s) {
-  var m = majorsOf(s.id).filter(function (x) { return x.status !== '제외'; })[0];
-  if (!m) return '';
-  return ' <span class="muted">· 전공:</span> <b>' + (m.universityId ? esc(uniName(m)) + ' ' : '') + esc(m.major) + '</b> <span class="pill ' + (m.status === '최종' ? 's-진행중' : 'd-요청함') + '">' + esc(m.status) + '</span>' +
-    (m.parentConfirmed === 'TRUE' ? ' <span class="pill d-수합">부모님 확정</span>' : ' <span class="pill d-미확정">부모님 미확정</span>');
+  var l = appMajors(s.id), ok = l.filter(function (a) { return a.parentConfirmed === 'TRUE'; });
+  if (!l.length) return '';
+  var show = (ok.length ? ok : l).slice(0, 2);
+  return ' <span class="muted">· 전공:</span> ' + show.map(function (a) { return '<b>' + esc(a.university) + ' ' + esc(a.major) + '</b>'; }).join(', ') +
+    ((ok.length ? ok : l).length > 2 ? ' <span class="muted">외 ' + ((ok.length ? ok : l).length - 2) + '</span>' : '') + parentPill(ok.length > 0);
 }
 function uniName(m) { var u = findRow('universities', m.universityId); return u ? u.name : (m.university || ''); }
 function tabMajors(s) {
   var list = majorsOf(s.id);
   var fin = list.filter(function (m) { return m.status === '최종'; });
-  var h = '<div class="card">' + secHead('전공 선정', addBtn('majorplans', s.id, '+ 전공 후보 추가'));
+  var h = '<div class="notice">예전 <b>전공</b> 탭 기록입니다. 이제 전공과 부모님 확정은 <a href="javascript:void 0" onclick="UI.tab=\'apps\';render()">지원대학 탭</a>에서 관리합니다. 여기 기록은 참고용으로 남겨둡니다.</div>' +
+    '<div class="card">' + secHead('전공 선정 (예전 기록)', addBtn('majorplans', s.id, '+ 전공 후보 추가'));
   h += '<div class="major-sum">' + (fin.length ? '최종 전공: ' + fin.map(function (m) {
       return (m.universityId ? esc(uniName(m)) + ' — ' : '') + '<b>' + esc(m.major) + '</b> ' + (m.parentConfirmed === 'TRUE' ? '<span class="pill d-수합">부모님 확정 ' + esc(fmtTime(m.parentConfirmedAt).slice(0, 10)) + '</span>' : '<span class="pill d-미확정">부모님 미확정</span>');
     }).join(' · ') : '<span class="muted">아직 최종 전공이 정해지지 않았습니다. 후보를 추가하고, 정해지면 상태를 “최종”으로 바꾸세요.</span>') + '</div>';
@@ -3009,11 +3017,13 @@ function tabApps(s) {
           groups[k].sort(byDate('deadline')).map(function (a) {
             var tip = [a.essay && '에세이: ' + a.essay, a.memo && '메모: ' + a.memo].filter(Boolean).join('\n'); // 에세이·메모는 표에서 빼고 마우스를 올리면 (수정 창에는 그대로)
             return '<tr class="click" onclick="openForm(\'apps\',' + js(a.id) + ')"' + (tip ? ' title="' + esc(tip) + '"' : '') + '><td><b>' + (a.universityId && findRow('universities', a.universityId) ? '<a href="#/uni/' + esc(a.universityId) + '" onclick="event.stopPropagation()">' + esc(a.university) + ' ↗</a>' : esc(a.university)) + '</b>' + (tip ? ' <span class="muted" title="' + esc(tip) + '">📝</span>' : '') + '</td>' +
-              '<td>' + esc(a.major) + '</td>' +
+              '<td>' + esc(a.major) + (a.parentConfirmed === 'TRUE' ? ' <span class="pill d-수합" title="' + esc(fmtTime(a.parentConfirmedAt).slice(0, 10) + ' · ' + teacherName(a.parentConfirmedBy)) + '">부모님 확정</span>' : '') + '</td>' +
               '<td>' + esc(a.round) + '</td><td class="nw">' + esc(fmtD(a.deadline)) + (APP_FINAL.indexOf(a.status) < 0 ? ' ' + dday(a.deadline) : '') + '</td>' +
               '<td><span class="pill a-' + esc(a.status) + '">' + esc(a.status) + '</span></td><td class="nw" onclick="event.stopPropagation()">' + portalCell(s, a) + '</td></tr>';
           }).join('');
-      }).join('') + '</tbody></table></div>' : '<div class="empty">등록된 지원 대학이 없습니다.</div>') + '</div>';
+      }).join('') + '</tbody></table></div>' : '<div class="empty">등록된 지원 대학이 없습니다.</div>') +
+    '<div class="muted" style="margin-top:6px;font-size:.8rem">부모님 확정은 대학을 눌러 수정 창에서 체크합니다.' +
+      (childOf('majorplans', s.id).length ? ' <a href="javascript:void 0" onclick="UI.tab=\'majors\';render()">예전 전공 후보 기록 ' + childOf('majorplans', s.id).length + '건 보기</a>' : '') + '</div></div>';
 }
 
 function tabActivities(s) {

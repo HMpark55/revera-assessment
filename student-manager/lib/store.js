@@ -47,7 +47,7 @@ const TABLES = {
   apps: {
     label: '지원대학',
     fields: ['studentId', 'country', 'universityId', 'university', 'majorId', 'major', 'roundId', 'round', 'deadline',
-      'deadlineManual', 'status', 'essay', 'memo'],
+      'deadlineManual', 'status', 'essay', 'memo', 'parentConfirmed'],
     summary: (r) => [r.university, r.round].filter(Boolean).join(' '),
   },
   scores: {
@@ -332,6 +332,7 @@ function migrate(db) {
   ensureColumns(db, 'notes', ['author']);
   ensureColumns(db, 'followups', ['doneAt', 'doneBy']);
   ensureColumns(db, 'majorplans', ['parentConfirmedAt', 'parentConfirmedBy']);
+  ensureColumns(db, 'apps', ['parentConfirmedAt', 'parentConfirmedBy']);
   ensureColumns(db, 'log', ['studentId']);
   db.exec('CREATE INDEX IF NOT EXISTS log_student ON log(studentId)');
   // v5: 첫 로그인 비밀번호 변경 강제 없앰
@@ -462,6 +463,20 @@ function migrate(db) {
         if (cat !== f.category || memo !== f.memo) db.prepare('UPDATE files SET category = ?, memo = ? WHERE id = ?').run(cat, memo, f.id);
       }
       db.prepare("INSERT INTO meta VALUES ('v17_doccats', ?)").run(ts);
+    })();
+  }
+  // v18: 부모님 확정은 지원대학에서 — 전공 탭의 확정 기록을 같은 대학·같은 전공 지원대학으로 옮김 (전공 탭 기록은 그대로 남김)
+  if (!db.prepare("SELECT 1 FROM meta WHERE key = 'v18_app_parent'").get()) {
+    const norm = (x) => String(x || '').trim().toLowerCase();
+    db.transaction(() => {
+      for (const m of db.prepare("SELECT * FROM majorplans WHERE parentConfirmed = 'TRUE' AND deletedAt = ''").all()) {
+        for (const a of db.prepare("SELECT id, universityId, major FROM apps WHERE studentId = ? AND deletedAt = '' AND parentConfirmed != 'TRUE'").all(m.studentId)) {
+          if (m.universityId && a.universityId === m.universityId && norm(a.major) && norm(a.major) === norm(m.major)) {
+            db.prepare("UPDATE apps SET parentConfirmed = 'TRUE', parentConfirmedAt = ?, parentConfirmedBy = ? WHERE id = ?").run(m.parentConfirmedAt || m.updatedAt || '', m.parentConfirmedBy || m.updatedBy || '', a.id);
+          }
+        }
+      }
+      db.prepare("INSERT INTO meta VALUES ('v18_app_parent', ?)").run(now());
     })();
   }
   db.exec('CREATE TABLE IF NOT EXISTS programs (id TEXT PRIMARY KEY)');
@@ -852,7 +867,7 @@ function openStore(dbPath, opts) {
         }
         if (table === 'payments' && 'amount' in rec) rec.amount = String(parseAmount(rec.amount));
         if (table === 'apps') resolveApp(rec, cur);
-        if (table === 'majorplans' && 'parentConfirmed' in rec && (rec.parentConfirmed === 'TRUE') !== (cur.parentConfirmed === 'TRUE')) {
+        if ((table === 'majorplans' || table === 'apps') && 'parentConfirmed' in rec && (rec.parentConfirmed === 'TRUE') !== (cur.parentConfirmed === 'TRUE')) {
           rec.parentConfirmedAt = rec.parentConfirmed === 'TRUE' ? t : '';
           rec.parentConfirmedBy = rec.parentConfirmed === 'TRUE' ? me.email : '';
         }
@@ -891,6 +906,7 @@ function openStore(dbPath, opts) {
           if (!rec.universityId && rec.university) rec.universityId = findUniByName(rec.university);
           resolveApp(rec, null);
           if (!rec.universityId) throw new UserError('대학은 목록에서 선택하세요. 목록에 없으면 관리자에게 대학 추가를 요청하세요.');
+          if (rec.parentConfirmed === 'TRUE') { rec.parentConfirmedAt = t; rec.parentConfirmedBy = me.email; }
         }
         if (table === 'majorplans') {
           if (!rec.status) rec.status = '후보';

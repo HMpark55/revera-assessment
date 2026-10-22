@@ -88,7 +88,7 @@ save('scores', { studentId: a, kind: 'TOEFL', score: '118', detail: 'R30 L30 S29
 save('scores', { studentId: a, kind: 'AP', subject: 'Calculus AB', score: '4', date: d(-120) });
 save('scores', { studentId: c, kind: 'IB', subject: 'Biology HL', score: '7' });
 
-save('apps', { studentId: a, country: '홍콩', university: 'HKU', major: 'Psychology (BPsych)', round: '홍콩 얼리', deadline: d(12), status: '작성중', essay: '수정중' });
+save('apps', { studentId: a, country: '홍콩', university: 'HKU', major: 'Psychology (BPsych)', round: '홍콩 얼리', deadline: d(12), status: '작성중', essay: '수정중', parentConfirmed: 'TRUE' });
 save('apps', { studentId: b, country: '홍콩', university: 'HKUST', major: 'Electronic Engineering', round: '홍콩 얼리', deadline: d(6), status: '준비중', essay: '초안' });
 save('universities', { name: '성균관대', country: '한국', fullName: '성균관대학교' });
 save('apps', { studentId: a, country: '한국', university: '성균관대', major: '심리학', round: '3년특례', deadline: d(40), status: '준비중' });
