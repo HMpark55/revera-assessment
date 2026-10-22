@@ -49,7 +49,8 @@ save('notes', { studentId: a, date: d(-5), time: 'PM 1:00', place: '상담실', 
   type: '대면상담', content: '1. HKU 심리학 단독 지원 확정\n2. 추천서 3인 확정', nextAction: '출입국사실증명서 수합 안내', nextDue: d(-1) });
 save('notes', { studentId: b, date: d(-2), type: '위챗·문자', content: '어머님 일정 문의 대응', nextAction: '에세이 타임라인 공유', nextDue: d(5) });
 
-save('followups', { studentId: a, title: '출입국사실증명서 받기', assignee: 'staff@demo.test', due: d(-1), category: '서류', detail: '위챗: 출입국사실증명서 이번 주 안에 받아서 스캔해 줄래?', replyFrom: '학생', replyDate: d(0), reply: '금요일에 어머니가 발급받아 주신대요' });
+const fuDoc = save('followups', { studentId: a, title: '출입국사실증명서 받기', assignee: 'staff@demo.test', due: d(-1), category: '서류', detail: '위챗: 출입국사실증명서 이번 주 안에 받아서 스캔해 줄래?' });
+save('fureplies', { studentId: a, followupId: fuDoc, who: '학생', date: d(0), content: '금요일에 어머니가 발급받아 주신대요' });
 save('followups', { studentId: a, title: '에세이 2차 피드백 전달', assignee: 'kim@demo.test', due: d(3), status: '진행 중', category: '에세이' });
 save('followups', { studentId: a, title: '추천서 요청 메일 발송', assignee: 'kim@demo.test', status: '완료' });
 save('followups', { studentId: b, title: '어머님께 에세이 타임라인 공유', assignee: 'lee@demo.test', due: d(5) });
@@ -93,8 +94,8 @@ save('universities', { name: '성균관대', country: '한국', fullName: '성�
 save('apps', { studentId: a, country: '한국', university: '성균관대', major: '심리학', round: '3년특례', deadline: d(40), status: '준비중' });
 save('apps', { studentId: b, country: '싱가폴', university: 'NUS', major: 'Computer Engineering', round: 'RD', deadline: d(-200), status: '합격' });
 save('apps', { studentId: b, country: '홍콩', university: 'HKU', major: 'Engineering', round: '홍콩 얼리', deadline: d(-190), status: '불합격' });
-save('docs', { studentId: a, name: '출입국사실증명서(학생)', status: '요청함' });
-save('docs', { studentId: a, name: '재학증명서', status: '수합 완료' });
+save('docs', { studentId: a, name: '출입국사실증명서(학생)', category: '지원자격증빙(출입국·여권 등)', status: '요청함' });
+save('docs', { studentId: a, name: '재학증명서', category: '재학증명서', status: '수합 완료' });
 save('links', { studentId: a, label: '회의록', url: 'https://docs.google.com/spreadsheets/d/sample' });
 // 회의록에서 나온 팔로업 + 다음 미팅 날짜, 다른 선생님에게 요청한 팔로업
 const kimMe = { email: 'kim@demo.test', name: '김컨설턴트', role: 'consultant' };

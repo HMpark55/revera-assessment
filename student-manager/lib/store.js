@@ -62,7 +62,7 @@ const TABLES = {
   },
   docs: {
     label: '서류',
-    fields: ['studentId', 'name', 'status', 'due', 'memo'],
+    fields: ['studentId', 'name', 'category', 'status', 'due', 'memo'],
     summary: (r) => [r.name, r.status].filter(Boolean).join(' '),
   },
   links: {
@@ -80,6 +80,11 @@ const TABLES = {
     fields: ['studentId', 'title', 'detail', 'category', 'assignee', 'due', 'status', 'reply', 'replyDate', 'replyFrom', 'meetingId', 'noteId',
       'kind', 'fromWho', 'channel', 'receivedDate', 'answer', 'answerDate', 'groupId'],
     summary: (r) => [r.title, r.status].filter(Boolean).join(' · '),
+  },
+  fureplies: { // 팔로업·받은 연락에 이어지는 답변 (학생 → 우리 → 어머님 …)
+    label: '답변',
+    fields: ['studentId', 'followupId', 'who', 'date', 'content'],
+    summary: (r) => [r.who, r.content].filter(Boolean).join(' · '),
   },
   majorplans: {
     label: '전공 선정',
@@ -130,10 +135,31 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 /** 관리 페이지에서 고르는 목록 (학교·커리큘럼) → 학생 정보의 해당 칸 */
 /** 달력 자동 표시 항목 (키, 처음 색) — 화면 이름은 원장님 미팅·다음 미팅·지원 마감 */
 const AUTO_CATS = [['sched', '#7c5cc4'], ['nextmeet', '#0b1b45'], ['deadline', '#9ca3af']];
-const OPTION_KINDS = { school: '학교', curriculum: '커리큘럼', site: '사이트', evcat: '일정 분류', track: '트랙' };
+const OPTION_KINDS = { school: '학교', curriculum: '커리큘럼', site: '사이트', evcat: '일정 분류', track: '트랙', doccat: '서류 분류' };
+/** 서류 분류 초기값 (목록 관리 › 서류 분류) — 성적·학력 탭 파일과 서류 탭 항목에 씀 */
+const DEFAULT_DOCCATS = ['재학증명서', '성적증명서', '졸업증명서', '어학증빙', '표준화학력(SAT·AP·IB)', '지원자격증빙(출입국·여권 등)', '기타(학사일정표·고교 프로파일 등)'];
+const DC = { lang: DEFAULT_DOCCATS[3], std: DEFAULT_DOCCATS[4], elig: DEFAULT_DOCCATS[5], etc: DEFAULT_DOCCATS[6] };
+/** 점수 첨부 파일 분류: 어학 → 어학증빙, SAT·AP·IB 등 → 표준화학력 */
+function scoreDocCat(kind) {
+  if (/^(TOEFL|IELTS|TOPIK|HSK|Duolingo)/i.test(kind || '')) return DC.lang;
+  if (/^(SAT|ACT|AP|IB|A-Level)/i.test(kind || '')) return DC.std;
+  if (kind === 'GPA') return DEFAULT_DOCCATS[1];
+  return DC.etc;
+}
+/** 서류 이름으로 분류 짐작 (예전 서류·새로 만든 서류) */
+function guessDocCat(name) {
+  const n = String(name || '');
+  if (/재학/.test(n)) return DEFAULT_DOCCATS[0];
+  if (/성적/.test(n)) return DEFAULT_DOCCATS[1];
+  if (/졸업/.test(n)) return DEFAULT_DOCCATS[2];
+  if (/토플|TOEFL|IELTS|아이엘츠|어학|TOPIK|HSK/i.test(n)) return DC.lang;
+  if (/SAT|\bAP\b|\bIB\b|ACT/.test(n)) return DC.std;
+  if (/출입국|여권|가족관계|외국인등록|비자|거주/.test(n)) return DC.elig;
+  return DC.etc;
+}
 const DEFAULT_TRACKS = ['3년특례', '12년특례', '홍콩', '싱가폴', '미국', '캐나다', '영국', '일본', '한국 일반', '기타'];
 /** 목록 이름을 바꾸면 함께 바뀌는 곳 */
-const OPTION_TARGET = { school: ['students', 'school'], curriculum: ['students', 'curriculum'], site: ['accounts', 'site'], evcat: ['events', 'category'], track: ['students', 'tracks'] };
+const OPTION_TARGET = { school: ['students', 'school'], curriculum: ['students', 'curriculum'], site: ['accounts', 'site'], evcat: ['events', 'category'], track: ['students', 'tracks'], doccat: ['files', 'category'] };
 const ACCOUNT_CATS = ['원서 포털', '시험', '학교 LMS', '기타'];
 /** 메인 화면 공용 달력의 일정 분류 */
 /** 달력 일정 분류 초기값 (목록 관리 › 일정 분류에서 이름·색·순서 변경) */
@@ -192,7 +218,7 @@ const FIELD_LABELS = {
   year: '입학 연도', term: '입학 학기', requirements: '공식 지원 요건', sourceUrl: '출처', faculty: '단과대',
   code: '코드', cycleId: '입학 연도',
   hopeUnis: '희망 대학·특례', focusArea: '집중 과목·관리 영역', recommenders: '추천서 진행', onlineCourse: '온라인 코스 진행',
-  meetingUrl: '미팅 회의록 링크', reply: '학생·학부모 답변', replyDate: '답변 날짜', replyFrom: '답변한 사람', kind: '종류', fromWho: '보낸 사람', channel: '연락 경로', receivedDate: '받은 날짜', answer: '우리 답변·처리', answerDate: '우리 답변 날짜',
+  who: '답변한 사람', meetingUrl: '미팅 회의록 링크', reply: '학생·학부모 답변', replyDate: '답변 날짜', replyFrom: '답변한 사람', kind: '종류', fromWho: '보낸 사람', channel: '연락 경로', receivedDate: '받은 날짜', answer: '우리 답변·처리', answerDate: '우리 답변 날짜',
   site: '사이트', loginId: '아이디', password: '비밀번호',
   parentNote: '부모님 전달·대화 내용', writer: '작성자', topic: '안건', nextStep: '다음 계획', needsReview: '확인 필요',
   field: '계열', source: '제안·계기', reason: '이유', parentConfirmed: '부모님 확정', parentConfirmedAt: '부모님 확정일',
@@ -400,6 +426,43 @@ function migrate(db) {
         .run(crypto.randomUUID(), 'track', v, String(i + 1), ts, 'system', ts, 'system');
     });
     db.prepare("INSERT INTO meta VALUES ('v15_tracks', ?)").run(ts);
+  }
+  // v16: 팔로업 답변·받은 연락의 우리 답변(한 칸씩) → 이어지는 답변 목록으로 옮김
+  if (!db.prepare("SELECT 1 FROM meta WHERE key = 'v16_replies'").get()) {
+    const ts = now(), WHO = { 어머니: '어머님', 아버지: '아버님', 학부모: '학부모(예전)' };
+    const ins = db.prepare('INSERT INTO fureplies (id, studentId, followupId, who, date, content, createdAt, createdBy, updatedAt, updatedBy) VALUES (?,?,?,?,?,?,?,?,?,?)');
+    db.transaction(() => {
+      for (const f of db.prepare("SELECT * FROM followups WHERE reply != '' OR replyFrom != '' OR answer != ''").all()) {
+        const by = f.updatedBy || f.createdBy || 'system', at = f.updatedAt || ts;
+        if (f.reply || f.replyFrom) ins.run(crypto.randomUUID(), f.studentId, f.id, WHO[f.replyFrom] || f.replyFrom || '학생', f.replyDate || '', f.reply || '(' + f.replyFrom + ')', at, by, at, by);
+        if (f.answer) ins.run(crypto.randomUUID(), f.studentId, f.id, '담당 선생님', f.answerDate || '', f.answer, at, by, at, by);
+      }
+      db.prepare("UPDATE followups SET reply = '', replyFrom = '', replyDate = '', answer = '', answerDate = '' WHERE reply != '' OR replyFrom != '' OR answer != ''").run();
+      db.prepare("UPDATE followups SET fromWho = CASE fromWho WHEN '어머니' THEN '어머님' ELSE '아버님' END WHERE fromWho IN ('어머니', '아버지')").run();
+      db.prepare("INSERT INTO meta VALUES ('v16_replies', ?)").run(ts);
+    })();
+  }
+  // v17: 서류 분류 목록 + 기존 파일·서류 분류 옮기기 (성적표 → 성적증명서, 그 밖의 분류 → 기타 + 메모에 예전 분류)
+  if (!db.prepare("SELECT 1 FROM meta WHERE key = 'v17_doccats'").get()) {
+    const ts = now();
+    db.transaction(() => {
+      DEFAULT_DOCCATS.forEach((v, i) => {
+        if (db.prepare("SELECT 1 FROM options WHERE kind = 'doccat' AND value = ?").get(v)) return;
+        db.prepare('INSERT INTO options (id, kind, value, sortOrder, createdAt, createdBy, updatedAt, updatedBy) VALUES (?,?,?,?,?,?,?,?)')
+          .run(crypto.randomUUID(), 'doccat', v, String(i + 1), ts, 'system', ts, 'system');
+      });
+      for (const d of db.prepare("SELECT id, name FROM docs WHERE category = ''").all()) db.prepare('UPDATE docs SET category = ? WHERE id = ?').run(guessDocCat(d.name), d.id);
+      for (const f of db.prepare('SELECT f.id, f.category, f.memo, f.docId, f.scoreId, f.meetingId, f.followupId, d.category dc, s.kind sk FROM files f LEFT JOIN docs d ON d.id = f.docId LEFT JOIN scores s ON s.id = f.scoreId').all()) {
+        let cat = f.category, memo = f.memo;
+        if (f.docId) cat = f.dc || DC.etc;
+        else if (f.scoreId) cat = scoreDocCat(f.sk);
+        else if (f.meetingId || f.followupId) continue; // 미팅·연락 첨부는 그대로
+        else if (f.category === '성적표') cat = DEFAULT_DOCCATS[1];
+        else if (!DEFAULT_DOCCATS.includes(f.category)) { cat = DC.etc; if (f.category && f.category !== '기타') memo = [f.category, f.memo].filter(Boolean).join(' · '); }
+        if (cat !== f.category || memo !== f.memo) db.prepare('UPDATE files SET category = ?, memo = ? WHERE id = ?').run(cat, memo, f.id);
+      }
+      db.prepare("INSERT INTO meta VALUES ('v17_doccats', ?)").run(ts);
+    })();
   }
   db.exec('CREATE TABLE IF NOT EXISTS programs (id TEXT PRIMARY KEY)');
   ensureColumns(db, 'programs', ['name', 'category', 'target', 'schedule', 'deadline', 'url', 'memo', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy']);
@@ -682,6 +745,13 @@ function openStore(dbPath, opts) {
     if (table === 'meetings' || table === 'notes') checkUrl(v('sourceUrl'), '원본 자료 링크');
     if (table === 'accounts') { need('site', '사이트 이름을 입력하세요.'); checkUrl(v('url'), '사이트 주소'); }
     if (table === 'followups' && v('replyDate') && !DATE_RE.test(v('replyDate'))) throw new UserError('답변 날짜 형식이 올바르지 않습니다.');
+    if (table === 'fureplies') {
+      const f = getRow('followups', v('followupId'));
+      if (!f || f.deletedAt || f.studentId !== v('studentId')) throw new UserError('팔로업을 찾을 수 없습니다. 새로고침 해주세요.', 404);
+      if (!String(v('content') || '').trim()) throw new UserError('답변 내용을 입력하세요.');
+      if (!String(v('who') || '').trim() || String(v('who')).length > 30) throw new UserError('답변한 사람을 고르세요.');
+      if (v('date') && !DATE_RE.test(v('date'))) throw new UserError('답변 날짜 형식이 올바르지 않습니다.');
+    }
     if (table === 'students') checkUrl(v('meetingUrl'), '미팅 회의록 링크');
     if (table === 'majorplans') {
       need('major', '전공을 입력하세요.');
@@ -1101,7 +1171,10 @@ function openStore(dbPath, opts) {
             db.prepare('UPDATE students SET tracks = ? WHERE id = ?').run([...new Set(list)].join(', '), st.id);
             n++;
           }
-        } else if (cur.value !== value) n = db.prepare(`UPDATE ${tbl} SET ${col} = ? WHERE ${col} = ?`).run(value, cur.value).changes;
+        } else if (cur.value !== value) {
+          n = db.prepare(`UPDATE ${tbl} SET ${col} = ? WHERE ${col} = ?`).run(value, cur.value).changes;
+          if (kind === 'doccat') n += db.prepare('UPDATE docs SET category = ? WHERE category = ?').run(value, cur.value).changes;
+        }
         log(me.email, 'update', 'options', id, OPTION_KINDS[kind] + ' ' + cur.value + (cur.value !== value ? ' → ' + value + (n ? ' (' + n + '건 함께 변경)' : '') : ''));
       } else {
         id = newId();
@@ -1730,6 +1803,14 @@ function openStore(dbPath, opts) {
 
   /* ----- 파일 ----- */
 
+  /** 성적·학력 탭 파일 분류: 서류 분류 목록에 있는 것만 (없으면 기타) */
+  function fileCat(c) {
+    c = clean(c).trim();
+    if (c === '성적표') c = DEFAULT_DOCCATS[1];
+    if (db.prepare("SELECT 1 FROM options WHERE kind = 'doccat' AND value = ?").get(c)) return c;
+    const etc = db.prepare("SELECT value FROM options WHERE kind = 'doccat' AND value LIKE '기타%' ORDER BY CAST(sortOrder AS INTEGER) LIMIT 1").get();
+    return etc ? etc.value : DC.etc;
+  }
   function addFile(me, info) {
     const s = requireStudent(me, info.studentId);
     const stored = [];
@@ -1771,7 +1852,7 @@ function openStore(dbPath, opts) {
     fs.writeFileSync(path.join(filesDir, storedName), info.buffer);
     stored.push(path.join(filesDir, storedName));
     const t = now();
-    const rec = { id, studentId: s.id, category: doc ? '서류' : meeting ? '미팅' : fu ? '연락' : score ? '어학·표준화 점수' : (clean(info.category) || '성적표'), name, memo: clean(info.memo || ''), mime: type,
+    const rec = { id, studentId: s.id, category: doc ? doc.category || guessDocCat(doc.name) : meeting ? '미팅' : fu ? '연락' : score ? scoreDocCat(score.kind) : fileCat(info.category), name, memo: clean(info.memo || ''), mime: type,
       size: String(info.buffer.length), storedName, docId: doc ? doc.id : '', meetingId: meeting ? meeting.id : '', followupId: fu ? fu.id : '', scoreId: score ? score.id : '',
       createdAt: t, createdBy: me.email, updatedAt: t, updatedBy: me.email };
     const keys = Object.keys(rec);
