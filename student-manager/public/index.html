@@ -454,7 +454,9 @@
   .shot-wrap { display:inline-flex; align-items:center; gap:2px; }
   .th-b { white-space:pre-wrap; font-size:.9rem; margin-top:2px; }
   .fr-add { display:grid; grid-template-columns:auto auto 1fr auto; gap:6px; margin-top:6px; align-items:start; }
-  .fr-add textarea { min-height:38px; height:38px; }
+  .fr-add textarea { min-height:38px !important; height:60px; resize:vertical; }
+  .fr-edit { margin-top:0; grid-template-columns:auto auto 1fr; } .fr-edit textarea { grid-column:1 / -1; } .fr-edit > span { grid-column:1 / -1; text-align:right; }
+  .th-acts { margin-left:auto; display:inline-flex; gap:2px; } .th-h .th-acts .ibtn { margin-left:0; }
   @media (max-width:640px) { .fr-add { grid-template-columns:1fr 1fr; } .fr-add textarea { grid-column:1 / -1; } }
   .ibtn { background:none; border:1px solid transparent; border-radius:6px; cursor:pointer; padding:2px 6px; font-size:.78rem; color:#6b7280; flex-shrink:0; white-space:nowrap; }
   .ibtn:hover { border-color:var(--border); background:#fff; }
@@ -2299,8 +2301,11 @@ function openThread(fid) {
 function threadItems(fid, inline) {
   var reps = repliesOf(fid);
   return reps.length ? reps.map(function (x) {
-    return '<div class="th-item' + (OUR_SIDE[x.who] ? ' ours' : '') + '"><div class="th-h"><b>' + esc(replyWho(x)) + '</b> <span class="muted">' + esc(x.date ? fmtD(x.date) : fmtTime(x.createdAt)) + '</span>' +
-      (x.createdBy === S.me.email || isAdmin() ? '<button type="button" class="ibtn" title="이 답변 지우기 (휴지통)" onclick="removeReply(' + js(x.id) + ',' + js(fid) + ')">✕</button>' : '') + '</div>' +
+    var mine = x.createdBy === S.me.email || isAdmin();
+    return '<div class="th-item' + (OUR_SIDE[x.who] ? ' ours' : '') + '" id="th-' + esc(x.id) + '"><div class="th-h"><b>' + esc(replyWho(x)) + '</b> <span class="muted">' + esc(x.date ? fmtD(x.date) : fmtTime(x.createdAt)) +
+      (x.updatedAt && x.updatedAt !== x.createdAt ? ' · 수정됨' : '') + '</span>' +
+      (mine ? '<span class="th-acts"><button type="button" class="ibtn" title="이 답변 고치기" onclick="editReply(' + js(x.id) + ',' + js(fid) + ')">✏️</button>' +
+        '<button type="button" class="ibtn" title="이 답변 지우기 (휴지통)" onclick="removeReply(' + js(x.id) + ',' + js(fid) + ')">✕</button></span>' : '') + '</div>' +
       '<div class="th-b">' + esc(x.content) + '</div></div>';
   }).join('') : '<div class="empty" style="padding:10px">아직 답변 기록이 없습니다.</div>';
 }
@@ -2320,6 +2325,27 @@ function submitReply(fid) {
   if (!String(o.content || '').trim()) return toast('내용을 입력하세요.', true);
   mutate('save', { table: 'fureplies', obj: { studentId: f.studentId, followupId: fid, who: o.who, date: o.date, content: o.content.trim() } }, '답변을 추가했습니다.')
     .then(function (d) { if (d) openThread(fid); });
+}
+/** 답변 고치기: 그 자리에서 답변한 사람·날짜·내용 수정 (창은 그대로) */
+function editReply(id, fid) {
+  var x = findRow('fureplies', id), el = $('th-' + id); if (!x || !el) return;
+  var whoOpts = REPLY_FROM.concat(REPLY_FROM.indexOf(x.who) < 0 ? [x.who] : []);
+  el.innerHTML = '<div class="fr-add fr-edit"><select id="fe-who-' + esc(id) + '">' + whoOpts.map(function (w) { return '<option' + (w === x.who ? ' selected' : '') + '>' + esc(w) + '</option>'; }).join('') + '</select>' +
+    '<input type="date" id="fe-date-' + esc(id) + '" value="' + esc(x.date || '') + '"><textarea id="fe-content-' + esc(id) + '">' + esc(x.content) + '</textarea>' +
+    '<span class="nw"><button type="button" class="btn sm" onclick="saveReplyEdit(' + js(id) + ',' + js(fid) + ')">저장</button> <button type="button" class="btn ghost sm" onclick="refreshThread(' + js(fid) + ')">취소</button></span></div>';
+  var ta = $('fe-content-' + id); if (ta) ta.focus();
+}
+function saveReplyEdit(id, fid) {
+  var x = findRow('fureplies', id), c = $('fe-content-' + id);
+  if (!c || !c.value.trim()) return toast('내용을 입력하세요.', true);
+  api('save', { table: 'fureplies', obj: { id: id, updatedAt: x.updatedAt, who: $('fe-who-' + id).value, date: $('fe-date-' + id).value, content: c.value.trim() } }).then(function (d) {
+    S.fureplies = d.fureplies || S.fureplies; refreshThread(fid); render(); toast('답변을 고쳤습니다.');
+  }).catch(function (e) { toast(errMsg(e), true); });
+}
+/** 열린 창의 답변 목록만 다시 그림 (수정 창 안 / 💬 답변 창) */
+function refreshThread(fid) {
+  var box = $('fr-list') || document.querySelector('#mf .thread');
+  if (box) box.innerHTML = threadItems(fid);
 }
 function removeReply(id, fid) {
   if (!confirm('이 답변을 지울까요? (휴지통에서 되살릴 수 있습니다)')) return;

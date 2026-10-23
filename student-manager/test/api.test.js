@@ -1532,6 +1532,11 @@ test('팔로업 답변 이어쓰기: 여러 번 추가, 검증, 예전 한 칸 �
   await admin.saveOk('fureplies', { studentId: sid, followupId: fid, who: '학생', date: '2026-10-20', content: '선생님께 메일 보냈어요' });
   d = await admin.saveOk('fureplies', { studentId: sid, followupId: fid, who: '어머님', date: '2026-10-21', content: '확인했습니다' });
   assert.strictEqual(d.fureplies.filter((x) => x.followupId === fid).length, 2);
+  const rp = d.fureplies.find((x) => x.followupId === fid && x.who === '어머님');
+  d = await admin.saveOk('fureplies', { id: rp.id, updatedAt: rp.updatedAt, who: '아버님', content: '확인했습니다 (고침)' });
+  const rp2 = d.fureplies.find((x) => x.id === rp.id);
+  assert.deepStrictEqual([rp2.who, rp2.content, rp2.followupId, rp2.date], ['아버님', '확인했습니다 (고침)', fid, '2026-10-21'], '답변 고치기');
+  assert.strictEqual((await admin.save('fureplies', { id: rp.id, updatedAt: rp2.updatedAt, content: '' })).status, 400, '고칠 때도 내용 필수');
   assert.strictEqual((await admin.save('fureplies', { studentId: sid, followupId: fid, who: '학생', content: '  ' })).status, 400, '내용 필수');
   assert.strictEqual((await admin.save('fureplies', { studentId: sid, followupId: fid, who: '', content: 'x' })).status, 400, '답변한 사람 필수');
   assert.strictEqual((await admin.save('fureplies', { studentId: 'other', followupId: fid, who: '학생', content: 'x' })).status, 404, '다른 학생 팔로업에는 못 붙임');
