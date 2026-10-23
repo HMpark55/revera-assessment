@@ -1163,7 +1163,7 @@ test('받은 연락: 팔로업 종류·보낸 사람·경로·우리 답변, 스
   const admin = client(); await admin.login('admin@revera.test', 'admin-pass-1');
   let d = await admin.saveOk('students', { name: '연락학생' });
   const sid = d.savedId;
-  d = await admin.saveOk('followups', { studentId: sid, kind: 'contact', fromWho: '어머니', channel: '위챗', receivedDate: '2026-10-20',
+  d = await admin.saveOk('followups', { studentId: sid, kind: 'contact', fromWho: '어머님', channel: '위챗', receivedDate: '2026-10-20',
     title: 'IA 초안 월요일까지 내도 되나요?', detail: 'IA 초안 월요일까지 내도 되나요?\n학교는 수요일까지래요' });
   const fid = d.savedId;
   assert.strictEqual(d.followups.find((f) => f.id === fid).status, '할 일');

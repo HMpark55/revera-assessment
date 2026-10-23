@@ -126,7 +126,7 @@ const CURRENCIES = ['RMB', 'KRW'];
 const FOLLOWUP_STATUS = ['할 일', '진행 중', '대기', '완료'];
 /** 팔로업 종류: '' = 우리가 챙길 할 일, 'contact' = 학생·학부모에게 받은 연락(질문·확인 요청) */
 const FOLLOWUP_KINDS = ['', 'contact'];
-const CONTACT_FROM = ['학생', '어머니', '아버지', '학부모', '학교', '기타'];
+const CONTACT_FROM = ['학생', '어머님', '아버님', '학부모', '학교', '기타'];
 const CONTACT_CHANNELS = ['위챗', '문자', '이메일', '전화', '대면', '기타'];
 const MAJOR_STATUS = ['후보', '유력', '최종', '제외'];
 const MEETING_STATUS = ['예정', '완료', '취소'];
