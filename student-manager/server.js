@@ -156,7 +156,7 @@ function createApp(store, opts) {
       try {
         let name = '';
         try { name = decodeURIComponent(req.get('X-File-Name') || ''); } catch (e) { name = ''; }
-        res.json(store.addUniFile(req.me, { cycleId: req.query.cycleId, category: req.query.category, name, buffer: Buffer.isBuffer(req.body) ? req.body : null }));
+        res.json(store.addUniFile(req.me, { cycleId: req.query.cycleId, programId: req.query.programId, category: req.query.category, name, buffer: Buffer.isBuffer(req.body) ? req.body : null }));
       } catch (e) {
         sendError(res, e);
       }

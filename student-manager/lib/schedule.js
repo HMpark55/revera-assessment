@@ -42,10 +42,21 @@ function isDetail(v) {
   return !/(학생|부모님|어머님|아버님|어머니|아버지)/.test(v) && /(미팅|상담|zoom|paid|유료|할인|대면|전화|통화|^\()/i.test(v);
 }
 
-/** 시트 값(2차원 배열) → 일정 목록 [{ key, date, start(현지 분), end, zone, title, detail, startAt, endAt, sheetLabel }] */
-function parseSheet(values, tab) {
+/** 회색 배경 칸 = 취소된 일정 (시트에서 취소하면 회색으로 칠함). 아주 연한 회색·흰색은 제외 */
+function isGray(hex) {
+  const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(String(hex || ''));
+  if (!m) return false;
+  const [r, g, b] = [m[1], m[2], m[3]].map((x) => parseInt(x, 16));
+  return Math.max(r, g, b) - Math.min(r, g, b) <= 12 && Math.max(r, g, b) <= 0xda && Math.min(r, g, b) >= 0x40;
+}
+
+/** 시트 값(2차원 배열) → 일정 목록 [{ key, date, start(현지 분), end, zone, title, detail, startAt, endAt, sheetLabel }]
+ *  colors(같은 모양의 배경색 배열)를 주면 회색 칸은 취소로 보고 빼며, 뺀 일정 수는 out.cancelled */
+function parseSheet(values, tab, colors) {
   const rows = (values || []).map((r) => (r || []).map((c) => String(c == null ? '' : c).trim()));
+  const gray = (ri, c) => !!(colors && colors[ri] && isGray(colors[ri][c]));
   const out = [];
+  let cancelled = 0;
   let i = 0;
   while (i < rows.length) {
     const r = rows[i];
@@ -62,6 +73,7 @@ function parseSheet(values, tab) {
       let zoneWord = '';
       const cells = slots.map((ri, k) => {
         let v = rows[ri][c] || '';
+        if (v && gray(ri, c)) { if (!isDetail(v) && !ZONES[v] && !/^=>/.test(v)) cancelled++; v = ''; } // 취소된 일정
         if (k === 0 && ZONES[v]) { zoneWord = v; v = ''; }
         if (/^=>/.test(v)) v = ''; // 시작 시각 메모 (왼쪽 열 일정에 붙임)
         return v;
@@ -97,6 +109,7 @@ function parseSheet(values, tab) {
     }
     i = j;
   }
+  out.cancelled = cancelled;
   return out;
 }
 
@@ -112,4 +125,4 @@ function matchStudent(ev, students) {
   return null;
 }
 
-module.exports = { parseSheet, matchStudent, tabName, toHome, ZONES };
+module.exports = { parseSheet, matchStudent, tabName, toHome, isGray, ZONES };

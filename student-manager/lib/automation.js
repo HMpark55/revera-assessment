@@ -154,10 +154,11 @@ async function syncSchedule(store, fetchImpl, manual) {
     const got = tabs.filter((t) => r.tabs && Array.isArray(r.tabs[t]));
     if (!got.length) throw new Error('시트에서 "' + tabs.join('", "') + '" 탭을 찾을 수 없습니다. 탭 이름을 확인하세요.' + (r.names ? ' (있는 탭: ' + r.names.slice(-6).join(', ') + ')' : ''));
     const events = [];
-    got.forEach((t) => { events.push(...schedule.parseSheet(r.tabs[t], t)); });
+    let cancelled = 0;
+    got.forEach((t) => { const ev = schedule.parseSheet(r.tabs[t], t, r.colors && r.colors[t]); cancelled += ev.cancelled || 0; events.push(...ev); });
     const res = store.replaceSchedule(got, events);
     const msg = '성공' + (manual ? '(수동)' : '') + ' · ' + got.join(', ') + ' — 우리 학생 일정 ' + res.saved + '건' + (res.excluded ? ' (뺀 일정 ' + res.excluded + '건 제외)' : '') +
-      ' · 그 외 일정 ' + res.unmatched + '건은 가져오지 않음' + (got.length < tabs.length ? ' · "' + tabs.filter((t) => got.indexOf(t) < 0).join(', ') + '" 탭 없음' : '');
+      ' · 그 외 일정 ' + res.unmatched + '건은 가져오지 않음' + (cancelled ? ' · 회색(취소) ' + cancelled + '건 제외' : r.colors ? '' : ' · ⚠ Apps Script가 예전 버전이라 회색(취소) 칸을 구분하지 못함') + (got.length < tabs.length ? ' · "' + tabs.filter((t) => got.indexOf(t) < 0).join(', ') + '" 탭 없음' : '');
     store.recordRun('schedule', msg);
     return Object.assign({ tabs: got }, res);
   } catch (e) {

@@ -60,3 +60,19 @@ test('원장님 시트 읽기: 일정 묶음, 오전·오후, 시작 시각 메�
   assert.strictEqual(matchStudent(by('윤바다 덜위치 Y12', '2026-10-17'), st), null, '우리 학생이 아니면 null');
   assert.strictEqual(matchStudent(by('민나래 학생', '2026-10-16'), st), null, '같은 이름 학생이 둘이면 연결하지 않음');
 });
+
+test('회색 칸 = 취소된 일정: 가져오지 않고 수만 셈, 연한 회색·색 칸은 그대로', () => {
+  const { isGray } = require('../lib/schedule');
+  assert.ok(isGray('#999999') && isGray('#b7b7b7') && isGray('#cccccc') && isGray('#d9d9d9'));
+  assert.ok(!isGray('#ffffff') && !isGray('#efefef') && !isGray('#00ffff') && !isGray('#ffff00') && !isGray(''));
+  const w = week(['10/19/2026', '10/20/2026', '10/21/2026', '10/22/2026', '10/23/2026', '10/24/2026', '10/25/2026'], {});
+  at(w, 5, slotOf(19, 0), '홍서우 학생'); at(w, 5, slotOf(19, 30), 'ZOOM 미팅');
+  at(w, 5, slotOf(17, 0), '곽예안 학생'); at(w, 5, slotOf(17, 30), '미팅');
+  const colors = w.map((r) => r.map(() => '#ffffff'));
+  colors[2 + slotOf(19, 0)][5] = '#999999'; colors[2 + slotOf(19, 30)][5] = '#999999';
+  colors[2 + slotOf(17, 0)][5] = '#00ffff';
+  const evs = parseSheet(w, tabName(2026, 10), colors);
+  assert.deepStrictEqual(evs.map((e) => e.title), ['곽예안 학생']);
+  assert.strictEqual(evs.cancelled, 1);
+  assert.strictEqual(parseSheet(w, tabName(2026, 10)).length, 2, '색 정보가 없으면(예전 Apps Script) 전부 가져옴');
+});

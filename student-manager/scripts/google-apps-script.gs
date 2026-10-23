@@ -13,7 +13,7 @@ const SECRET = '__COMPASS_SECRET__';
 const FOLDER_NAME = 'Compass 백업';   // 내 드라이브에 이 이름의 폴더를 만들어 저장
 const KEEP = 30;                      // 최근 30개만 남기고 오래된 백업은 휴지통으로
 const FILES_FOLDER = 'Compass 파일'; // 업로드 파일을 하나씩 복사 (지우지 않음)
-const VERSION = 3;
+const VERSION = 4;
 
 function doPost(e) {
   let req;
@@ -41,8 +41,13 @@ function doPost(e) {
   if (req.action === 'sheet') { // 원장님 상담 스케줄 읽기 (읽기만, 수정하지 않음)
     const ss = SpreadsheetApp.openById(req.id);
     const tabs = {};
-    (req.tabs || []).forEach(function (n) { const sh = ss.getSheetByName(n); tabs[n] = sh ? sh.getDataRange().getDisplayValues() : null; });
-    return out({ ok: true, names: ss.getSheets().map(function (sh) { return sh.getName(); }), tabs: tabs });
+    const colors = {}; // 칸 배경색 — 회색 칸은 취소된 일정으로 보고 가져오지 않음
+    (req.tabs || []).forEach(function (n) {
+      const sh = ss.getSheetByName(n), r = sh ? sh.getDataRange() : null;
+      tabs[n] = r ? r.getDisplayValues() : null;
+      colors[n] = r ? r.getBackgrounds() : null;
+    });
+    return out({ ok: true, names: ss.getSheets().map(function (sh) { return sh.getName(); }), tabs: tabs, colors: colors });
   }
   if (req.action === 'mail') {
     const list = req.messages || [];
