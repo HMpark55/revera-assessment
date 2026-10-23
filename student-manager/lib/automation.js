@@ -190,16 +190,16 @@ function buildDigests(store, today) {
     if (!fu.length && !apps.length && !asked.length) continue;
     const dd = (x) => { const n = Math.round((Date.parse(x) - Date.parse(today)) / 86400000); return n < 0 ? 'D+' + -n : n === 0 ? 'D-DAY' : 'D-' + n; };
     const over = fu.filter((f) => f.due < today).length;
-    const subject = '[Compass] ' + today.slice(5).replace('-', '/') + ' 오늘 챙길 일 — 팔로업 ' + fu.length + (over ? '(기한 지남 ' + over + ')' : '') + ' · 지원 마감 ' + apps.length + (asked.length ? ' · 요청받은 일 ' + asked.length : '');
+    const subject = '[Compass] ' + today.slice(5).replace('-', '/') + ' 오늘 챙길 일 — 팔로업 ' + fu.length + (over ? '(기한 지남 ' + over + ')' : '') + ' · 지원 마감 ' + apps.length + (asked.length ? ' · 넘겨받은 일 ' + asked.length : '');
     const link = (sid) => site ? site + '/#/student/' + sid : '';
     const li = (title, sub, sid) => '<li style="margin:4px 0">' + (link(sid) ? '<a href="' + esc(link(sid)) + '">' + esc(title) + '</a>' : esc(title)) + (sub ? ' <span style="color:#666">' + esc(sub) + '</span>' : '') + '</li>';
     let html = '<div style="font-family:sans-serif;font-size:14px;color:#222">' + esc(t.name) + ' 선생님, 오늘 챙길 일입니다.<br>';
     let text = t.name + ' 선생님, 오늘 챙길 일입니다.\n';
     const nameOf = (email) => { const x = store.listTeachers().find((y) => y.email === email); return x ? x.name : email; };
     if (asked.length) {
-      html += '<h3 style="color:#0B1B45;margin:16px 0 4px">요청받은 일 ' + asked.length + '건</h3><ul>' +
-        asked.map((f) => li((student[f.studentId] || {}).name + ' — ' + f.title, nameOf(f.requestedBy) + ' 님 요청' + (f.due ? ' · 기한 ' + f.due : '') + (f.requestNote ? ' · ' + f.requestNote : ''), f.studentId)).join('') + '</ul>';
-      text += '\n[요청받은 일]\n' + asked.map((f) => '- ' + (student[f.studentId] || {}).name + ' — ' + f.title + ' (' + nameOf(f.requestedBy) + ' 님 요청)').join('\n') + '\n';
+      html += '<h3 style="color:#0B1B45;margin:16px 0 4px">넘겨받은 일 ' + asked.length + '건</h3><ul>' +
+        asked.map((f) => li((student[f.studentId] || {}).name + ' — ' + f.title, nameOf(f.requestedBy) + ' 님이 넘김' + (f.due ? ' · 기한 ' + f.due : '') + (f.requestNote ? ' · ' + f.requestNote : ''), f.studentId)).join('') + '</ul>';
+      text += '\n[넘겨받은 일]\n' + asked.map((f) => '- ' + (student[f.studentId] || {}).name + ' — ' + f.title + ' (' + nameOf(f.requestedBy) + ' 님이 넘김)').join('\n') + '\n';
     }
     if (fu.length) {
       html += '<h3 style="color:#0B1B45;margin:16px 0 4px">내 팔로업 (기한 지남·오늘·내일) ' + fu.length + '건</h3><ul>' +
@@ -231,10 +231,10 @@ async function sendRequestMail(store, req, fetchImpl) {
   if (!cfg.scriptUrl || cfg.mailOn !== 'on') return { sent: false, reason: '이메일 알림이 꺼져 있어 메일은 보내지 않았습니다.' };
   if (!req.notify) return { sent: false, reason: req.toName + ' 님은 이메일 알림을 받지 않도록 설정되어 있습니다.' };
   const link = cfg.siteUrl ? cfg.siteUrl + '/#/student/' + req.studentId : '';
-  const subject = '[Compass] ' + req.from + ' 님의 요청 — ' + req.student + ' · ' + req.title;
-  const lines = [req.from + ' 님이 팔로업을 요청했습니다.', '', '학생: ' + req.student, '할 일: ' + req.title + (req.due ? ' (기한 ' + req.due + ')' : '')]
+  const subject = '[Compass] ' + req.from + ' 님이 넘긴 일 — ' + req.student + ' · ' + req.title;
+  const lines = [req.from + ' 님이 팔로업을 넘겼습니다(이제 담당입니다).', '', '학생: ' + req.student, '할 일: ' + req.title + (req.due ? ' (기한 ' + req.due + ')' : '')]
     .concat(req.note ? ['메모: ' + req.note] : []);
-  const html = '<div style="font-family:sans-serif;font-size:14px;color:#222"><p>' + esc(req.from) + ' 님이 팔로업을 요청했습니다.</p><ul>' +
+  const html = '<div style="font-family:sans-serif;font-size:14px;color:#222"><p>' + esc(req.from) + ' 님이 팔로업을 넘겼습니다(이제 담당입니다).</p><ul>' +
     '<li>학생: <b>' + esc(req.student) + '</b></li><li>할 일: <b>' + esc(req.title) + '</b>' + (req.due ? ' (기한 ' + esc(req.due) + ')' : '') + '</li>' +
     (req.note ? '<li>메모: ' + esc(req.note) + '</li>' : '') + '</ul>' + (link ? '<p><a href="' + esc(link) + '">학생 화면 열기 →</a></p>' : '') + '</div>';
   await callScript(cfg, { action: 'mail', messages: [{ to: req.to, subject, html, text: lines.join('\n') + (link ? '\n\n' + link : '') }] }, fetchImpl);

@@ -210,7 +210,7 @@ test('성적표 파일 업로드·다운로드 권한', async () => {
   let r = await lee.upload(leeStudent.id, '성적표 G11.pdf', pdf);
   assert.strictEqual(r.status, 200, JSON.stringify(r.data));
   const f = r.data.files.find((x) => x.name === '성적표 G11.pdf');
-  assert.ok(f && f.category === '성적표' && f.size === String(pdf.length));
+  assert.ok(f && f.category === '성적증명서' && f.size === String(pdf.length));
   assert.ok(!('storedName' in f));
 
   r = await lee.req('GET', '/api/files/' + f.id);
@@ -339,7 +339,7 @@ test('서류에 파일을 올리면 자동 수합 완료 + 받은 날짜/사람 
   assert.strictEqual(doc.receivedBy, 'lee@revera.test');
   assert.ok(doc.receivedAt);
   const f = r.data.files.find((x) => x.docId === docId);
-  assert.ok(f && f.category === '서류' && f.name === '출입국.pdf');
+  assert.ok(f && f.category === '지원자격증빙(출입국·여권 등)' && f.name === '출입국.pdf');
   // 다른 학생의 서류 id로는 올릴 수 없음
   const other = await client();
   await other.login('admin@revera.test', 'admin-pass-1');
@@ -1024,9 +1024,9 @@ test('v7: 계약 날짜, 회의록·상담기록의 팔로업, 팔로업 요청(
   // 이미 담당인 사람에게 다시 요청 불가, 오래된 화면에서 요청하면 충돌
   assert.strictEqual((await kim.rpc('requestFollowup', { id: fu.id, to: 'v7staff@revera.test' })).status, 400);
   assert.strictEqual((await staff.rpc('requestFollowup', { id: fu.id, to: 'v7kim@revera.test', updatedAt: fu.updatedAt })).status, 409);
-  // 아침 메일에 "요청받은 일"
+  // 아침 메일에 "넘겨받은 일"
   const dg = require('../lib/automation').buildDigests(store, '2026-10-01').find((m) => m.to === 'v7staff@revera.test');
-  assert.ok(dg && dg.counts.requests >= 1 && /요청받은 일/.test(dg.html));
+  assert.ok(dg && dg.counts.requests >= 1 && /넘겨받은 일/.test(dg.html));
 
   // 목록 순서 (드래그): 관리팀은 학교 순서, 대학 순서는 관리자만
   await admin.ok('saveOption', { kind: 'school', value: 'v7 A학교' });
@@ -1210,7 +1210,7 @@ test('저장 공간: 매일 백업은 기록만, 파일은 새것만 하나씩 �
   let r = await automation.syncFiles(store, fetch, { maxFiles: 1000, maxBytes: 1e12 });
   assert.ok(r.sent >= 2 && r.left === 0);
   const sentNames = files().map((c) => c.name);
-  assert.ok(files().some((c) => /용량학생 · 성적표 · a\.pdf/.test(c.label)));
+  assert.ok(files().some((c) => /용량학생 · 성적증명서 · a\.pdf/.test(c.label)));
   r = await automation.syncFiles(store, fetch);
   assert.strictEqual(r.sent, 0, '이미 보낸 파일은 다시 안 보냄');
   await admin.upload(sid, 'c.pdf', Buffer.alloc(500, 1));
@@ -1236,7 +1236,7 @@ test('저장 공간: 매일 백업은 기록만, 파일은 새것만 하나씩 �
   st = await admin.ok('getStorage');
   const me = st.byStudent.find((x) => x.studentId === sid);
   assert.strictEqual(me.count, 4); assert.strictEqual(me.bytes, 3000);
-  assert.ok(st.byCategory.some((x) => x.category === '성적표'));
+  assert.ok(st.byCategory.some((x) => x.category === '성적증명서'));
   assert.ok(st.summary.used > 0 && st.summary.limit === 5 * 1024 ** 3);
   const staff = client(); await staff.login('mail1@revera.test', '123456');
   assert.strictEqual((await staff.rpc('getStorage')).status, 403);
@@ -1451,7 +1451,7 @@ test('v11: 공통 팔로업(학생마다 하나, 관리팀 담당), 여러 개 �
   let r = await admin.req('POST', '/api/files/upload?studentId=' + s1 + '&scoreId=' + scoreId, undefined, { 'Content-Type': 'application/octet-stream', 'X-File-Name': encodeURIComponent('sat.pdf') }, Buffer.from('%PDF-1.4 x'));
   assert.strictEqual(r.status, 200, JSON.stringify(r.data));
   const sf = r.data.files.find((f) => f.scoreId === scoreId);
-  assert.strictEqual(sf.category, '어학·표준화 점수');
+  assert.strictEqual(sf.category, '표준화학력(SAT·AP·IB)', 'SAT 첨부 → 표준화학력');
   r = await admin.req('POST', '/api/files/upload?studentId=' + s2 + '&scoreId=' + scoreId, undefined, { 'Content-Type': 'application/octet-stream', 'X-File-Name': encodeURIComponent('x.pdf') }, Buffer.from('%PDF'));
   assert.strictEqual(r.status, 404, '다른 학생 점수에는 못 붙임');
   // 여러 개 삭제 → 복구 → 다시 삭제 → 영구 삭제
@@ -1472,4 +1472,181 @@ test('v11: 공통 팔로업(학생마다 하나, 관리팀 담당), 여러 개 �
   assert.ok(hk && d.options.filter((o) => o.kind === 'track').length >= 10);
   d = await admin.ok('saveOption', { id: hk.id, kind: 'track', value: '홍콩(HK)' });
   assert.strictEqual(d.students.find((s) => s.id === s1).tracks, '3년특례, 홍콩(HK)');
+});
+
+test('대학 전공: 여러 개 한 번에 추가(중복 건너뜀), 학부 이름 한꺼번에 바꾸기', async () => {
+  const admin = client();
+  await admin.login('admin@revera.test', 'admin-pass-1');
+  let d = await admin.ok('getAll');
+  const u = d.universities[0];
+  d = await admin.ok('addMajorsMany', { universityId: u.id, rows: [{ name: 'Bachelor of Arts', faculty: 'Faculty of Arts' }, { name: 'bachelor of arts', faculty: 'X' }, { name: 'Business Administration', faculty: 'Arts Faculty', code: 'BBA' }, { name: '' }] });
+  assert.deepStrictEqual([d.added, d.skipped], [2, 2]);
+  d = await admin.ok('addMajorsMany', { universityId: u.id, rows: [{ name: 'BACHELOR OF ARTS' }] });
+  assert.deepStrictEqual([d.added, d.skipped], [0, 1], '이미 있는 이름은 건너뜀');
+  d = await admin.ok('renameFaculty', { universityId: u.id, from: 'Arts Faculty', to: 'Faculty of Arts' });
+  assert.strictEqual(d.changed, 1);
+  assert.strictEqual(d.unimajors.filter((m) => m.universityId === u.id && m.faculty === 'Faculty of Arts').length, 2);
+  assert.strictEqual((await admin.rpc('addMajorsMany', { universityId: 'nope', rows: [{ name: 'x' }] })).status, 404);
+});
+
+test('백업으로 복구: 전체 백업 ZIP → 기록·파일 되돌림, 직전 상태 자동 백업, 관리자만, 잘못된 파일 거절', async () => {
+  const admin = client();
+  await admin.login('admin@revera.test', 'admin-pass-1');
+  let d = await admin.saveOk('students', { name: '복구전학생' });
+  const sid = d.savedId;
+  const up = await admin.upload(sid, 'keep.pdf', Buffer.from('%PDF keep me'));
+  const fileId = up.data.files.find((f) => f.name === 'keep.pdf').id;
+  const stored = store.db.prepare('SELECT storedName FROM files WHERE id = ?').get(fileId).storedName;
+  const zip = (await admin.req('GET', '/api/backup')).data;
+  assert.ok(Buffer.isBuffer(zip) && zip.slice(0, 2).toString() === 'PK');
+  // 백업 뒤 변경: 학생 추가, 학생 삭제, 파일 지움
+  await admin.saveOk('students', { name: '백업뒤학생' });
+  await admin.ok('remove', { table: 'students', id: sid });
+  fs.rmSync(path.join(store.filesDir, stored), { force: true });
+  // 권한·잘못된 파일
+  await admin.ok('saveTeacher', { email: 'rs-staff@revera.test', name: '복구관리', role: 'staff', password: '123456' });
+  const staff = client(); await staff.login('rs-staff@revera.test', '123456');
+  assert.strictEqual((await staff.req('POST', '/api/restore', undefined, { 'Content-Type': 'application/zip' }, zip)).status, 403);
+  assert.strictEqual((await admin.req('POST', '/api/restore', undefined, { 'Content-Type': 'application/zip' }, Buffer.from('not a zip'))).status, 400);
+  // 복구
+  const r = await admin.req('POST', '/api/restore', undefined, { 'Content-Type': 'application/zip' }, zip);
+  assert.strictEqual(r.status, 200, JSON.stringify(r.data));
+  assert.ok(r.data.filesWritten >= 1 && /^before-restore-\d+\.zip$/.test(r.data.before));
+  d = await admin.ok('getAll'); // 로그인 유지
+  assert.ok(d.students.some((s) => s.name === '복구전학생'), '지운 학생이 돌아옴');
+  assert.ok(!d.students.some((s) => s.name === '백업뒤학생'), '백업 뒤에 만든 학생은 없어짐');
+  assert.ok(fs.existsSync(path.join(store.filesDir, stored)), '지운 파일이 돌아옴');
+  assert.ok(d.options.some((o) => o.kind === 'evauto'), '복구 뒤에도 새 구조 유지');
+  const list = (await admin.req('GET', '/api/restore-backups')).data.list;
+  assert.ok(list.some((f) => f.name === r.data.before));
+  assert.strictEqual((await admin.req('GET', '/api/restore-backups/' + r.data.before)).status, 200);
+  assert.strictEqual((await admin.req('GET', '/api/restore-backups/..%2Ftest.db')).status, 404);
+});
+
+test('팔로업 답변 이어쓰기: 여러 번 추가, 검증, 예전 한 칸 답변·우리 답변 옮기기(어머니→어머님)', async () => {
+  const admin = client(); await admin.login('admin@revera.test', 'admin-pass-1');
+  let d = await admin.saveOk('students', { name: '답변학생' });
+  const sid = d.savedId;
+  d = await admin.saveOk('followups', { studentId: sid, title: '추천서 요청', status: '할 일' });
+  const fid = d.savedId;
+  await admin.saveOk('fureplies', { studentId: sid, followupId: fid, who: '학생', date: '2026-10-20', content: '선생님께 메일 보냈어요' });
+  d = await admin.saveOk('fureplies', { studentId: sid, followupId: fid, who: '어머님', date: '2026-10-21', content: '확인했습니다' });
+  assert.strictEqual(d.fureplies.filter((x) => x.followupId === fid).length, 2);
+  assert.strictEqual((await admin.save('fureplies', { studentId: sid, followupId: fid, who: '학생', content: '  ' })).status, 400, '내용 필수');
+  assert.strictEqual((await admin.save('fureplies', { studentId: sid, followupId: fid, who: '', content: 'x' })).status, 400, '답변한 사람 필수');
+  assert.strictEqual((await admin.save('fureplies', { studentId: 'other', followupId: fid, who: '학생', content: 'x' })).status, 404, '다른 학생 팔로업에는 못 붙임');
+
+  const p = path.join(dir, 'v16.db');
+  let st = openStore(p);
+  st.db.prepare("INSERT INTO students (id, name, createdAt, updatedAt) VALUES ('s1', '옛학생', 'x', 'x')").run();
+  st.db.prepare(`INSERT INTO followups (id, studentId, title, status, reply, replyFrom, replyDate, kind, fromWho, answer, answerDate, createdAt, updatedAt, createdBy, updatedBy) VALUES
+    ('f1','s1','성적표','할 일','보냈어요','어머니','2026-10-01','','','','','x','x','a@x','a@x'),
+    ('f2','s1','질문','완료','','','','contact','아버지','월요일 제출 가능','2026-10-02','x','x','a@x','a@x')`).run();
+  st.db.prepare("DELETE FROM meta WHERE key = 'v16_replies'").run();
+  st.close();
+  st = openStore(p);
+  const reps = st.db.prepare('SELECT followupId, who, date, content FROM fureplies ORDER BY followupId').all();
+  assert.deepStrictEqual(reps, [
+    { followupId: 'f1', who: '어머님', date: '2026-10-01', content: '보냈어요' },
+    { followupId: 'f2', who: '담당 선생님', date: '2026-10-02', content: '월요일 제출 가능' }]);
+  assert.deepStrictEqual(st.db.prepare('SELECT reply, answer, fromWho FROM followups ORDER BY id').all(), [{ reply: '', answer: '', fromWho: '' }, { reply: '', answer: '', fromWho: '아버님' }]);
+  st.close();
+});
+
+test('서류 분류: 기본 목록, 파일·서류 분류 옮기기, 점수 첨부 자동 분류, 이름 바꾸면 파일·서류도 함께', async () => {
+  const p = path.join(dir, 'v17.db');
+  let st = openStore(p);
+  st.db.prepare("INSERT INTO students (id, name, createdAt, updatedAt) VALUES ('s1', '옛학생', 'x', 'x')").run();
+  st.db.prepare("INSERT INTO docs (id, studentId, name, category, createdAt, updatedAt) VALUES ('d1','s1','출입국사실증명서(부)','','x','x'), ('d2','s1','재학증명서','','x','x'), ('d3','s1','추천서','','x','x')").run();
+  st.db.prepare("INSERT INTO scores (id, studentId, kind, createdAt, updatedAt) VALUES ('c1','s1','IELTS','x','x')").run();
+  st.db.prepare(`INSERT INTO files (id, studentId, category, name, memo, docId, scoreId, meetingId, createdAt, updatedAt) VALUES
+    ('f1','s1','성적표','a.pdf','','','','','x','x'), ('f2','s1','학교 자료','b.pdf','2026','','','','x','x'), ('f3','s1','서류','c.pdf','','d1','','','x','x'),
+    ('f4','s1','어학·표준화 점수','d.pdf','','','c1','','x','x'), ('f5','s1','미팅','e.png','','','','m1','x','x'), ('f6','s1','기타','g.pdf','','','','','x','x')`).run();
+  st.db.prepare("DELETE FROM meta WHERE key = 'v17_doccats'").run();
+  st.close();
+  st = openStore(p);
+  const cat = (t, id) => st.db.prepare(`SELECT category, memo FROM ${t} WHERE id = ?`).get(id);
+  assert.deepStrictEqual(st.db.prepare("SELECT value FROM options WHERE kind = 'doccat' ORDER BY CAST(sortOrder AS INTEGER)").all().map((x) => x.value).slice(0, 3), ['재학증명서', '성적증명서', '졸업증명서']);
+  assert.strictEqual(cat('docs', 'd1').category, '지원자격증빙(출입국·여권 등)');
+  assert.strictEqual(cat('docs', 'd2').category, '재학증명서');
+  assert.strictEqual(cat('docs', 'd3').category, '기타(학사일정표·고교 프로파일 등)');
+  assert.strictEqual(cat('files', 'f1').category, '성적증명서');
+  assert.deepStrictEqual(cat('files', 'f2'), { category: '기타(학사일정표·고교 프로파일 등)', memo: '학교 자료 · 2026' }, '예전 분류는 메모에');
+  assert.strictEqual(cat('files', 'f3').category, '지원자격증빙(출입국·여권 등)', '서류 파일 = 서류 분류');
+  assert.strictEqual(cat('files', 'f4').category, '어학증빙', 'IELTS 첨부 → 어학증빙');
+  assert.strictEqual(cat('files', 'f5').category, '미팅', '미팅 첨부는 그대로');
+  assert.deepStrictEqual(cat('files', 'f6'), { category: '기타(학사일정표·고교 프로파일 등)', memo: '' });
+  st.close();
+
+  const admin = client(); await admin.login('admin@revera.test', 'admin-pass-1');
+  let d = await admin.saveOk('students', { name: '분류학생' });
+  const sid = d.savedId;
+  d = await admin.saveOk('docs', { studentId: sid, name: '여권 사본', category: '지원자격증빙(출입국·여권 등)', status: '요청 전' });
+  const docId = d.savedId;
+  let r = await admin.upload(sid, 'toefl.pdf', Buffer.from('%PDF t'), '어학증빙');
+  assert.ok(r.data.files.some((f) => f.name === 'toefl.pdf' && f.category === '어학증빙'));
+  r = await admin.upload(sid, 'x.pdf', Buffer.from('%PDF x'), '없는 분류');
+  assert.ok(r.data.files.some((f) => f.name === 'x.pdf' && f.category === '기타(학사일정표·고교 프로파일 등)'), '목록에 없는 분류는 기타');
+  const opt = (await admin.ok('getAll')).options.find((o) => o.kind === 'doccat' && o.value === '지원자격증빙(출입국·여권 등)');
+  d = await admin.ok('saveOption', { id: opt.id, kind: 'doccat', value: '지원자격증빙' });
+  assert.strictEqual(d.docs.find((x) => x.id === docId).category, '지원자격증빙');
+});
+
+test('부모님 확정은 지원대학에서: 체크하면 날짜·기록자, 전공 탭 확정 기록은 같은 대학·전공 지원대학으로 옮김', async () => {
+  const admin = client(); await admin.login('admin@revera.test', 'admin-pass-1');
+  let d = await admin.ok('getAll');
+  const u = d.universities[0];
+  d = await admin.saveOk('students', { name: '확정학생' });
+  const sid = d.savedId;
+  d = await admin.saveOk('apps', { studentId: sid, universityId: u.id, major: 'Psychology', status: '준비중', parentConfirmed: 'TRUE' });
+  let a = d.apps.find((x) => x.id === d.savedId);
+  assert.strictEqual(a.parentConfirmed, 'TRUE');
+  assert.ok(a.parentConfirmedAt && a.parentConfirmedBy === 'admin@revera.test');
+  d = await admin.saveOk('apps', { id: a.id, updatedAt: a.updatedAt, parentConfirmed: '' });
+  a = d.apps.find((x) => x.id === a.id);
+  assert.deepStrictEqual([a.parentConfirmed, a.parentConfirmedAt], ['', '']);
+
+  const p = path.join(dir, 'v18.db');
+  let st = openStore(p);
+  st.db.prepare("INSERT INTO students (id, name, createdAt, updatedAt) VALUES ('s1', '옛학생', 'x', 'x')").run();
+  st.db.prepare("INSERT INTO majorplans (id, studentId, universityId, major, status, parentConfirmed, parentConfirmedAt, parentConfirmedBy, createdAt, updatedAt) VALUES ('m1','s1','u1','Psychology','최종','TRUE','2026-10-01T10:00','k@x','x','x')").run();
+  st.db.prepare("INSERT INTO apps (id, studentId, universityId, major, createdAt, updatedAt) VALUES ('a1','s1','u1',' psychology ','x','x'), ('a2','s1','u1','Law','x','x'), ('a3','s1','u2','Psychology','x','x')").run();
+  st.db.prepare("DELETE FROM meta WHERE key = 'v18_app_parent'").run();
+  st.close();
+  st = openStore(p);
+  assert.deepStrictEqual(st.db.prepare('SELECT id, parentConfirmed, parentConfirmedBy FROM apps ORDER BY id').all(),
+    [{ id: 'a1', parentConfirmed: 'TRUE', parentConfirmedBy: 'k@x' }, { id: 'a2', parentConfirmed: '', parentConfirmedBy: '' }, { id: 'a3', parentConfirmed: '', parentConfirmedBy: '' }]);
+  assert.strictEqual(st.db.prepare("SELECT parentConfirmed FROM majorplans WHERE id = 'm1'").get().parentConfirmed, 'TRUE', '전공 기록은 그대로');
+  st.close();
+});
+
+test('학생 정보 정리: 영문 이름·영문 주소를 원서 정보에서 학생 칸으로, 추천서·온라인 코스는 메모로, 추천인 이메일 보냄 체크', async () => {
+  const p = path.join(dir, 'v19.db');
+  let st = openStore(p);
+  st.db.prepare("INSERT INTO students (id, name, memo, recommenders, onlineCourse, createdAt, updatedAt) VALUES ('s1','옛학생','원래 메모','영어쌤 요청 완료','Coursera 3주차','x','x'), ('s2','둘째','','','','x','x')").run();
+  st.db.prepare("UPDATE students SET englishName = 'ALREADY' WHERE id = 's2'").run();
+  st.db.prepare(`INSERT INTO appinfo (id, studentId, universityId, item, content, createdAt, updatedAt) VALUES
+    ('i1','s1','','영문 이름 (여권 기준)','HONG GILDONG','1','x'), ('i2','s1','','영문 주소','12 Main St','2','x'),
+    ('i3','s1','u1','영문 이름 (여권 기준)','HKU용','3','x'), ('i4','s2','','영문 이름 (여권 기준)','OTHER','4','x'), ('i5','s1','','추천인 1','Mr. Kim','5','x')`).run();
+  st.db.prepare("DELETE FROM meta WHERE key = 'v19_profile'").run();
+  st.close();
+  st = openStore(p);
+  assert.deepStrictEqual(st.db.prepare("SELECT englishName, addressEn, memo, recommenders, onlineCourse FROM students WHERE id = 's1'").get(),
+    { englishName: 'HONG GILDONG', addressEn: '12 Main St', memo: '원래 메모\n[추천서 진행] 영어쌤 요청 완료\n[온라인 코스] Coursera 3주차', recommenders: '', onlineCourse: '' });
+  const live = st.db.prepare("SELECT id FROM appinfo WHERE deletedAt = '' ORDER BY id").all().map((x) => x.id);
+  assert.deepStrictEqual(live, ['i3', 'i4', 'i5'], '대학별 항목·이미 값이 있는 학생·추천인은 그대로');
+  st.close();
+
+  const admin = client(); await admin.login('admin@revera.test', 'admin-pass-1');
+  let d = await admin.saveOk('students', { name: '추천학생', englishName: 'KIM A', address: '서울', addressEn: 'Seoul' });
+  const sid = d.savedId;
+  assert.strictEqual(d.students.find((x) => x.id === sid).englishName, 'KIM A');
+  d = await admin.saveOk('appinfo', { studentId: sid, item: '추천인 1', content: 'Ms. Lee' });
+  let r = d.appinfo.find((x) => x.id === d.savedId);
+  d = await admin.saveOk('appinfo', { id: r.id, updatedAt: r.updatedAt, sent: 'TRUE' });
+  r = d.appinfo.find((x) => x.id === r.id);
+  assert.ok(r.sent === 'TRUE' && r.sentAt && r.sentBy === 'admin@revera.test');
+  d = await admin.saveOk('appinfo', { id: r.id, updatedAt: r.updatedAt, sent: '' });
+  r = d.appinfo.find((x) => x.id === r.id);
+  assert.deepStrictEqual([r.sent, r.sentAt], ['', '']);
 });

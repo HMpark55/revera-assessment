@@ -197,6 +197,61 @@ function createApp(store, opts) {
     next(err);
   });
 
+  // 관리자: 백업 ZIP 으로 복구 — ① 지금 상태를 자동 백업(최근 2개 보관) ② 기록(DB)을 통째로 교체 ③ ZIP 안 업로드 파일을 files 폴더에
+  const restoreDir = () => path.join(path.dirname(store.dbPath), 'restore-backups');
+  app.post('/api/restore', requireLogin, express.raw({ type: () => true, limit: '400mb' }), async (req, res) => {
+    if (req.me.role !== 'admin') return res.status(403).json({ error: '관리자만 복구할 수 있습니다.' });
+    const os = require('os');
+    const tmpDb = path.join(os.tmpdir(), 'compass-restore-' + Date.now() + '.db');
+    try {
+      const { readZip } = require('./lib/zip');
+      let entries;
+      try { entries = readZip(req.body); } catch (e) { throw new UserError(e.message + ' Compass 백업 ZIP 파일을 골라주세요.'); }
+      const dbEntry = entries.find((e) => e.name === 'compass.db');
+      if (!dbEntry) throw new UserError('ZIP 안에 compass.db 가 없습니다. Compass 백업 ZIP 파일을 골라주세요.');
+      // ① 복구 직전 상태 자동 백업
+      const dir = restoreDir();
+      fs.mkdirSync(dir, { recursive: true });
+      const z = await automation.buildBackupZip(store, true);
+      const before = 'before-restore-' + new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 16).replace(/[-:T]/g, '') + '.zip';
+      try { fs.copyFileSync(z.path, path.join(dir, before)); } finally { z.cleanup(); }
+      fs.readdirSync(dir).filter((f) => /^before-restore-.*\.zip$/.test(f)).sort().reverse().slice(2).forEach((f) => fs.rmSync(path.join(dir, f), { force: true })); // 볼륨이 작아서 최근 2개만
+      // ② 기록 교체
+      fs.writeFileSync(tmpDb, dbEntry.read());
+      const counts = store.restoreFromDb(req.me, tmpDb);
+      // ③ 업로드 파일
+      let files = 0;
+      for (const e of entries) {
+        const m = /^files\/([^/\\]+)$/.exec(e.name);
+        if (!m || m[1].startsWith('.')) continue;
+        fs.writeFileSync(path.join(store.filesDir, m[1]), e.read());
+        files++;
+      }
+      res.json({ ok: true, students: counts.students, filesInDb: counts.files, filesWritten: files, before });
+    } catch (e) {
+      if (e instanceof UserError) return sendError(res, e);
+      console.error(e);
+      res.status(500).json({ error: '복구에 실패했습니다: ' + e.message });
+    } finally {
+      fs.rm(tmpDb, { force: true }, () => {});
+    }
+  });
+  // 복구 직전 자동 백업 목록·내려받기 (관리자)
+  app.get('/api/restore-backups', requireLogin, (req, res) => {
+    if (req.me.role !== 'admin') return res.status(403).json({ error: '관리자만 볼 수 있습니다.' });
+    let list = [];
+    try { list = fs.readdirSync(restoreDir()).filter((f) => /^before-restore-.*\.zip$/.test(f)).sort().reverse().map((f) => ({ name: f, size: fs.statSync(path.join(restoreDir(), f)).size })); } catch (e) { /* 아직 없음 */ }
+    res.json({ list });
+  });
+  app.get('/api/restore-backups/:name', requireLogin, (req, res) => {
+    if (req.me.role !== 'admin') return res.status(403).json({ error: '관리자만 받을 수 있습니다.' });
+    const name = String(req.params.name);
+    if (!/^before-restore-\d+\.zip$/.test(name)) return res.status(404).json({ error: '파일을 찾을 수 없습니다.' });
+    const full = path.join(restoreDir(), name);
+    if (!fs.existsSync(full)) return res.status(404).json({ error: '파일을 찾을 수 없습니다.' });
+    res.download(full, name);
+  });
+
   // 관리자: 백업 다운로드 (ZIP = DB 파일 + 업로드한 파일 전체 + 파일 목록, ?mode=db 면 파일 제외)
   app.get('/api/backup', requireLogin, async (req, res) => {
     if (req.me.role !== 'admin') return res.status(403).json({ error: '관리자만 백업할 수 있습니다.' });
