@@ -111,7 +111,7 @@ test('역할별 권한: 컨설턴트는 담당 학생만, 상담기록·계약�
   assert.strictEqual(d.notes.length, 0);
   assert.strictEqual(d.contracts.length, 1);
   assert.ok(!('amount' in d.contracts[0]) && !('paid' in d.contracts[0]));
-  assert.ok(!JSON.stringify(d).includes('30000') && !JSON.stringify(d).includes('민감한'));
+  assert.ok(!/[":]30000[",}]/.test(JSON.stringify(d)) && !JSON.stringify(d).includes('민감한')); // 따옴표까지 — 무작위 ID 안의 30000 과 헷갈리지 않게
   assert.strictEqual(d.scores.length, 1);
   // 컨설턴트 lee: 이학생만
   d = await lee.ok('getAll');
@@ -447,8 +447,8 @@ test('대학 정보: 초기 자료, 권한, 전형 마감일 자동 반영', asy
   }
   const hku = d.universities.find((u) => u.name === 'HKU');
   const cyc = d.unicycles.find((c) => c.universityId === hku.id && c.year === '2027');
-  assert.strictEqual(cyc.status, '확인 필요');
-  assert.ok(JSON.parse(cyc.requirements).some((r) => r.item === 'Personal Statement'));
+  assert.deepStrictEqual(JSON.parse(cyc.requirements), [], '처음 자료의 지원 요건은 비어 있음 (선생님이 채움)');
+  assert.ok(!/확인 완료/.test(cyc.memo), '확인 안내 문구 없음');
   const early = d.unirounds.find((r) => r.cycleId === cyc.id && r.deadline === '2026-11-25');
   assert.ok(early);
 
@@ -1675,4 +1675,35 @@ test('v12 의견: 받은 연락 어머님, 학생 목록 칸(관리팀만·모�
   const r = await con.req('POST', '/api/schedule/refresh', {});
   assert.notStrictEqual(r.status, 403, '컨설턴트도 누를 수 있음');
   assert.ok(r.status === 200 || r.status === 400, JSON.stringify(r.data)); // 시트 설정이 없으면 400 + 안내
+});
+
+test('v13: 대학 정보 처음 요건 비우기(선생님이 고친 건 그대로), 대회·프로그램 첨부 파일, 학생 목록 새 칸', async () => {
+  const p = path.join(dir, 'v20.db');
+  let st = openStore(p);
+  st.db.prepare(`INSERT INTO unicycles (id, universityId, year, requirements, memo, status, createdAt, createdBy, updatedAt, updatedBy) VALUES
+    ('c1','u1','2027','[{"item":"IELTS","content":"6.5"}]','Compass 초기 자료(2026-10-16 조사). 공식 사이트에서 확인한 뒤 "확인 완료"로 바꿔주세요.\n마감 메모','확인 필요','x','system','x','system'),
+    ('c2','u1','2028','[{"item":"PS","content":"선생님이 씀"}]','','확인 완료','x','system','y','kim@x')`).run();
+  st.db.prepare("DELETE FROM meta WHERE key = 'v20_uni_reset'").run();
+  st.close();
+  st = openStore(p);
+  assert.deepStrictEqual(st.db.prepare("SELECT id, requirements, memo FROM unicycles WHERE id IN ('c1','c2') ORDER BY id").all(), [
+    { id: 'c1', requirements: '[]', memo: '마감 메모' }, { id: 'c2', requirements: '[{"item":"PS","content":"선생님이 씀"}]', memo: '' }]);
+  st.close();
+
+  const admin = client(); await admin.login('admin@revera.test', 'admin-pass-1');
+  let d = await admin.ok('saveProgram', { name: '첨부 대회', category: '에세이 대회' });
+  const pid = d.programs.find((x) => x.name === '첨부 대회').id;
+  let r = await admin.req('POST', '/api/unifiles/upload?programId=' + pid, undefined, { 'Content-Type': 'application/octet-stream', 'X-File-Name': encodeURIComponent('요강.pdf') }, Buffer.from('%PDF guide'));
+  assert.strictEqual(r.status, 200, JSON.stringify(r.data));
+  const f = r.data.unifiles.find((x) => x.programId === pid);
+  assert.ok(f && f.name === '요강.pdf' && !f.cycleId);
+  assert.strictEqual((await admin.req('GET', '/api/unifiles/' + f.id)).status, 200);
+  assert.ok(store.listFiles().some((x) => x.name === '요강.pdf' && /첨부 대회 \(대회·프로그램 자료\)/.test(x.studentName)), '드라이브 백업에 포함');
+  assert.strictEqual((await admin.req('POST', '/api/unifiles/upload?programId=nope', undefined, { 'Content-Type': 'application/octet-stream', 'X-File-Name': 'x.pdf' }, Buffer.from('%PDF'))).status, 404);
+  d = await admin.ok('removeProgram', { id: pid });
+  assert.ok(!d.unifiles.some((x) => x.programId === pid), '대회를 지우면 첨부도 함께');
+
+  d = await admin.ok('saveStudentCols', { cols: ['contract', 'amount', 'unpaid', 'contractEnd', 'scores', 'appProgress', 'nextSched', 'curriculum', 'parentPhone', 'dob'] });
+  assert.strictEqual(d.studentCols.length, 10);
+  await admin.ok('saveStudentCols', { cols: null });
 });

@@ -158,7 +158,8 @@ function guessDocCat(name) {
   return DC.etc;
 }
 /** 학생 목록에 넣을 수 있는 칸 (화면 이름은 index.html STUDENT_COLS) */
-const STUDENT_COLS = ['school', 'consult', 'todo', 'contacts', 'nextMeet', 'deadline', 'lastMeet', 'check', 'manager', 'status', 'tracks', 'country', 'major', 'progress', 'hope'];
+const STUDENT_COLS = ['school', 'consult', 'todo', 'contacts', 'nextMeet', 'deadline', 'lastMeet', 'check', 'manager', 'status', 'tracks', 'country', 'major', 'progress', 'hope',
+  'contract', 'amount', 'unpaid', 'contractEnd', 'scores', 'appProgress', 'nextSched', 'curriculum', 'parentPhone', 'dob'];
 const DEFAULT_TRACKS = ['3년특례', '12년특례', '홍콩', '싱가폴', '미국', '캐나다', '영국', '일본', '한국 일반', '기타'];
 /** 목록 이름을 바꾸면 함께 바뀌는 곳 */
 const OPTION_TARGET = { school: ['students', 'school'], curriculum: ['students', 'curriculum'], site: ['accounts', 'site'], evcat: ['events', 'category'], track: ['students', 'tracks'], doccat: ['files', 'category'] };
@@ -360,7 +361,7 @@ function migrate(db) {
   // v10: 팔로업 요청(휴무 등으로 다른 선생님에게 부탁), 대학 자료 파일
   ensureColumns(db, 'followups', ['requestedBy', 'requestedAt', 'requestNote']);
   db.exec('CREATE TABLE IF NOT EXISTS unifiles (id TEXT PRIMARY KEY)');
-  ensureColumns(db, 'unifiles', ['universityId', 'cycleId', 'category', 'name', 'memo', 'mime', 'size', 'storedName', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy']);
+  ensureColumns(db, 'unifiles', ['universityId', 'cycleId', 'programId', 'category', 'name', 'memo', 'mime', 'size', 'storedName', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy']); // programId: 대회·프로그램 첨부
   // v12: 확인 요청 — 이 기록(상담·미팅·연락)을 다른 선생님이 꼭 보도록 (휴무 후 출근해서 확인 등)
   db.exec("CREATE TABLE IF NOT EXISTS reviews (id TEXT PRIMARY KEY, studentId TEXT NOT NULL, refTable TEXT NOT NULL, refId TEXT NOT NULL, toEmail TEXT NOT NULL, fromEmail TEXT NOT NULL, note TEXT NOT NULL DEFAULT '', createdAt TEXT NOT NULL, doneAt TEXT NOT NULL DEFAULT '')");
   // v13: 원장님 상담 스케줄(구글 시트)에서 가져온 일정 — Compass 학생과 연결된 것만. schedex = "우리 학생 아님"으로 뺀 일정
@@ -503,6 +504,18 @@ function migrate(db) {
       db.prepare("INSERT INTO meta VALUES ('v19_profile', ?)").run(ts);
     })();
   }
+  // v20: 대학 정보 처음부터 — 처음 넣은 조사 요건(선생님이 고치지 않은 것)은 비우고, "확인 필요/완료"는 없앰. 마감일·전공·파일·유의사항은 그대로
+  if (!db.prepare("SELECT 1 FROM meta WHERE key = 'v20_uni_reset'").get()) {
+    const ts = now();
+    db.transaction(() => {
+      db.prepare("UPDATE unicycles SET requirements = '[]' WHERE createdBy = 'system' AND updatedBy = 'system'").run();
+      for (const c of db.prepare('SELECT id, memo FROM unicycles').all()) {
+        const m = stripSeedNote(c.memo);
+        if (m !== c.memo) db.prepare('UPDATE unicycles SET memo = ? WHERE id = ?').run(m, c.id);
+      }
+      db.prepare("INSERT INTO meta VALUES ('v20_uni_reset', ?)").run(ts);
+    })();
+  }
   db.exec('CREATE TABLE IF NOT EXISTS programs (id TEXT PRIMARY KEY)');
   ensureColumns(db, 'programs', ['name', 'category', 'target', 'schedule', 'deadline', 'url', 'memo', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy']);
   // v9: 메인 화면 공용 달력 (SAT 시험일 등 모두가 함께 보는 일정)
@@ -540,6 +553,8 @@ function migrate(db) {
   }
 }
 
+const SEED_NOTE_RE = /^Compass 초기 자료\(2026-10-16 조사\)\. 공식 사이트에서 확인한 뒤 "확인 완료"로 바꿔주세요\.\n?/;
+function stripSeedNote(m) { return String(m || '').replace(SEED_NOTE_RE, ''); }
 function seedUniversities(db) {
   const seed = require('./university-seed');
   const ts = now();
@@ -554,8 +569,9 @@ function seedUniversities(db) {
       website: u.website || '', tips: u.tips || '', sortOrder: String(i + 1) }, meta));
     (u.cycles || []).forEach((c) => {
       const cid = newId();
-      ins('unicycles', Object.assign({ id: cid, universityId: uid, year: c.year, term: c.term, requirements: JSON.stringify(c.requirements || []),
-        sourceUrl: c.sourceUrl || '', status: '확인 필요', memo: c.memo || '' }, meta));
+      // 지원 요건은 비워 둠 — 선생님이 공식 사이트를 보고 직접 채움 (마감일·출처는 처음 자료 그대로)
+      ins('unicycles', Object.assign({ id: cid, universityId: uid, year: c.year, term: c.term, requirements: '[]',
+        sourceUrl: c.sourceUrl || '', status: '', memo: stripSeedNote(c.memo) }, meta));
       (c.rounds || []).forEach((r) => ins('unirounds', Object.assign({ id: newId(), universityId: uid, cycleId: cid,
         name: r.name, deadline: r.deadline || '', memo: r.memo || '' }, meta)));
     });
@@ -721,7 +737,7 @@ function openStore(dbPath, opts) {
     out.options = db.prepare('SELECT id, kind, value, sortOrder, url, category, color FROM options').all();
     out.programs = db.prepare('SELECT * FROM programs ORDER BY name').all();
     out.events = db.prepare('SELECT * FROM events ORDER BY date, title').all();
-    out.unifiles = db.prepare('SELECT id, universityId, cycleId, category, name, memo, mime, size, createdAt, createdBy FROM unifiles ORDER BY createdAt DESC').all();
+    out.unifiles = db.prepare('SELECT id, universityId, cycleId, programId, category, name, memo, mime, size, createdAt, createdBy FROM unifiles ORDER BY createdAt DESC').all();
     // 원장님 상담 일정 (구글 시트) — 볼 수 있는 학생 것만, 최근 120일부터
     const since = new Date(Date.now() - 120 * 86400000).toISOString().slice(0, 10);
     out.sched = db.prepare('SELECT key, studentId, startAt, endAt, title, detail, zone, sheetLabel FROM sched WHERE startAt >= ? ORDER BY startAt').all(since).filter((r) => ids.has(r.studentId));
@@ -1088,7 +1104,6 @@ function openStore(dbPath, opts) {
         if (table === 'universities') requireAdmin(me, '대학 추가');
         else requireUni(rec.universityId);
         if (table === 'unicycles') {
-          if (!rec.status) rec.status = '확인 필요';
           if (!rec.requirements) rec.requirements = '[]';
         }
         validateCatalog(table, rec, null);
@@ -1290,6 +1305,10 @@ function openStore(dbPath, opts) {
     if (!cur) throw new UserError('이미 삭제되었습니다.', 404);
     if (cur.createdBy !== me.email && !isManager(me)) throw new UserError('등록한 사람이나 관리자·관리팀만 지울 수 있습니다.', 403);
     db.prepare('DELETE FROM programs WHERE id = ?').run(cur.id);
+    for (const f of db.prepare('SELECT id, storedName FROM unifiles WHERE programId = ?').all(cur.id)) { // 첨부 파일도 함께
+      db.prepare('DELETE FROM unifiles WHERE id = ?').run(f.id);
+      fs.rm(path.join(filesDir, f.storedName), { force: true }, () => {});
+    }
     log(me.email, 'delete', 'programs', cur.id, cur.name + [cur.category, cur.url, cur.schedule, cur.memo].filter(Boolean).map((x) => ' · ' + x.slice(0, 200)).join(''));
     return getAll(me);
   }
@@ -1523,23 +1542,25 @@ function openStore(dbPath, opts) {
   /* ----- 대학 자료 파일 (모집요강 등, 입학 연도별) ----- */
   const UNIFILE_CATS = ['모집요강', '공식 안내', '기타 자료'];
   function addUniFile(me, info) {
-    const c = getRow('unicycles', info.cycleId);
-    if (!c || c.deletedAt) throw new UserError('입학 연도 정보를 찾을 수 없습니다. 새로고침 해주세요.', 404);
-    const u = requireUni(c.universityId);
+    const pg = info.programId ? getRow('programs', info.programId) : null;
+    if (info.programId && !pg) throw new UserError('대회·프로그램을 찾을 수 없습니다. 새로고침 해주세요.', 404);
+    const c = pg ? null : getRow('unicycles', info.cycleId);
+    if (!pg && (!c || c.deletedAt)) throw new UserError('입학 연도 정보를 찾을 수 없습니다. 새로고침 해주세요.', 404);
+    const u = pg ? null : requireUni(c.universityId);
     const name = String(info.name || '').replace(/[\\/\r\n]/g, '_').trim().slice(0, 200);
     const ext = (name.match(/\.([a-z0-9]+)$/i) || [])[1];
     const type = ext && UPLOAD_TYPES[ext.toLowerCase()];
     if (!type) throw new UserError('올릴 수 없는 파일 형식입니다. (PDF, 이미지, 워드, 엑셀, 한글 파일만 가능)');
     if (!info.buffer || !info.buffer.length) throw new UserError('빈 파일입니다.');
     if (info.buffer.length > MAX_UPLOAD) throw new UserError('파일은 20MB 이하만 올릴 수 있습니다.');
-    const category = UNIFILE_CATS.includes(info.category) ? info.category : (u.country === '한국' ? '모집요강' : '기타 자료');
+    const category = pg ? '대회·프로그램' : UNIFILE_CATS.includes(info.category) ? info.category : (u.country === '한국' ? '모집요강' : '기타 자료');
     const id = newId(), storedName = id + '.' + ext.toLowerCase(), t = now();
     const full = path.join(filesDir, storedName);
     fs.writeFileSync(full, info.buffer);
     try {
-      db.prepare('INSERT INTO unifiles (id, universityId, cycleId, category, name, memo, mime, size, storedName, createdAt, createdBy, updatedAt, updatedBy) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)')
-        .run(id, u.id, c.id, category, name, '', type, String(info.buffer.length), storedName, t, me.email, t, me.email);
-      log(me.email, 'upload', 'unifiles', id, u.name + ' · ' + cycleLabel(c) + ' · ' + category + ' · ' + name);
+      db.prepare('INSERT INTO unifiles (id, universityId, cycleId, programId, category, name, memo, mime, size, storedName, createdAt, createdBy, updatedAt, updatedBy) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+        .run(id, u ? u.id : '', c ? c.id : '', pg ? pg.id : '', category, name, '', type, String(info.buffer.length), storedName, t, me.email, t, me.email);
+      log(me.email, 'upload', 'unifiles', id, (pg ? pg.name : u.name + ' · ' + cycleLabel(c)) + ' · ' + category + ' · ' + name);
     } catch (e) {
       fs.rm(full, { force: true }, () => {});
       throw e;
@@ -2152,8 +2173,9 @@ function openStore(dbPath, opts) {
   function listFiles() {
     return db.prepare(`SELECT f.storedName, f.name, f.category, f.createdAt, f.deletedAt, s.name AS studentName, f.studentId, CAST(f.size AS INTEGER) AS size, f.mime, 'student' AS kind
       FROM files f LEFT JOIN students s ON s.id = f.studentId
-      UNION ALL SELECT u.storedName, u.name, u.category, u.createdAt, '' AS deletedAt, IFNULL(v.name, '') || ' (대학 자료)' AS studentName, '' AS studentId, CAST(u.size AS INTEGER) AS size, u.mime, 'uni' AS kind
-      FROM unifiles u LEFT JOIN universities v ON v.id = u.universityId ORDER BY 4`).all();
+      UNION ALL SELECT u.storedName, u.name, u.category, u.createdAt, '' AS deletedAt,
+        CASE WHEN u.programId != '' THEN IFNULL(p.name, '') || ' (대회·프로그램 자료)' ELSE IFNULL(v.name, '') || ' (대학 자료)' END AS studentName, '' AS studentId, CAST(u.size AS INTEGER) AS size, u.mime, 'uni' AS kind
+      FROM unifiles u LEFT JOIN universities v ON v.id = u.universityId LEFT JOIN programs p ON p.id = u.programId ORDER BY 4`).all();
   }
 
   /* ----- 파일 드라이브 백업 기록 ----- */

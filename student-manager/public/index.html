@@ -109,7 +109,10 @@
 
   .note { border-left:3px solid var(--gold); padding:8px 12px; margin-bottom:12px; background:#fcfcfd; border-radius:0 6px 6px 0; }
   .note .meta { font-size:.78rem; color:var(--muted); margin-bottom:4px; display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
-  .note .body { white-space:pre-wrap; line-height:1.55; }
+  .note .body { white-space:pre-wrap; line-height:1.55; max-height:24em; overflow:auto; }
+  /* 길어지는 글 칸은 일정 높이를 넘으면 그 안에서 스크롤 */
+  .longtxt { max-height:11em; overflow:auto; white-space:pre-wrap; }
+  .appinfo td, .pg td, .th-b, .sentck + div { overflow-wrap:anywhere; }
   .note .next { margin-top:6px; font-size:.85rem; background:#fffaf0; padding:6px 8px; border-radius:4px; }
   .note .acts { margin-left:auto; display:flex; gap:4px; }
 
@@ -440,6 +443,12 @@
   .th-h { display:flex; gap:6px; align-items:center; font-size:.82rem; }
   .th-h .ibtn { margin-left:auto; }
   td.clip1 { max-width:260px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  th { position:relative; }
+  .colrs { position:absolute; top:0; right:-3px; width:7px; height:100%; cursor:col-resize; z-index:2; }
+  .colrs:hover, body.colresizing .colrs { background:rgba(59,130,246,.25); }
+  body.colresizing { cursor:col-resize; user-select:none; }
+  table.colfix { table-layout:fixed; } table.colfix td, table.colfix th { overflow:hidden; overflow-wrap:anywhere; white-space:normal; }
+  .dropzone.dragon { outline:2px dashed #3b82f6; outline-offset:-2px; background:#eef4ff !important; }
   .shot-wrap { display:inline-flex; align-items:center; gap:2px; }
   .th-b { white-space:pre-wrap; font-size:.9rem; margin-top:2px; }
   .fr-add { display:grid; grid-template-columns:auto auto 1fr auto; gap:6px; margin-top:6px; align-items:start; }
@@ -637,7 +646,6 @@ function termCols(t) {
   return { '1학기만': [['g1', '1학기']], '2학기만': [['g2', '2학기']], 'Trimester': [['g1', 'T1'], ['g2', 'T2'], ['g3', 'T3'], ['final', '최종']] }[t] ||
     [['g1', '1학기'], ['g2', '2학기'], ['final', '최종']];
 }
-var CYCLE_STATUS = ['확인 필요', '확인 완료'];
 var FORMS = {
   students: { title: '학생 정보', fields: [
     { k: 'name', l: '이름', req: 1 }, { k: 'englishName', l: '영문 이름 (여권 기준)', ph: '예: HONG GILDONG' },
@@ -747,10 +755,10 @@ var FORMS = {
     { k: 'tips', l: '유의사항 (내부 메모 — 공식 정보와 구분됩니다)', t: 'textarea', full: 1, big: 1 }] },
   unicycles: { title: '입학 연도 정보', fields: [
     { k: 'year', l: '입학 연도', req: 1, ph: '예: 2027' }, { k: 'term', l: '입학 학기', t: 'select', o: TERMS_INTAKE, req: 1 },
-    { k: 'status', l: '확인 상태', t: 'select', o: CYCLE_STATUS }, { k: 'sourceUrl', l: '공식 출처 링크', t: 'url', ph: 'https://...' },
+    { k: 'sourceUrl', l: '공식 출처 링크', t: 'url', ph: 'https://...' },
     { k: 'requirements', l: '공식 지원 요건 (항목 + 내용, 대학마다 자유롭게)', t: 'reqs', full: 1 },
     { k: 'memo', l: '메모 (출처·확인 관련)', t: 'textarea', full: 1 }],
-    defaults: function () { return { year: String(new Date().getFullYear() + 1), term: '9월', status: '확인 필요', requirements: '[]' }; } },
+    defaults: function () { return { year: String(new Date().getFullYear() + 1), term: '9월', requirements: '[]' }; } },
   unirounds: { title: '전형·마감일', fields: [
     { k: 'track', l: '전형 구분', t: 'track' },
     { k: 'name', l: '전형 이름', t: 'list', o: ['Early', 'Regular', 'Main Round', 'Late', 'Rolling', 'Extended'], req: 1 },
@@ -1178,6 +1186,7 @@ function render() {
   document.body.classList.toggle('wide', r.view === 'home');
   $('app').innerHTML = v(r.id);
   decorateSearch();
+  colResizeSetup();
   if (UI.focusRef) { var fr = $('ref-' + UI.focusRef); UI.focusRef = null; if (fr) { fr.scrollIntoView({ block: 'center' }); fr.classList.add('flash'); } }
   var q = $('q'); if (q && UI._focusQ) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); UI._focusQ = false; }
 }
@@ -1755,7 +1764,40 @@ var STUDENT_COLS = [
     return '<td>' + (m ? esc(m.university + ' ' + m.major) + (ok.length ? ' <span class="pill d-수합">확정</span>' : '') : '<span class="muted">-</span>') + '</td>'; } },
   { k: 'progress', l: '현재 진행 상황', cell: function (s) { return '<td class="clip1" title="' + esc(s.progress || '') + '">' + (s.progress ? esc(s.progress) : '<span class="muted">-</span>') + '</td>'; } },
   { k: 'hope', l: '희망 대학', cell: function (s) { return '<td class="clip1" title="' + esc(s.hopeUnis || '') + '">' + (s.hopeUnis ? esc(s.hopeUnis) : '<span class="muted">-</span>') + '</td>'; } },
+  { k: 'contract', l: '계약', cell: function (s) { var l = currentContracts(s.id); return '<td>' + (l.length ? l.map(function (c) { return '<div class="nw">' + esc(contractLabel(c)) + '</div>'; }).join('') : '<span class="muted">-</span>') + '</td>'; } },
+  { k: 'amount', l: '계약 금액', mgr: 1, cell: function (s) { return '<td class="nw">' + (isMgr() ? moneyByCur(currentContracts(s.id), function (c) { return contractPay(c).total; }) : '<span class="muted">-</span>') + '</td>'; } },
+  { k: 'unpaid', l: '미수금', mgr: 1, cell: function (s) {
+    if (!isMgr()) return '<td><span class="muted">-</span></td>';
+    var l = childOf('contracts', s.id).filter(function (c) { return contractPay(c).due > 0; }), over = l.some(function (c) { return c.payDue && dayDiff(c.payDue) < 0; });
+    return '<td class="nw">' + (l.length ? moneyByCur(l, function (c) { return contractPay(c).due; }) + (over ? ' <span class="dday over">기한 지남</span>' : '') : '<span class="muted">-</span>') + '</td>'; } },
+  { k: 'contractEnd', l: '계약 종료', cell: function (s) {
+    var e = currentContracts(s.id).map(contractEndDate).filter(Boolean).sort().pop();
+    if (!e) return '<td><span class="muted">-</span></td>';
+    var m = monthDiff(today().slice(0, 7), e.slice(0, 7));
+    return '<td class="nw">' + esc(fmtD(e)) + ' <span class="dday ' + (m <= 1 ? 'soon' : 'far') + '">' + (m <= 0 ? '이번 달' : m + '개월 후') + '</span></td>'; } },
+  { k: 'scores', l: '최근 점수', cell: function (s) {
+    var seen = {}, out = [];
+    childOf('scores', s.id).sort(function (a, b) { return (b.date || '').localeCompare(a.date || ''); }).forEach(function (r) { if (seen[r.kind] || !r.score) return; seen[r.kind] = 1; out.push(r.kind + ' ' + r.score); });
+    return '<td>' + (out.length ? esc(out.slice(0, 3).join(' · ')) : '<span class="muted">-</span>') + '</td>'; } },
+  { k: 'appProgress', l: '원서 진행', cell: function (s) { var l = childOf('apps', s.id), n = l.filter(function (a) { return APP_FINAL.indexOf(a.status) >= 0; }).length;
+    return '<td class="nw">' + (l.length ? '제출 ' + n + ' / ' + l.length : '<span class="muted">-</span>') + '</td>'; } },
+  { k: 'nextSched', l: '다음 원장님 미팅', cell: function (s) { var x = schedOf(s.id).filter(function (e) { return dayDiff(e.startAt.slice(0, 10)) >= 0; }).sort(function (a, b) { return a.startAt.localeCompare(b.startAt); })[0];
+    return '<td class="nw">' + (x ? esc(fmtD(x.startAt.slice(0, 10))) + ' ' + esc(x.startAt.slice(11, 16)) : '<span class="muted">-</span>') + '</td>'; } },
+  { k: 'curriculum', l: '커리큘럼', cell: function (s) { return '<td class="nw">' + (s.curriculum ? esc(s.curriculum) : '<span class="muted">-</span>') + '</td>'; } },
+  { k: 'parentPhone', l: '학부모 연락처', cell: function (s) { var p = s.motherPhone ? ['어머님', s.motherPhone] : s.fatherPhone ? ['아버님', s.fatherPhone] : null;
+    return '<td class="nw">' + (p ? '<span class="muted">' + p[0] + '</span> ' + esc(p[1]) : '<span class="muted">-</span>') + '</td>'; } },
+  { k: 'dob', l: '생년월일', cell: function (s) { if (!/^\d{4}-\d{2}-\d{2}/.test(s.dob || '')) return '<td><span class="muted">-</span></td>';
+    var t = today(), age = +t.slice(0, 4) - +s.dob.slice(0, 4) - (t.slice(5) < s.dob.slice(5, 10) ? 1 : 0);
+    return '<td class="nw">' + esc(s.dob.slice(0, 10)) + ' <span class="muted">만 ' + age + '세</span></td>'; } },
 ];
+/** 진행 중인 계약 (종료일이 없거나 아직 안 지난 것) */
+function currentContracts(sid) { return childOf('contracts', sid).filter(function (c) { var e = contractEndDate(c); return !e || e >= today(); }); }
+/** 통화별 합계 → "RMB 30,000 · KRW 1,000,000" */
+function moneyByCur(list, fn) {
+  var by = {}; list.forEach(function (c) { var cur = c.currency || 'RMB'; by[cur] = (by[cur] || 0) + fn(c); });
+  var ks = Object.keys(by).filter(function (k) { return by[k]; });
+  return ks.length ? ks.map(function (k) { return money(by[k], k); }).join('<br>') : '<span class="muted">-</span>';
+}
 var STUDENT_COLS_DEFAULT = ['school', 'consult', 'todo', 'contacts', 'nextMeet', 'deadline', 'lastMeet', 'check', 'manager', 'status'];
 function studentCols() {
   var keys = S.studentCols && S.studentCols.length ? S.studentCols : STUDENT_COLS_DEFAULT;
@@ -1778,7 +1820,7 @@ function viewStudentCols() {
     return '<tr><td class="nw"><label style="display:inline-flex;gap:6px;align-items:center"><input type="checkbox"' + (shown ? ' checked' : '') + ' onchange="stColToggle(' + js(c.k) + ',this.checked)"> <b>' + esc(c.l) + '</b></label></td>' +
       '<td class="nw">' + (shown ? '<button class="btn ghost sm" title="앞으로"' + (i ? '' : ' disabled') + ' onclick="stColMove(' + js(c.k) + ',-1)">▲</button> <button class="btn ghost sm" title="뒤로"' + (i < on.length - 1 ? '' : ' disabled') + ' onclick="stColMove(' + js(c.k) + ',1)">▼</button>' : '<span class="muted">숨김</span>') + '</td></tr>';
   };
-  return '<div class="notice">학생 목록(학생 메뉴) 표에 보일 칸과 순서입니다. <b>모든 선생님에게 똑같이</b> 적용됩니다. 이름 칸은 항상 맨 앞에 있습니다.</div>' +
+  return '<div class="notice">학생 목록(학생 메뉴) 표에 보일 칸과 순서입니다. <b>모든 선생님에게 똑같이</b> 적용됩니다. 이름 칸은 항상 맨 앞에 있습니다. <b>계약 금액·미수금</b>은 관리자·관리팀에게만 값이 보이고 컨설턴트에게는 “-”로 보입니다.</div>' +
     '<div class="card tbl-wrap"><table><thead><tr><th>칸</th><th>순서</th></tr></thead><tbody>' +
     studentCols().map(function (c, i) { return row(c, i, true); }).join('') + off.map(function (c) { return row(c, 0, false); }).join('') + '</tbody></table>' +
     '<div class="toolbar" style="margin-top:8px"><button class="btn ghost sm" onclick="saveStudentCols(null)">처음 상태로 되돌리기</button></div></div>';
@@ -2021,7 +2063,7 @@ function tabSummary(s) {
       linkedFuBox(linkedFollowups('meetings', last.id), '이 미팅에서 나온 팔로업') +
       (nm ? '<div class="note" style="margin:8px 0 0"><b>다음 미팅</b> ' + esc(fmtD(nm.nextDate)) + ' ' + dday(nm.nextDate) + '</div>' : '') +
       (upcomingSched(s.id)[0] ? '<div class="note" style="margin:8px 0 0"><b>원장님 일정</b> ' + esc(schedTime(upcomingSched(s.id)[0]) + ' · ' + upcomingSched(s.id)[0].title) + ' ' + dday(upcomingSched(s.id)[0].startAt.slice(0, 10)) + '</div>' : '') +
-      (last.nextStep ? '<div class="note" style="margin:8px 0 0"><b>다음 계획</b> <span class="muted">(예전 기록)</span> ' + esc(last.nextStep) + '</div>' : '')
+      (last.nextStep ? '<div class="note longtxt" style="margin:8px 0 0"><b>다음 계획</b> <span class="muted">(예전 기록)</span> ' + esc(last.nextStep) + '</div>' : '')
       : '<div class="empty">기록된 미팅이 없습니다. ' + more('meetings', '회의록 추가') + '</div>') + '</div>';
   h += '</div><div>';
   h += '<div class="card">' + secHead('지원 대학 <span class="muted">' + (apps.length ? esc(countrySummary(s.id)) : '') + '</span>', more('apps', '지원대학')) +
@@ -2067,7 +2109,7 @@ function tabAppinfo(s) {
     return '<tr class="grp"><td colspan="3">' + (k ? esc(uniLabel(k)) + ' 원서' : '공통 (모든 원서)') + ' <span class="muted">' + groups[k].length + '개</span></td></tr>' +
       groups[k].map(function (r) {
         var rec = REC_ITEM.test(r.item || '');
-        return '<tr><th>' + esc(r.item) + '</th><td>' + esc(r.content) +
+        return '<tr><th>' + esc(r.item) + '</th><td><div class="longtxt">' + esc(r.content) + '</div>' +
           (rec ? '<div class="sentck"><label><input type="checkbox"' + (r.sent === 'TRUE' ? ' checked' : '') + ' onchange="toggleSent(' + js(r.id) + ', this.checked)"> 질문지(Questionnaire) 맞춰 이메일 보냄</label>' +
             (r.sent === 'TRUE' ? ' <span class="pill d-수합">✓ ' + esc(fmtD(String(r.sentAt).slice(0, 10))) + ' 보냄 · ' + esc(teacherName(r.sentBy)) + '</span>' : ' <span class="pill d-미확정">아직</span>') + '</div>' : '') +
           '</td><td class="nw">' +
@@ -2551,7 +2593,7 @@ function tabScoresOnly(s) {
   h += '</div>';
   var files = childOf('files', s.id).filter(function (f) { return !f.docId && !f.meetingId && !f.followupId && !f.scoreId; }).sort(function (a, b) { return b.createdAt.localeCompare(a.createdAt); });
   var cc = certCats();
-  h += '<div class="card">' + secHead('성적·재학·졸업 증명서',
+  h += '<div class="card dropzone">' + secHead('성적·재학·졸업 증명서',
     '<span class="toolbar" style="margin:0"><select id="upcat" title="올릴 파일의 분류" onchange="UI.upcat=this.value">' + opts(cc, cc.indexOf(UI.upcat) >= 0 ? UI.upcat : cc.filter(function (c) { return /성적/.test(c); })[0] || cc[0]) + '</select>' +
     '<label class="btn" style="cursor:pointer">파일 올리기<input type="file" multiple hidden accept=".pdf,.png,.jpg,.jpeg,.webp,.heic,.gif,.doc,.docx,.xls,.xlsx,.hwp" onchange="uploadFiles(this,' + js(s.id) + ')"></label></span>');
   h += '<div class="muted" style="margin-bottom:8px">학교 성적증명서·재학증명서·졸업증명서만 올립니다. 그 밖의 입시 서류는 <a href="javascript:void 0" onclick="UI.tab=\'docs\';render()">서류 탭</a>에서 서류 항목별로 올리세요. 어학·표준화 성적 파일은 위 점수 줄에 붙입니다. PDF·사진·워드·엑셀·한글 파일, 한 개당 20MB까지. 왼쪽 체크로 여러 개를 골라 한꺼번에 삭제할 수 있습니다.</div>';
@@ -2602,7 +2644,7 @@ function meetingItem(m, showStudent) {
       linkedFuBox(lf, '이 미팅에서 나온 팔로업') + reviewBox('meetings', m.id) +
       (m.nextDate ? '<div class="note" style="margin:8px 0 0"><b>다음 미팅</b> ' + esc(fmtD(m.nextDate)) + ' ' + dday(m.nextDate) + '</div>' : '') +
       (m.nextStep ? '<div class="body"><b>다음 계획</b> <span class="muted">(예전 기록)</span>\n' + esc(m.nextStep) + '</div>' : '') +
-      '<div class="mfiles">' + mf.map(function (f) {
+      '<div class="mfiles dropzone">' + mf.map(function (f) {
         return /^image\//.test(f.mime) ? '<a href="/api/files/' + esc(f.id) + '" class="lbimg" data-g="mt-' + esc(m.id) + '" target="_blank" rel="noopener" title="' + esc(f.name) + '"><img src="/api/files/' + esc(f.id) + '" alt="' + esc(f.name) + '"></a>' :
           '<a class="btn ghost sm" href="/api/files/' + esc(f.id) + '" target="_blank" rel="noopener">📎 ' + esc(f.name) + '</a>';
       }).join('') +
@@ -3148,7 +3190,7 @@ function tabDocs(s) {
       groupByDocCat(list, true).map(function (g) { return '<tr class="grp-h"><td colspan="4">' + esc(g[0]) + ' <span class="muted">' + g[1].length + '</span></td></tr>' + g[1].map(function (d) {
         var cls = d.status === '수합 완료' ? 'd-수합' : d.status === '해당 없음' ? 'd-해당' : d.status === '요청함' ? 'd-요청함' : '';
         var files = childOf('files', s.id).filter(function (f) { return f.docId === d.id; }).sort(function (a, b) { return b.createdAt.localeCompare(a.createdAt); });
-        return '<tr><td><b>' + esc(d.name) + '</b>' + (d.memo ? '<div class="muted">' + esc(d.memo) + '</div>' : '') + '</td>' +
+        return '<tr class="dropzone"><td><b>' + esc(d.name) + '</b>' + (d.memo ? '<div class="muted">' + esc(d.memo) + '</div>' : '') + '</td>' +
           '<td><span class="pill ' + cls + '">' + esc(d.status) + '</span></td>' +
           '<td>' + (files.length ? files.map(function (f) {
             return '<div><a href="/api/files/' + esc(f.id) + '" target="_blank" rel="noopener">' + esc(f.name) + '</a> <span class="muted">' + esc(fmtTime(f.createdAt)) + ' · ' + esc(teacherName(f.createdBy)) + '</span></div>';
@@ -3258,7 +3300,6 @@ function cyclesOf(uid) {
     return (b.year + pad(TERMS_INTAKE.length - TERMS_INTAKE.indexOf(b.term))).localeCompare(a.year + pad(TERMS_INTAKE.length - TERMS_INTAKE.indexOf(a.term))) || b.year.localeCompare(a.year);
   });
 }
-function statusPill(c) { return '<span class="pill ' + (c.status === '확인 완료' ? 'd-수합' : 'd-요청함') + '">' + esc(c.status || '확인 필요') + '</span>'; }
 function viewUnis() {
   var unis = sortedUnis();
   var h = '<div class="toolbar"><h2 style="margin:0;margin-right:auto">대학 정보 <span class="muted">' + unis.length + '곳</span></h2>' +
@@ -3271,13 +3312,13 @@ function viewUnis() {
   Object.keys(groups).forEach(function (c) {
     var closed = !!fold[c];
     h += '<div class="card fold' + (closed ? ' closed' : '') + '"><h3 class="fold-h" role="button" tabindex="0" onclick="setUniFold([' + esc(JSON.stringify(c)) + '], ' + !closed + ')" onkeydown="if(event.key===\'Enter\')this.click()">' +
-      '<span class="caret">' + (closed ? '▶' : '▼') + '</span> ' + esc(c) + ' <span class="muted">' + groups[c].length + '곳</span></h3>' + (closed ? '</div>' : '<div class="tbl-wrap"><table><thead><tr><th>대학</th><th>최근 입학 연도</th><th>상태</th><th>다음 마감</th><th>지원 학생</th></tr></thead><tbody>' +
+      '<span class="caret">' + (closed ? '▶' : '▼') + '</span> ' + esc(c) + ' <span class="muted">' + groups[c].length + '곳</span></h3>' + (closed ? '</div>' : '<div class="tbl-wrap"><table><thead><tr><th>대학</th><th>최근 입학 연도</th><th>다음 마감</th><th>지원 학생</th></tr></thead><tbody>' +
       groups[c].map(function (u) {
         var cy = cyclesOf(u.id)[0];
         var next = S.unirounds.filter(function (r) { return r.universityId === u.id && dayDiff(r.deadline) !== null && dayDiff(r.deadline) >= 0; }).sort(byDate('deadline'))[0];
         var n = S.apps.filter(function (a) { return a.universityId === u.id && studentById(a.studentId); }).length;
         return '<tr class="click" onclick="go(\'#/uni/' + esc(u.id) + '\')"><td class="nw"><b>' + esc(u.name) + '</b>' + (u.fullName && u.fullName !== u.name ? '<div class="muted">' + esc(u.fullName) + '</div>' : '') + '</td>' +
-          '<td class="nw">' + (cy ? esc(cycleLabel(cy)) : '<span class="muted">없음</span>') + '</td><td>' + (cy ? statusPill(cy) : '') + '</td>' +
+          '<td class="nw">' + (cy ? esc(cycleLabel(cy)) : '<span class="muted">없음</span>') + '</td>' +
           '<td>' + (next ? (next.track ? esc(next.track) + ' ' : '') + esc(next.name) + ' · ' + esc(fmtD(next.deadline)) + ' ' + dday(next.deadline) : '<span class="muted">-</span>') + '</td><td>' + (n ? n + '건' : '<span class="muted">-</span>') + '</td></tr>';
       }).join('') + '</tbody></table></div></div>');
   });
@@ -3308,15 +3349,38 @@ function viewPrograms() {
       var ka = da === null ? 2 : da < 0 ? 1 : 0, kb = db === null ? 2 : db < 0 ? 1 : 0;
       return ka - kb || (a.deadline || '').localeCompare(b.deadline || '') || a.name.localeCompare(b.name);
     });
-    return '<div class="card"><h3>' + esc(c) + ' <span class="muted">' + rows.length + '개</span></h3><div class="tbl-wrap"><table class="pg"><thead><tr><th>이름</th><th>대상</th><th>일정·마감</th><th>메모</th><th></th></tr></thead><tbody>' +
+    return '<div class="card"><h3>' + esc(c) + ' <span class="muted">' + rows.length + '개</span></h3><div class="tbl-wrap"><table class="pg"><thead><tr><th>이름</th><th>대상</th><th>일정·마감</th><th>메모</th><th>자료</th><th></th></tr></thead><tbody>' +
       rows.map(function (p) {
         var u = safeUrl(p.url);
         return '<tr><td><b>' + (u ? '<a href="' + esc(u) + '" target="_blank" rel="noopener">' + esc(p.name) + ' ↗</a>' : esc(p.name)) + '</b></td>' +
           '<td class="nw">' + esc(p.target || '') + '</td><td>' + (p.deadline ? '<span class="nw">마감 ' + esc(fmtD(p.deadline)) + ' ' + dday(p.deadline) + '</span>' : '') +
-          (p.schedule ? '<div class="muted" style="white-space:pre-wrap">' + esc(p.schedule) + '</div>' : '') + '</td>' +
-          '<td class="muted" style="white-space:pre-wrap">' + esc(p.memo || '') + '</td><td class="nw"><button class="btn ghost sm" onclick="openProgram(' + js(p.id) + ')">수정</button></td></tr>';
+          (p.schedule ? '<div class="muted longtxt">' + esc(p.schedule) + '</div>' : '') + '</td>' +
+          '<td class="muted"><div class="longtxt">' + esc(p.memo || '') + '</div></td>' +
+          '<td class="dropzone">' + programFiles(p.id).map(function (f) { return '<div class="nw"><a href="/api/unifiles/' + esc(f.id) + '" target="_blank" rel="noopener">📎 ' + esc(f.name.length > 24 ? f.name.slice(0, 22) + '…' : f.name) + '</a></div>'; }).join('') +
+            '<label class="btn ghost sm" style="cursor:pointer" title="파일 올리기 (끌어다 놓아도 됨)">+ 파일<input type="file" multiple hidden accept=".pdf,.png,.jpg,.jpeg,.webp,.heic,.gif,.doc,.docx,.xls,.xlsx,.hwp" onchange="uploadProgramFiles(this,' + js(p.id) + ')"></label></td>' +
+          '<td class="nw"><button class="btn ghost sm" onclick="openProgram(' + js(p.id) + ')">수정</button></td></tr>';
       }).join('') + '</tbody></table></div></div>';
   }).join('');
+}
+function programFiles(pid) { return (S.unifiles || []).filter(function (f) { return f.programId === pid; }); }
+function uploadProgramFiles(input, pid) {
+  var files = Array.prototype.slice.call(input.files), chain = Promise.resolve(), ok = 0;
+  input.value = '';
+  files.forEach(function (f) {
+    chain = chain.then(function () {
+      if (f.size > 20 * 1024 * 1024) { toast(f.name + ': 20MB를 넘는 파일은 올릴 수 없습니다.', true); return; }
+      busy(true);
+      return fetch('/api/unifiles/upload?programId=' + encodeURIComponent(pid), { method: 'POST', credentials: 'same-origin', body: f,
+        headers: { 'X-Requested-With': 'revera', 'X-File-Name': encodeURIComponent(f.name), 'Content-Type': f.type || 'application/octet-stream' } })
+        .then(handle, function () { busy(false); throw new Error('서버에 연결할 수 없습니다.'); })
+        .then(function (d) { load(d); ok++; }).catch(function (e) { toast(f.name + ': ' + errMsg(e), true); });
+    });
+  });
+  chain.then(function () { if (ok) toast('파일 ' + ok + '개를 올렸습니다.'); });
+}
+function removeProgramFile(id, pid) {
+  if (!confirm('이 파일을 지울까요? (바로 삭제됩니다)')) return;
+  api('removeUniFile', { id: id }).then(function (d) { load(d); openProgram(pid); toast('파일을 지웠습니다.'); }).catch(function (e) { toast(errMsg(e), true); });
 }
 function openProgram(id) {
   var p = id ? (S.programs || []).filter(function (x) { return x.id === id; })[0] : { category: UI.pgCat || '에세이 대회' };
@@ -3331,6 +3395,10 @@ function openProgram(id) {
     fld('마감일 (있으면)', inp('deadline', p.deadline || '', 'date')) + '<div></div>' +
     fld('일정·마감 메모', '<textarea name="schedule" style="min-height:60px" placeholder="예: 매년 여름 공지, 보통 10월 말 마감 / 결과 12월">' + esc(p.schedule || '') + '</textarea>', true) +
     fld('메모 (주제, 비용, 준비할 것, 지난 참가 학생 등)', '<textarea name="memo">' + esc(p.memo || '') + '</textarea>', true) +
+    (id ? '<div class="full"><label>첨부 파일 (요강 PDF 등)</label><div>' + (programFiles(id).length ? programFiles(id).map(function (f) {
+      return '<span class="shot-wrap"><a class="btn ghost sm" href="/api/unifiles/' + esc(f.id) + '" target="_blank" rel="noopener">📎 ' + esc(f.name) + '</a>' +
+        (f.createdBy === S.me.email || isMgr() ? '<button type="button" class="ibtn" title="파일 지우기" onclick="removeProgramFile(' + js(f.id) + ',' + js(id) + ')">✕</button>' : '') + '</span>';
+    }).join(' ') : '<span class="muted">없음 — 목록의 “+ 파일”을 누르거나 파일을 끌어다 놓으세요.</span>') + '</div></div>' : '<div class="full muted">첨부 파일은 저장한 뒤 목록의 “+ 파일”로 올릴 수 있습니다.</div>') +
     (id ? '<div class="full muted">' + esc(teacherName(p.createdBy)) + ' 등록 · 마지막 수정 ' + esc(fmtTime(p.updatedAt)) + ' ' + esc(teacherName(p.updatedBy)) + '</div>' : ''),
     (canDel ? '<button class="btn danger left" onclick="removeProgram(' + js(id) + ')">삭제</button>' : '') +
     '<button class="btn ghost" onclick="closeModal()">취소</button><button class="btn" onclick="submitProgram()">저장</button>');
@@ -3504,11 +3572,10 @@ function viewUni(id) {
     var reqs = parseReqs(cy.requirements), src = safeUrl(cy.sourceUrl);
     var common = trs.length ? reqs.filter(function (r) { return !r.track; }) : [];
     if (trs.length) reqs = reqs.filter(function (r) { return r.track === T; });
-    h += '<div class="card">' + secHead('공식 지원 요건 — ' + esc(cycleLabel(cy)) + (T ? ' · ' + esc(T) : '') + ' ' + statusPill(cy),
-      (cy.status !== '확인 완료' ? '<button class="btn sm" onclick="verifyCycle(' + js(cy.id) + ')">✓ 공식 확인 완료로 표시</button> ' : '') +
+    h += '<div class="card">' + secHead('지원 요건 — ' + esc(cycleLabel(cy)) + (T ? ' · ' + esc(T) : ''),
       '<button class="btn ghost sm" onclick="editCycle(' + js(cy.id) + ',' + js(T) + ')">수정</button>');
     h += '<div class="muted" style="margin-bottom:8px">' + (src ? '출처: <a href="' + esc(src) + '" target="_blank" rel="noopener">' + esc(src) + '</a>' : '출처 링크 없음') +
-      (cy.status === '확인 완료' && cy.verifiedAt ? ' · 확인 ' + esc(fmtTime(cy.verifiedAt)) + ' ' + esc(teacherName(cy.verifiedBy)) : '') + '</div>';
+      (cy.updatedBy && cy.updatedBy !== 'system' ? ' · 마지막 수정 ' + esc(fmtTime(cy.updatedAt)) + ' ' + esc(teacherName(cy.updatedBy)) : '') + '</div>';
     if (cy.memo) h += '<div class="notice" style="white-space:pre-wrap">' + esc(cy.memo) + '</div>';
     var reqRows = function (list) { return list.map(function (r) {
       var link = safeUrl(r.content);
@@ -3549,7 +3616,7 @@ function uniFilesCard(u, cy) {
   var list = S.unifiles.filter(function (f) { return f.cycleId === cy.id; })
     .sort(function (a, b) { return UNIFILE_CATS.indexOf(a.category) - UNIFILE_CATS.indexOf(b.category) || b.createdAt.localeCompare(a.createdAt); });
   var def = u.country === '한국' ? '모집요강' : '기타 자료';
-  return '<div class="card">' + secHead((u.country === '한국' ? '모집요강·자료' : '관련 자료') + ' — ' + esc(cycleLabel(cy)) + ' <span class="muted">' + list.length + '개</span>',
+  return '<div class="card dropzone">' + secHead((u.country === '한국' ? '모집요강·자료' : '관련 자료') + ' — ' + esc(cycleLabel(cy)) + ' <span class="muted">' + list.length + '개</span>',
     '<span class="toolbar" style="margin:0"><select id="ufcat" title="분류">' + opts(UNIFILE_CATS, def) + '</select>' +
     '<label class="btn sm" style="cursor:pointer">파일 올리기<input type="file" multiple hidden accept=".pdf,.png,.jpg,.jpeg,.webp,.heic,.gif,.doc,.docx,.xls,.xlsx,.hwp" onchange="uploadUniFiles(this,' + js(cy.id) + ')"></label></span>') +
     '<div class="muted" style="margin-bottom:8px">' + (u.country === '한국' ? '해마다 나오는 모집요강 PDF를 이 입학 연도에 올려두세요.' : '입학처 안내 PDF, 설명회 자료 등을 이 입학 연도에 올려두세요.') + ' 모든 선생님이 볼 수 있고, 한 개당 20MB까지 올릴 수 있습니다.</div>' +
@@ -3622,11 +3689,6 @@ function removeTrack(id, name) {
   if (list.length <= 1) return toast('전형이 하나는 있어야 합니다.', true);
   if (!confirm('이 입학 연도에서 “' + name + '” 전형을 뺄까요? (예: 서울대는 3년특례 없음)')) return;
   saveTracks(cy, list.filter(function (x) { return x !== name; }), '“' + name + '” 전형을 뺐습니다.');
-}
-function verifyCycle(id) {
-  var c = findRow('unicycles', id);
-  if (!confirm(cycleLabel(c) + ' 정보를 공식 출처와 대조해 확인하셨나요?\n"확인 완료"로 표시하고 확인한 사람·시각을 남깁니다.')) return;
-  mutate('save', { table: 'unicycles', obj: { id: c.id, updatedAt: c.updatedAt, status: '확인 완료' } }, '확인 완료로 표시했습니다.');
 }
 function copyCycle(id) {
   var c = findRow('unicycles', id);
@@ -4064,7 +4126,7 @@ function viewSettings() {
   }
   var sc = st.schedule || {};
   h += '<div class="card"><h3>원장님 미팅 스케줄 (구글 시트 → Compass)</h3>' +
-    '<div class="muted" style="font-size:.85rem;margin-bottom:8px">시트의 이번 달·다음 달 탭(예: “10 Oct 2026”)을 1시간마다 읽어서, <b>Compass 학생 이름이 들어간 일정만</b> 학생 화면(미팅 탭·요약)·메인 달력·오늘 챙길 일·학생 목록 다음 미팅에 보여줍니다. 그 외 일정(1:1 유료 상담, 다른 지점 학생 등)은 가져오지 않습니다. 시간은 상해 기준이고, 그날 첫 칸에 “미국”·“한국”이 적혀 있으면 그 나라 시간으로 보고 상해 시간으로 바꿉니다. <b>시트는 읽기만 하고 수정하지 않습니다.</b></div>' +
+    '<div class="muted" style="font-size:.85rem;margin-bottom:8px">시트의 이번 달·다음 달 탭(예: “10 Oct 2026”)을 1시간마다 읽어서, <b>Compass 학생 이름이 들어간 일정만</b> 학생 화면(미팅 탭·요약)·메인 달력·오늘 챙길 일·학생 목록 다음 미팅에 보여줍니다. 그 외 일정(1:1 유료 상담, 다른 지점 학생 등)은 가져오지 않습니다. 시간은 상해 기준이고, 그날 첫 칸에 “미국”·“한국”이 적혀 있으면 그 나라 시간으로 보고 상해 시간으로 바꿉니다. <b>시트는 읽기만 하고 수정하지 않습니다.</b> 칸이 <b>회색</b>으로 칠해진 일정은 취소로 보고 가져오지 않습니다(Apps Script 4판 이상 — 예전 코드면 아래 “코드를 바꿔야 할 때” 순서대로 새 코드로 바꿔주세요).</div>' +
     '<form class="form" id="schf" onsubmit="saveSched();return false">' +
     fld('시트 주소', inp('schedSheet', c.schedSheet ? 'https://docs.google.com/spreadsheets/d/' + c.schedSheet + '/edit' : '', 'text', ' placeholder="https://docs.google.com/spreadsheets/d/…"'), true) +
     fld('자동 가져오기', '<div><label style="display:inline-flex;gap:6px;align-items:center;color:#222"><input type="checkbox" name="schedOn"' + (c.schedOn ? ' checked' : '') + '> 1시간마다 가져오기</label></div>') +
@@ -4105,7 +4167,7 @@ function saveAutomation(newSecret) {
 function runAutomation(action) {
   post('/api/automation/' + action, {}).then(function (d) {
     if (action === 'preview') { UI.autoPreview = d.digests; render(); return; }
-    if (action === 'ping' && !(d.version >= 3)) toast('연결은 되었지만 Apps Script 코드가 예전 버전입니다. 아래 “코드를 바꿔야 할 때” 순서대로 새 코드로 바꿔주세요.', true);
+    if (action === 'ping' && !(d.version >= 4)) toast('연결은 되었지만 Apps Script 코드가 예전 버전입니다. 아래 “코드를 바꿔야 할 때” 순서대로 새 코드로 바꿔주세요.', true);
     else toast({ ping: '연결되었습니다' + (d.account ? ' (' + d.account + ')' : ''), backup: '구글 드라이브에 기록을 백업했습니다.',
       schedule: '원장님 일정을 가져왔습니다: 우리 학생 일정 ' + (d.saved || 0) + '건',
       filesync: '파일 ' + (d.sent || 0) + '개를 드라이브로 보냈습니다.' + (d.left ? ' (남은 파일 ' + d.left + '개는 10분마다 이어서)' : ''), testmail: S.me.email + ' 로 테스트 메일을 보냈습니다.',
@@ -4316,11 +4378,72 @@ var MGR_ONLY_FORMS = ['notes', 'contracts', 'payments'];
 function shotsField(rec, mode) {
   UI.shots = []; UI.shotsAny = mode === 'score';
   var have = rec.id ? S.files.filter(function (f) { return mode === 'score' ? f.scoreId === rec.id : f.followupId === rec.id; }) : [];
-  return '<div class="full"><label>' + (mode === 'score' ? '성적 파일 (성적표 PDF·점수 캡처 등)' : '스크린샷 (위챗 캡처 등)') + '</label><div class="shots" id="shots" tabindex="0">' +
-    '<div class="shots-hint">여기를 누르고 <b>Ctrl+V</b>로 붙여넣기 · 또는 <label class="linkbtn">파일 고르기<input type="file" accept="' + (mode === 'score' ? '.pdf,.png,.jpg,.jpeg,.webp,.heic,.gif,.doc,.docx,.xls,.xlsx,.hwp' : 'image/*') + '" multiple hidden onchange="addShots(this.files);this.value=\'\'"></label></div>' +
+  return '<div class="full"><label>' + (mode === 'score' ? '성적 파일 (성적표 PDF·점수 캡처 등)' : '스크린샷 (위챗 캡처 등)') + '</label><div class="shots dropzone" id="shots" tabindex="0">' +
+    '<div class="shots-hint">여기를 누르고 <b>Ctrl+V</b>로 붙여넣기 · 파일을 끌어다 놓기 · 또는 <label class="linkbtn">파일 고르기<input type="file" accept="' + (mode === 'score' ? '.pdf,.png,.jpg,.jpeg,.webp,.heic,.gif,.doc,.docx,.xls,.xlsx,.hwp' : 'image/*') + '" multiple hidden onchange="addShots(this.files);this.value=\'\'"></label></div>' +
     '<div class="shots-list" id="shots-list">' + have.map(function (f) { return mode === 'score' ? '<span class="shot-wrap" id="fw-' + esc(f.id) + '">' + fileThumb(f) + '<button type="button" class="ibtn" title="이 파일 지우기 (휴지통)" onclick="removeFormFile(' + js(f.id) + ')">✕</button></span>' : fileThumb(f); }).join('') + '</div></div></div>';
 }
 /** 파일 하나: 이미지는 작은 그림(누르면 팝업), 그 외는 이름 버튼 */
+/* ----- 표 칸 너비: 제목 줄 칸 경계를 끌어서 넓히고 좁힘. 이 브라우저에 표마다 기억, 경계를 두 번 누르면 처음 너비로 ----- */
+function colKey(t) {
+  var view = (location.hash || '#/home').replace(/\/[0-9a-f-]{8,}/gi, '/:id');
+  return 'colw:' + view + ':' + Array.prototype.map.call(t.tHead.rows[0].cells, function (c) { return c.textContent.trim(); }).join('|');
+}
+function colLoad(k) { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return null; } }
+function colSave(k, v) { try { if (v) localStorage.setItem(k, JSON.stringify(v)); else localStorage.removeItem(k); } catch (e) { /* 저장 안 되는 브라우저는 이번 화면에만 */ } }
+function colApply(t, w) {
+  var cells = t.tHead.rows[0].cells;
+  if (!w || w.length !== cells.length) { t.classList.remove('colfix'); t.style.width = ''; Array.prototype.forEach.call(cells, function (c) { c.style.width = ''; }); return; }
+  Array.prototype.forEach.call(cells, function (c, i) { c.style.width = w[i] + 'px'; });
+  t.style.width = w.reduce(function (a, b) { return a + b; }, 0) + 'px'; t.classList.add('colfix');
+}
+function colResizeSetup() {
+  Array.prototype.forEach.call(document.querySelectorAll('#app table'), function (t) {
+    if (!t.tHead || !t.tHead.rows.length) return;
+    var cells = t.tHead.rows[0].cells; if (cells.length < 2) return;
+    Array.prototype.forEach.call(cells, function (c, i) {
+      if (i === cells.length - 1 || c.querySelector('.colrs')) return;
+      var h = document.createElement('span'); h.className = 'colrs'; h.title = '끌어서 칸 너비 조절 (두 번 누르면 처음대로)'; c.appendChild(h);
+    });
+    colApply(t, colLoad(colKey(t)));
+  });
+}
+document.addEventListener('mousedown', function (e) {
+  if (!e.target.classList || !e.target.classList.contains('colrs')) return;
+  e.preventDefault(); e.stopPropagation();
+  var th = e.target.parentNode, t = th.closest('table'), cells = Array.prototype.slice.call(t.tHead.rows[0].cells), idx = cells.indexOf(th);
+  var w = cells.map(function (c) { return Math.round(c.getBoundingClientRect().width); }), x0 = e.clientX, w0 = w[idx];
+  colApply(t, w);
+  var move = function (ev) { w[idx] = Math.max(40, w0 + ev.clientX - x0); colApply(t, w); };
+  var up = function () { document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up); document.body.classList.remove('colresizing'); colSave(colKey(t), w); };
+  document.body.classList.add('colresizing');
+  document.addEventListener('mousemove', move); document.addEventListener('mouseup', up);
+}, true);
+document.addEventListener('dblclick', function (e) {
+  if (!e.target.classList || !e.target.classList.contains('colrs')) return;
+  var t = e.target.closest('table'); colSave(colKey(t), null); colApply(t, null);
+});
+document.addEventListener('click', function (e) { if (e.target.classList && e.target.classList.contains('colrs')) e.stopPropagation(); }, true);
+/* ----- 파일 끌어다 놓기: .dropzone 안의 파일 칸(input type=file)에 넣고 원래 올리기 동작을 그대로 실행 ----- */
+(function () {
+  var hasFiles = function (e) { return e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types || [], 'Files') >= 0; };
+  var zoneOf = function (e) { return e.target && e.target.closest ? e.target.closest('.dropzone') : null; };
+  var clear = function () { Array.prototype.forEach.call(document.querySelectorAll('.dropzone.dragon'), function (z) { z.classList.remove('dragon'); }); };
+  document.addEventListener('dragover', function (e) {
+    if (!hasFiles(e)) return;
+    e.preventDefault(); // 영역 밖에 놓아도 브라우저가 파일을 열지 않게
+    var z = zoneOf(e); clear(); if (z) { z.classList.add('dragon'); e.dataTransfer.dropEffect = 'copy'; } else e.dataTransfer.dropEffect = 'none';
+  });
+  document.addEventListener('dragleave', function (e) { if (!e.relatedTarget) clear(); });
+  document.addEventListener('drop', function (e) {
+    if (!hasFiles(e)) return;
+    e.preventDefault(); clear();
+    var z = zoneOf(e); if (!z || !e.dataTransfer.files.length) return;
+    if (z.id === 'shots') return addShots(e.dataTransfer.files);
+    var input = z.querySelector('input[type=file]'); if (!input) return;
+    try { input.files = e.dataTransfer.files; } catch (err) { return toast('이 브라우저에서는 끌어다 놓기를 쓸 수 없습니다. “파일 올리기”를 눌러주세요.', true); }
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+})();
 /** 점수 수정 창 안에서 첨부 파일 지우기 (창은 그대로) */
 function removeFormFile(id) {
   if (!confirm('이 파일을 지울까요? (휴지통에서 되살릴 수 있습니다)')) return;
