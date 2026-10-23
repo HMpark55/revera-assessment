@@ -160,6 +160,8 @@ function guessDocCat(name) {
 /** 학생 목록에 넣을 수 있는 칸 (화면 이름은 index.html STUDENT_COLS) */
 const STUDENT_COLS = ['school', 'consult', 'todo', 'contacts', 'nextMeet', 'deadline', 'lastMeet', 'check', 'manager', 'status', 'tracks', 'country', 'major', 'progress', 'hope',
   'contract', 'amount', 'unpaid', 'contractEnd', 'scores', 'appProgress', 'nextSched', 'curriculum', 'parentPhone', 'dob'];
+/** 예전 계약 패키지 이름 → 트랙 이름 (가져오기·예전 화면에서 들어와도 맞춰 줌) */
+const OLD_PACKAGES = { '홍콩 패키지': '홍콩', '한국 3특': '3년특례', '한국 12특': '12년특례' };
 const DEFAULT_TRACKS = ['3년특례', '12년특례', '홍콩', '싱가폴', '미국', '캐나다', '영국', '일본', '한국 일반', '기타'];
 /** 목록 이름을 바꾸면 함께 바뀌는 곳 */
 const OPTION_TARGET = { school: ['students', 'school'], curriculum: ['students', 'curriculum'], site: ['accounts', 'site'], evcat: ['events', 'category'], track: ['students', 'tracks'], doccat: ['files', 'category'] };
@@ -516,6 +518,17 @@ function migrate(db) {
       db.prepare("INSERT INTO meta VALUES ('v20_uni_reset', ?)").run(ts);
     })();
   }
+  // v21: 계약 "포함 국가·패키지"를 목록 관리 › 트랙 이름으로 (홍콩 패키지 → 홍콩, 한국 3특 → 3년특례, 한국 12특 → 12년특례)
+  if (!db.prepare("SELECT 1 FROM meta WHERE key = 'v21_packages'").get()) {
+    const MAP = OLD_PACKAGES;
+    db.transaction(() => {
+      for (const c of db.prepare("SELECT id, packages FROM contracts WHERE packages != ''").all()) {
+        const list = [...new Set(String(c.packages).split(',').map((x) => x.trim()).filter(Boolean).map((x) => MAP[x] || x))].join(', ');
+        if (list !== c.packages) db.prepare('UPDATE contracts SET packages = ? WHERE id = ?').run(list, c.id);
+      }
+      db.prepare("INSERT INTO meta VALUES ('v21_packages', ?)").run(now());
+    })();
+  }
   db.exec('CREATE TABLE IF NOT EXISTS programs (id TEXT PRIMARY KEY)');
   ensureColumns(db, 'programs', ['name', 'category', 'target', 'schedule', 'deadline', 'url', 'memo', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy']);
   // v9: 메인 화면 공용 달력 (SAT 시험일 등 모두가 함께 보는 일정)
@@ -764,6 +777,7 @@ function openStore(dbPath, opts) {
       throw new UserError('상담 내용을 입력하거나 팔로업을 추가하세요.');
     }
     if (table === 'contracts') {
+      if (rec.packages) rec.packages = [...new Set(String(rec.packages).split(',').map((x) => x.trim()).filter(Boolean).map((x) => OLD_PACKAGES[x] || x))].join(', ');
       for (const k of ['startDate', 'endDate']) if (v(k) && !DATE_RE.test(v(k))) throw new UserError('계약 날짜 형식이 올바르지 않습니다. (YYYY-MM-DD)');
       if (v('startDate') && v('endDate') && v('endDate') < v('startDate')) throw new UserError('계약 종료일이 시작일보다 빠릅니다.');
     }
@@ -1230,6 +1244,12 @@ function openStore(dbPath, opts) {
           for (const st of db.prepare("SELECT id, tracks FROM students WHERE ',' || REPLACE(tracks, ', ', ',') || ',' LIKE ?").all('%,' + cur.value + ',%')) {
             const list = String(st.tracks).split(',').map((x) => x.trim()).filter(Boolean).map((x) => (x === cur.value ? value : x));
             db.prepare('UPDATE students SET tracks = ? WHERE id = ?').run([...new Set(list)].join(', '), st.id);
+            n++;
+          }
+          // 계약의 포함 국가·패키지도 같은 트랙 목록을 씀
+          for (const c of db.prepare("SELECT id, packages FROM contracts WHERE ',' || REPLACE(packages, ', ', ',') || ',' LIKE ?").all('%,' + cur.value + ',%')) {
+            const list = String(c.packages).split(',').map((x) => x.trim()).filter(Boolean).map((x) => (x === cur.value ? value : x));
+            db.prepare('UPDATE contracts SET packages = ? WHERE id = ?').run([...new Set(list)].join(', '), c.id);
             n++;
           }
         } else if (cur.value !== value) {

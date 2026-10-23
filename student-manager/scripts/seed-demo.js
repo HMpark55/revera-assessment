@@ -36,12 +36,12 @@ const c = save('students', { name: '샘플 학생C', school: 'HIS', grade: 'G11'
   status: '상담중', tracks: ['12년특례'] });
 
 ['CISS', 'SAS', 'HIS'].forEach((v) => r.saveOption(me, { kind: 'school', value: v }));
-const ca = save('contracts', { studentId: a, kind: '원서', tier: 'Standard', packages: ['홍콩 패키지', '한국 3특'], startDate: d(-20),
+const ca = save('contracts', { studentId: a, kind: '원서', tier: 'Standard', packages: ['홍콩', '3년특례'], startDate: d(-20),
   signedDate: d(-30), currency: 'RMB', amount: '30000', payDue: d(-3), scope: 'HKU + HKUST + 한국 3특. 미국 에세이 미포함' });
 save('payments', { studentId: a, contractId: ca, date: d(-30), amount: '15000', currency: 'RMB', method: '위챗페이', memo: '1차 분할' });
 const ccA = save('contracts', { studentId: c, kind: '연간', tier: 'Standard', term: '1학기', startMonth: d(-150).slice(0, 7), currency: 'KRW', amount: '5000000' });
 save('payments', { studentId: c, contractId: ccA, date: d(-140), amount: '5000000', currency: 'KRW', method: '계좌이체' });
-const cb = save('contracts', { studentId: b, kind: '원서', tier: 'Standard', packages: ['홍콩 패키지', '싱가폴'], startDate: d(-20), currency: 'RMB', amount: '40000' });
+const cb = save('contracts', { studentId: b, kind: '원서', tier: 'Standard', packages: ['홍콩', '싱가폴'], startDate: d(-20), currency: 'RMB', amount: '40000' });
 save('contracts', { studentId: b, kind: '연간', tier: 'Standard', term: '1년', startMonth: d(-300).slice(0, 7), currency: 'RMB', amount: '20000' });
 save('payments', { studentId: b, contractId: cb, date: d(-10), amount: '40000', currency: 'RMB', method: '알리페이' });
 

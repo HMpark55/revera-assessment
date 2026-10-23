@@ -1707,3 +1707,26 @@ test('v13: 대학 정보 처음 요건 비우기(선생님이 고친 건 그대�
   assert.strictEqual(d.studentCols.length, 10);
   await admin.ok('saveStudentCols', { cols: null });
 });
+
+test('v14: 계약 포함 국가·패키지 = 트랙 이름 (예전 이름 옮김·저장할 때 맞춤·트랙 이름 바꾸면 함께)', async () => {
+  const p = path.join(dir, 'v21.db');
+  let st = openStore(p);
+  st.db.prepare("INSERT INTO students (id, name, createdAt, updatedAt) VALUES ('s1','옛학생','x','x')").run();
+  st.db.prepare("INSERT INTO contracts (id, studentId, kind, packages, createdAt, updatedAt) VALUES ('c1','s1','원서','홍콩 패키지, 한국 3특, 싱가폴','x','x'), ('c2','s1','원서','한국 12특','x','x')").run();
+  st.db.prepare("DELETE FROM meta WHERE key = 'v21_packages'").run();
+  st.close();
+  st = openStore(p);
+  assert.deepStrictEqual(st.db.prepare('SELECT packages FROM contracts ORDER BY id').all().map((x) => x.packages), ['홍콩, 3년특례, 싱가폴', '12년특례']);
+  st.close();
+
+  const admin = client(); await admin.login('admin@revera.test', 'admin-pass-1');
+  let d = await admin.saveOk('students', { name: '패키지학생' });
+  const sid = d.savedId;
+  d = await admin.saveOk('contracts', { studentId: sid, kind: '원서', tier: 'Standard', packages: ['홍콩 패키지', '캐나다'] });
+  const cid = d.savedId;
+  assert.strictEqual(d.contracts.find((c) => c.id === cid).packages, '홍콩, 캐나다', '예전 이름으로 와도 트랙 이름으로');
+  const tr = d.options.find((o) => o.kind === 'track' && o.value === '캐나다');
+  d = await admin.ok('saveOption', { id: tr.id, kind: 'track', value: '캐나다(토론토)' });
+  assert.strictEqual(d.contracts.find((c) => c.id === cid).packages, '홍콩, 캐나다(토론토)', '트랙 이름을 바꾸면 계약도');
+  await admin.ok('saveOption', { id: tr.id, kind: 'track', value: '캐나다' });
+});
