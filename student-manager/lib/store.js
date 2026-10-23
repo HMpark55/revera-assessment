@@ -157,6 +157,8 @@ function guessDocCat(name) {
   if (/출입국|여권|가족관계|외국인등록|비자|거주/.test(n)) return DC.elig;
   return DC.etc;
 }
+/** 학생 목록에 넣을 수 있는 칸 (화면 이름은 index.html STUDENT_COLS) */
+const STUDENT_COLS = ['school', 'consult', 'todo', 'contacts', 'nextMeet', 'deadline', 'lastMeet', 'check', 'manager', 'status', 'tracks', 'country', 'major', 'progress', 'hope'];
 const DEFAULT_TRACKS = ['3년특례', '12년특례', '홍콩', '싱가폴', '미국', '캐나다', '영국', '일본', '한국 일반', '기타'];
 /** 목록 이름을 바꾸면 함께 바뀌는 곳 */
 const OPTION_TARGET = { school: ['students', 'school'], curriculum: ['students', 'curriculum'], site: ['accounts', 'site'], evcat: ['events', 'category'], track: ['students', 'tracks'], doccat: ['files', 'category'] };
@@ -177,7 +179,7 @@ const CHILD_TABLES = Object.keys(TABLES).filter((t) => t !== 'students');
 /** 대학 정보 (학생과 무관한 공용 자료) */
 const CATALOG = {
   universities: {
-    label: '대학', fields: ['country', 'name', 'fullName', 'aliases', 'website', 'tips', 'sortOrder'],
+    label: '대학', fields: ['country', 'name', 'fullName', 'aliases', 'website', 'portalUrl', 'tips', 'sortOrder'],
     summary: (r) => r.name,
   },
   unicycles: {
@@ -214,7 +216,7 @@ const FIELD_LABELS = {
   endMonth: '종료 연월', currency: '통화', payDue: '납부 기한', contractId: '계약', method: '입금 방법',
   manager: '담당 관리팀', progress: '현재 진행 상황', title: '할 일', assignee: '담당자', doneAt: '완료 시각', doneBy: '완료한 사람',
   universityId: '대학(목록)', majorId: '전공(목록)', roundId: '전형(목록)', deadlineManual: '마감일 직접 지정',
-  fullName: '정식 이름', aliases: '다른 이름', website: '홈페이지', tips: '원서 준비 유의사항', sortOrder: '순서',
+  fullName: '정식 이름', aliases: '다른 이름', website: '홈페이지', portalUrl: '원서 접수(포털) 주소', tips: '원서 준비 유의사항', sortOrder: '순서',
   year: '입학 연도', term: '입학 학기', requirements: '공식 지원 요건', sourceUrl: '출처', faculty: '단과대',
   code: '코드', cycleId: '입학 연도',
   englishName: '영문 이름', address: '주소', addressEn: '영문 주소', sent: '추천인 이메일 보냄', sentAt: '이메일 보낸 날', sentBy: '이메일 체크한 사람',
@@ -697,6 +699,7 @@ function openStore(dbPath, opts) {
       me: { email: me.email, name: me.name, role: me.role, mustChangePassword: !!me.mustChangePassword,
         homeLayout: parseLayout((db.prepare('SELECT homeLayout FROM teachers WHERE email = ?').get(me.email) || {}).homeLayout) },
       homeDefault: parseLayout(getMeta('homeLayoutDefault')),
+      studentCols: parseCols(getMeta('studentCols')),
       teachers: db.prepare("SELECT email, name, role, active, notify, color, sortOrder FROM teachers ORDER BY CASE WHEN sortOrder = '' OR sortOrder IS NULL THEN 1 ELSE 0 END, CAST(sortOrder AS INTEGER), name").all()
         .map((t) => ({ email: t.email, name: t.name, role: t.role, active: !!t.active, notify: t.notify !== 'off', color: t.color || '', sortOrder: Number(t.sortOrder) || 0 })),
       students,
@@ -1005,7 +1008,7 @@ function openStore(dbPath, opts) {
     const need = (k, msg) => { if (!String(v(k) || '').trim()) throw new UserError(msg); };
     if (table === 'universities') {
       need('name', '대학 이름을 입력하세요.'); need('country', '국가를 선택하세요.');
-      checkUrl(v('website'), '홈페이지');
+      checkUrl(v('website'), '홈페이지'); checkUrl(v('portalUrl'), '원서 접수(포털) 주소');
       const dup = db.prepare("SELECT id FROM universities WHERE name = ? AND deletedAt = ''").get(v('name'));
       if (dup && (!cur || dup.id !== cur.id)) throw new UserError('같은 이름의 대학이 이미 있습니다.');
     }
@@ -1634,6 +1637,15 @@ function openStore(dbPath, opts) {
       return { id, s: /^[1-4]x[1-6]$/.test(String(x.s)) ? String(x.s) : '', hide: !!x.hide, ts: ['l', 'xl'].includes(x.ts) ? x.ts : '', tc: hex(x.tc), bg: hex(x.bg) };
     });
   }
+  /** 학생 목록 칸: 보일 칸과 순서 (관리자·관리팀이 정하면 모두에게 같게). 이름 칸은 항상 맨 앞 */
+  function parseCols(v) { try { const a = JSON.parse(v || 'null'); return Array.isArray(a) ? a.filter((k) => STUDENT_COLS.includes(k)) : null; } catch (e) { return null; } }
+  function saveStudentCols(me, arg) {
+    requireManager(me, '학생 목록 칸 정하기');
+    const cols = arg && arg.cols == null ? null : [...new Set(((arg && arg.cols) || []).filter((k) => STUDENT_COLS.includes(k)))];
+    setMeta('studentCols', cols ? JSON.stringify(cols) : '');
+    log(me.email, 'update', 'settings', 'studentCols', cols ? '학생 목록 칸 변경: ' + cols.join(', ') : '학생 목록 칸을 처음 상태로');
+    return getAll(me);
+  }
   function saveHomeLayout(me, arg) {
     arg = arg || {};
     if (arg.asDefault) {
@@ -2222,7 +2234,7 @@ function openStore(dbPath, opts) {
     db, filesDir, dbPath, listFiles, pendingSync, markSync, replaceSchedule, restoreFromDb, countTeachers, upsertAdmin, login, logout, authenticate, addFile, getFile, addUniFile, getUniFile,
     rpc: { getAll: (me) => getAll(me), save, remove, restore, purge, getTrash, getLog, saveTeacher, changePassword, importData, copyCycle, getActivity, saveMany, updateMe,
       saveOption, removeOption, deleteTeacher, getAutomation, saveAutomation, saveEvent, removeEvent,
-      saveWithFollowups, requestFollowup, saveOrder, saveUniFile, removeUniFile, saveProgram, removeProgram, getStorage, retrySync, saveHomeLayout, requestReview, doneReview, cancelReview, excludeSched, unexcludeSched, saveAutoCat, removeMany, restoreMany, purgeMany, addFollowupMany, addMajorsMany, renameFaculty },
+      saveWithFollowups, requestFollowup, saveOrder, saveUniFile, removeUniFile, saveProgram, removeProgram, getStorage, retrySync, saveHomeLayout, saveStudentCols, requestReview, doneReview, cancelReview, excludeSched, unexcludeSched, saveAutoCat, removeMany, restoreMany, purgeMany, addFollowupMany, addMajorsMany, renameFaculty },
     backup, getConfig, getMeta, recordRun, listTeachers, close: () => db.close(),
   };
 }

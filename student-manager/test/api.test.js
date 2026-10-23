@@ -1650,3 +1650,29 @@ test('학생 정보 정리: 영문 이름·영문 주소를 원서 정보에서 
   r = d.appinfo.find((x) => x.id === r.id);
   assert.deepStrictEqual([r.sent, r.sentAt], ['', '']);
 });
+
+test('v12 의견: 받은 연락 어머님, 학생 목록 칸(관리팀만·모두 같게), 대학 원서 접수 주소, 원장님 일정 가져오기는 누구나', async () => {
+  const admin = client(); await admin.login('admin@revera.test', 'admin-pass-1');
+  let d = await admin.saveOk('students', { name: '연락학생' });
+  const sid = d.savedId;
+  await admin.saveOk('followups', { studentId: sid, kind: 'contact', fromWho: '어머님', channel: '위챗', title: '질문', status: '할 일' });
+  await admin.saveOk('followups', { studentId: sid, kind: 'contact', fromWho: '아버님', channel: '위챗', title: '질문2', status: '할 일' });
+
+  d = await admin.ok('saveStudentCols', { cols: ['status', 'school', 'nope', 'status', 'hope'] });
+  assert.deepStrictEqual(d.studentCols, ['status', 'school', 'hope'], '모르는 칸·중복은 빠짐');
+  await admin.ok('saveTeacher', { email: 'v12-con@revera.test', name: '컨설C', role: 'consultant', password: '123456' });
+  const con = client(); await con.login('v12-con@revera.test', '123456');
+  assert.deepStrictEqual((await con.ok('getAll')).studentCols, ['status', 'school', 'hope'], '모두에게 같게');
+  assert.strictEqual((await con.rpc('saveStudentCols', { cols: ['school'] })).status, 403);
+  d = await admin.ok('saveStudentCols', { cols: null });
+  assert.strictEqual(d.studentCols, null, '처음 상태로');
+
+  const u = d.universities[0];
+  d = await admin.ok('save', { table: 'universities', obj: { id: u.id, updatedAt: u.updatedAt, portalUrl: 'https://apply.example.edu/login' } });
+  assert.strictEqual(d.universities.find((x) => x.id === u.id).portalUrl, 'https://apply.example.edu/login');
+  assert.strictEqual((await admin.rpc('save', { table: 'universities', obj: { id: u.id, updatedAt: d.universities.find((x) => x.id === u.id).updatedAt, portalUrl: 'javascript:alert(1)' } })).status, 400);
+
+  const r = await con.req('POST', '/api/schedule/refresh', {});
+  assert.notStrictEqual(r.status, 403, '컨설턴트도 누를 수 있음');
+  assert.ok(r.status === 200 || r.status === 400, JSON.stringify(r.data)); // 시트 설정이 없으면 400 + 안내
+});

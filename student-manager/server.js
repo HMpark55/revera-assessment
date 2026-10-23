@@ -274,6 +274,13 @@ function createApp(store, opts) {
   });
 
   // 관리자: 자동 백업·이메일 알림 — 연결 확인, 지금 백업, 테스트 메일, 오늘 알림 미리보기/보내기
+  // 메인 달력 "↻ 원장님 일정 가져오기": 시트를 읽기만 하므로 모든 선생님, 너무 자주 누르면 잠시 기다리게
+  let schedAt = 0;
+  app.post('/api/schedule/refresh', requireLogin, async (req, res) => {
+    if (Date.now() - schedAt < 30000) return res.status(429).json({ error: '방금 가져왔습니다. 30초 뒤에 다시 눌러주세요.' });
+    schedAt = Date.now();
+    try { const r = await automation.syncSchedule(store, opts.fetch, true); res.json({ saved: r.saved }); } catch (e) { res.status(400).json({ error: e.message }); }
+  });
   app.post('/api/automation/:action', requireLogin, async (req, res) => {
     if (req.me.role !== 'admin') return res.status(403).json({ error: '관리자만 할 수 있습니다.' });
     const f = opts.fetch;
