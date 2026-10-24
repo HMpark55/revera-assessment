@@ -458,8 +458,8 @@
   table.dl tr.late td { background:#fff1f0; } table.dl tr.soon td { background:#fffaf0; } table.dl tr.done td { color:#9ca3af; }
   table.dl tr.done .portal { opacity:.6; }
   .dl-memo input { width:100%; min-width:180px; border:1px dashed transparent; background:transparent; padding:4px 6px; border-radius:6px; }
-  .dl-memo input:hover, .dl-memo input:focus { border-color:var(--border); background:#fff; }
-  .ex-list { max-height:140px; } .ex-fields > div { display:flex; flex-wrap:wrap; gap:4px 14px; align-items:center; margin:3px 0; }
+  .dl-memo input { border-color:#e5e7eb; background:#fff; } .dl-memo input:focus { border-color:#93c5fd; }
+  .ex-list { max-height:140px; } .ex-fields label.ex-sub { color:#4b5563; } .ex-fields label.ex-sub::before { content:'└'; color:#9ca3af; margin-right:-2px; } .ex-fields > div { display:flex; flex-wrap:wrap; gap:4px 14px; align-items:center; margin:3px 0; }
   .ex-fields label { display:inline-flex; gap:5px; align-items:center; color:#222; font-size:.88rem; } .ex-fields b { width:36px; font-size:.78rem; }
   textarea.ex-out { width:100%; min-height:240px; font-family:ui-monospace, Menlo, Consolas, monospace; font-size:.82rem; white-space:pre; }
   .shot-wrap { display:inline-flex; align-items:center; gap:2px; }
@@ -2039,7 +2039,7 @@ function viewStudents() {
   var h = '<div class="toolbar"><h2 style="margin:0;margin-right:auto">' + (isMgr() ? '학생' : '담당 학생') + ' <span class="muted">' + list.length + '명</span></h2>' +
     seg([['list', '목록'], ['board', '지원 현황표']], UI.stView, 'stView') +
     (UI.stView === 'board' ? '<button class="btn ghost" onclick="window.print()" title="인쇄하거나 PDF로 저장">🖨 인쇄·PDF</button><button class="btn ghost" onclick="downloadBoard()">⬇ 엑셀(CSV)</button>' : '') +
-    '<button class="btn ghost" onclick="openExport(UI._stSids)" title="목록에 보이는 학생들 정보를 골라서 한 번에 보기·복사">📋 정보 모아 보기</button>' +
+    '<button class="btn ghost" onclick="openExport(UI._stSids)" title="목록에 보이는 학생들 정보를 골라서 한 번에 보기·복사">📋 한번에 공유하기</button>' +
     (isMgr() ? '<button class="btn" onclick="openForm(\'students\')">+ 학생 등록</button>' : '') + '</div>';
   h += '<div class="toolbar"><input type="text" id="q" class="grow" placeholder="이름, 학교, 트랙, 태그, 학부모 이름 검색" value="' + esc(UI.q) + '" oninput="searchInput(event,\'q\')" oncompositionend="searchInput(event,\'q\')">' +
     '<select onchange="UI.status=this.value;render()">' +
@@ -2084,7 +2084,7 @@ function appBoard(list) {
   }).join('') + '</tbody></table>';
 }
 /** 엑셀에서 열 수 있는 CSV (한 학생 한 줄, 지원 대학은 칸 안에서 줄바꿈) */
-/* ----- 정보 모아 보기: 학생과 항목을 골라 한 번에 보기·복사 (위챗·카톡용 글 / 엑셀용 표 / CSV) ----- */
+/* ----- 한번에 공유하기: 학생과 항목을 골라 한 번에 보기·복사 (위챗·카톡용 글 / 엑셀용 표 / CSV) ----- */
 var EXPORT_FIELDS = [
   { k: 'basic', g: '기본', l: '이름·영문 이름·생년월일', def: 1, v: function (s) { return [['영문 이름', s.englishName], ['생년월일', s.dob]]; } },
   { k: 'school', g: '기본', l: '학교·학년·커리큘럼', def: 1, v: function (s) { return [['학교', [s.school, s.grade, s.curriculum].filter(Boolean).join(' · ')]]; } },
@@ -2093,18 +2093,23 @@ var EXPORT_FIELDS = [
   { k: 'parents', g: '기본', l: '학부모 연락처', v: function (s) { return [['아버님', [s.fatherName, s.fatherPhone, s.fatherEmail, s.fatherWechat && '위챗 ' + s.fatherWechat].filter(Boolean).join(' / ')], ['어머님', [s.motherName, s.motherPhone, s.motherEmail, s.motherWechat && '위챗 ' + s.motherWechat].filter(Boolean).join(' / ')]]; } },
   { k: 'owners', g: '기본', l: '트랙·담당', v: function (s) { return [['트랙', trackTags(s).join(', ')], ['담당', ownersText(s)]]; } },
   { k: 'progress', g: '기본', l: '현재 진행 상황·희망 대학', v: function (s) { return [['현재 진행 상황', s.progress], ['희망 대학', s.hopeUnis]]; } },
-  { k: 'apps', g: '원서', l: '지원대학 (전형·전공·마감·상태)', def: 1, list: 1, v: function (s) { return childOf('apps', s.id).slice().sort(function (a, b) { return (a.deadline || '9999').localeCompare(b.deadline || '9999'); }).map(function (a) {
-    return [a.university, a.round, a.major, a.deadline && '마감 ' + fmtD(a.deadline), a.status, a.parentConfirmed === 'TRUE' && '부모님 확정'].filter(Boolean).join(' · '); }); } },
+  // 지원대학: 대학 이름 + 고른 칸(전형·전공·마감·상태)만 — 글은 대학마다 한 줄, 표는 칸마다 따로
+  { k: 'apps', g: '원서', l: '지원대학', def: 1, app: 1 },
+  { k: 'appRound', g: '원서', l: '전형', app: 1, sub: 1, a: function (a) { return a.round; } },
+  { k: 'appMajor', g: '원서', l: '전공', app: 1, sub: 1, a: function (a) { return a.major + (a.parentConfirmed === 'TRUE' ? ' (부모님 확정)' : ''); } },
+  { k: 'appDeadline', g: '원서', l: '마감', def: 1, app: 1, sub: 1, pre: '마감 ', a: function (a) { return a.deadline ? fmtD(a.deadline) : ''; } },
+  { k: 'appStatus', g: '원서', l: '상태', app: 1, sub: 1, a: function (a) { return a.status; } },
   { k: 'portalId', g: '원서', l: '원서 포털 아이디', list: 1, v: function (s) { return childOf('accounts', s.id).filter(function (a) { return a.loginId; }).map(function (a) { return a.site + ': ' + a.loginId; }); } },
-  { k: 'portalPw', g: '원서', l: '⚠ 포털 비밀번호 (보낼 때 주의)', list: 1, v: function (s) { return childOf('accounts', s.id).filter(function (a) { return a.password; }).map(function (a) { return a.site + ' PW: ' + a.password; }); } },
+  { k: 'portalPw', g: '원서', l: '포털 비밀번호', list: 1, v: function (s) { return childOf('accounts', s.id).filter(function (a) { return a.password; }).map(function (a) { return a.site + ' PW: ' + a.password; }); } },
   { k: 'recs', g: '원서', l: '추천인·카운슬러', list: 1, v: function (s) { return recommenders(s.id).map(function (r) { return r.item + ': ' + String(r.content || '').replace(/\s*\n\s*/g, ' / ') + (r.sent === 'TRUE' ? ' (질문지 메일 보냄)' : ''); }); } },
   { k: 'appinfo', g: '원서', l: '원서 정보 (그 밖의 항목)', list: 1, v: function (s) { return childOf('appinfo', s.id).filter(function (r) { return !REC_ITEM.test(r.item || ''); }).map(function (r) { return (r.universityId ? uniLabel(r.universityId) + ' ' : '') + r.item + ': ' + String(r.content || '').replace(/\s*\n\s*/g, ' / '); }); } },
   { k: 'scores', g: '성적', l: '어학·표준화 점수 (최근)', def: 1, list: 1, v: function (s) { var seen = {}; return childOf('scores', s.id).sort(function (a, b) { return (b.date || '').localeCompare(a.date || ''); }).filter(function (r) { var k = r.kind + '|' + (r.subject || ''); if (seen[k]) return false; seen[k] = 1; return true; })
     .map(function (r) { return [r.kind, r.subject, r.score, r.detail && '(' + r.detail + ')', r.date].filter(Boolean).join(' '); }); } },
   { k: 'contract', g: '계약', l: '계약·금액', mgr: 1, list: 1, v: function (s) { return currentContracts(s.id).map(function (c) { var p = contractPay(c); return contractLabel(c) + (p.total ? ' ' + c.currency + ' ' + Math.round(p.total).toLocaleString('ko-KR') + (p.due ? ' (미수 ' + Math.round(p.due).toLocaleString('ko-KR') + ')' : '') : ''); }); } },
 ];
+function exApps(s) { return childOf('apps', s.id).slice().sort(function (a, b) { return (a.deadline || '9999').localeCompare(b.deadline || '9999'); }); }
 function exportFieldsOn() {
-  var on; try { on = JSON.parse(localStorage.getItem('exportFields') || 'null'); } catch (e) { on = null; }
+  var on; try { on = JSON.parse(localStorage.getItem('exportFields2') || 'null'); } catch (e) { on = null; }
   return on || EXPORT_FIELDS.filter(function (f) { return f.def; }).map(function (f) { return f.k; });
 }
 function openExport(sids) {
@@ -2117,12 +2122,12 @@ function renderExport() {
   var on = exportFieldsOn(), groups = [];
   EXPORT_FIELDS.forEach(function (f) { if (f.mgr && !isMgr()) return; if (groups.indexOf(f.g) < 0) groups.push(f.g); });
   var studs = UI.exSids.map(studentById).filter(Boolean);
-  modal('📋 정보 모아 보기',
+  modal('📋 한번에 공유하기',
     '<div class="full"><label>학생 <span class="muted">' + studs.filter(function (s) { return UI.exPick[s.id]; }).length + '명 선택</span> <a href="javascript:void 0" onclick="exPickAll(true)">모두</a> · <a href="javascript:void 0" onclick="exPickAll(false)">해제</a></label>' +
       '<div class="fm-list ex-list">' + studs.map(function (s) { return '<label><input type="checkbox"' + (UI.exPick[s.id] ? ' checked' : '') + ' onchange="UI.exPick[' + js(s.id) + ']=this.checked?1:0;exRefresh()"> ' + esc(s.name) + '</label>'; }).join('') + '</div></div>' +
     '<div class="full"><label>항목 <span class="muted">(고른 항목은 이 브라우저에 기억)</span></label><div class="ex-fields">' + groups.map(function (g) {
       return '<div><b class="muted">' + esc(g) + '</b> ' + EXPORT_FIELDS.filter(function (f) { return f.g === g && (!f.mgr || isMgr()); }).map(function (f) {
-        return '<label><input type="checkbox"' + (on.indexOf(f.k) >= 0 ? ' checked' : '') + ' onchange="exField(' + js(f.k) + ',this.checked)"> ' + esc(f.l) + '</label>'; }).join('') + '</div>';
+        return '<label' + (f.sub ? ' class="ex-sub" title="지원대학 뒤에 붙일 칸"' : '') + '><input type="checkbox"' + (on.indexOf(f.k) >= 0 ? ' checked' : '') + ' onchange="exField(' + js(f.k) + ',this.checked)"> ' + esc(f.l) + '</label>'; }).join('') + '</div>';
     }).join('') + '</div></div>' +
     '<div class="full">' + seg([['text', '글 (위챗·카톡에 붙여넣기)'], ['table', '표 (엑셀·구글시트에 붙여넣기)']], UI.exMode, 'exMode').replace(/render\(\)/g, 'exRefresh()') + '</div>' +
     '<div class="full"><textarea id="ex-out" class="ex-out" readonly></textarea></div>',
@@ -2132,18 +2137,23 @@ function renderExport() {
 function exPickAll(on) { UI.exSids.forEach(function (id) { UI.exPick[id] = on ? 1 : 0; }); renderExport(); }
 function exField(k, on) {
   var l = exportFieldsOn().filter(function (x) { return x !== k; }); if (on) l.push(k);
-  try { localStorage.setItem('exportFields', JSON.stringify(l)); } catch (e) { /* 저장 안 되는 브라우저 */ }
+  try { localStorage.setItem('exportFields2', JSON.stringify(l)); } catch (e) { /* 저장 안 되는 브라우저 */ }
   exRefresh();
 }
 /** 고른 학생 × 항목 → [[머리줄], [학생별 칸…]] */
 function exRows() {
   var on = exportFieldsOn(), fs = EXPORT_FIELDS.filter(function (f) { return on.indexOf(f.k) >= 0 && (!f.mgr || isMgr()); });
   var studs = UI.exSids.map(studentById).filter(function (s) { return s && UI.exPick[s.id]; });
+  var appOn = fs.some(function (f) { return f.k === 'apps'; });
+  fs = fs.filter(function (f) { return !f.app || f.k === 'apps' || appOn; });
   var head = ['이름'];
-  fs.forEach(function (f) { if (f.list) head.push(f.l.replace(/^⚠ /, '').replace(/ \(.*\)$/, '')); else f.v({}).forEach(function (kv) { head.push(kv[0]); }); });
+  fs.forEach(function (f) { if (f.app) head.push(f.k === 'apps' ? '지원대학' : '지원 ' + f.l); else if (f.list) head.push(f.l.replace(/ \(.*\)$/, '')); else f.v({}).forEach(function (kv) { head.push(kv[0]); }); });
   return { fs: fs, studs: studs, head: head, rows: studs.map(function (s) {
     var r = [s.name];
-    fs.forEach(function (f) { if (f.list) r.push(f.v(s).join(' | ')); else f.v(s).forEach(function (kv) { r.push(kv[1] || ''); }); });
+    fs.forEach(function (f) {
+      if (f.app) r.push(exApps(s).map(function (a) { return f.k === 'apps' ? a.university : (f.a(a) || '-'); }).join(' | '));
+      else if (f.list) r.push(f.v(s).join(' | ')); else f.v(s).forEach(function (kv) { r.push(kv[1] || ''); });
+    });
     return r;
   }) };
 }
@@ -2156,8 +2166,11 @@ function exRefresh() {
     var on = exportFieldsOn(), fs = EXPORT_FIELDS.filter(function (f) { return on.indexOf(f.k) >= 0 && (!f.mgr || isMgr()); });
     el.value = UI.exSids.map(studentById).filter(function (s) { return s && UI.exPick[s.id]; }).map(function (s) {
       var lines = ['■ ' + s.name];
+      var subs = fs.filter(function (f) { return f.sub; });
       fs.forEach(function (f) {
-        if (f.list) { var l = f.v(s); if (l.length) { lines.push('- ' + f.l.replace(/^⚠ /, '').replace(/ \(.*\)$/, '') + ':'); l.forEach(function (x) { lines.push('  · ' + x); }); } }
+        if (f.k === 'apps') { var al = exApps(s); if (al.length) { lines.push('- 지원대학:'); al.forEach(function (a) { lines.push('  · ' + [a.university].concat(subs.map(function (x) { var v = x.a(a); return v && (x.pre || '') + v; })).filter(Boolean).join(' · ')); }); } }
+        else if (f.app) return;
+        else if (f.list) { var l = f.v(s); if (l.length) { lines.push('- ' + f.l.replace(/ \(.*\)$/, '') + ':'); l.forEach(function (x) { lines.push('  · ' + x); }); } }
         else f.v(s).forEach(function (kv) { if (kv[1]) lines.push('- ' + kv[0] + ': ' + kv[1]); });
       });
       return lines.join('\n');
@@ -3492,11 +3505,11 @@ function viewDeadlines() {
     '<select onchange="UI.dlCountry=this.value;render()"><option value="">모든 국가</option>' + opts(COUNTRIES, UI.dlCountry) + '</select>' +
     (isMgr() ? '<select onchange="UI.counselor=this.value;render()"><option value="all">모든 학생</option><option value="me"' + (UI.counselor === 'me' ? ' selected' : '') + '>내 담당 학생만</option></select>' : '') +
     '<label class="muted"><input type="checkbox"' + (UI.dlHideDone ? ' checked' : '') + ' onchange="UI.dlHideDone=this.checked;render()"> 제출 끝난 건 숨기기</label>' +
-    '<button class="btn ghost" onclick="openExport(UI._dlSids)" title="이 화면의 학생들 정보를 골라서 한 번에 보기·복사">📋 정보 모아 보기</button></div>';
+    '<button class="btn ghost" onclick="openExport(UI._dlSids)" title="이 화면의 학생들 정보를 골라서 한 번에 보기·복사">📋 한번에 공유하기</button></div>';
   h += '<div class="dl-sum">' + (late ? '<span class="dday over">마감 지났는데 제출 전 ' + late + '건</span>' : '') +
     '<span class="' + (soon ? 'dday soon' : 'muted') + '">7일 안 마감 ' + soon + '건</span>' +
     '<span class="' + (noPortal ? 'dday soon' : 'muted') + '">포털 계정 없음 ' + noPortal + '건</span>' +
-    '<span class="muted">포털에서 제출하면 여기서 <b>[제출 완료]</b>만 눌러주세요. 메모 칸은 걸리는 게 있을 때만.</span></div>';
+    '<span class="muted">포털에서 제출하면 여기서 <b>[제출 완료]</b>만 눌러주세요.</span></div>';
   if (!list.length) return h + '<div class="card empty">해당하는 지원 건이 없습니다. (마감일을 넣은 지원대학만 표시됩니다)</div>';
   // 학생별로 묶기 (제출 전 마감이 가까운 학생부터), 학생 줄을 눌러 접기·펼치기 (이 브라우저에 기억)
   var groups = [], byS = {};
@@ -3520,7 +3533,7 @@ function viewDeadlines() {
           '<td><b>' + esc(a.university) + '</b>' + (a.round ? ' <span class="muted">· ' + esc(a.round) + '</span>' : '') + (a.major ? '<div class="muted" style="font-size:.8rem">' + esc(a.major) + '</div>' : '') + '</td>' +
           '<td class="nw">' + (op || portalAccounts(s.id, a.universityId).length ? portalCell(s, a) : '') + '</td>' +
           '<td class="dl-memo">' + (/\n/.test(memo) ? '<div class="longtxt" style="max-height:4.5em" onclick="openForm(\'apps\',' + js(a.id) + ')" title="눌러서 고치기">' + esc(memo) + '</div>'
-            : '<input type="text" value="' + esc(memo) + '" placeholder="걸리는 것 한 줄 (예: 추천서 1명 남음)" onchange="saveAppMemo(' + js(a.id) + ',this.value)">') + '</td>' +
+            : '<input type="text" value="' + esc(memo) + '" title="메모 — 쓰고 다른 곳을 누르면 저장" onchange="saveAppMemo(' + js(a.id) + ',this.value)">') + '</td>' +
           '<td class="nw">' + (op ? '<button class="btn sm" onclick="submitApp(' + js(a.id) + ')">제출 완료</button>'
             : '<span class="pill a-' + esc(a.status) + '">' + esc(a.status) + '</span>' + (a.submittedAt ? '<div class="muted" style="font-size:.75rem">' + esc(fmtD(a.submittedAt)) + ' · ' + esc(teacherName(a.submittedBy)) + '</div>' : '') +
               (a.status === '제출완료' ? '<button class="ibtn" title="제출 전으로 되돌리기" onclick="unsubmitApp(' + js(a.id) + ')">되돌리기</button>' : '')) + '</td></tr>';
