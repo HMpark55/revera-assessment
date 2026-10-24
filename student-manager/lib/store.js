@@ -532,8 +532,11 @@ function migrate(db) {
   db.exec('CREATE TABLE IF NOT EXISTS programs (id TEXT PRIMARY KEY)');
   ensureColumns(db, 'programs', ['name', 'category', 'target', 'schedule', 'deadline', 'url', 'memo', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy']);
   // v9: 메인 화면 공용 달력 (SAT 시험일 등 모두가 함께 보는 일정)
+  // 학교 방학 (목록 관리 › 학교) — 달력에는 "방학 n곳" 한 줄, 학생 화면·오늘 챙길 일·학생 목록 필터
+  db.exec('CREATE TABLE IF NOT EXISTS schoolbreaks (id TEXT PRIMARY KEY)');
+  ensureColumns(db, 'schoolbreaks', ['school', 'name', 'startDate', 'endDate', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy']);
   db.exec('CREATE TABLE IF NOT EXISTS events (id TEXT PRIMARY KEY)');
-  ensureColumns(db, 'events', ['date', 'endDate', 'title', 'category', 'memo', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy']);
+  ensureColumns(db, 'events', ['date', 'endDate', 'title', 'category', 'memo', 'private', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy']); // private: 'TRUE' = 등록한 사람만 보임
   db.exec('CREATE INDEX IF NOT EXISTS events_date ON events(date)');
   // v7: 자주 쓰는 사이트를 목록으로
   if (!db.prepare("SELECT 1 FROM meta WHERE key = 'v7_sites'").get()) {
@@ -749,7 +752,8 @@ function openStore(dbPath, opts) {
     }
     out.options = db.prepare('SELECT id, kind, value, sortOrder, url, category, color FROM options').all();
     out.programs = db.prepare('SELECT * FROM programs ORDER BY name').all();
-    out.events = db.prepare('SELECT * FROM events ORDER BY date, title').all();
+    out.breaks = db.prepare('SELECT id, school, name, startDate, endDate FROM schoolbreaks ORDER BY startDate').all();
+    out.events = db.prepare("SELECT * FROM events WHERE private != 'TRUE' OR createdBy = ? ORDER BY date, title").all(me.email); // 나만 보기 일정은 등록한 사람에게만
     out.unifiles = db.prepare('SELECT id, universityId, cycleId, programId, category, name, memo, mime, size, createdAt, createdBy FROM unifiles ORDER BY createdAt DESC').all();
     // 원장님 상담 일정 (구글 시트) — 볼 수 있는 학생 것만, 최근 120일부터
     const since = new Date(Date.now() - 120 * 86400000).toISOString().slice(0, 10);
@@ -1254,6 +1258,7 @@ function openStore(dbPath, opts) {
           }
         } else if (cur.value !== value) {
           n = db.prepare(`UPDATE ${tbl} SET ${col} = ? WHERE ${col} = ?`).run(value, cur.value).changes;
+          if (kind === 'school') db.prepare('UPDATE schoolbreaks SET school = ? WHERE school = ?').run(value, cur.value); // 방학도 함께
           if (kind === 'doccat') n += db.prepare('UPDATE docs SET category = ? WHERE category = ?').run(value, cur.value).changes;
         }
         log(me.email, 'update', 'options', id, OPTION_KINDS[kind] + ' ' + cur.value + (cur.value !== value ? ' → ' + value + (n ? ' (' + n + '건 함께 변경)' : '') : ''));
@@ -1334,12 +1339,12 @@ function openStore(dbPath, opts) {
   }
 
   /** 공용 달력 일정: 누구나 추가, 수정·삭제는 등록한 사람 또는 관리자·관리팀 */
-  function eventLabel(r) { return r.date + (r.endDate && r.endDate !== r.date ? '~' + r.endDate : '') + ' ' + r.title; }
+  function eventLabel(r) { return r.date + (r.endDate && r.endDate !== r.date ? '~' + r.endDate : '') + ' ' + (r.private === 'TRUE' ? '(나만 보기 일정)' : r.title); } // 나만 보기 일정은 변경 기록에도 제목을 남기지 않음
   function saveEvent(me, arg) {
     arg = arg || {};
     const rec = {
       date: clean(arg.date).trim(), endDate: clean(arg.endDate).trim(), title: clean(arg.title).trim().slice(0, 200),
-      category: clean(arg.category).trim(), memo: clean(arg.memo).trim(),
+      category: clean(arg.category).trim(), memo: clean(arg.memo).trim(), private: arg.private === true || arg.private === 'TRUE' || arg.private === 'on' ? 'TRUE' : '',
     };
     if (!rec.title) throw new UserError('일정 이름을 입력하세요.');
     if (!DATE_RE.test(rec.date)) throw new UserError('날짜를 YYYY-MM-DD 형식으로 입력하세요.');
@@ -1355,29 +1360,59 @@ function openStore(dbPath, opts) {
       if (id) {
         const cur = getRow('events', id);
         if (!cur) throw new UserError('다른 선생님이 이미 삭제한 일정입니다. 새로고침 해주세요.', 409);
-        if (cur.createdBy !== me.email && !isManager(me)) throw new UserError('일정은 등록한 사람이나 관리자·관리팀만 고칠 수 있습니다.', 403);
+        if (cur.createdBy !== me.email && (!isManager(me) || cur.private === 'TRUE')) throw new UserError(cur.private === 'TRUE' ? '일정을 찾을 수 없습니다.' : '일정은 등록한 사람이나 관리자·관리팀만 고칠 수 있습니다.', cur.private === 'TRUE' ? 404 : 403);
+        if (cur.createdBy !== me.email) rec.private = cur.private; // 다른 사람 일정을 나만 보기로 바꿀 수 없음
         if (arg.updatedAt && arg.updatedAt !== cur.updatedAt) {
           const who = getTeacher(cur.updatedBy);
           throw new UserError('그 사이 ' + (who ? who.name : cur.updatedBy) + ' 님이 먼저 수정했습니다. 새로고침 후 다시 입력해주세요.', 409);
         }
-        db.prepare('UPDATE events SET date=?, endDate=?, title=?, category=?, memo=?, updatedAt=?, updatedBy=? WHERE id=?')
-          .run(rec.date, rec.endDate, rec.title, rec.category, rec.memo, t, me.email, id);
+        db.prepare('UPDATE events SET date=?, endDate=?, title=?, category=?, memo=?, private=?, updatedAt=?, updatedBy=? WHERE id=?')
+          .run(rec.date, rec.endDate, rec.title, rec.category, rec.memo, rec.private, t, me.email, id);
         log(me.email, 'update', 'events', id, eventLabel(rec));
       } else {
         id = newId();
-        db.prepare('INSERT INTO events (id, date, endDate, title, category, memo, createdAt, createdBy, updatedAt, updatedBy) VALUES (?,?,?,?,?,?,?,?,?,?)')
-          .run(id, rec.date, rec.endDate, rec.title, rec.category, rec.memo, t, me.email, t, me.email);
+        db.prepare('INSERT INTO events (id, date, endDate, title, category, memo, private, createdAt, createdBy, updatedAt, updatedBy) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
+          .run(id, rec.date, rec.endDate, rec.title, rec.category, rec.memo, rec.private, t, me.email, t, me.email);
         log(me.email, 'create', 'events', id, eventLabel(rec));
       }
     });
     return Object.assign(getAll(me), { savedId: id });
   }
+  /** 학교 방학 추가·수정 (관리자·관리팀, 목록 관리 › 학교) */
+  function saveBreak(me, arg) {
+    requireManager(me, '학교 방학');
+    arg = arg || {};
+    const rec = { school: clean(arg.school).trim(), name: clean(arg.name).trim().slice(0, 50) || '방학', startDate: clean(arg.startDate).trim(), endDate: clean(arg.endDate).trim() };
+    if (!rec.school || !db.prepare("SELECT 1 FROM options WHERE kind = 'school' AND value = ?").get(rec.school)) throw new UserError('목록에 있는 학교를 고르세요.');
+    if (!DATE_RE.test(rec.startDate) || !DATE_RE.test(rec.endDate)) throw new UserError('방학 시작일과 끝나는 날을 입력하세요.');
+    if (rec.endDate < rec.startDate) throw new UserError('끝나는 날이 시작일보다 빠릅니다.');
+    const t = now();
+    let id = arg.id;
+    if (id) {
+      if (!getRow('schoolbreaks', id)) throw new UserError('방학 정보를 찾을 수 없습니다. 새로고침 해주세요.', 404);
+      db.prepare('UPDATE schoolbreaks SET school=?, name=?, startDate=?, endDate=?, updatedAt=?, updatedBy=? WHERE id=?').run(rec.school, rec.name, rec.startDate, rec.endDate, t, me.email, id);
+      log(me.email, 'update', 'schoolbreaks', id, rec.school + ' ' + rec.name + ' ' + rec.startDate + '~' + rec.endDate);
+    } else {
+      id = newId();
+      db.prepare('INSERT INTO schoolbreaks (id, school, name, startDate, endDate, createdAt, createdBy, updatedAt, updatedBy) VALUES (?,?,?,?,?,?,?,?,?)').run(id, rec.school, rec.name, rec.startDate, rec.endDate, t, me.email, t, me.email);
+      log(me.email, 'create', 'schoolbreaks', id, rec.school + ' ' + rec.name + ' ' + rec.startDate + '~' + rec.endDate);
+    }
+    return Object.assign(getAll(me), { savedId: id });
+  }
+  function removeBreak(me, arg) {
+    requireManager(me, '학교 방학');
+    const cur = getRow('schoolbreaks', arg && arg.id);
+    if (!cur) throw new UserError('이미 삭제되었습니다.', 404);
+    db.prepare('DELETE FROM schoolbreaks WHERE id = ?').run(cur.id);
+    log(me.email, 'delete', 'schoolbreaks', cur.id, cur.school + ' ' + cur.name + ' ' + cur.startDate + '~' + cur.endDate);
+    return getAll(me);
+  }
   function removeEvent(me, arg) {
     const cur = getRow('events', arg && arg.id);
     if (!cur) throw new UserError('이미 삭제된 일정입니다.', 404);
-    if (cur.createdBy !== me.email && !isManager(me)) throw new UserError('일정은 등록한 사람이나 관리자·관리팀만 지울 수 있습니다.', 403);
+    if (cur.createdBy !== me.email && (!isManager(me) || cur.private === 'TRUE')) throw new UserError(cur.private === 'TRUE' ? '이미 삭제된 일정입니다.' : '일정은 등록한 사람이나 관리자·관리팀만 지울 수 있습니다.', cur.private === 'TRUE' ? 404 : 403);
     db.prepare('DELETE FROM events WHERE id = ?').run(cur.id);
-    log(me.email, 'delete', 'events', cur.id, eventLabel(cur) + (cur.memo ? ' — ' + cur.memo.slice(0, 200) : ''));
+    log(me.email, 'delete', 'events', cur.id, eventLabel(cur) + (cur.memo && cur.private !== 'TRUE' ? ' — ' + cur.memo.slice(0, 200) : ''));
     return getAll(me);
   }
 
@@ -1895,7 +1930,7 @@ function openStore(dbPath, opts) {
     rows.forEach((r) => { r.tblLabel = (DEF[r.tbl] && DEF[r.tbl].label) || legacyLabel(r.tbl); });
     return { rows };
   }
-  function legacyLabel(t) { return { teachers: '선생님 계정', options: '목록(학교·커리큘럼·사이트)', settings: '설정', events: '달력 일정', unifiles: '대학 자료 파일', programs: '대회·프로그램' }[t] || t; }
+  function legacyLabel(t) { return { teachers: '선생님 계정', options: '목록(학교·커리큘럼·사이트)', settings: '설정', events: '달력 일정', unifiles: '대학 자료 파일', programs: '대회·프로그램', schoolbreaks: '학교 방학' }[t] || t; }
 
   /* ----- 파일 ----- */
 
@@ -2276,7 +2311,7 @@ function openStore(dbPath, opts) {
     db, filesDir, dbPath, listFiles, pendingSync, markSync, replaceSchedule, restoreFromDb, countTeachers, upsertAdmin, login, logout, authenticate, addFile, getFile, addUniFile, getUniFile,
     rpc: { getAll: (me) => getAll(me), save, remove, restore, purge, getTrash, getLog, saveTeacher, changePassword, importData, copyCycle, getActivity, saveMany, updateMe,
       saveOption, removeOption, deleteTeacher, getAutomation, saveAutomation, saveEvent, removeEvent,
-      saveWithFollowups, requestFollowup, saveOrder, saveUniFile, removeUniFile, saveProgram, removeProgram, getStorage, retrySync, saveHomeLayout, saveStudentCols, requestReview, doneReview, cancelReview, excludeSched, unexcludeSched, saveAutoCat, removeMany, restoreMany, purgeMany, addFollowupMany, addMajorsMany, renameFaculty },
+      saveWithFollowups, requestFollowup, saveOrder, saveUniFile, removeUniFile, saveProgram, removeProgram, getStorage, retrySync, saveHomeLayout, saveStudentCols, saveBreak, removeBreak, requestReview, doneReview, cancelReview, excludeSched, unexcludeSched, saveAutoCat, removeMany, restoreMany, purgeMany, addFollowupMany, addMajorsMany, renameFaculty },
     backup, getConfig, getMeta, recordRun, listTeachers, close: () => db.close(),
   };
 }
