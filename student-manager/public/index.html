@@ -462,6 +462,8 @@
   .ex-list { max-height:140px; } .ex-fields label.ex-sub { color:#4b5563; } .ex-fields label.ex-sub::before { content:'└'; color:#9ca3af; margin-right:-2px; } .ex-fields > div { display:flex; flex-wrap:wrap; gap:4px 14px; align-items:center; margin:3px 0; }
   .ex-fields label { display:inline-flex; gap:5px; align-items:center; color:#222; font-size:.88rem; } .ex-fields b { width:36px; font-size:.78rem; }
   textarea.ex-out { width:100%; min-height:240px; font-family:ui-monospace, Menlo, Consolas, monospace; font-size:.82rem; white-space:pre; }
+  .fold-mini { cursor:pointer; padding:10px 16px; } .fold-mini:hover { background:#f8fafc; }
+  .fold-bar { cursor:pointer; margin:14px 0 6px; font-weight:600; color:var(--navy); font-size:.9rem; }
   .shot-wrap { display:inline-flex; align-items:center; gap:2px; }
   .th-b { white-space:pre-wrap; font-size:.9rem; margin-top:2px; }
   .fr-add { display:grid; grid-template-columns:auto auto 1fr auto; gap:6px; margin-top:6px; align-items:start; }
@@ -1236,7 +1238,7 @@ var WIDGETS = [ // sizes: 고를 수 있는 크기(가로칸x세로칸), 첫 번
   { id: 'followups', title: '팔로업', sizes: ['2x3', '1x2', '1x3', '2x2', '2x4'], render: wFollowups },
   { id: 'calendar', title: '달력', sizes: ['4x4', '1x4', '2x5', '3x4'], render: function () { return calendarCard(); } },
   { id: 'students', title: '학생 현황', sizes: ['2x2', '1x2', '1x3', '2x3', '3x2', '4x3'], render: wStudents },
-  { id: 'deadlines', title: '다가오는 지원 마감', sizes: ['2x2', '1x2', '1x3', '2x3'], render: wDeadlines },
+  { id: 'deadlines', title: '원서 관제탑', sizes: ['2x3', '1x2', '1x3', '2x2', '2x4'], render: wDeadlines },
   { id: 'money', title: '미수금 · 갱신 예정', sizes: ['2x2', '1x2', '1x3', '2x3'], mgr: true, render: wMoney },
   { id: 'meetings', title: '최근 미팅 회의록', sizes: ['2x2', '1x2', '1x3', '2x3'], hideFor: 'mgr', render: wMeetings },
   { id: 'contacts', title: '답 안 한 연락', sizes: ['1x2', '1x1', '1x3', '2x2', '2x3'], extra: true, render: wContacts },
@@ -1252,6 +1254,15 @@ function widgetOk(w) { return !w.mgr || isMgr(); }
 function builtinLayout() {
   return WIDGETS.map(function (w) { return { id: w.id, s: w.sizes[0], hide: !!w.extra || (w.hideFor === 'mgr' && isMgr()) }; });
 }
+/** 추천 배치 (관리팀 기준 매일 보는 것만): 오늘 챙길 일·원서 관제탑·팔로업 한 줄, 그 아래 달력, 관리자·관리팀은 미수금 */
+function recommendedLayout() {
+  var show = { today: '2x3', deadlines: '1x3', followups: '1x3', calendar: '4x4' };
+  if (isMgr()) show.money = '2x2'; else show.meetings = '2x2';
+  var order = ['today', 'deadlines', 'followups', 'calendar', 'money', 'meetings'];
+  return order.filter(function (k) { return show[k]; }).map(function (k) { return { id: k, s: show[k], hide: false }; })
+    .concat(WIDGETS.filter(function (w) { return !show[w.id]; }).map(function (w) { return { id: w.id, s: w.sizes[0], hide: true }; }));
+}
+function homeEditRecommend() { UI.homeEdit = homeLayout(recommendedLayout()); render(); toast('추천 배치를 불러왔습니다. 마음에 들면 “저장”을 눌러주세요.'); }
 /** 내 배치 → 관리자 기본 배치 → 처음 상태. 배치에 없는 위젯(새로 생긴 것)은 숨김으로 뒤에 붙임. 고를 수 없는 크기면 처음 크기 */
 function homeLayout(src) {
   var base = src || S.me.homeLayout || S.homeDefault || builtinLayout(), seen = {}, out = [];
@@ -1299,6 +1310,7 @@ function homeWidgets() {
   if (ed) {
     var hidden = lay.filter(function (x) { return x.hide; });
     h += '<div class="card hedit"><div class="sec-h"><h3>✏️ 메인 화면 편집</h3><span class="toolbar" style="margin:0">' +
+      '<button class="btn ghost sm" onclick="homeEditRecommend()" title="오늘 챙길 일·원서 관제탑·팔로업·달력 (관리자·관리팀은 미수금)">✨ 추천 배치</button>' +
       '<button class="btn ghost sm" onclick="homeEditReset()">기본 배치로 되돌리기</button>' +
       (isAdmin() ? '<button class="btn ghost sm" onclick="homeEditSave(true)" title="새 선생님과 ‘기본 배치로 되돌리기’를 누른 선생님에게 이 배치가 보입니다">모두의 기본 배치로 저장</button>' : '') +
       '<button class="btn ghost sm" onclick="UI.homeEdit=null;render()">취소</button><button class="btn sm" onclick="homeEditSave()">저장</button></span></div>' +
@@ -1386,9 +1398,19 @@ function wFollowups() {
     '<a class="more-link" href="#/followups" onclick="UI.fuWho=' + js(UI.dashFu === 'me' ? 'me' : 'all') + '">트래커 →</a></span></div>' +
     (fuList.length ? '<div class="scroll-box">' + fuRows(fuList) + '</div>' : '<div class="empty">남은 팔로업이 없습니다.</div>') + '</div>';
 }
+/** 메인 "원서 관제탑": 제출 전인 지원 중 마감 지남·30일 안 — 줄을 누르면 관제탑, 포털 열기·제출 완료는 관제탑에서 */
 function wDeadlines() {
-  return '<div class="card"><div class="sec-h"><h3>다가오는 지원 마감 <span class="muted">30일</span></h3><a class="more-link" href="#/deadlines">원서 관제탑 →</a></div><div class="scroll-box sm">' +
-    deadlineTable(upcomingDeadlines().filter(function (i) { return dayDiff(i.date) <= 30; }), '30일 안에 마감되는 지원이 없습니다.') + '</div></div>';
+  var list = S.apps.filter(function (a) { var n = dayDiff(a.deadline); return studentById(a.studentId) && APP_FINAL.indexOf(a.status) < 0 && n !== null && n <= 30; })
+    .sort(function (a, b) { return a.deadline.localeCompare(b.deadline); });
+  var late = list.filter(function (a) { return dayDiff(a.deadline) < 0; }).length, soon = list.filter(function (a) { var n = dayDiff(a.deadline); return n >= 0 && n <= 7; }).length;
+  return '<div class="card"><div class="sec-h"><h3>원서 관제탑 <span class="muted">제출 전 · 30일</span></h3><a class="more-link" href="#/deadlines">관제탑 →</a></div>' +
+    '<div class="dl-sum" style="margin-bottom:6px">' + (late ? '<span class="dday over">마감 지남 ' + late + '</span>' : '') + '<span class="' + (soon ? 'dday soon' : 'muted') + '">7일 안 ' + soon + '</span><span class="muted">30일 안 ' + list.length + '건</span></div>' +
+    '<div class="scroll-box sm">' + (list.length ? '<div class="sum-list">' + list.map(function (a) {
+      var st = studentById(a.studentId), n = dayDiff(a.deadline), noP = a.universityId && !portalAccounts(a.studentId, a.universityId).length;
+      return '<div class="row" style="cursor:pointer' + (n < 0 ? ';background:#fff1f0' : '') + '" onclick="UI.dlRange=\'30\';go(\'#/deadlines\')"><span class="nw" style="width:92px"><b>' + esc(fmtD(a.deadline)) + '</b> ' + dday(a.deadline) + '</span>' +
+        '<span class="nw"><b>' + esc(st.name) + '</b></span><span class="grow" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(a.university) + (a.round ? ' <span class="muted">· ' + esc(a.round) + '</span>' : '') + '</span>' +
+        (noP ? '<span class="dday soon nw" title="원서 포털 계정 없음">포털 없음</span>' : '') + '</div>';
+    }).join('') + '</div>' : '<div class="empty">30일 안에 제출할 원서가 없습니다.</div>') + '</div></div>';
 }
 function wMoney() {
   var un = unpaidContracts(), rn = renewals();
@@ -2199,7 +2221,7 @@ function downloadBoard() {
 }
 
 /* ============================== 학생 상세 ============================== */
-var TAB_LABEL = { appinfo: '원서 정보', summary: '요약', meetings: '미팅', accounts: '계정', followups: '팔로업·연락', notes: '상담기록', contracts: '계약', majors: '전공', apps: '지원대학', scores: '성적·학력', schools: '학력', docs: '서류', profile: '학생 정보' };
+var TAB_LABEL = { appinfo: '원서 정보', summary: '요약', meetings: '미팅', accounts: '계정', followups: '팔로업·연락', notes: '전체 기록', contracts: '계약', majors: '전공', apps: '지원대학', scores: '성적·학력', schools: '학력', docs: '서류', profile: '학생 정보' };
 /** 학생 화면 탭 묶음: 요약 | 진행 | 입시 | 행정 */
 function tabGroups() {
   return [['', ['summary']], ['진행', ['followups', 'meetings'].concat(isMgr() ? ['notes'] : [])],
@@ -2231,7 +2253,7 @@ function viewStudent(id) {
     var n = t === 'summary' ? null : t === 'followups' ? openFollowups(id).length : t === 'profile' ? null : t === 'scores' ? childOf('schools', id).length + childOf('courses', id).length + childOf('scores', id).length + childOf('files', id).filter(function (f) { return !f.docId && !f.meetingId && !f.followupId && !f.scoreId; }).length :
       t === 'accounts' ? childOf('accounts', id).length : t === 'meetings' ? childOf('meetings', id).length :
       t === 'majors' ? childOf('majorplans', id).filter(function (m) { return m.status !== '제외'; }).length :
-      ['notes', 'contracts', 'apps', 'docs', 'schools', 'appinfo'].indexOf(t) >= 0 ? childOf(t, id).length : null;
+      t === 'notes' ? timelineOf(id).length : ['contracts', 'apps', 'docs', 'schools', 'appinfo'].indexOf(t) >= 0 ? childOf(t, id).length : null;
     return '<a class="' + (UI.tab === t ? 'on' : '') + '" onclick="UI.tab=' + js(t) + ';render()">' + TAB_LABEL[t] + (n ? ' (' + n + ')' : '') + '</a>';
   };
   h += '<div class="tabs">' + tabGroups().map(function (g, i) {
@@ -2613,8 +2635,8 @@ function viewFollowups() {
 function tabNotes(s) {
   var notes = notesOf(s.id);
   UI.noteView = UI.noteView || 'all';
-  var head = secHead('상담 기록 <span class="muted">(관리자·관리팀만 볼 수 있음)</span>', '<span class="toolbar" style="margin:0">' +
-    seg([['all', '전체 기록 (상담·미팅·연락)'], ['notes', '상담기록만']], UI.noteView, 'noteView') + addBtn('notes', s.id, '+ 상담 기록 작성') + '</span>');
+  var head = secHead('전체 기록 <span class="muted">상담·미팅·연락을 날짜순으로 (관리자·관리팀만)</span>', '<span class="toolbar" style="margin:0">' +
+    seg([['all', '전체'], ['notes', '상담기록만']], UI.noteView, 'noteView') + addBtn('notes', s.id, '+ 상담 기록') + '</span>');
   if (UI.noteView === 'notes') return '<div class="card">' + head + (notes.length ? notes.map(noteItem).join('') : '<div class="empty">아직 상담 기록이 없습니다.</div>') + '</div>';
   var items = timelineOf(s.id);
   UI.tlOpen = UI.tlOpen || {};
@@ -2801,7 +2823,22 @@ function tabContracts(s) {
 }
 
 var SCORE_ORDER = SCORE_KINDS;
-function tabScores(s) { return tabSchools(s) + tabScoresOnly(s); }
+/** 성적·학력 탭: 자주 쓰는 점수·증명서가 위, 학력·수강 과목은 아래에 접어 둠 (펼침 상태는 이 브라우저에 기억) */
+function tabScores(s) { return tabScoresOnly(s) + foldSection('schools', s) + foldSection('courses', s); }
+function scFold() { if (!UI.scFold) { try { UI.scFold = JSON.parse(localStorage.getItem('scFold') || '{}'); } catch (e) { UI.scFold = {}; } } return UI.scFold; }
+function scFoldToggle(k) { var f = scFold(); f[k] = !f[k]; try { localStorage.setItem('scFold', JSON.stringify(f)); } catch (e) { /* 이번 화면에만 */ } render(); }
+function foldSection(k, s) {
+  var open = !!scFold()[k];
+  if (k === 'schools') {
+    var sc = childOf('schools', s.id), sum = sc.length ? sc.length + '곳' : '입력 없음';
+    if (open) return '<div class="fold-bar" onclick="scFoldToggle(\'schools\')">▼ 학력 <span class="muted">' + esc(sum) + ' — 접기</span></div>' + tabSchools(s);
+    return '<div class="card fold-mini" onclick="scFoldToggle(\'schools\')">▶ <b>학력</b> <span class="muted">· ' + esc(sum) + (sc.length ? ' · ' + esc(sc.map(function (x) { return x.school; }).join(', ')) : '') + ' — 눌러서 펼치기 (G1부터 다닌 학교·재학 기간)</span></div>';
+  }
+  var cs = childOf('courses', s.id), gr = []; cs.forEach(function (c) { if (c.grade && gr.indexOf(c.grade) < 0) gr.push(c.grade); });
+  var sum2 = cs.length ? cs.length + '과목' + (gr.length ? ' · ' + gr.join(', ') : '') : '입력 없음';
+  if (open) return '<div class="fold-bar" onclick="scFoldToggle(\'courses\')">▼ 학년별 수강 과목 <span class="muted">' + esc(sum2) + ' — 접기</span></div>' + courseCard(s);
+  return '<div class="card fold-mini" onclick="scFoldToggle(\'courses\')">▶ <b>학년별 수강 과목</b> <span class="muted">· ' + esc(sum2) + ' — 눌러서 펼치기</span></div>';
+}
 /** 점수 줄의 첨부 파일 (이미지는 팝업) */
 function scoreFiles(r) {
   var fs = S.files.filter(function (f) { return f.scoreId === r.id; });
@@ -2814,8 +2851,7 @@ function tabScoresOnly(s) {
     var k = SCORE_ORDER.indexOf(a.kind) - SCORE_ORDER.indexOf(b.kind);
     return k || (b.date || '').localeCompare(a.date || '');
   });
-  var h = courseCard(s);
-  h += '<div class="card">' + secHead('어학·표준화 점수 <span class="muted">SAT·TOEFL·AP 시험 등</span>', addBtn('scores', s.id, '+ 점수 추가'));
+  var h = '<div class="card">' + secHead('어학·표준화 점수 <span class="muted">SAT·TOEFL·AP 시험 등</span>', addBtn('scores', s.id, '+ 점수 추가'));
   var seen = {}, cnt = {};
   list.forEach(function (r) { var k = r.kind + '|' + (r.subject || ''); cnt[k] = (cnt[k] || 0) + 1; });
   h += list.length ? '<div class="tbl-wrap"><table><thead><tr><th>종류</th><th>과목 / 구분</th><th>점수</th><th>세부</th><th>응시일</th><th>메모</th><th>업데이트</th></tr></thead><tbody>' +
