@@ -47,7 +47,7 @@ const TABLES = {
   apps: {
     label: '지원대학',
     fields: ['studentId', 'country', 'universityId', 'university', 'majorId', 'major', 'roundId', 'round', 'deadline',
-      'deadlineManual', 'status', 'essay', 'memo', 'parentConfirmed'],
+      'deadlineManual', 'status', 'essay', 'memo', 'parentConfirmed', 'submittedAt'], // submittedAt: 원서 관제탑 "제출 완료" 누른 날
     summary: (r) => [r.university, r.round].filter(Boolean).join(' '),
   },
   scores: {
@@ -222,7 +222,7 @@ const FIELD_LABELS = {
   fullName: '정식 이름', aliases: '다른 이름', website: '홈페이지', portalUrl: '원서 접수(포털) 주소', tips: '원서 준비 유의사항', sortOrder: '순서',
   year: '입학 연도', term: '입학 학기', requirements: '공식 지원 요건', sourceUrl: '출처', faculty: '단과대',
   code: '코드', cycleId: '입학 연도',
-  englishName: '영문 이름', address: '주소', addressEn: '영문 주소', sent: '추천인 이메일 보냄', sentAt: '이메일 보낸 날', sentBy: '이메일 체크한 사람',
+  submittedAt: '제출일', englishName: '영문 이름', address: '주소', addressEn: '영문 주소', sent: '추천인 이메일 보냄', sentAt: '이메일 보낸 날', sentBy: '이메일 체크한 사람',
   hopeUnis: '희망 대학·특례', focusArea: '집중 과목·관리 영역', recommenders: '추천서 진행', onlineCourse: '온라인 코스 진행',
   who: '답변한 사람', meetingUrl: '미팅 회의록 링크', reply: '학생·학부모 답변', replyDate: '답변 날짜', replyFrom: '답변한 사람', kind: '종류', fromWho: '보낸 사람', channel: '연락 경로', receivedDate: '받은 날짜', answer: '우리 답변·처리', answerDate: '우리 답변 날짜',
   site: '사이트', loginId: '아이디', password: '비밀번호',
@@ -338,7 +338,7 @@ function migrate(db) {
   ensureColumns(db, 'notes', ['author']);
   ensureColumns(db, 'followups', ['doneAt', 'doneBy']);
   ensureColumns(db, 'majorplans', ['parentConfirmedAt', 'parentConfirmedBy']);
-  ensureColumns(db, 'apps', ['parentConfirmedAt', 'parentConfirmedBy']);
+  ensureColumns(db, 'apps', ['parentConfirmedAt', 'parentConfirmedBy', 'submittedBy']);
   ensureColumns(db, 'appinfo', ['sentAt', 'sentBy']);
   ensureColumns(db, 'log', ['studentId']);
   db.exec('CREATE INDEX IF NOT EXISTS log_student ON log(studentId)');
@@ -929,6 +929,10 @@ function openStore(dbPath, opts) {
         if ((table === 'majorplans' || table === 'apps') && 'parentConfirmed' in rec && (rec.parentConfirmed === 'TRUE') !== (cur.parentConfirmed === 'TRUE')) {
           rec.parentConfirmedAt = rec.parentConfirmed === 'TRUE' ? t : '';
           rec.parentConfirmedBy = rec.parentConfirmed === 'TRUE' ? me.email : '';
+        }
+        if (table === 'apps' && 'status' in rec && rec.status !== cur.status) { // 제출완료로 바뀌면 날짜·사람, 준비 단계로 되돌리면 지움
+          if (rec.status === '제출완료' && !cur.submittedAt) { rec.submittedAt = t.slice(0, 10); rec.submittedBy = me.email; }
+          if (rec.status === '준비중' || rec.status === '작성중') { rec.submittedAt = ''; rec.submittedBy = ''; }
         }
         if (table === 'appinfo' && 'sent' in rec && (rec.sent === 'TRUE') !== (cur.sent === 'TRUE')) {
           rec.sentAt = rec.sent === 'TRUE' ? t : '';

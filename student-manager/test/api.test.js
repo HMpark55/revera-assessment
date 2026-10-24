@@ -1780,3 +1780,22 @@ test('v15: 학교 방학(관리팀만 입력, 목록에 있는 학교만, 학교
   d = await admin.ok('removeBreak', { id: bid });
   assert.ok(!d.breaks.some((b) => b.id === bid));
 });
+
+test('원서 관제탑: 제출 완료 누르면 제출일·누른 사람, 되돌리면 지움', async () => {
+  const admin = client(); await admin.login('admin@revera.test', 'admin-pass-1');
+  let d = await admin.ok('getAll');
+  const u = d.universities[0];
+  d = await admin.saveOk('students', { name: '관제탑학생' });
+  const sid = d.savedId;
+  d = await admin.saveOk('apps', { studentId: sid, universityId: u.id, status: '준비중', deadline: '2026-11-30' });
+  let a = d.apps.find((x) => x.id === d.savedId);
+  d = await admin.saveOk('apps', { id: a.id, updatedAt: a.updatedAt, status: '제출완료' });
+  a = d.apps.find((x) => x.id === a.id);
+  assert.ok(/^\d{4}-\d{2}-\d{2}$/.test(a.submittedAt) && a.submittedBy === 'admin@revera.test');
+  d = await admin.saveOk('apps', { id: a.id, updatedAt: a.updatedAt, memo: '추천서 1명 남음' });
+  a = d.apps.find((x) => x.id === a.id);
+  assert.ok(a.submittedAt, '다른 칸 고쳐도 제출일 유지');
+  d = await admin.saveOk('apps', { id: a.id, updatedAt: a.updatedAt, status: '준비중' });
+  a = d.apps.find((x) => x.id === a.id);
+  assert.deepStrictEqual([a.submittedAt, a.submittedBy], ['', '']);
+});

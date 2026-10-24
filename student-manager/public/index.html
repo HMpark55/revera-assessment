@@ -452,6 +452,11 @@
   .stfilter select { max-width:210px; } .stfilter select.on { border-color:#3b82f6; background:#eef4ff; }
   .stfilter .chk { display:inline-flex; gap:5px; align-items:center; font-size:.85rem; white-space:nowrap; }
   .cal .d .brk { display:block; font-size:.66rem; color:#8a5a00; background:#fff4d6; border-radius:3px; padding:0 3px; margin:1px 0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .dl-sum { display:flex; flex-wrap:wrap; gap:8px 14px; align-items:center; margin:0 0 10px; font-size:.85rem; }
+  table.dl tr.late td { background:#fff1f0; } table.dl tr.soon td { background:#fffaf0; } table.dl tr.done td { color:#9ca3af; }
+  table.dl tr.done .portal { opacity:.6; }
+  .dl-memo input { width:100%; min-width:180px; border:1px dashed transparent; background:transparent; padding:4px 6px; border-radius:6px; }
+  .dl-memo input:hover, .dl-memo input:focus { border-color:var(--border); background:#fff; }
   .shot-wrap { display:inline-flex; align-items:center; gap:2px; }
   .th-b { white-space:pre-wrap; font-size:.9rem; margin-top:2px; }
   .fr-add { display:grid; grid-template-columns:auto auto 1fr auto; gap:6px; margin-top:6px; align-items:start; }
@@ -1174,7 +1179,7 @@ function openStudent(id, tab) { UI.tab = tab || ''; go('#/student/' + id); }
 function render() {
   if (!S.me) return;
   var r = route();
-  var work = [['students', isMgr() ? '학생' : '담당 학생'], ['followups', '팔로업·연락'], ['meetings', '미팅'], ['deadlines', '마감일정'], ['unis', '대학 정보'], ['programs', '대회·프로그램'], ['results', '합격 실적']];
+  var work = [['students', isMgr() ? '학생' : '담당 학생'], ['followups', '팔로업·연락'], ['meetings', '미팅'], ['deadlines', '원서 관제탑'], ['unis', '대학 정보'], ['programs', '대회·프로그램'], ['results', '합격 실적']];
   var admin = [];
   if (isMgr()) admin.push(['sales', '매출'], ['unilist', '목록 관리']);
   if (isAdmin()) admin.push(['teachers', '계정 관리'], ['settings', '백업·알림'], ['storage', '저장 공간'], ['log', '변경 기록']);
@@ -1377,7 +1382,7 @@ function wFollowups() {
     (fuList.length ? '<div class="scroll-box">' + fuRows(fuList) + '</div>' : '<div class="empty">남은 팔로업이 없습니다.</div>') + '</div>';
 }
 function wDeadlines() {
-  return '<div class="card"><div class="sec-h"><h3>다가오는 지원 마감 <span class="muted">30일</span></h3><a class="more-link" href="#/deadlines">마감일정 →</a></div><div class="scroll-box sm">' +
+  return '<div class="card"><div class="sec-h"><h3>다가오는 지원 마감 <span class="muted">30일</span></h3><a class="more-link" href="#/deadlines">원서 관제탑 →</a></div><div class="scroll-box sm">' +
     deadlineTable(upcomingDeadlines().filter(function (i) { return dayDiff(i.date) <= 30; }), '30일 안에 마감되는 지원이 없습니다.') + '</div></div>';
 }
 function wMoney() {
@@ -3364,23 +3369,68 @@ function hopeLine(s) {
 function kvc(k, v) { return '<dt>' + esc(k) + '</dt><dd>' + (v ? esc(v) + ' <button class="btn ghost sm" title="복사" onclick="copyText(' + js(v) + ')">📋</button>' : '<span class="muted">-</span>') + '</dd>'; }
 function kv(k, v) { return '<dt>' + esc(k) + '</dt><dd>' + (v ? esc(v) : '<span class="muted">-</span>') + '</dd>'; }
 
-/* ============================== 마감일정 ============================== */
+/* ============================== 원서 관제탑 ==============================
+ * 기록을 더 시키지 않고, 포털 작업을 하러 갈 때 거쳐 가는 화면: 마감 가까운 순 학생×대학, 포털 ID/PW 복사·열기, 메모 한 줄, [제출 완료] 한 번 */
 function viewDeadlines() {
+  UI.dlRange = UI.dlRange || '30';
+  if (UI.dlHideDone === undefined) UI.dlHideDone = true;
   var range = UI.dlRange === 'all' ? null : Number(UI.dlRange);
-  var list = deadlineItems(!UI.dlHideDone).filter(function (i) {
-    if (range !== null && dayDiff(i.date) > range) return false;
-    if (isMgr() && UI.counselor === 'me' && !isMine(studentById(i.studentId))) return false;
-    if (UI.dlCountry && i.kind !== UI.dlCountry) return false;
+  var all = S.apps.filter(function (a) {
+    var s = studentById(a.studentId); if (!s || !a.deadline || dayDiff(a.deadline) === null) return false;
+    if (isMgr() && UI.counselor === 'me' && !isMine(s)) return false;
+    if (UI.dlCountry && a.country !== UI.dlCountry) return false;
     return true;
   });
-  var h = '<div class="toolbar"><h2 style="margin:0;margin-right:auto">지원 마감일정 <span class="muted">' + list.length + '건</span></h2>' +
-    '<select onchange="UI.dlRange=this.value;render()">' + [['14', '14일 이내'], ['30', '30일 이내'], ['60', '60일 이내'], ['all', '전체']].map(function (o) {
-      return '<option value="' + o[0] + '"' + (UI.dlRange === o[0] ? ' selected' : '') + '>' + o[1] + '</option>';
-    }).join('') + '</select>' +
+  var open = function (a) { return APP_FINAL.indexOf(a.status) < 0; };
+  var list = all.filter(function (a) {
+    var n = dayDiff(a.deadline);
+    if (open(a)) return n < 0 || range === null || n <= range; // 지난 마감인데 제출 전이면 항상 보임
+    return !UI.dlHideDone && (range === null || (n >= -30 && n <= range));
+  }).sort(function (a, b) { return (open(b) - open(a)) || a.deadline.localeCompare(b.deadline); });
+  var pending = list.filter(open);
+  var late = pending.filter(function (a) { return dayDiff(a.deadline) < 0; }).length;
+  var soon = pending.filter(function (a) { var n = dayDiff(a.deadline); return n >= 0 && n <= 7; }).length;
+  var noPortal = pending.filter(function (a) { return a.universityId && !portalAccounts(a.studentId, a.universityId).length; }).length;
+  var h = '<div class="toolbar"><h2 style="margin:0;margin-right:auto">원서 관제탑 <span class="muted">제출 전 ' + pending.length + '건</span></h2>' +
+    seg([['14', '2주'], ['30', '한 달'], ['60', '두 달'], ['all', '전체']], UI.dlRange, 'dlRange') +
     '<select onchange="UI.dlCountry=this.value;render()"><option value="">모든 국가</option>' + opts(COUNTRIES, UI.dlCountry) + '</select>' +
-    (isMgr() ? '<select onchange="UI.counselor=this.value;render()"><option value="all">모든 담당자</option><option value="me"' + (UI.counselor === 'me' ? ' selected' : '') + '>내 담당 학생만</option></select>' : '') +
-    '<label class="muted"><input type="checkbox"' + (UI.dlHideDone ? ' checked' : '') + ' onchange="UI.dlHideDone=this.checked;render()"> 제출완료·결과 나온 건 숨기기</label></div>';
-  return h + '<div class="card tbl-wrap">' + deadlineTable(list, '해당하는 지원 건이 없습니다. (마감일을 넣은 지원대학만 표시됩니다)') + '</div>';
+    (isMgr() ? '<select onchange="UI.counselor=this.value;render()"><option value="all">모든 학생</option><option value="me"' + (UI.counselor === 'me' ? ' selected' : '') + '>내 담당 학생만</option></select>' : '') +
+    '<label class="muted"><input type="checkbox"' + (UI.dlHideDone ? ' checked' : '') + ' onchange="UI.dlHideDone=this.checked;render()"> 제출 끝난 건 숨기기</label></div>';
+  h += '<div class="dl-sum">' + (late ? '<span class="dday over">마감 지났는데 제출 전 ' + late + '건</span>' : '') +
+    '<span class="' + (soon ? 'dday soon' : 'muted') + '">7일 안 마감 ' + soon + '건</span>' +
+    '<span class="' + (noPortal ? 'dday soon' : 'muted') + '">포털 계정 없음 ' + noPortal + '건</span>' +
+    '<span class="muted">포털에서 제출하면 여기서 <b>[제출 완료]</b>만 눌러주세요. 메모 칸은 걸리는 게 있을 때만.</span></div>';
+  if (!list.length) return h + '<div class="card empty">해당하는 지원 건이 없습니다. (마감일을 넣은 지원대학만 표시됩니다)</div>';
+  return h + '<div class="card tbl-wrap"><table class="dl"><thead><tr><th>마감</th><th>학생</th><th>대학 · 전형 · 전공</th><th>🔑 원서 포털</th><th>메모</th><th></th></tr></thead><tbody>' +
+    list.map(function (a) {
+      var s = studentById(a.studentId), n = dayDiff(a.deadline), op = open(a);
+      var cls = !op ? 'done' : n < 0 ? 'late' : n <= 7 ? 'soon' : '';
+      var memo = String(a.memo || '');
+      return '<tr class="' + cls + '"><td class="nw"><b>' + esc(fmtD(a.deadline)) + '</b><br>' + (op ? dday(a.deadline) : '') + '</td>' +
+        '<td class="nw"><a href="#/student/' + esc(s.id) + '" onclick="UI.tab=\'apps\'"><b>' + esc(s.name) + '</b></a>' +
+          (s.englishName ? '<div><span class="muted" style="font-size:.78rem">' + esc(s.englishName) + '</span> <button class="ibtn" title="영문 이름 복사" onclick="copyText(' + js(s.englishName) + ')">📋</button></div>' : '') + '</td>' +
+        '<td><b>' + esc(a.university) + '</b>' + (a.round ? ' <span class="muted">· ' + esc(a.round) + '</span>' : '') + (a.major ? '<div class="muted" style="font-size:.8rem">' + esc(a.major) + '</div>' : '') + '</td>' +
+        '<td class="nw">' + (op || portalAccounts(s.id, a.universityId).length ? portalCell(s, a) : '') + '</td>' +
+        '<td class="dl-memo">' + (/\n/.test(memo) ? '<div class="longtxt" style="max-height:4.5em" onclick="openForm(\'apps\',' + js(a.id) + ')" title="눌러서 고치기">' + esc(memo) + '</div>'
+          : '<input type="text" value="' + esc(memo) + '" placeholder="걸리는 것 한 줄 (예: 추천서 1명 남음)" onchange="saveAppMemo(' + js(a.id) + ',this.value)">') + '</td>' +
+        '<td class="nw">' + (op ? '<button class="btn sm" onclick="submitApp(' + js(a.id) + ')">제출 완료</button>'
+          : '<span class="pill a-' + esc(a.status) + '">' + esc(a.status) + '</span>' + (a.submittedAt ? '<div class="muted" style="font-size:.75rem">' + esc(fmtD(a.submittedAt)) + ' · ' + esc(teacherName(a.submittedBy)) + '</div>' : '') +
+            (a.status === '제출완료' ? '<button class="ibtn" title="제출 전으로 되돌리기" onclick="unsubmitApp(' + js(a.id) + ')">되돌리기</button>' : '')) + '</td></tr>';
+    }).join('') + '</tbody></table></div>';
+}
+function saveAppMemo(id, v) {
+  var a = findRow('apps', id); if (!a) return;
+  api('save', { table: 'apps', obj: { id: id, updatedAt: a.updatedAt, memo: v.trim() } }).then(function (d) { load(d); toast('메모를 저장했습니다.'); }).catch(function (e) { toast(errMsg(e), true); render(); });
+}
+function submitApp(id) {
+  var a = findRow('apps', id); if (!a) return;
+  var s = studentById(a.studentId);
+  if (!confirm((s ? s.name + ' — ' : '') + a.university + ' 원서를 제출 완료로 표시할까요?')) return;
+  mutate('save', { table: 'apps', obj: { id: id, updatedAt: a.updatedAt, status: '제출완료' } }, '제출 완료로 표시했습니다.');
+}
+function unsubmitApp(id) {
+  var a = findRow('apps', id); if (!a) return;
+  mutate('save', { table: 'apps', obj: { id: id, updatedAt: a.updatedAt, status: '준비중' } }, '제출 전으로 되돌렸습니다.');
 }
 
 /* ============================== 자료 현황 ============================== */
