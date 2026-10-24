@@ -1799,3 +1799,23 @@ test('원서 관제탑: 제출 완료 누르면 제출일·누른 사람, 되돌
   a = d.apps.find((x) => x.id === a.id);
   assert.deepStrictEqual([a.submittedAt, a.submittedBy], ['', '']);
 });
+
+test('대회·프로그램 분류 목록(처음 목록 + 쓰던 분류, 이름 바꾸면 대회도 함께)', async () => {
+  const p = path.join(dir, 'v22.db');
+  let st = openStore(p);
+  st.db.prepare("INSERT INTO programs (id, name, category, createdAt, updatedAt) VALUES ('p1','옛 대회','토론 대회','x','x')").run();
+  st.db.prepare("DELETE FROM options WHERE kind = 'pgcat'").run();
+  st.db.prepare("DELETE FROM meta WHERE key = 'v22_pgcats'").run();
+  st.close();
+  st = openStore(p);
+  const cats = st.db.prepare("SELECT value FROM options WHERE kind = 'pgcat' ORDER BY CAST(sortOrder AS INTEGER)").all().map((x) => x.value);
+  assert.strictEqual(cats[0], '에세이 대회');
+  assert.ok(cats.includes('토론 대회'), '이미 쓰던 분류도 목록에');
+  st.close();
+  const admin = client(); await admin.login('admin@revera.test', 'admin-pass-1');
+  let d = await admin.ok('saveProgram', { name: '분류 대회', category: '리서치' });
+  const opt = d.options.find((o) => o.kind === 'pgcat' && o.value === '리서치');
+  d = await admin.ok('saveOption', { id: opt.id, kind: 'pgcat', value: '리서치·논문' });
+  assert.strictEqual(d.programs.find((x) => x.name === '분류 대회').category, '리서치·논문');
+  await admin.ok('saveOption', { id: opt.id, kind: 'pgcat', value: '리서치' });
+});

@@ -135,7 +135,8 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 /** 관리 페이지에서 고르는 목록 (학교·커리큘럼) → 학생 정보의 해당 칸 */
 /** 달력 자동 표시 항목 (키, 처음 색) — 화면 이름은 원장님 미팅·다음 미팅·지원 마감 */
 const AUTO_CATS = [['sched', '#7c5cc4'], ['nextmeet', '#0b1b45'], ['deadline', '#9ca3af']];
-const OPTION_KINDS = { school: '학교', curriculum: '커리큘럼', site: '사이트', evcat: '일정 분류', track: '트랙', doccat: '서류 분류' };
+const OPTION_KINDS = { school: '학교', curriculum: '커리큘럼', site: '사이트', evcat: '일정 분류', track: '트랙', doccat: '서류 분류', pgcat: '대회·프로그램 분류' };
+const DEFAULT_PGCATS = ['에세이 대회', '수학·과학 대회', '경시·올림피아드', '리서치', '서머 프로그램', '봉사·활동', '기타'];
 /** 서류 분류 초기값 (목록 관리 › 서류 분류) — 성적·학력 탭 파일과 서류 탭 항목에 씀 */
 const DEFAULT_DOCCATS = ['재학증명서', '성적증명서', '졸업증명서', '어학증빙', '표준화학력(SAT·AP·IB)', '지원자격증빙(출입국·여권 등)', '기타(학사일정표·고교 프로파일 등)'];
 const DC = { lang: DEFAULT_DOCCATS[3], std: DEFAULT_DOCCATS[4], elig: DEFAULT_DOCCATS[5], etc: DEFAULT_DOCCATS[6] };
@@ -164,7 +165,7 @@ const STUDENT_COLS = ['school', 'consult', 'todo', 'contacts', 'nextMeet', 'dead
 const OLD_PACKAGES = { '홍콩 패키지': '홍콩', '한국 3특': '3년특례', '한국 12특': '12년특례' };
 const DEFAULT_TRACKS = ['3년특례', '12년특례', '홍콩', '싱가폴', '미국', '캐나다', '영국', '일본', '한국 일반', '기타'];
 /** 목록 이름을 바꾸면 함께 바뀌는 곳 */
-const OPTION_TARGET = { school: ['students', 'school'], curriculum: ['students', 'curriculum'], site: ['accounts', 'site'], evcat: ['events', 'category'], track: ['students', 'tracks'], doccat: ['files', 'category'] };
+const OPTION_TARGET = { school: ['students', 'school'], curriculum: ['students', 'curriculum'], site: ['accounts', 'site'], evcat: ['events', 'category'], track: ['students', 'tracks'], doccat: ['files', 'category'], pgcat: ['programs', 'category'] };
 const ACCOUNT_CATS = ['원서 포털', '시험', '학교 LMS', '기타'];
 /** 메인 화면 공용 달력의 일정 분류 */
 /** 달력 일정 분류 초기값 (목록 관리 › 일정 분류에서 이름·색·순서 변경) */
@@ -530,6 +531,18 @@ function migrate(db) {
     })();
   }
   db.exec('CREATE TABLE IF NOT EXISTS programs (id TEXT PRIMARY KEY)');
+  ensureColumns(db, 'programs', ['category']);
+  // v22: 대회·프로그램 분류를 목록 관리에서 (처음 목록 + 이미 쓰던 분류)
+  if (!db.prepare("SELECT 1 FROM meta WHERE key = 'v22_pgcats'").get()) {
+    const ts = now();
+    const used = db.prepare("SELECT DISTINCT category v FROM programs WHERE category != ''").all().map((r) => r.v);
+    [...new Set(DEFAULT_PGCATS.concat(used))].forEach((v, i) => {
+      if (db.prepare("SELECT 1 FROM options WHERE kind = 'pgcat' AND value = ?").get(v)) return;
+      db.prepare('INSERT INTO options (id, kind, value, sortOrder, createdAt, createdBy, updatedAt, updatedBy) VALUES (?,?,?,?,?,?,?,?)')
+        .run(crypto.randomUUID(), 'pgcat', v, String(i + 1), ts, 'system', ts, 'system');
+    });
+    db.prepare("INSERT INTO meta VALUES ('v22_pgcats', ?)").run(ts);
+  }
   ensureColumns(db, 'programs', ['name', 'category', 'target', 'schedule', 'deadline', 'url', 'memo', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy']);
   // v9: 메인 화면 공용 달력 (SAT 시험일 등 모두가 함께 보는 일정)
   // 학교 방학 (목록 관리 › 학교) — 달력에는 "방학 n곳" 한 줄, 학생 화면·오늘 챙길 일·학생 목록 필터
