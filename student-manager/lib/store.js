@@ -532,6 +532,9 @@ function migrate(db) {
   db.exec('CREATE TABLE IF NOT EXISTS programs (id TEXT PRIMARY KEY)');
   ensureColumns(db, 'programs', ['name', 'category', 'target', 'schedule', 'deadline', 'url', 'memo', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy']);
   // v9: 메인 화면 공용 달력 (SAT 시험일 등 모두가 함께 보는 일정)
+  // 학교 방학 (목록 관리 › 학교) — 달력에는 "방학 n곳" 한 줄, 학생 화면·오늘 챙길 일·학생 목록 필터
+  db.exec('CREATE TABLE IF NOT EXISTS schoolbreaks (id TEXT PRIMARY KEY)');
+  ensureColumns(db, 'schoolbreaks', ['school', 'name', 'startDate', 'endDate', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy']);
   db.exec('CREATE TABLE IF NOT EXISTS events (id TEXT PRIMARY KEY)');
   ensureColumns(db, 'events', ['date', 'endDate', 'title', 'category', 'memo', 'private', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy']); // private: 'TRUE' = 등록한 사람만 보임
   db.exec('CREATE INDEX IF NOT EXISTS events_date ON events(date)');
@@ -749,6 +752,7 @@ function openStore(dbPath, opts) {
     }
     out.options = db.prepare('SELECT id, kind, value, sortOrder, url, category, color FROM options').all();
     out.programs = db.prepare('SELECT * FROM programs ORDER BY name').all();
+    out.breaks = db.prepare('SELECT id, school, name, startDate, endDate FROM schoolbreaks ORDER BY startDate').all();
     out.events = db.prepare("SELECT * FROM events WHERE private != 'TRUE' OR createdBy = ? ORDER BY date, title").all(me.email); // 나만 보기 일정은 등록한 사람에게만
     out.unifiles = db.prepare('SELECT id, universityId, cycleId, programId, category, name, memo, mime, size, createdAt, createdBy FROM unifiles ORDER BY createdAt DESC').all();
     // 원장님 상담 일정 (구글 시트) — 볼 수 있는 학생 것만, 최근 120일부터
@@ -1254,6 +1258,7 @@ function openStore(dbPath, opts) {
           }
         } else if (cur.value !== value) {
           n = db.prepare(`UPDATE ${tbl} SET ${col} = ? WHERE ${col} = ?`).run(value, cur.value).changes;
+          if (kind === 'school') db.prepare('UPDATE schoolbreaks SET school = ? WHERE school = ?').run(value, cur.value); // 방학도 함께
           if (kind === 'doccat') n += db.prepare('UPDATE docs SET category = ? WHERE category = ?').run(value, cur.value).changes;
         }
         log(me.email, 'update', 'options', id, OPTION_KINDS[kind] + ' ' + cur.value + (cur.value !== value ? ' → ' + value + (n ? ' (' + n + '건 함께 변경)' : '') : ''));
@@ -1372,6 +1377,35 @@ function openStore(dbPath, opts) {
       }
     });
     return Object.assign(getAll(me), { savedId: id });
+  }
+  /** 학교 방학 추가·수정 (관리자·관리팀, 목록 관리 › 학교) */
+  function saveBreak(me, arg) {
+    requireManager(me, '학교 방학');
+    arg = arg || {};
+    const rec = { school: clean(arg.school).trim(), name: clean(arg.name).trim().slice(0, 50) || '방학', startDate: clean(arg.startDate).trim(), endDate: clean(arg.endDate).trim() };
+    if (!rec.school || !db.prepare("SELECT 1 FROM options WHERE kind = 'school' AND value = ?").get(rec.school)) throw new UserError('목록에 있는 학교를 고르세요.');
+    if (!DATE_RE.test(rec.startDate) || !DATE_RE.test(rec.endDate)) throw new UserError('방학 시작일과 끝나는 날을 입력하세요.');
+    if (rec.endDate < rec.startDate) throw new UserError('끝나는 날이 시작일보다 빠릅니다.');
+    const t = now();
+    let id = arg.id;
+    if (id) {
+      if (!getRow('schoolbreaks', id)) throw new UserError('방학 정보를 찾을 수 없습니다. 새로고침 해주세요.', 404);
+      db.prepare('UPDATE schoolbreaks SET school=?, name=?, startDate=?, endDate=?, updatedAt=?, updatedBy=? WHERE id=?').run(rec.school, rec.name, rec.startDate, rec.endDate, t, me.email, id);
+      log(me.email, 'update', 'schoolbreaks', id, rec.school + ' ' + rec.name + ' ' + rec.startDate + '~' + rec.endDate);
+    } else {
+      id = newId();
+      db.prepare('INSERT INTO schoolbreaks (id, school, name, startDate, endDate, createdAt, createdBy, updatedAt, updatedBy) VALUES (?,?,?,?,?,?,?,?,?)').run(id, rec.school, rec.name, rec.startDate, rec.endDate, t, me.email, t, me.email);
+      log(me.email, 'create', 'schoolbreaks', id, rec.school + ' ' + rec.name + ' ' + rec.startDate + '~' + rec.endDate);
+    }
+    return Object.assign(getAll(me), { savedId: id });
+  }
+  function removeBreak(me, arg) {
+    requireManager(me, '학교 방학');
+    const cur = getRow('schoolbreaks', arg && arg.id);
+    if (!cur) throw new UserError('이미 삭제되었습니다.', 404);
+    db.prepare('DELETE FROM schoolbreaks WHERE id = ?').run(cur.id);
+    log(me.email, 'delete', 'schoolbreaks', cur.id, cur.school + ' ' + cur.name + ' ' + cur.startDate + '~' + cur.endDate);
+    return getAll(me);
   }
   function removeEvent(me, arg) {
     const cur = getRow('events', arg && arg.id);
@@ -1896,7 +1930,7 @@ function openStore(dbPath, opts) {
     rows.forEach((r) => { r.tblLabel = (DEF[r.tbl] && DEF[r.tbl].label) || legacyLabel(r.tbl); });
     return { rows };
   }
-  function legacyLabel(t) { return { teachers: '선생님 계정', options: '목록(학교·커리큘럼·사이트)', settings: '설정', events: '달력 일정', unifiles: '대학 자료 파일', programs: '대회·프로그램' }[t] || t; }
+  function legacyLabel(t) { return { teachers: '선생님 계정', options: '목록(학교·커리큘럼·사이트)', settings: '설정', events: '달력 일정', unifiles: '대학 자료 파일', programs: '대회·프로그램', schoolbreaks: '학교 방학' }[t] || t; }
 
   /* ----- 파일 ----- */
 
@@ -2277,7 +2311,7 @@ function openStore(dbPath, opts) {
     db, filesDir, dbPath, listFiles, pendingSync, markSync, replaceSchedule, restoreFromDb, countTeachers, upsertAdmin, login, logout, authenticate, addFile, getFile, addUniFile, getUniFile,
     rpc: { getAll: (me) => getAll(me), save, remove, restore, purge, getTrash, getLog, saveTeacher, changePassword, importData, copyCycle, getActivity, saveMany, updateMe,
       saveOption, removeOption, deleteTeacher, getAutomation, saveAutomation, saveEvent, removeEvent,
-      saveWithFollowups, requestFollowup, saveOrder, saveUniFile, removeUniFile, saveProgram, removeProgram, getStorage, retrySync, saveHomeLayout, saveStudentCols, requestReview, doneReview, cancelReview, excludeSched, unexcludeSched, saveAutoCat, removeMany, restoreMany, purgeMany, addFollowupMany, addMajorsMany, renameFaculty },
+      saveWithFollowups, requestFollowup, saveOrder, saveUniFile, removeUniFile, saveProgram, removeProgram, getStorage, retrySync, saveHomeLayout, saveStudentCols, saveBreak, removeBreak, requestReview, doneReview, cancelReview, excludeSched, unexcludeSched, saveAutoCat, removeMany, restoreMany, purgeMany, addFollowupMany, addMajorsMany, renameFaculty },
     backup, getConfig, getMeta, recordRun, listTeachers, close: () => db.close(),
   };
 }

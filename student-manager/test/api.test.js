@@ -1761,3 +1761,22 @@ test('v15: 나만 보기 일정(다른 선생님·관리자에게 안 보임, �
   assert.strictEqual(r.status, 200);
   assert.strictEqual(r.data.docs.find((x) => x.id === docId).status, '수합 완료');
 });
+
+test('v15: 학교 방학(관리팀만 입력, 목록에 있는 학교만, 학교 이름 바꾸면 함께), 계정 로그인 주소는 계정에서 안 받음', async () => {
+  const admin = client(); await admin.login('admin@revera.test', 'admin-pass-1');
+  let d = await admin.ok('saveOption', { kind: 'school', value: '방학테스트학교' });
+  const opt = d.options.find((o) => o.kind === 'school' && o.value === '방학테스트학교');
+  d = await admin.ok('saveBreak', { school: '방학테스트학교', name: '겨울방학', startDate: '2026-12-18', endDate: '2027-01-05' });
+  const bid = d.savedId;
+  assert.ok(d.breaks.some((b) => b.id === bid && b.name === '겨울방학'));
+  assert.strictEqual((await admin.rpc('saveBreak', { school: '없는학교', startDate: '2026-12-18', endDate: '2027-01-05' })).status, 400);
+  assert.strictEqual((await admin.rpc('saveBreak', { school: '방학테스트학교', startDate: '2026-12-18', endDate: '2026-12-01' })).status, 400);
+  await admin.ok('saveTeacher', { email: 'v15-con@revera.test', name: '컨설E', role: 'consultant', password: '123456' });
+  const con = client(); await con.login('v15-con@revera.test', '123456');
+  assert.ok((await con.ok('getAll')).breaks.some((b) => b.id === bid), '컨설턴트도 봄');
+  assert.strictEqual((await con.rpc('saveBreak', { school: '방학테스트학교', startDate: '2026-12-18', endDate: '2027-01-05' })).status, 403);
+  d = await admin.ok('saveOption', { id: opt.id, kind: 'school', value: '방학테스트학교2' });
+  assert.strictEqual(d.breaks.find((b) => b.id === bid).school, '방학테스트학교2', '학교 이름 바꾸면 방학도');
+  d = await admin.ok('removeBreak', { id: bid });
+  assert.ok(!d.breaks.some((b) => b.id === bid));
+});
