@@ -1780,3 +1780,42 @@ test('v15: 학교 방학(관리팀만 입력, 목록에 있는 학교만, 학교
   d = await admin.ok('removeBreak', { id: bid });
   assert.ok(!d.breaks.some((b) => b.id === bid));
 });
+
+test('원서 관제탑: 제출 완료 누르면 제출일·누른 사람, 되돌리면 지움', async () => {
+  const admin = client(); await admin.login('admin@revera.test', 'admin-pass-1');
+  let d = await admin.ok('getAll');
+  const u = d.universities[0];
+  d = await admin.saveOk('students', { name: '관제탑학생' });
+  const sid = d.savedId;
+  d = await admin.saveOk('apps', { studentId: sid, universityId: u.id, status: '준비중', deadline: '2026-11-30' });
+  let a = d.apps.find((x) => x.id === d.savedId);
+  d = await admin.saveOk('apps', { id: a.id, updatedAt: a.updatedAt, status: '제출완료' });
+  a = d.apps.find((x) => x.id === a.id);
+  assert.ok(/^\d{4}-\d{2}-\d{2}$/.test(a.submittedAt) && a.submittedBy === 'admin@revera.test');
+  d = await admin.saveOk('apps', { id: a.id, updatedAt: a.updatedAt, memo: '추천서 1명 남음' });
+  a = d.apps.find((x) => x.id === a.id);
+  assert.ok(a.submittedAt, '다른 칸 고쳐도 제출일 유지');
+  d = await admin.saveOk('apps', { id: a.id, updatedAt: a.updatedAt, status: '준비중' });
+  a = d.apps.find((x) => x.id === a.id);
+  assert.deepStrictEqual([a.submittedAt, a.submittedBy], ['', '']);
+});
+
+test('대회·프로그램 분류 목록(처음 목록 + 쓰던 분류, 이름 바꾸면 대회도 함께)', async () => {
+  const p = path.join(dir, 'v22.db');
+  let st = openStore(p);
+  st.db.prepare("INSERT INTO programs (id, name, category, createdAt, updatedAt) VALUES ('p1','옛 대회','토론 대회','x','x')").run();
+  st.db.prepare("DELETE FROM options WHERE kind = 'pgcat'").run();
+  st.db.prepare("DELETE FROM meta WHERE key = 'v22_pgcats'").run();
+  st.close();
+  st = openStore(p);
+  const cats = st.db.prepare("SELECT value FROM options WHERE kind = 'pgcat' ORDER BY CAST(sortOrder AS INTEGER)").all().map((x) => x.value);
+  assert.strictEqual(cats[0], '에세이 대회');
+  assert.ok(cats.includes('토론 대회'), '이미 쓰던 분류도 목록에');
+  st.close();
+  const admin = client(); await admin.login('admin@revera.test', 'admin-pass-1');
+  let d = await admin.ok('saveProgram', { name: '분류 대회', category: '리서치' });
+  const opt = d.options.find((o) => o.kind === 'pgcat' && o.value === '리서치');
+  d = await admin.ok('saveOption', { id: opt.id, kind: 'pgcat', value: '리서치·논문' });
+  assert.strictEqual(d.programs.find((x) => x.name === '분류 대회').category, '리서치·논문');
+  await admin.ok('saveOption', { id: opt.id, kind: 'pgcat', value: '리서치' });
+});
