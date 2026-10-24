@@ -1735,3 +1735,29 @@ test('v14: 계약 포함 국가·패키지 = 트랙 이름 (예전 이름 옮김
   assert.strictEqual(d.contracts.find((c) => c.id === cid).packages, '홍콩, 캐나다(토론토)', '트랙 이름을 바꾸면 계약도');
   await admin.ok('saveOption', { id: tr.id, kind: 'track', value: '캐나다' });
 });
+
+test('v15: 나만 보기 일정(다른 선생님·관리자에게 안 보임, 기록에 제목 없음), 서류 추가하면서 파일', async () => {
+  const admin = client(); await admin.login('admin@revera.test', 'admin-pass-1');
+  await admin.ok('saveTeacher', { email: 'v15-staff@revera.test', name: '관리D', role: 'staff', password: '123456' });
+  const staff = client(); await staff.login('v15-staff@revera.test', '123456');
+  let d = await staff.ok('saveEvent', { date: '2026-11-02', title: '치과 예약', category: '', private: true });
+  const eid = d.savedId;
+  assert.strictEqual(d.events.find((e) => e.id === eid).private, 'TRUE');
+  d = await admin.ok('getAll');
+  assert.ok(!d.events.some((e) => e.id === eid), '관리자에게도 안 보임');
+  assert.strictEqual((await admin.rpc('saveEvent', { id: eid, date: '2026-11-02', title: 'x' })).status, 404);
+  assert.strictEqual((await admin.rpc('removeEvent', { id: eid })).status, 404);
+  const logs = await admin.ok('getLog', {});
+  assert.ok(!JSON.stringify(logs).includes('치과'), '변경 기록에 제목 없음');
+  d = await staff.ok('saveEvent', { id: eid, date: '2026-11-02', title: '치과 예약', category: '', private: false });
+  assert.ok((await admin.ok('getAll')).events.some((e) => e.id === eid), '나만 보기를 끄면 모두에게');
+  await staff.ok('removeEvent', { id: eid });
+
+  d = await admin.saveOk('students', { name: '서류파일학생' });
+  const sid = d.savedId;
+  d = await admin.saveOk('docs', { studentId: sid, name: '여권 사본' });
+  const docId = d.savedId;
+  const r = await admin.req('POST', '/api/files/upload?studentId=' + sid + '&docId=' + docId, undefined, { 'Content-Type': 'application/octet-stream', 'X-File-Name': encodeURIComponent('passport.pdf') }, Buffer.from('%PDF p'));
+  assert.strictEqual(r.status, 200);
+  assert.strictEqual(r.data.docs.find((x) => x.id === docId).status, '수합 완료');
+});

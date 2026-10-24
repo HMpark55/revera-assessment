@@ -680,7 +680,7 @@ var FORMS = {
     { k: 'content', l: '내용', t: 'textarea', full: 1, big: 1, req: 1, ph: '예: 이름: Murat Gokalp / 직책: Teacher / 과목: Economics, Mathematics / 이메일: ...' }] },
   accounts: { title: '사이트 계정', fields: [
     { k: 'category', l: '분류', t: 'select', o: ACCOUNT_CATS }, { k: 'site', l: '사이트', t: 'site', req: 1 },
-    { k: 'universityId', l: '대학 (원서 포털인 경우)', t: 'unipick', none: '— 해당 없음 —' }, { k: 'url', l: '로그인 주소', t: 'url', ph: 'https://...' },
+    { k: 'universityId', l: '대학 (원서 포털인 경우)', t: 'unipick', none: '— 해당 없음 —' }, { k: 'url', l: '로그인 주소 (대학을 고르면 대학 정보의 원서 접수 주소가 들어감)', t: 'url', ph: 'https://...' },
     { k: 'loginId', l: '아이디' }, { k: 'password', l: '비밀번호', t: 'pw' },
     { k: 'memo', l: '메모 (보안 질문, 등록 완료 여부 등)', t: 'textarea', full: 1 }],
     defaults: function () { return { category: '원서 포털' }; } },
@@ -692,6 +692,7 @@ var FORMS = {
     { k: 'topic', l: '안건 (한 줄 요약)', full: 1, ph: '예: Science Fair 주제 확정, 지원 대학 방향' },
     { k: 'content', l: '미팅 내용 (회의록)', t: 'rich', full: 1 },
     { k: 'parentNote', l: '🔒 부모님 전달·대화 내용 (관리자·관리팀만 보임)', t: 'textarea', full: 1, mgr: 1 },
+    { t: 'meetfiles', full: 1 },
     { t: 'furows', full: 1 },
     { k: 'nextDate', l: '다음 미팅 날짜 (정해졌으면 — 달력과 “오늘 챙길 일”에 표시)', t: 'date' }, { h: '' },
     { k: 'nextStep', l: '다음 계획 (예전 기록 — 새 할 일은 위 팔로업에 추가)', t: 'textarea', full: 1, legacy: 1 },
@@ -807,8 +808,7 @@ var FORMS = {
     defaults: function () { return { category: '리서치', status: '계획' }; } },
   docs: { title: '서류', fields: [
     { k: 'name', l: '서류 이름', t: 'list', o: DOC_PRESETS, req: 1 }, { k: 'category', l: '분류 (비워두면 이름으로 자동)', t: 'opt', kind: 'doccat' },
-    { k: 'status', l: '상태', t: 'select', o: DOC_STATUS },
-    { k: 'memo', l: '메모', full: 1 }],
+    { k: 'memo', l: '메모', full: 1 }, { t: 'docfiles', full: 1 }],
     defaults: function () { return { status: '요청 전' }; } },
   links: { title: '참고 링크', fields: [
     { k: 'label', l: '이름', ph: '예: 회의록, 주작업문서, 에세이 폴더' },
@@ -1633,7 +1633,7 @@ function calChip(it) {
     var ss = studentById(it.sc.studentId);
     return '<span class="ev sc" style="border-left-color:' + autoCat('sched').color + ';background:' + autoCat('sched').color + '1f" title="' + esc('원장님 ' + schedTime(it.sc) + ' · ' + it.sc.title + (it.sc.detail ? ' · ' + it.sc.detail : '')) + '" onclick="event.stopPropagation();openStudent(' + js(ss.id) + ',\'meetings\')">' + esc(it.sc.startAt.slice(11, 16) + ' 원장님 · ' + ss.name) + '</span>';
   }
-  if (it.ev) return '<span class="ev' + (it.cont ? ' cont' : '') + '" style="' + evStyle(it.ev.category) + '" title="' + esc(it.ev.title + (it.ev.memo ? '\n' + it.ev.memo : '')) + '" onclick="event.stopPropagation();openEvent(' + js(it.ev.id) + ')">' + esc(it.ev.title) + '</span>';
+  if (it.ev) return '<span class="ev' + (it.cont ? ' cont' : '') + '" style="' + evStyle(it.ev.category) + '" title="' + esc(it.ev.title + (it.ev.memo ? '\n' + it.ev.memo : '')) + '" onclick="event.stopPropagation();openEvent(' + js(it.ev.id) + ')">' + (it.ev.private === 'TRUE' ? '🔒 ' : '') + esc(it.ev.title) + '</span>';
   if (it.nm) {
     var st = studentById(it.nm.studentId);
     return '<span class="ev nm" style="border-left-color:' + autoCat('nextmeet').color + '" title="' + esc(st.name + ' 다음 미팅 (' + fmtD(it.nm.date) + ' 회의록에서)') + '" onclick="event.stopPropagation();openStudent(' + js(st.id) + ',\'meetings\')">미팅 · ' + esc(st.name) + '</span>';
@@ -1680,7 +1680,7 @@ function openDay(iso) {
   modal(fmtD(iso) + ' 일정', '<div class="full">' + (list.length ? list.map(function (it) {
     if (it.ev) {
       var e = it.ev;
-      return '<div class="dayitem"><span class="ev" style="' + evStyle(e.category) + '"></span><div style="flex:1"><b>' + esc(e.title) + '</b> <span class="muted">' + esc(e.category || '') +
+      return '<div class="dayitem"><span class="ev" style="' + evStyle(e.category) + '"></span><div style="flex:1"><b>' + (e.private === 'TRUE' ? '🔒 ' : '') + esc(e.title) + '</b> <span class="muted">' + esc(e.category || '') +
         (e.endDate ? ' · ' + esc(fmtD(e.date)) + ' ~ ' + esc(fmtD(e.endDate)) : '') + '</span>' + (e.memo ? '<div class="muted" style="white-space:pre-wrap">' + esc(e.memo) + '</div>' : '') +
         '<div class="muted" style="font-size:.75rem">' + esc(teacherName(e.createdBy)) + ' 등록</div></div>' +
         '<button type="button" class="btn ghost sm" onclick="openEvent(' + js(e.id) + ')">' + (canEditEvent(e) ? '수정' : '보기') + '</button></div>';
@@ -1696,7 +1696,7 @@ function openDay(iso) {
   }).join('') : '<div class="empty">등록된 일정이 없습니다.</div>') + '</div>',
     '<button class="btn ghost" onclick="closeModal()">닫기</button><button class="btn" onclick="openEvent(null,' + js(iso) + ')">+ 이 날 일정 추가</button>');
 }
-function canEditEvent(e) { return !e || e.createdBy === S.me.email || isMgr(); }
+function canEditEvent(e) { return !e || e.createdBy === S.me.email || (isMgr() && e.private !== 'TRUE'); }
 function openEvent(id, date) {
   var e = id ? (S.events || []).filter(function (x) { return x.id === id; })[0] : { date: date || today(), category: (evCats()[0] || {}).value || '' };
   if (!e) return toast('일정을 찾을 수 없습니다. 새로고침 해주세요.', true);
@@ -1709,6 +1709,8 @@ function openEvent(id, date) {
     fld('날짜', inp('date', e.date || '', 'date', ro), false, true) +
     fld('끝나는 날 (여러 날이면)', inp('endDate', e.endDate || '', 'date', ro)) +
     fld('메모', '<textarea name="memo" placeholder="예: 접수 마감일, 시험장, 준비물"' + ro + '>' + esc(e.memo || '') + '</textarea>', true) +
+    (!id || e.createdBy === S.me.email ? '<div class="full"><label style="display:inline-flex;gap:6px;align-items:center;color:#222;white-space:nowrap"><input type="checkbox" name="private"' + (e.private === 'TRUE' ? ' checked' : '') + '> <span style="font-weight:600">🔒 나만 보기</span></label>' +
+      '<div class="muted" style="font-size:.8rem">체크하면 다른 선생님 달력에는 보이지 않습니다. 변경 기록에도 제목이 남지 않습니다.</div></div>' : '') +
     (id ? '<div class="full muted">' + esc(teacherName(e.createdBy)) + ' 등록' + (e.updatedAt !== e.createdAt ? ' · 마지막 수정 ' + esc(fmtTime(e.updatedAt)) + ' ' + esc(teacherName(e.updatedBy)) : '') +
       (can ? '' : ' · 수정은 등록한 사람이나 관리자·관리팀만 할 수 있습니다.') + '</div>' : ''),
     (id && can ? '<button class="btn danger left" onclick="removeEvent(' + js(e.id) + ')">삭제</button>' : '') +
@@ -1722,7 +1724,8 @@ function submitEvent() {
   mutate('saveEvent', o, '일정을 저장했습니다.');
 }
 function removeEvent(id) {
-  if (!confirm('이 일정을 삭제할까요? 모든 선생님의 달력에서 사라집니다.')) return;
+  var ev = (S.events || []).filter(function (x) { return x.id === id; })[0];
+  if (!confirm(ev && ev.private === 'TRUE' ? '이 일정을 삭제할까요?' : '이 일정을 삭제할까요? 모든 선생님의 달력에서 사라집니다.')) return;
   mutate('removeEvent', { id: id }, '일정을 삭제했습니다.');
 }
 function compactStudentTable(list, dl) {
@@ -2808,7 +2811,7 @@ function portalAccounts(sid, uid) {
 /** 지원대학 줄의 포털 계정 칸: 아이디·[ID 복사][PW 복사][열기], 없으면 [+ 포털 계정] */
 function portalCell(s, a) {
   var acc = portalAccounts(s.id, a.universityId), uni = a.universityId && findRow('universities', a.universityId);
-  if (!acc.length) return uni ? '<button class="btn ghost sm" onclick="openForm(\'accounts\',null,' + js(s.id) + ',{category:\'원서 포털\',universityId:' + js(uni.id) + ',site:' + js(uni.name + ' 원서 포털') + '})" title="이 대학 원서 포털 아이디·비밀번호 저장">+ 포털 계정</button>'
+  if (!acc.length) return uni ? '<button class="btn ghost sm" onclick="openForm(\'accounts\',null,' + js(s.id) + ',{category:\'원서 포털\',universityId:' + js(uni.id) + ',site:' + js(uni.name + ' 원서 포털') + ',url:' + js(safeUrl(uni.portalUrl || uni.website) || '') + '})" title="이 대학 원서 포털 아이디·비밀번호 저장">+ 포털 계정</button>'
     : '<span class="muted" title="대학을 목록에서 고르면 포털 계정을 연결할 수 있어요">-</span>';
   return acc.map(function (x) {
     var u = accountUrl(x);
@@ -2836,7 +2839,7 @@ function accountSiteSync(el) {
 function accountUniSync(el) {
   var u = el.value && findRow('universities', el.value), f = el.form; if (!u || !f) return;
   if (!f.elements.site.value) f.elements.site.value = u.name + ' 원서 포털';
-  if (!f.elements.url.value && !safeUrl(u.portalUrl) && safeUrl(u.website)) f.elements.url.value = u.website; // 포털 주소가 있으면 비워둬도 그 주소로 열림
+  if (!f.elements.url.value && safeUrl(u.portalUrl || u.website)) f.elements.url.value = u.portalUrl || u.website; // 대학 정보의 원서 접수(포털) 주소 → 없으면 입학처
   f.elements.category.value = '원서 포털';
 }
 function copyText(t) {
@@ -3253,7 +3256,7 @@ function tabDocs(s) {
   var list = childOf('docs', s.id).sort(function (a, b) { return a.createdAt.localeCompare(b.createdAt); });
   var done = list.filter(function (d) { return DOC_DONE.indexOf(d.status) >= 0; }).length;
   return '<div class="card">' + secHead('서류' + (list.length ? ' <span class="muted">' + done + ' / ' + list.length + ' 완료</span>' : ''), addBtn('docs', s.id, '+ 서류 추가')) +
-    '<div class="muted" style="margin-bottom:8px">받은 서류는 “파일 올리기”로 저장하세요. 올리면 자동으로 <b>수합 완료</b>가 되고 업로드 날짜와 올린 사람이 기록됩니다.</div>' +
+    '<div class="muted" style="margin-bottom:8px">“+ 서류 추가” 창에서 파일까지 바로 올리거나(끌어다 놓기 가능), 줄의 “파일 올리기”·끌어다 놓기로 올리세요. 파일이 올라가면 자동으로 <b>수합 완료</b>가 되고 날짜와 올린 사람이 남습니다.</div>' +
     (list.length ? '<div class="tbl-wrap"><table><thead><tr><th>서류</th><th>상태</th><th>저장된 파일</th><th></th></tr></thead><tbody>' +
       groupByDocCat(list, true).map(function (g) { return '<tr class="grp-h"><td colspan="4">' + esc(g[0]) + ' <span class="muted">' + g[1].length + '</span></td></tr>' + g[1].map(function (d) {
         var cls = d.status === '수합 완료' ? 'd-수합' : d.status === '해당 없음' ? 'd-해당' : d.status === '요청함' ? 'd-요청함' : '';
@@ -3481,7 +3484,7 @@ function openProgram(id) {
     fld('마감일 (있으면)', inp('deadline', p.deadline || '', 'date')) + '<div></div>' +
     fld('일정·마감 메모', '<textarea name="schedule" style="min-height:60px" placeholder="예: 매년 여름 공지, 보통 10월 말 마감 / 결과 12월">' + esc(p.schedule || '') + '</textarea>', true) +
     fld('메모 (주제, 비용, 준비할 것, 지난 참가 학생 등)', '<textarea name="memo">' + esc(p.memo || '') + '</textarea>', true) +
-    (id ? '' : '<div class="full muted">첨부 파일은 저장한 뒤 상세 화면에서 올릴 수 있습니다.</div>') +
+    (id ? '<div class="full muted">이미 올린 자료는 상세 화면에서 지울 수 있습니다.</div>' : '') + shotsField(id ? p : {}, 'program') +
     (id ? '<div class="full muted">' + esc(teacherName(p.createdBy)) + ' 등록 · 마지막 수정 ' + esc(fmtTime(p.updatedAt)) + ' ' + esc(teacherName(p.updatedBy)) + '</div>' : ''),
     (canDel ? '<button class="btn danger left" onclick="removeProgram(' + js(id) + ')">삭제</button>' : '') +
     '<button class="btn ghost" onclick="closeModal()">취소</button><button class="btn" onclick="submitProgram()">저장</button>');
@@ -3490,7 +3493,12 @@ function submitProgram() {
   var o = formData($('mf'));
   if (!o.name) return toast('이름을 입력하세요.', true);
   if (o.url && !safeUrl(o.url)) return toast('홈페이지는 http:// 또는 https:// 로 시작해야 합니다.', true);
-  mutate('saveProgram', o, '저장했습니다.').then(function (d) { if (d && !o.id && d.savedId) go('#/program/' + d.savedId); });
+  var files = (UI.shots || []).filter(Boolean); UI.shots = [];
+  mutate('saveProgram', o, '저장했습니다.').then(function (d) {
+    if (!d) return;
+    if (files.length) uploadProgramFiles({ files: files, value: '' }, o.id || d.savedId);
+    if (!o.id && d.savedId) go('#/program/' + d.savedId);
+  });
 }
 function removeProgram(id) {
   if (!confirm('이 항목을 삭제할까요? 모든 선생님의 목록에서 사라집니다. (변경 기록에는 내용이 남습니다)')) return;
@@ -4338,6 +4346,8 @@ function field(f, rec) {
     '<input type="date" id="fr-date" value="' + esc(today()) + '"><textarea id="fr-content" placeholder="답변 내용 (위챗·문자 답장, 우리가 답한 내용 등)"></textarea>' +
     '<button type="button" class="btn sm" onclick="addReplyInline(' + js(rec.id) + ')">답변 추가</button></div></div>' : '';
   if (f.t === 'scorefiles') return shotsField(rec, 'score');
+  if (f.t === 'docfiles') return shotsField(rec, 'doc');
+  if (f.t === 'meetfiles') return shotsField(rec, 'meeting');
   if (f.showIf) { // 다른 칸에서 특정 값을 골랐을 때만 보이는 칸 (예: 트랙 "기타" → 기타 내용)
     var sf = f.showIf.split(':'), on = tags(rec[sf[0]]).indexOf(sf[1]) >= 0;
     return '<div class="full" data-showif="' + esc(f.showIf) + '"' + (on ? '' : ' style="display:none"') + '><label>' + esc(f.l) + '</label>' + inp(f.k, rec[f.k] == null ? '' : rec[f.k], 'text', f.ph ? ' placeholder="' + esc(f.ph) + '"' : '') + '</div>';
@@ -4458,12 +4468,15 @@ function appFormSync(uniChanged) {
 var MGR_ONLY_FORMS = ['notes', 'contracts', 'payments'];
 /* ----- 받은 연락: 위챗 캡처 등 스크린샷 붙여넣기 (Ctrl+V) ----- */
 /** 입력 창의 파일 칸 — 받은 연락: 스크린샷만 / 어학·표준화 점수(mode 'score'): 성적 파일(PDF·이미지 등)도 */
+/** 입력 창 파일 칸: mode 없음 = 받은 연락 스크린샷 / score·doc·meeting = 그 기록에 붙는 파일 (저장할 때 함께 올라감) */
+var SHOT_MODES = { score: ['scoreId', '성적 파일 (성적표 PDF·점수 캡처 등)'], doc: ['docId', '파일 (받은 서류 — 올리면 “수합 완료”)'], meeting: ['meetingId', '첨부 파일 (회의 자료·캡처 등)'], program: ['programId', '자료 (요강 PDF·포스터 등)'] };
 function shotsField(rec, mode) {
-  UI.shots = []; UI.shotsAny = mode === 'score';
-  var have = rec.id ? S.files.filter(function (f) { return mode === 'score' ? f.scoreId === rec.id : f.followupId === rec.id; }) : [];
-  return '<div class="full"><label>' + (mode === 'score' ? '성적 파일 (성적표 PDF·점수 캡처 등)' : '스크린샷 (위챗 캡처 등)') + '</label><div class="shots dropzone" id="shots" tabindex="0">' +
-    '<div class="shots-hint">여기를 누르고 <b>Ctrl+V</b>로 붙여넣기 · 파일을 끌어다 놓기 · 또는 <label class="linkbtn">파일 고르기<input type="file" accept="' + (mode === 'score' ? '.pdf,.png,.jpg,.jpeg,.webp,.heic,.gif,.doc,.docx,.xls,.xlsx,.hwp' : 'image/*') + '" multiple hidden onchange="addShots(this.files);this.value=\'\'"></label></div>' +
-    '<div class="shots-list" id="shots-list">' + have.map(function (f) { return mode === 'score' ? '<span class="shot-wrap" id="fw-' + esc(f.id) + '">' + fileThumb(f) + '<button type="button" class="ibtn" title="이 파일 지우기 (휴지통)" onclick="removeFormFile(' + js(f.id) + ')">✕</button></span>' : fileThumb(f); }).join('') + '</div></div></div>';
+  var sm = SHOT_MODES[mode];
+  UI.shots = []; UI.shotsAny = !!sm;
+  var have = !rec.id || mode === 'program' ? [] : S.files.filter(function (f) { return sm ? f[sm[0]] === rec.id : f.followupId === rec.id; });
+  return '<div class="full"><label>' + (sm ? sm[1] : '스크린샷 (위챗 캡처 등)') + '</label><div class="shots dropzone" id="shots" tabindex="0">' +
+    '<div class="shots-hint">여기를 누르고 <b>Ctrl+V</b>로 붙여넣기 · 파일을 끌어다 놓기 · 또는 <label class="linkbtn">파일 고르기<input type="file" accept="' + (sm ? '.pdf,.png,.jpg,.jpeg,.webp,.heic,.gif,.doc,.docx,.xls,.xlsx,.hwp' : 'image/*') + '" multiple hidden onchange="addShots(this.files);this.value=\'\'"></label></div>' +
+    '<div class="shots-list" id="shots-list">' + have.map(function (f) { return sm ? '<span class="shot-wrap" id="fw-' + esc(f.id) + '">' + fileThumb(f) + '<button type="button" class="ibtn" title="이 파일 지우기 (휴지통)" onclick="removeFormFile(' + js(f.id) + ')">✕</button></span>' : fileThumb(f); }).join('') + '</div></div></div>';
 }
 /** 파일 하나: 이미지는 작은 그림(누르면 팝업), 그 외는 이름 버튼 */
 /* ----- 표 칸 너비: 제목 줄 칸 경계를 끌어서 넓히고 좁힘. 이 브라우저에 표마다 기억, 경계를 두 번 누르면 처음 너비로 ----- */
@@ -4569,7 +4582,7 @@ function uploadShots(studentId, followupId, param) {
         .then(function (d) { load(d); ok++; }).catch(function (e) { toast(f.name + ': ' + errMsg(e), true); });
     });
   });
-  chain.then(function () { if (ok) toast((param ? '파일 ' + ok + '개' : '스크린샷 ' + ok + '장') + '을 함께 저장했습니다.'); });
+  chain.then(function () { if (ok) toast((param ? '파일 ' + ok + '개를' : '스크린샷 ' + ok + '장을') + ' 함께 저장했습니다.'); });
 }
 /* ----- 서식 있는 회의록 편집기 (굵게·밑줄·취소선·글자색·배경색·글자 크기, 크게 쓰기) ----- */
 var RICH_COLORS = [['#222222', '검정'], ['#d9534f', '빨강'], ['#d98a00', '주황'], ['#1d9e75', '초록'], ['#1d4ed8', '파랑'], ['#7c5cc4', '보라']];
@@ -4703,7 +4716,8 @@ function submitForm(key) {
     : mutate('save', { table: table, obj: o, review: rv }, '저장했습니다.' + rvMsg)).then(function (d) {
     if (d && table === 'students' && !o.id && d.savedId) openStudent(d.savedId);
     if (d && key === 'contact' && UI.shots && UI.shots.length) uploadShots(o.studentId || findRow('followups', d.savedId).studentId, d.savedId);
-    if (d && key === 'scores' && UI.shots && UI.shots.length) uploadShots(o.studentId || findRow('scores', d.savedId).studentId, d.savedId, 'scoreId');
+    var sp = { scores: 'scoreId', docs: 'docId', meetings: 'meetingId' }[table];
+    if (d && sp && UI.shots && UI.shots.length) uploadShots(o.studentId || findRow(table, d.savedId).studentId, d.savedId, sp);
     if (d && table === 'universities' && !o.id && d.savedId && route().view !== 'unilist') go('#/uni/' + d.savedId);
     if (d && table === 'unicycles' && d.savedId) { UI.uniCycle = UI.uniCycle || {}; UI.uniCycle[o.universityId || findRow('unicycles', d.savedId).universityId] = d.savedId; render(); }
   });
