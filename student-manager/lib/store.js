@@ -659,6 +659,40 @@ function migrate(db) {
       db.prepare("INSERT INTO meta VALUES ('v26_hku_programmes', ?)").run(ts);
     })();
   }
+  // v27: HKU 전공 메모를 2027 입학 기준으로 (HKU International Admissions 2027 안내서·입학처 Admissions Standards).
+  // 자동 입력된 줄은 새 내용으로, 선생님이 만든·고친 줄은 빈 칸만 채움. 새 프로그램 추가. 주요 정보의 "전공별 최저 기준 확인 못 함"도 고침(자동 입력 그대로일 때만)
+  if (!db.prepare("SELECT 1 FROM meta WHERE key = 'v27_hku_2027'").get() && db.prepare("SELECT 1 FROM meta WHERE key = 'v26_hku_programmes'").get()) {
+    const NEW = require('./hku-programmes-2027.json');
+    // 이름 비교는 영문·숫자만 (띄어쓰기·* 표시 차이 무시)
+    const key = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const ts = now();
+    db.transaction(() => {
+      const u = db.prepare("SELECT id, name, aliases FROM universities WHERE deletedAt = ''").all()
+        .find((x) => x.name === 'HKU' || String(x.aliases || '').split(',').map((a) => a.trim()).includes('HKU'));
+      if (u) {
+        const have = {};
+        db.prepare("SELECT * FROM unimajors WHERE universityId = ? AND deletedAt = ''").all(u.id).forEach((m) => { have[key(m.name)] = m; });
+        for (const m of NEW) {
+          const cur = have[key(m.name)];
+          if (cur) {
+            const set = cur.updatedBy === 'system' ? ['faculty', 'code', 'sourceUrl', 'detail'] : ['faculty', 'code', 'sourceUrl', 'detail'].filter((k) => !cur[k]);
+            if (set.length) db.prepare(`UPDATE unimajors SET ${set.map((k) => k + ' = @' + k).join(', ')}, updatedAt = @t WHERE id = @id`).run(Object.assign({ id: cur.id, t: ts }, ...set.map((k) => ({ [k]: m[k] || '' }))));
+            continue;
+          }
+          db.prepare("INSERT INTO unimajors (id, universityId, name, faculty, code, detail, sourceUrl, createdAt, createdBy, updatedAt, updatedBy) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'system', ?, 'system')")
+            .run(crypto.randomUUID(), u.id, m.name, m.faculty, m.code, m.detail, m.sourceUrl, ts, ts);
+        }
+        for (const cy of db.prepare("SELECT id, requirements FROM unicycles WHERE universityId = ? AND year = '2027' AND updatedBy = 'system' AND deletedAt = ''").all(u.id)) {
+          let reqs; try { reqs = JSON.parse(cy.requirements || '[]'); } catch (e) { continue; }
+          const i = reqs.findIndex((r) => r.item === '확인 못 함' && /^전공별 AP\/IB\/SAT 최저 기준/.test(r.content || ''));
+          if (i < 0) continue;
+          reqs[i] = { item: '전공별 최저 기준', content: '아래 전공 리스트의 각 프로그램 메모 (IB·A-level·SAT/AP, 과목 요건, 면접) — HKU International Admissions 2027 안내서: https://admissions.hku.hk/sites/default/files/2026-09/HKU-International-Admissions-Information-2027.pdf' };
+          db.prepare('UPDATE unicycles SET requirements = ?, updatedAt = ? WHERE id = ?').run(JSON.stringify(reqs), ts, cy.id);
+        }
+      }
+      db.prepare("INSERT INTO meta VALUES ('v27_hku_2027', ?)").run(ts);
+    })();
+  }
   // v9: 메인 화면 공용 달력 (SAT 시험일 등 모두가 함께 보는 일정)
   // 학교 방학 (목록 관리 › 학교) — 달력에는 "방학 n곳" 한 줄, 학생 화면·오늘 챙길 일·학생 목록 필터
   db.exec('CREATE TABLE IF NOT EXISTS schoolbreaks (id TEXT PRIMARY KEY)');
