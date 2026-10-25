@@ -224,6 +224,19 @@ test('성적표 파일 업로드·다운로드 권한', async () => {
   assert.strictEqual((await lee.upload(leeStudent.id, 'evil.html', Buffer.from('<script>'))).status, 400);
   assert.strictEqual((await kim.upload(leeStudent.id, 'a.pdf', pdf)).status, 403);
   assert.strictEqual((await lee.upload(leeStudent.id, 'big.pdf', Buffer.alloc(21 * 1024 * 1024))).status, 413);
+  // 파일 한 개 최대 크기는 관리자가 바꿈 (1~100MB)
+  const adm = client();
+  await adm.login('admin@revera.test', 'admin-pass-1');
+  assert.strictEqual((await staff.rpc('saveAutomation', { uploadMB: 30 })).status, 403);
+  assert.strictEqual((await adm.rpc('saveAutomation', { uploadMB: 0 })).status, 400);
+  assert.strictEqual((await adm.rpc('saveAutomation', { uploadMB: 101 })).status, 400);
+  await adm.ok('saveAutomation', { uploadMB: 25 });
+  assert.strictEqual((await lee.ok('getAll')).uploadMB, 25);
+  const big = await lee.upload(leeStudent.id, 'big.pdf', Buffer.concat([pdf, Buffer.alloc(21 * 1024 * 1024)]));
+  assert.strictEqual(big.status, 200);
+  await staff.ok('remove', { table: 'files', id: big.data.files.find((x) => x.name === 'big.pdf').id });
+  assert.strictEqual((await lee.upload(leeStudent.id, 'big2.pdf', Buffer.alloc(26 * 1024 * 1024))).status, 413);
+  await adm.ok('saveAutomation', { uploadMB: 20 });
 
   // 파일도 휴지통 → 영구 삭제 시 디스크에서 제거
   await staff.ok('remove', { table: 'files', id: f.id });
@@ -286,6 +299,35 @@ test('이전 버전 DB를 데이터 손실 없이 새 구조로 업그레이드'
   v2.close();
   // 두 번 열어도 문제 없음
   openStore(oldPath).close();
+});
+
+test('v23: 서류 줄에 안 묶인 증명서 파일 → 분류별 서류 줄(수합 완료)로 옮김', () => {
+  const p = path.join(dir, 'certdocs.db');
+  let st = openStore(p);
+  st.upsertAdmin('boss@revera.test', '원장', 'boss-pass-1');
+  const me = { email: 'boss@revera.test', name: '원장', role: 'admin' };
+  const sid = st.rpc.save(me, { table: 'students', obj: { name: '증명서학생' } }).students[0].id;
+  const pdf = Buffer.from('%PDF-1.4 x');
+  st.addFile(me, { studentId: sid, category: '성적증명서', name: 'G10.pdf', buffer: pdf });
+  st.addFile(me, { studentId: sid, category: '성적증명서', name: 'G11.pdf', buffer: pdf });
+  st.addFile(me, { studentId: sid, category: '졸업증명서', name: 'grad.pdf', buffer: pdf });
+  let d = st.addFile(me, { studentId: sid, category: '재학증명서', name: 'old.pdf', buffer: pdf });
+  st.rpc.remove(me, { table: 'files', id: d.files.find((f) => f.name === 'old.pdf').id }); // 휴지통 파일만 있는 분류
+  st.close();
+  const Database = require('better-sqlite3');
+  const raw = new Database(p);
+  raw.prepare("DELETE FROM meta WHERE key = 'v23_certdocs'").run();
+  raw.prepare("UPDATE files SET docId = ''").run(); // 방금 올린 파일도 예전처럼 서류 줄 없이
+  raw.prepare('DELETE FROM docs').run();
+  raw.close();
+  st = openStore(p);
+  d = st.rpc.getAll(me);
+  assert.deepStrictEqual(d.docs.map((x) => x.name + '|' + x.status).sort(), ['성적증명서|수합 완료', '졸업증명서|수합 완료']);
+  const g = d.docs.find((x) => x.name === '성적증명서');
+  assert.deepStrictEqual(d.files.filter((f) => f.docId === g.id).map((f) => f.name).sort(), ['G10.pdf', 'G11.pdf']);
+  assert.ok(d.files.every((f) => f.docId), '살아 있는 파일은 모두 서류 줄에 붙음');
+  st.close();
+  openStore(p).close(); // 한 번만 실행
 });
 
 test('매출: 계약 금액·분할 입금·통화, 컨설턴트에게는 숨김', async () => {
