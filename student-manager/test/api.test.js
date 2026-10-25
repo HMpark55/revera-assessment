@@ -224,6 +224,19 @@ test('성적표 파일 업로드·다운로드 권한', async () => {
   assert.strictEqual((await lee.upload(leeStudent.id, 'evil.html', Buffer.from('<script>'))).status, 400);
   assert.strictEqual((await kim.upload(leeStudent.id, 'a.pdf', pdf)).status, 403);
   assert.strictEqual((await lee.upload(leeStudent.id, 'big.pdf', Buffer.alloc(21 * 1024 * 1024))).status, 413);
+  // 파일 한 개 최대 크기는 관리자가 바꿈 (1~100MB)
+  const adm = client();
+  await adm.login('admin@revera.test', 'admin-pass-1');
+  assert.strictEqual((await staff.rpc('saveAutomation', { uploadMB: 30 })).status, 403);
+  assert.strictEqual((await adm.rpc('saveAutomation', { uploadMB: 0 })).status, 400);
+  assert.strictEqual((await adm.rpc('saveAutomation', { uploadMB: 101 })).status, 400);
+  await adm.ok('saveAutomation', { uploadMB: 25 });
+  assert.strictEqual((await lee.ok('getAll')).uploadMB, 25);
+  const big = await lee.upload(leeStudent.id, 'big.pdf', Buffer.concat([pdf, Buffer.alloc(21 * 1024 * 1024)]));
+  assert.strictEqual(big.status, 200);
+  await staff.ok('remove', { table: 'files', id: big.data.files.find((x) => x.name === 'big.pdf').id });
+  assert.strictEqual((await lee.upload(leeStudent.id, 'big2.pdf', Buffer.alloc(26 * 1024 * 1024))).status, 413);
+  await adm.ok('saveAutomation', { uploadMB: 20 });
 
   // 파일도 휴지통 → 영구 삭제 시 디스크에서 제거
   await staff.ok('remove', { table: 'files', id: f.id });

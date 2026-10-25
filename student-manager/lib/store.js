@@ -221,7 +221,7 @@ const FIELD_LABELS = {
   manager: '담당 관리팀', progress: '현재 진행 상황', title: '할 일', assignee: '담당자', doneAt: '완료 시각', doneBy: '완료한 사람',
   universityId: '대학(목록)', majorId: '전공(목록)', roundId: '전형(목록)', deadlineManual: '마감일 직접 지정',
   fullName: '정식 이름', aliases: '다른 이름', website: '홈페이지', portalUrl: '원서 접수(포털) 주소', tips: '원서 준비 유의사항', sortOrder: '순서',
-  year: '입학 연도', term: '입학 학기', requirements: '공식 지원 요건', sourceUrl: '출처', faculty: '단과대',
+  year: '입학 연도', term: '입학 학기', requirements: '주요 정보', sourceUrl: '출처', faculty: '단과대',
   code: '코드', cycleId: '입학 연도',
   submittedAt: '제출일', englishName: '영문 이름', address: '주소', addressEn: '영문 주소', sent: '추천인 이메일 보냄', sentAt: '이메일 보낸 날', sentBy: '이메일 체크한 사람',
   hopeUnis: '희망 대학·특례', focusArea: '집중 과목·관리 영역', recommenders: '추천서 진행', onlineCourse: '온라인 코스 진행',
@@ -246,7 +246,9 @@ const UPLOAD_TYPES = {
   xls: 'application/vnd.ms-excel', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   hwp: 'application/x-hwp',
 };
-const MAX_UPLOAD = 20 * 1024 * 1024;
+// 파일 한 개 최대 크기: 관리 › 저장 공간에서 1~100MB로 정함 (기본 20MB). MAX_UPLOAD는 서버가 받는 절대 상한
+const MAX_UPLOAD = 100 * 1024 * 1024;
+const UPLOAD_MB_DEFAULT = 20, UPLOAD_MB_MAX = MAX_UPLOAD / 1024 / 1024;
 const SESSION_DAYS = 14;
 
 /* ---------------- 유틸 ---------------- */
@@ -745,6 +747,7 @@ function openStore(dbPath, opts) {
         homeLayout: parseLayout((db.prepare('SELECT homeLayout FROM teachers WHERE email = ?').get(me.email) || {}).homeLayout) },
       homeDefault: parseLayout(getMeta('homeLayoutDefault')),
       studentCols: parseCols(getMeta('studentCols')),
+      uploadMB: uploadMB(),
       teachers: db.prepare("SELECT email, name, role, active, notify, color, sortOrder FROM teachers ORDER BY CASE WHEN sortOrder = '' OR sortOrder IS NULL THEN 1 ELSE 0 END, CAST(sortOrder AS INTEGER), name").all()
         .map((t) => ({ email: t.email, name: t.name, role: t.role, active: !!t.active, notify: t.notify !== 'off', color: t.color || '', sortOrder: Number(t.sortOrder) || 0 })),
       students,
@@ -1070,7 +1073,7 @@ function openStore(dbPath, opts) {
       checkUrl(v('sourceUrl'), '출처 링크');
       let reqs;
       try { reqs = JSON.parse(v('requirements') || '[]'); } catch (e) { reqs = null; }
-      if (!Array.isArray(reqs) || reqs.some((x) => !x || typeof x !== 'object')) throw new UserError('공식 지원 요건 형식이 올바르지 않습니다.');
+      if (!Array.isArray(reqs) || reqs.some((x) => !x || typeof x !== 'object')) throw new UserError('주요 정보 형식이 올바르지 않습니다.');
       // 한국 대학: 전형 구분(예: 3년특례, 12년특례, 외국인 전형) — 쉼표로 구분, 요건·마감일이 전형별로 나뉨
       const tracks = String(v('tracks') || '').split(',').map((x) => x.trim()).filter(Boolean);
       if (tracks.some((x) => x.length > 30) || new Set(tracks).size !== tracks.length) throw new UserError('전형 이름은 30자 이내, 중복 없이 입력하세요.');
@@ -1624,7 +1627,7 @@ function openStore(dbPath, opts) {
     const type = ext && UPLOAD_TYPES[ext.toLowerCase()];
     if (!type) throw new UserError('올릴 수 없는 파일 형식입니다. (PDF, 이미지, 워드, 엑셀, 한글 파일만 가능)');
     if (!info.buffer || !info.buffer.length) throw new UserError('빈 파일입니다.');
-    if (info.buffer.length > MAX_UPLOAD) throw new UserError('파일은 20MB 이하만 올릴 수 있습니다.');
+    if (info.buffer.length > uploadLimit()) throw new UserError('파일은 ' + uploadMB() + 'MB 이하만 올릴 수 있습니다.', 413);
     const category = pg ? '대회·프로그램' : UNIFILE_CATS.includes(info.category) ? info.category : (u.country === '한국' ? '모집요강' : '기타 자료');
     const id = newId(), storedName = id + '.' + ext.toLowerCase(), t = now();
     const full = path.join(filesDir, storedName);
@@ -1994,7 +1997,7 @@ function openStore(dbPath, opts) {
     const type = ext && UPLOAD_TYPES[ext.toLowerCase()];
     if (!type) throw new UserError('올릴 수 없는 파일 형식입니다. (PDF, 이미지, 워드, 엑셀, 한글 파일만 가능)');
     if (!info.buffer || !info.buffer.length) throw new UserError('빈 파일입니다.');
-    if (info.buffer.length > MAX_UPLOAD) throw new UserError('파일은 20MB 이하만 올릴 수 있습니다.');
+    if (info.buffer.length > uploadLimit()) throw new UserError('파일은 ' + uploadMB() + 'MB 이하만 올릴 수 있습니다.', 413);
     const id = newId();
     const storedName = id + '.' + ext.toLowerCase();
     fs.writeFileSync(path.join(filesDir, storedName), info.buffer);
@@ -2175,12 +2178,14 @@ function openStore(dbPath, opts) {
   async function backup(destPath) { await db.backup(destPath); }
 
   /* ----- 자동 백업·이메일 알림 설정 (관리자) ----- */
-  const CONFIG_KEYS = { scriptUrl: '', secret: '', siteUrl: '', backupOn: '', backupHour: '3', mailOn: '', mailHour: '8', volumeGB: '5', schedSheet: '', schedOn: '' };
+  const CONFIG_KEYS = { scriptUrl: '', secret: '', siteUrl: '', backupOn: '', backupHour: '3', mailOn: '', mailHour: '8', volumeGB: '5', uploadMB: String(UPLOAD_MB_DEFAULT), schedSheet: '', schedOn: '' };
   function getConfig() {
     const out = Object.assign({}, CONFIG_KEYS);
     db.prepare("SELECT key, value FROM meta WHERE key LIKE 'cfg.%'").all().forEach((r) => { out[r.key.slice(4)] = r.value; });
     return out;
   }
+  function uploadMB() { const n = Number(getConfig().uploadMB); return Number.isFinite(n) && n >= 1 && n <= UPLOAD_MB_MAX ? n : UPLOAD_MB_DEFAULT; }
+  function uploadLimit() { return Math.round(uploadMB() * 1024 * 1024); }
   function setMeta(key, value) {
     db.prepare('INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').run(key, String(value));
   }
@@ -2216,6 +2221,11 @@ function openStore(dbPath, opts) {
       const g = Number(arg.volumeGB);
       if (!Number.isFinite(g) || g < 0.5 || g > 10000) throw new UserError('저장 공간 크기는 0.5~10000 GB 사이 숫자로 입력하세요.');
       next.volumeGB = String(g);
+    }
+    if ('uploadMB' in arg) {
+      const n = Number(arg.uploadMB);
+      if (!Number.isFinite(n) || n < 1 || n > UPLOAD_MB_MAX) throw new UserError('파일 한 개 최대 크기는 1~' + UPLOAD_MB_MAX + ' MB 사이 숫자로 입력하세요.');
+      next.uploadMB = String(n);
     }
     for (const k of ['backupHour', 'mailHour']) {
       if (k in arg) {
@@ -2310,7 +2320,7 @@ function openStore(dbPath, opts) {
     const failed = all.filter((f) => m[f.storedName] && !m[f.storedName].syncedAt && m[f.storedName].fails >= SYNC_MAX_FAILS);
     const pending = pendingSync();
     return {
-      summary: storageSummary(), volumeGB: getConfig().volumeGB,
+      summary: storageSummary(), volumeGB: getConfig().volumeGB, uploadMB: uploadMB(),
       students: { count: live.length, bytes: sum(live) }, trash: { count: trash.length, bytes: sum(trash) }, uni: { count: uni.length, bytes: sum(uni) },
       byStudent: top(Object.values(byStudent), 10), byCategory: top(Object.values(byCat), 20),
       largest: all.slice().sort((a, b) => (b.size || 0) - (a.size || 0)).slice(0, 10)
