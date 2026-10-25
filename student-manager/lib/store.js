@@ -624,6 +624,41 @@ function migrate(db) {
       db.prepare("INSERT INTO meta VALUES ('v25_hk_majors', ?)").run(ts);
     })();
   }
+  // v26: HKU 전공을 원서 지원 단위(HKU International Admissions 2026 안내서의 57개 프로그램 + 예상 최저선)로.
+  // v25가 넣은 웹 전공 소개 목록(“Bachelor of Arts (Major in …)” 등) 중 선생님이 고치지 않았고 학생 지원대학에 연결되지 않은 것만 휴지통으로
+  if (!db.prepare("SELECT 1 FROM meta WHERE key = 'v26_hku_programmes'").get() && db.prepare("SELECT 1 FROM meta WHERE key = 'v25_hk_majors'").get()) {
+    const NEW = require('./hku-programmes-2026.json');
+    const OLD = require('./uni-majors-hk.json').HKU || [];
+    const key = (s) => String(s || '').trim().toLowerCase();
+    const ts = now();
+    db.transaction(() => {
+      const u = db.prepare("SELECT id, name, aliases FROM universities WHERE deletedAt = ''").all()
+        .find((x) => x.name === 'HKU' || String(x.aliases || '').split(',').map((a) => a.trim()).includes('HKU'));
+      if (u) {
+        const newNames = new Set(NEW.map((m) => key(m.name))), oldNames = new Set(OLD.map((m) => key(m.name)));
+        const used = new Set(db.prepare("SELECT majorId FROM apps WHERE majorId != '' AND deletedAt = ''").all().map((r) => r.majorId));
+        const have = {};
+        for (const m of db.prepare("SELECT * FROM unimajors WHERE universityId = ? AND deletedAt = ''").all(u.id)) {
+          const k = key(m.name);
+          if (m.createdBy === 'system' && m.updatedBy === 'system' && oldNames.has(k) && !newNames.has(k) && !used.has(m.id)) {
+            db.prepare("UPDATE unimajors SET deletedAt = ?, deletedBy = 'system' WHERE id = ?").run(ts, m.id);
+          } else have[k] = m;
+        }
+        for (const m of NEW) {
+          const cur = have[key(m.name)];
+          if (cur) {
+            // 이번 자동 입력으로 들어간 줄은 새 내용으로, 선생님이 만든·고친 줄은 빈 칸만 채움
+            const set = cur.updatedBy === 'system' ? ['faculty', 'code', 'sourceUrl', 'detail'] : ['faculty', 'code', 'sourceUrl', 'detail'].filter((k) => !cur[k]);
+            if (set.length) db.prepare(`UPDATE unimajors SET ${set.map((k) => k + ' = @' + k).join(', ')} WHERE id = @id`).run(Object.assign({ id: cur.id }, ...set.map((k) => ({ [k]: m[k] || '' }))));
+            continue;
+          }
+          db.prepare("INSERT INTO unimajors (id, universityId, name, faculty, code, detail, sourceUrl, createdAt, createdBy, updatedAt, updatedBy) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'system', ?, 'system')")
+            .run(crypto.randomUUID(), u.id, m.name, m.faculty, m.code, m.detail, m.sourceUrl, ts, ts);
+        }
+      }
+      db.prepare("INSERT INTO meta VALUES ('v26_hku_programmes', ?)").run(ts);
+    })();
+  }
   // v9: 메인 화면 공용 달력 (SAT 시험일 등 모두가 함께 보는 일정)
   // 학교 방학 (목록 관리 › 학교) — 달력에는 "방학 n곳" 한 줄, 학생 화면·오늘 챙길 일·학생 목록 필터
   db.exec('CREATE TABLE IF NOT EXISTS schoolbreaks (id TEXT PRIMARY KEY)');
