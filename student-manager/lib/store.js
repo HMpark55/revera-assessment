@@ -568,7 +568,7 @@ function migrate(db) {
     })();
   }
   // v24: 대학별 공식 자료 확인 결과(2026-10-25)를 넣음 — 그 입학 연도의 주요 정보가 비어 있을 때만. 출처·지망 형식도 비어 있을 때만, 전형·마감일은 그대로
-  if (!db.prepare("SELECT 1 FROM meta WHERE key = 'v24_uni_research'").get()) {
+  if (!db.prepare("SELECT 1 FROM meta WHERE key = 'v24_uni_research'").get() && db.prepare('SELECT 1 FROM universities LIMIT 1').get()) { // 새 DB는 대학 초기 자료가 들어간 다음 실행 때
     const RESEARCH = require('./uni-research');
     const ts = now();
     db.transaction(() => {
@@ -595,6 +595,33 @@ function migrate(db) {
         db.prepare(`UPDATE unicycles SET ${keys.map((k) => k + ' = @' + k).join(', ')}, updatedAt = @t, updatedBy = 'system' WHERE id = @id`).run(Object.assign(set, { t: ts, id: cy.id }));
       }
       db.prepare("INSERT INTO meta VALUES ('v24_uni_research', ?)").run(ts);
+    })();
+  }
+  // v25: 홍콩 5개 대학 공식 전공 목록(2026-10-25, lib/uni-majors-hk.json) — 같은 이름이 없는 전공만 추가.
+  // 같은 이름이 이미 있으면 비어 있는 학부·코드·출처만 채움 (선생님이 넣은 값은 그대로)
+  if (!db.prepare("SELECT 1 FROM meta WHERE key = 'v25_hk_majors'").get() && db.prepare('SELECT 1 FROM universities LIMIT 1').get()) { // 새 DB는 대학 초기 자료가 들어간 다음 실행 때
+    const LIST = require('./uni-majors-hk.json');
+    const ts = now();
+    db.transaction(() => {
+      const unis = db.prepare("SELECT id, name, aliases FROM universities WHERE deletedAt = ''").all();
+      for (const [uniName, majors] of Object.entries(LIST)) {
+        const u = unis.find((x) => x.name === uniName || String(x.aliases || '').split(',').map((a) => a.trim()).includes(uniName));
+        if (!u) continue;
+        const have = {};
+        db.prepare("SELECT * FROM unimajors WHERE universityId = ? AND deletedAt = ''").all(u.id).forEach((m) => { have[m.name.trim().toLowerCase()] = m; });
+        for (const m of majors) {
+          const cur = have[m.name.trim().toLowerCase()];
+          if (cur) {
+            const set = ['faculty', 'code', 'sourceUrl'].filter((k) => !cur[k] && m[k]);
+            if (set.length) db.prepare(`UPDATE unimajors SET ${set.map((k) => k + ' = @' + k).join(', ')} WHERE id = @id`).run(Object.assign({ id: cur.id }, ...set.map((k) => ({ [k]: m[k] }))));
+            continue;
+          }
+          db.prepare("INSERT INTO unimajors (id, universityId, name, faculty, code, detail, sourceUrl, createdAt, createdBy, updatedAt, updatedBy) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'system', ?, 'system')")
+            .run(crypto.randomUUID(), u.id, m.name, m.faculty || '', m.code || '', m.detail || '', m.sourceUrl || '', ts, ts);
+          have[m.name.trim().toLowerCase()] = m;
+        }
+      }
+      db.prepare("INSERT INTO meta VALUES ('v25_hk_majors', ?)").run(ts);
     })();
   }
   // v9: 메인 화면 공용 달력 (SAT 시험일 등 모두가 함께 보는 일정)

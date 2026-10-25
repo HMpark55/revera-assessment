@@ -365,6 +365,35 @@ test('v24: 대학 조사 자료는 주요 정보가 빈 연도에만 넣고, 지
   st.close();
 });
 
+test('v25: 홍콩 5개 대학 공식 전공 목록 — 같은 이름은 건너뛰고 빈 칸만 채움', () => {
+  const p = path.join(dir, 'hkmajors.db');
+  let st = openStore(p);
+  st.upsertAdmin('boss@revera.test', '원장', 'boss-pass-1');
+  st.close();
+  const Database = require('better-sqlite3');
+  let raw = new Database(p);
+  const uid = raw.prepare("SELECT id FROM universities WHERE name = 'HKU'").get().id;
+  raw.prepare("DELETE FROM meta WHERE key = 'v25_hk_majors'").run();
+  raw.prepare('DELETE FROM unimajors WHERE universityId = ?').run(uid);
+  raw.prepare("INSERT INTO unimajors (id, universityId, name, faculty, code, detail, sourceUrl, createdAt, createdBy, updatedAt, updatedBy, deletedAt) VALUES ('m1', ?, 'Bachelor of Psychology', '', '', '선생님 메모', '', 't', 'x', 't', 'x', '')").run(uid);
+  raw.close();
+  st = openStore(p);
+  const me = { email: 'boss@revera.test', name: '원장', role: 'admin' };
+  const list = require('../lib/uni-majors-hk.json');
+  const d = st.rpc.getAll(me);
+  const hku = d.unimajors.filter((m) => m.universityId === uid);
+  assert.strictEqual(hku.length, list.HKU.length, '같은 이름은 한 번만');
+  const psy = hku.find((m) => m.id === 'm1');
+  assert.strictEqual(psy.detail, '선생님 메모');
+  assert.strictEqual(psy.code, '6705', '빈 코드는 채움');
+  assert.ok(hku.every((m) => /^https?:\/\//.test(m.sourceUrl)));
+  for (const n of ['HKUST', 'CUHK', 'PolyU', 'CityU']) {
+    const u = d.universities.find((x) => x.name === n);
+    assert.ok(d.unimajors.filter((m) => m.universityId === u.id).length >= list[n].length, n);
+  }
+  st.close();
+});
+
 test('매출: 계약 금액·분할 입금·통화, 컨설턴트에게는 숨김', async () => {
   const admin = client();
   await admin.login('admin@revera.test', 'admin-pass-1');
