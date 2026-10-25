@@ -1218,7 +1218,10 @@ function render() {
     results: viewResults, sales: viewSales, trash: viewTrash, teachers: viewTeachers, log: viewLog, me: viewMe, unilist: viewLists, programs: viewPrograms, program: viewProgram, meetings: viewMeetings, settings: viewSettings, storage: viewStorage }[r.view] || viewHome;
   UI._view = function () { return v(route().id); };
   document.body.classList.toggle('wide', r.view === 'home');
+  // 다시 그려도 안쪽 스크롤 칸(전공 목록 등 id 있는 칸)의 스크롤 위치는 그대로
+  var keep = {}; Array.prototype.forEach.call($('app').querySelectorAll('[id]'), function (el) { if (el.scrollTop > 0) keep[el.id] = el.scrollTop; });
   $('app').innerHTML = v(r.id);
+  Object.keys(keep).forEach(function (id) { var el = document.getElementById(id); if (el) el.scrollTop = keep[id]; });
   decorateSearch();
   colResizeSetup();
   if (UI.focusRef) { var fr = $('ref-' + UI.focusRef); UI.focusRef = null; if (fr) { fr.scrollIntoView({ block: 'center' }); fr.classList.add('flash'); } }
