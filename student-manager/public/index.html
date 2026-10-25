@@ -149,6 +149,7 @@
   .login .btn { width:100%; margin-top:18px; padding:12px; font-size:1rem; }
   .login .msg { color:var(--error); font-size:.85rem; min-height:20px; margin-top:10px; }
   .tabs { overflow-x:auto; overflow-y:hidden; scrollbar-width:none; }
+  @media (max-width:820px) { .dropbox.sm .dnd { display:none; } }
   .tabs::-webkit-scrollbar { display:none; }
   .tabs a { white-space:nowrap; padding:8px 10px; }
   .sec-h { display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; margin:0 0 10px; }
@@ -3476,7 +3477,7 @@ function tabDocs(s) {
       groupByDocCat(list, true).map(function (g) { return '<tr class="grp-h"><td colspan="4">' + esc(g[0]) + ' <span class="muted">' + g[1].length + '</span></td></tr>' + g[1].map(function (d) {
         var cls = d.status === '수합 완료' ? 'd-수합' : d.status === '해당 없음' ? 'd-해당' : d.status === '요청함' ? 'd-요청함' : '';
         var files = childOf('files', s.id).filter(function (f) { return f.docId === d.id; }).sort(function (a, b) { return b.createdAt.localeCompare(a.createdAt); });
-        return '<tr><td><b>' + esc(d.name) + '</b>' + (d.memo ? '<div class="muted">' + esc(d.memo) + '</div>' : '') + '</td>' +
+        return '<tr><td style="min-width:120px"><b>' + esc(d.name) + '</b>' + (d.memo ? '<div class="muted">' + esc(d.memo) + '</div>' : '') + '</td>' +
           '<td><span class="pill ' + cls + '">' + esc(d.status) + '</span></td>' +
           '<td>' + (files.length ? files.map(function (f) {
             return '<div><a href="/api/files/' + esc(f.id) + '" target="_blank" rel="noopener">' + esc(f.name) + '</a> <span class="muted">' + esc(fmtTime(f.createdAt)) + ' · ' + esc(teacherName(f.createdBy)) + '</span></div>';
@@ -4791,7 +4792,7 @@ function upMB() { return S.uploadMB || 20; }
 function upMax() { return upMB() * 1024 * 1024; }
 function dropBox(onchange, opt) {
   opt = opt || {};
-  return '<label class="dropbox dropzone' + (opt.sm ? ' sm' : '') + '">' + (opt.sm ? '📎 끌어다 놓기 · <u>고르기</u>' : '📎 파일을 여기로 끌어다 놓거나 <u>눌러서 고르기</u>' + (opt.hint ? '<span class="muted"> · ' + opt.hint + '</span>' : '')) +
+  return '<label class="dropbox dropzone' + (opt.sm ? ' sm' : '') + '">' + (opt.sm ? '📎 <span class="dnd">끌어다 놓기 · </span><u>고르기</u>' : '📎 파일을 여기로 끌어다 놓거나 <u>눌러서 고르기</u>' + (opt.hint ? '<span class="muted"> · ' + opt.hint + '</span>' : '')) +
     '<input type="file"' + (opt.single ? '' : ' multiple') + ' hidden accept="' + ACCEPT_FILES + '" onchange="' + onchange + '"></label>';
 }
 var ACCEPT_FILES = '.pdf,.png,.jpg,.jpeg,.webp,.heic,.gif,.doc,.docx,.xls,.xlsx,.hwp';
