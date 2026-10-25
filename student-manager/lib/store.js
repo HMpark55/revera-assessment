@@ -546,6 +546,27 @@ function migrate(db) {
     db.prepare("INSERT INTO meta VALUES ('v22_pgcats', ?)").run(ts);
   }
   ensureColumns(db, 'programs', ['name', 'category', 'target', 'schedule', 'deadline', 'url', 'memo', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy']);
+  // v23: "성적·재학·졸업 증명서" 칸을 서류 목록으로 합침 — 서류 줄에 안 묶인 학생 파일을 학생·분류별 서류 줄(수합 완료)로.
+  // 휴지통 파일은 같은 분류 줄이 생길 때만 붙임 (휴지통 파일만 있는 분류는 줄을 만들지 않음)
+  if (!db.prepare("SELECT 1 FROM meta WHERE key = 'v23_certdocs'").get()) {
+    const ts = now();
+    db.transaction(() => {
+      const loose = db.prepare("SELECT id, studentId, category, deletedAt, createdAt, createdBy FROM files WHERE docId = '' AND meetingId = '' AND followupId = '' AND scoreId = '' ORDER BY createdAt").all()
+        .sort((a, b) => (a.deletedAt ? 1 : 0) - (b.deletedAt ? 1 : 0));
+      const made = {};
+      for (const f of loose) {
+        const cat = f.category || '기타 파일', k = f.studentId + '|' + cat;
+        if (!made[k]) {
+          if (f.deletedAt) continue;
+          made[k] = crypto.randomUUID();
+          db.prepare("INSERT INTO docs (id, studentId, name, category, status, receivedAt, receivedBy, createdAt, createdBy, updatedAt, updatedBy) VALUES (?, ?, ?, ?, '수합 완료', ?, ?, ?, 'system', ?, 'system')")
+            .run(made[k], f.studentId, cat, cat, f.createdAt, f.createdBy, ts, ts);
+        }
+        db.prepare('UPDATE files SET docId = ? WHERE id = ?').run(made[k], f.id);
+      }
+      db.prepare("INSERT INTO meta VALUES ('v23_certdocs', ?)").run(ts);
+    })();
+  }
   // v9: 메인 화면 공용 달력 (SAT 시험일 등 모두가 함께 보는 일정)
   // 학교 방학 (목록 관리 › 학교) — 달력에는 "방학 n곳" 한 줄, 학생 화면·오늘 챙길 일·학생 목록 필터
   db.exec('CREATE TABLE IF NOT EXISTS schoolbreaks (id TEXT PRIMARY KEY)');

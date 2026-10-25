@@ -617,8 +617,8 @@ var ACT_STATUS = ['계획', '지원 예정', '지원 완료', '진행 중', '완
 var ACT_DONE = ['지원 완료', '진행 중', '완료', '불합격/취소'];
 var DOC_STATUS = ['요청 전', '요청함', '수합 완료', '해당 없음'];
 var DOC_DONE = ['수합 완료', '해당 없음'];
-/** 서류 탭 서류 이름 예시 — 성적·재학·졸업 증명서는 서류 탭 아래 증명서 칸에서 받음 */
-var DOC_PRESETS = ['출입국사실증명서(학생)', '출입국사실증명서(부)', '출입국사실증명서(모)', '여권 사본', '가족관계증명서', '추천서'];
+/** 서류 탭 서류 이름 예시 */
+var DOC_PRESETS = ['성적증명서', '재학증명서', '졸업증명서', '출입국사실증명서(학생)', '출입국사실증명서(부)', '출입국사실증명서(모)', '여권 사본', '가족관계증명서', '추천서'];
 var STORY_STATUS = ['작성 전', '검토 중', '확정'];
 var CHILD = ['appinfo', 'notes', 'contracts', 'payments', 'apps', 'scores', 'activities', 'docs', 'links', 'files', 'followups', 'fureplies', 'majorplans', 'schools', 'courses', 'accounts', 'meetings',
   'universities', 'unicycles', 'unirounds', 'unimajors'];
@@ -645,8 +645,6 @@ function optionList(kind) {
 /** 서류 분류 (목록 관리 › 서류 분류) — 성적·학력 탭 파일, 서류 탭 항목 */
 var DOCCAT_DEFAULT = ['재학증명서', '성적증명서', '졸업증명서', '어학증빙', '표준화학력(SAT·AP·IB)', '지원자격증빙(출입국·여권 등)', '기타(학사일정표·고교 프로파일 등)'];
 function docCats() { var l = optionList('doccat'); return l.length ? l : DOCCAT_DEFAULT; }
-/** 서류 탭 아래 "성적·재학·졸업 증명서" 칸에서 올릴 수 있는 분류 (그 외 서류는 서류 탭) */
-function certCats() { var l = docCats().filter(function (c) { return /성적|재학|졸업/.test(c); }); return l.length ? l : DOCCAT_DEFAULT.slice(0, 3); }
 /** 서류 이름으로 분류 짐작 (서버 guessDocCat 과 같은 규칙, 목록에 없으면 기타) */
 function docCatGuess(name) {
   var n = String(name || ''), d = DOCCAT_DEFAULT;
@@ -835,7 +833,7 @@ var FORMS = {
     { k: 'label', l: '이름', ph: '예: 회의록, 주작업문서, 에세이 폴더' },
     { k: 'url', l: '링크 주소', t: 'url', req: 1, full: 1, ph: 'https://...' }] },
   files: { title: '파일 정보', fields: [
-    { k: 'name', l: '파일 이름', req: 1, full: 1 }, { k: 'category', l: '분류', t: 'opt', kind: 'certcat' },
+    { k: 'name', l: '파일 이름', req: 1, full: 1 }, { k: 'category', l: '분류', t: 'opt', kind: 'doccat' },
     { k: 'memo', l: '메모' }] },
 };
 
@@ -2874,27 +2872,17 @@ function tabScoresOnly(s) {
   h += '</div>';
   return h;
 }
-/** 성적·재학·졸업 증명서 카드 — 서류 탭 아래 (서류 항목에 안 묶인 학생 파일) */
-function certCard(s) {
-  var h = '';
+/** 서류 줄에 안 묶인 학생 파일 (예전 자료·휴지통에서 되살린 파일) — 있을 때만 서류 탭 아래에 표시 */
+function looseFiles(s) {
   var files = childOf('files', s.id).filter(function (f) { return !f.docId && !f.meetingId && !f.followupId && !f.scoreId; }).sort(function (a, b) { return b.createdAt.localeCompare(a.createdAt); });
-  var cc = certCats();
-  h += '<div class="card">' + secHead('성적·재학·졸업 증명서',
-    '<span class="toolbar" style="margin:0"><label class="muted" for="upcat">올릴 분류</label><select id="upcat" title="올릴 파일의 분류" onchange="UI.upcat=this.value">' + opts(cc, cc.indexOf(UI.upcat) >= 0 ? UI.upcat : cc.filter(function (c) { return /성적/.test(c); })[0] || cc[0]) + '</select></span>');
-  h += dropBox('uploadFiles(this,' + js(s.id) + ')', { hint: '분류를 먼저 고르세요' });
-  h += '<div class="muted" style="margin:6px 0 8px">학교 성적증명서·재학증명서·졸업증명서를 올립니다. 그 밖의 입시 서류는 위 서류 항목별로, 어학·표준화 성적 파일은 성적·학력 탭의 점수 줄에 붙입니다. PDF·사진·워드·엑셀·한글 파일, 한 개당 ' + upMB() + 'MB까지. 왼쪽 체크로 여러 개를 골라 한꺼번에 삭제할 수 있습니다.</div>';
-  UI.fsel = UI.fsel || {};
-  var nSel = files.filter(function (f) { return UI.fsel[f.id]; }).length;
-  if (nSel) h += '<div class="selbar">' + nSel + '개 선택 <button class="btn danger sm" onclick="removeSelectedFiles(' + js(s.id) + ')">선택한 ' + nSel + '개 삭제</button><button class="btn ghost sm" onclick="UI.fsel={};render()">선택 해제</button></div>';
-  h += files.length ? '<div class="tbl-wrap"><table><thead><tr><th class="ck"><input type="checkbox" title="모두 선택"' + (nSel === files.length ? ' checked' : '') + ' onchange="selAll(UI.fsel,' + js(files.map(function (f) { return f.id; })) + ',this.checked)"></th><th>파일</th><th>크기</th><th>올린 사람</th><th>날짜</th><th></th></tr></thead><tbody>' +
-    groupByDocCat(files).map(function (g) { return '<tr class="grp-h"><td colspan="6">' + esc(g[0]) + ' <span class="muted">' + g[1].length + '</span>' +
-      (cc.indexOf(g[0]) < 0 ? ' <span class="pill d-요청함">서류 탭으로 옮겨주세요</span>' : '') + '</td></tr>' + g[1].map(function (f) {
-      return '<tr' + (UI.fsel[f.id] ? ' class="sel"' : '') + '><td class="ck"><input type="checkbox"' + (UI.fsel[f.id] ? ' checked' : '') + ' onchange="UI.fsel[' + js(f.id) + ']=this.checked;render()"></td><td class="clip" onclick="if(event.target.tagName!==\'B\')this.classList.toggle(\'open\')"><div><a href="/api/files/' + esc(f.id) + '" target="_blank" rel="noopener"><b>' + esc(f.name) + '</b></a>' + (f.memo ? '<div class="muted">' + esc(f.memo) + '</div>' : '') + '</div></td>' +
-        '<td class="nw">' + fmtSize(f.size) + '</td><td class="nw">' + esc(teacherName(f.createdBy)) + '</td>' +
-        '<td class="nw">' + esc(fmtTime(f.createdAt).slice(0, 10)) + '</td>' +
+  if (!files.length) return '';
+  return '<div class="card"><h3>서류 줄에 안 묶인 파일 <span class="muted">' + files.length + '개</span></h3>' +
+    '<div class="muted" style="margin-bottom:8px">예전에 올렸거나 휴지통에서 되살린 파일입니다. 받아서 알맞은 서류 줄에 다시 올리고 여기 파일은 지워주세요.</div>' +
+    '<div class="tbl-wrap"><table><thead><tr><th>파일</th><th>분류</th><th>크기</th><th>올린 사람</th><th>날짜</th><th></th></tr></thead><tbody>' + files.map(function (f) {
+      return '<tr><td class="clip"><div><a href="/api/files/' + esc(f.id) + '" target="_blank" rel="noopener"><b>' + esc(f.name) + '</b></a></div></td><td class="nw">' + esc(f.category) + '</td><td class="nw">' + fmtSize(f.size) + '</td>' +
+        '<td class="nw">' + esc(teacherName(f.createdBy)) + '</td><td class="nw">' + esc(fmtTime(f.createdAt).slice(0, 10)) + '</td>' +
         '<td class="nw"><a class="btn ghost sm" href="/api/files/' + esc(f.id) + '?download=1">받기</a> <button class="btn ghost sm" onclick="openForm(\'files\',' + js(f.id) + ')">수정</button></td></tr>';
-    }).join(''); }).join('') + '</tbody></table></div>' : '<div class="empty">올린 파일이 없습니다.</div>';
-  return h + '</div>';
+    }).join('') + '</tbody></table></div></div>';
 }
 /* ----- 미팅 ----- */
 function meetingLine(s) {
@@ -3472,7 +3460,7 @@ function tabDocs(s) {
   var list = childOf('docs', s.id).sort(function (a, b) { return a.createdAt.localeCompare(b.createdAt); });
   var done = list.filter(function (d) { return DOC_DONE.indexOf(d.status) >= 0; }).length;
   return '<div class="card">' + secHead('서류' + (list.length ? ' <span class="muted">' + done + ' / ' + list.length + ' 완료</span>' : ''), addBtn('docs', s.id, '+ 서류 추가')) +
-    '<div class="muted" style="margin-bottom:8px">“+ 서류 추가” 창에서 파일까지 바로 올리거나, 줄마다 있는 점선 칸에 끌어다 놓기(또는 눌러서 고르기)로 올리세요. 파일이 올라가면 자동으로 <b>수합 완료</b>가 되고 날짜와 올린 사람이 남습니다.</div>' +
+    '<div class="muted" style="margin-bottom:8px">성적·재학·졸업 증명서를 포함해 학생에게 받는 서류를 모두 여기서 관리합니다. “+ 서류 추가” 창에서 파일까지 바로 올리거나, 줄마다 있는 점선 칸에 끌어다 놓기(또는 눌러서 고르기)로 올리세요. 한 줄에 파일 여러 개(예: 학년별 성적증명서)도 됩니다. 잘못 올린 파일은 “수정” 창에서 ✕로 지웁니다. 파일이 올라가면 자동으로 <b>수합 완료</b>가 되고 날짜와 올린 사람이 남습니다.</div>' +
     (list.length ? '<div class="tbl-wrap"><table><thead><tr><th>서류</th><th>상태</th><th>저장된 파일</th><th></th></tr></thead><tbody>' +
       groupByDocCat(list, true).map(function (g) { return '<tr class="grp-h"><td colspan="4">' + esc(g[0]) + ' <span class="muted">' + g[1].length + '</span></td></tr>' + g[1].map(function (d) {
         var cls = d.status === '수합 완료' ? 'd-수합' : d.status === '해당 없음' ? 'd-해당' : d.status === '요청함' ? 'd-요청함' : '';
@@ -3484,7 +3472,7 @@ function tabDocs(s) {
           }).join('') : '<span class="muted">-</span>') + '</td>' +
           '<td class="nw">' + dropBox('uploadFiles(this,' + js(s.id) + ',' + js(d.id) + ')', { sm: 1 }) + ' ' +
           '<button class="btn ghost sm" onclick="openForm(\'docs\',' + js(d.id) + ')">수정</button></td></tr>';
-      }).join(''); }).join('') + '</tbody></table></div>' : '<div class="empty">등록된 서류가 없습니다. 3년특례라면 출입국사실증명서·재학증명서 등을 추가해 두세요.</div>') + '</div>' + certCard(s);
+      }).join(''); }).join('') + '</tbody></table></div>' : '<div class="empty">등록된 서류가 없습니다. 3년특례라면 출입국사실증명서·재학증명서 등을 추가해 두세요.</div>') + '</div>' + looseFiles(s);
 }
 
 function tabProfile(s) {
@@ -4233,11 +4221,6 @@ function viewTrash() {
 }
 /** 여러 개 선택 (파일 목록·휴지통) */
 function selAll(map, keys, on) { keys.forEach(function (k) { map[k] = on; }); render(); }
-function removeSelectedFiles(sid) {
-  var ids = Object.keys(UI.fsel).filter(function (id) { return UI.fsel[id] && findRow('files', id); });
-  if (!ids.length || !confirm('선택한 파일 ' + ids.length + '개를 휴지통으로 옮깁니다.\n관리자·관리팀이 휴지통에서 복구할 수 있습니다. 계속할까요?')) return;
-  mutate('removeMany', { items: ids.map(function (id) { return { table: 'files', id: id }; }) }, ids.length + '개를 휴지통으로 옮겼습니다.').then(function (d) { if (d) { UI.fsel = {}; UI.trash = null; render(); } });
-}
 function selectedTrash() { return Object.keys(UI.tsel || {}).filter(function (k) { return UI.tsel[k]; }).map(function (k) { var i = k.indexOf(':'); return { table: k.slice(0, i), id: k.slice(i + 1) }; }); }
 function restoreSelected() {
   var items = selectedTrash(); if (!items.length) return;
@@ -4634,7 +4617,7 @@ function field(f, rec) {
   if ('h' in f) return '<div class="full fh">' + esc(f.h) + '</div>';
   if (f.t === 'hid') return hidden(f.k, rec[f.k] == null ? '' : rec[f.k]);
   if (f.t === 'opt') {
-    var ol = f.kind === 'doccat' ? docCats() : f.kind === 'certcat' ? certCats() : optionList(f.kind || f.k), cv = rec[f.k] || '';
+    var ol = f.kind === 'doccat' ? docCats() : optionList(f.kind || f.k), cv = rec[f.k] || '';
     return fld(f.l, '<select name="' + f.k + '">' + opts([''].concat(ol, cv && ol.indexOf(cv) < 0 ? [cv] : []), cv) + '</select>' +
       '<div class="muted" style="font-size:.75rem;margin-top:2px">목록에 없으면 관리 › 목록 관리에서 추가</div>', f.full, f.req);
   }
