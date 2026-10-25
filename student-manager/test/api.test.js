@@ -374,6 +374,7 @@ test('v25: 홍콩 5개 대학 공식 전공 목록 — 같은 이름은 건너�
   let raw = new Database(p);
   const uid = raw.prepare("SELECT id FROM universities WHERE name = 'HKU'").get().id;
   raw.prepare("DELETE FROM meta WHERE key = 'v25_hk_majors'").run();
+  raw.prepare("INSERT OR REPLACE INTO meta VALUES ('v26_hku_programmes', 'test')").run(); // v26은 아래 테스트에서
   raw.prepare('DELETE FROM unimajors WHERE universityId = ?').run(uid);
   raw.prepare("INSERT INTO unimajors (id, universityId, name, faculty, code, detail, sourceUrl, createdAt, createdBy, updatedAt, updatedBy, deletedAt) VALUES ('m1', ?, 'Bachelor of Psychology', '', '', '선생님 메모', '', 't', 'x', 't', 'x', '')").run(uid);
   raw.close();
@@ -391,6 +392,41 @@ test('v25: 홍콩 5개 대학 공식 전공 목록 — 같은 이름은 건너�
     const u = d.universities.find((x) => x.name === n);
     assert.ok(d.unimajors.filter((m) => m.universityId === u.id).length >= list[n].length, n);
   }
+  st.close();
+});
+
+test('v26: HKU 전공을 2026 안내서 57개 프로그램으로 — 연결·수정된 전공은 남김', () => {
+  const p = path.join(dir, 'hkuprog.db');
+  let st = openStore(p);
+  st.upsertAdmin('boss@revera.test', '원장', 'boss-pass-1');
+  st.close();
+  st = openStore(p); // 대학 초기 자료가 들어간 다음 실행: v25 → v26
+  const me = { email: 'boss@revera.test', name: '원장', role: 'admin' };
+  let d = st.rpc.getAll(me);
+  const uid = d.universities.find((u) => u.name === 'HKU').id;
+  const NEW = require('../lib/hku-programmes-2026.json');
+  let hku = d.unimajors.filter((m) => m.universityId === uid);
+  assert.ok(NEW.every((n) => hku.some((m) => m.name === n.name)), '57개 모두');
+  assert.ok(!hku.some((m) => / \(Major in /.test(m.name)), '웹 전공 소개 줄은 휴지통으로');
+  assert.ok(hku.find((m) => m.name === 'Bachelor of Psychology').detail.includes('IB 35'));
+  assert.ok(hku.some((m) => m.name === 'Psychology (BPsych)'), '처음 자료 전공은 그대로');
+  st.close();
+  // 학생 지원대학에 연결된 웹 전공은 남김
+  const Database = require('better-sqlite3');
+  const raw = new Database(p);
+  const ling = raw.prepare("SELECT id FROM unimajors WHERE name = 'Bachelor of Arts (Major in General Linguistics)'").get().id;
+  raw.prepare("UPDATE unimajors SET deletedAt = '' WHERE id = ?").run(ling);
+  raw.close();
+  st = openStore(p);
+  const sid = st.rpc.save(me, { table: 'students', obj: { name: '연결학생' } }).students[0].id;
+  st.rpc.save(me, { table: 'apps', obj: { studentId: sid, universityId: uid, majorId: ling } });
+  st.close();
+  const raw2 = new Database(p);
+  raw2.prepare("DELETE FROM meta WHERE key = 'v26_hku_programmes'").run();
+  raw2.close();
+  st = openStore(p);
+  d = st.rpc.getAll(me);
+  assert.ok(d.unimajors.some((m) => m.id === ling), '연결된 전공은 남김');
   st.close();
 });
 
