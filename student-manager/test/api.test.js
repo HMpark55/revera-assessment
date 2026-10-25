@@ -374,7 +374,8 @@ test('v25: 홍콩 5개 대학 공식 전공 목록 — 같은 이름은 건너�
   let raw = new Database(p);
   const uid = raw.prepare("SELECT id FROM universities WHERE name = 'HKU'").get().id;
   raw.prepare("DELETE FROM meta WHERE key = 'v25_hk_majors'").run();
-  raw.prepare("INSERT OR REPLACE INTO meta VALUES ('v26_hku_programmes', 'test')").run(); // v26은 아래 테스트에서
+  raw.prepare("INSERT OR REPLACE INTO meta VALUES ('v26_hku_programmes', 'test')").run(); // v26·v27은 아래 테스트에서
+  raw.prepare("INSERT OR REPLACE INTO meta VALUES ('v27_hku_2027', 'test')").run();
   raw.prepare('DELETE FROM unimajors WHERE universityId = ?').run(uid);
   raw.prepare("INSERT INTO unimajors (id, universityId, name, faculty, code, detail, sourceUrl, createdAt, createdBy, updatedAt, updatedBy, deletedAt) VALUES ('m1', ?, 'Bachelor of Psychology', '', '', '선생님 메모', '', 't', 'x', 't', 'x', '')").run(uid);
   raw.close();
@@ -408,7 +409,7 @@ test('v26: HKU 전공을 2026 안내서 57개 프로그램으로 — 연결·수
   let hku = d.unimajors.filter((m) => m.universityId === uid);
   assert.ok(NEW.every((n) => hku.some((m) => m.name === n.name)), '57개 모두');
   assert.ok(!hku.some((m) => / \(Major in /.test(m.name)), '웹 전공 소개 줄은 휴지통으로');
-  assert.ok(hku.find((m) => m.name === 'Bachelor of Psychology').detail.includes('IB 35'));
+  assert.ok(hku.find((m) => m.name === 'Bachelor of Psychology').detail.includes('IB 38'), 'v27까지 돌면 2027 기준');
   assert.ok(hku.some((m) => m.name === 'Psychology (BPsych)'), '처음 자료 전공은 그대로');
   st.close();
   // 학생 지원대학에 연결된 웹 전공은 남김
@@ -427,6 +428,36 @@ test('v26: HKU 전공을 2026 안내서 57개 프로그램으로 — 연결·수
   st = openStore(p);
   d = st.rpc.getAll(me);
   assert.ok(d.unimajors.some((m) => m.id === ling), '연결된 전공은 남김');
+  st.close();
+});
+
+test('v27: HKU 전공 메모 2027 기준 — 선생님이 고친 메모는 그대로', () => {
+  const p = path.join(dir, 'hku2027.db');
+  let st = openStore(p);
+  st.upsertAdmin('boss@revera.test', '원장', 'boss-pass-1');
+  st.close();
+  const Database = require('better-sqlite3');
+  let raw = new Database(p);
+  raw.prepare("INSERT OR REPLACE INTO meta VALUES ('v27_hku_2027', 'hold')").run();
+  raw.close();
+  st = openStore(p); // v25·v26만
+  const me = { email: 'boss@revera.test', name: '원장', role: 'admin' };
+  let d = st.rpc.getAll(me);
+  const uid = d.universities.find((u) => u.name === 'HKU').id;
+  const civ = d.unimajors.find((m) => m.universityId === uid && m.name === 'Bachelor of Engineering in Civil Engineering');
+  st.rpc.save(me, { table: 'unimajors', obj: { id: civ.id, updatedAt: civ.updatedAt, detail: '선생님 메모' } });
+  st.close();
+  raw = new Database(p);
+  raw.prepare("DELETE FROM meta WHERE key = 'v27_hku_2027'").run();
+  raw.close();
+  st = openStore(p);
+  d = st.rpc.getAll(me);
+  const hku = d.unimajors.filter((m) => m.universityId === uid);
+  const NEW = require('../lib/hku-programmes-2027.json');
+  assert.ok(NEW.every((n) => hku.some((m) => m.name === n.name)), '2027 프로그램 모두');
+  assert.ok(hku.find((m) => m.name === 'Bachelor of Engineering in Robotics Engineering').detail.startsWith('신설'));
+  assert.ok(/IB 34/.test(hku.find((m) => m.name === 'Bachelor of Engineering in Mechanical Engineering').detail));
+  assert.strictEqual(hku.find((m) => m.id === civ.id).detail, '선생님 메모');
   st.close();
 });
 
