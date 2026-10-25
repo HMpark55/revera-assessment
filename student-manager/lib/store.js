@@ -47,7 +47,7 @@ const TABLES = {
   apps: {
     label: '지원대학',
     fields: ['studentId', 'country', 'universityId', 'university', 'majorId', 'major', 'roundId', 'round', 'deadline',
-      'deadlineManual', 'status', 'essay', 'memo', 'parentConfirmed', 'submittedAt'], // submittedAt: 원서 관제탑 "제출 완료" 누른 날
+      'deadlineManual', 'status', 'essay', 'memo', 'parentConfirmed', 'submittedAt', 'majorChoices'], // submittedAt: 원서 관리 "제출 완료" 누른 날, majorChoices: 2지망부터 [{label, major}]
     summary: (r) => [r.university, r.round].filter(Boolean).join(' '),
   },
   scores: {
@@ -187,7 +187,7 @@ const CATALOG = {
     summary: (r) => r.name,
   },
   unicycles: {
-    label: '입학 연도 정보', fields: ['universityId', 'year', 'term', 'tracks', 'requirements', 'sourceUrl', 'status', 'memo'],
+    label: '입학 연도 정보', fields: ['universityId', 'year', 'term', 'tracks', 'requirements', 'choices', 'sourceUrl', 'status', 'memo'], // choices: 전공 지망 형식 [{label, n}]
     summary: (r) => cycleLabel(r),
   },
   unirounds: {
@@ -567,6 +567,36 @@ function migrate(db) {
       db.prepare("INSERT INTO meta VALUES ('v23_certdocs', ?)").run(ts);
     })();
   }
+  // v24: 대학별 공식 자료 확인 결과(2026-10-25)를 넣음 — 그 입학 연도의 주요 정보가 비어 있을 때만. 출처·지망 형식도 비어 있을 때만, 전형·마감일은 그대로
+  if (!db.prepare("SELECT 1 FROM meta WHERE key = 'v24_uni_research'").get()) {
+    const RESEARCH = require('./uni-research');
+    const ts = now();
+    db.transaction(() => {
+      for (const r of RESEARCH) {
+        const u = db.prepare("SELECT id, name, aliases FROM universities WHERE deletedAt = ''").all()
+          .find((x) => x.name === r.name || String(x.aliases || '').split(',').map((a) => a.trim()).includes(r.name));
+        if (!u) continue;
+        const cys = db.prepare("SELECT * FROM unicycles WHERE universityId = ? AND year = ? AND deletedAt = ''").all(u.id, r.year);
+        const cy = cys.find((c) => c.term === r.term) || (cys.length === 1 ? cys[0] : null);
+        if (!cy) continue;
+        const set = {};
+        let reqs = [];
+        try { reqs = JSON.parse(cy.requirements || '[]'); } catch (e) { reqs = null; }
+        if (Array.isArray(reqs) && !reqs.length) {
+          const tracks = String(cy.tracks || '').split(',').map((x) => x.trim()).filter(Boolean);
+          const tr = r.track && tracks.includes(r.track) ? r.track : '';
+          set.requirements = JSON.stringify(r.requirements.map((x) => (tr && !x.common ? { item: x.item, content: x.content, track: tr } : { item: x.item, content: x.content })));
+          set.memo = [cy.memo, RESEARCH.MEMO].filter(Boolean).join('\n');
+        }
+        if (!cy.sourceUrl && r.sourceUrl) set.sourceUrl = r.sourceUrl;
+        if (r.choices && !(cy.choices && cy.choices !== '[]')) set.choices = JSON.stringify(r.choices);
+        const keys = Object.keys(set);
+        if (!keys.length) continue;
+        db.prepare(`UPDATE unicycles SET ${keys.map((k) => k + ' = @' + k).join(', ')}, updatedAt = @t, updatedBy = 'system' WHERE id = @id`).run(Object.assign(set, { t: ts, id: cy.id }));
+      }
+      db.prepare("INSERT INTO meta VALUES ('v24_uni_research', ?)").run(ts);
+    })();
+  }
   // v9: 메인 화면 공용 달력 (SAT 시험일 등 모두가 함께 보는 일정)
   // 학교 방학 (목록 관리 › 학교) — 달력에는 "방학 n곳" 한 줄, 학생 화면·오늘 챙길 일·학생 목록 필터
   db.exec('CREATE TABLE IF NOT EXISTS schoolbreaks (id TEXT PRIMARY KEY)');
@@ -830,7 +860,14 @@ function openStore(dbPath, opts) {
         if (!r || r.studentId !== v('studentId')) throw new UserError('팔로업을 연결할 기록을 찾을 수 없습니다.');
       }
     }
-    if (table === 'apps') need('university', '대학명은 필수입니다.');
+    if (table === 'apps') {
+      need('university', '대학명은 필수입니다.');
+      let mc;
+      try { mc = JSON.parse(v('majorChoices') || '[]'); } catch (e) { mc = null; }
+      if (!Array.isArray(mc) || mc.length > 20 || mc.some((x) => !x || typeof x.label !== 'string' || typeof x.major !== 'string' || x.label.length > 30 || x.major.length > 200)) {
+        throw new UserError('추가 지망 전공 형식이 올바르지 않습니다.');
+      }
+    }
     if (table === 'contracts') need('kind', '계약 종류(연간/원서)를 선택하세요.');
     if (table === 'scores') need('kind', '시험 종류를 선택하세요.');
     if (table === 'activities') need('name', '활동 이름을 입력하세요.');
@@ -1095,6 +1132,11 @@ function openStore(dbPath, opts) {
       let reqs;
       try { reqs = JSON.parse(v('requirements') || '[]'); } catch (e) { reqs = null; }
       if (!Array.isArray(reqs) || reqs.some((x) => !x || typeof x !== 'object')) throw new UserError('주요 정보 형식이 올바르지 않습니다.');
+      let ch;
+      try { ch = JSON.parse(v('choices') || '[]'); } catch (e) { ch = null; }
+      if (!Array.isArray(ch) || ch.length > 6 || ch.some((x) => !x || typeof x.label !== 'string' || !x.label.trim() || x.label.length > 30 || !Number.isInteger(x.n) || x.n < 1 || x.n > 5)) {
+        throw new UserError('전공 지망 형식이 올바르지 않습니다. (칸 이름 30자 이내, 칸마다 1~5개, 최대 6칸)');
+      }
       // 한국 대학: 전형 구분(예: 3년특례, 12년특례, 외국인 전형) — 쉼표로 구분, 요건·마감일이 전형별로 나뉨
       const tracks = String(v('tracks') || '').split(',').map((x) => x.trim()).filter(Boolean);
       if (tracks.some((x) => x.length > 30) || new Set(tracks).size !== tracks.length) throw new UserError('전형 이름은 30자 이내, 중복 없이 입력하세요.');
@@ -1787,7 +1829,7 @@ function openStore(dbPath, opts) {
     let newId_;
     tx(() => {
       const t = now();
-      const rec = { universityId: src.universityId, year, term, tracks: src.tracks || '', requirements: src.requirements, sourceUrl: src.sourceUrl,
+      const rec = { universityId: src.universityId, year, term, tracks: src.tracks || '', requirements: src.requirements, choices: src.choices || '', sourceUrl: src.sourceUrl,
         status: '확인 필요', memo: cycleLabel(src) + ' 정보를 복사해 만든 초안입니다. 마감일은 1년 뒤로 옮긴 추정치이니 공식 요강으로 확인하세요.' };
       validateCatalog('unicycles', rec, null);
       Object.assign(rec, { id: newId(), createdAt: t, createdBy: me.email, updatedAt: t, updatedBy: me.email });

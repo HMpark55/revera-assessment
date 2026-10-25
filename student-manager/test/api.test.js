@@ -330,6 +330,41 @@ test('v23: 서류 줄에 안 묶인 증명서 파일 → 분류별 서류 줄(�
   openStore(p).close(); // 한 번만 실행
 });
 
+test('v24: 대학 조사 자료는 주요 정보가 빈 연도에만 넣고, 지망 형식은 지원대학 전공 칸과 함께 저장', () => {
+  const p = path.join(dir, 'research.db');
+  let st = openStore(p);
+  st.upsertAdmin('boss@revera.test', '원장', 'boss-pass-1');
+  st.close();
+  const Database = require('better-sqlite3');
+  let raw = new Database(p);
+  const uid = (n) => raw.prepare('SELECT id FROM universities WHERE name = ?').get(n).id;
+  raw.prepare("DELETE FROM meta WHERE key = 'v24_uni_research'").run();
+  raw.prepare("UPDATE unicycles SET requirements = '[]', sourceUrl = '', choices = '' WHERE universityId = ?").run(uid('HKU'));
+  raw.prepare("UPDATE unicycles SET requirements = ?, updatedBy = 't@x' WHERE universityId = ?").run(JSON.stringify([{ item: '선생님 메모', content: '그대로' }]), uid('CUHK'));
+  raw.close();
+  st = openStore(p);
+  const me = { email: 'boss@revera.test', name: '원장', role: 'admin' };
+  let d = st.rpc.getAll(me);
+  const hku = d.unicycles.find((c) => c.universityId === d.universities.find((u) => u.name === 'HKU').id && c.year === '2027');
+  const reqs = JSON.parse(hku.requirements);
+  assert.ok(reqs.some((r) => r.item === '전형료' && /HKD 780/.test(r.content)));
+  assert.strictEqual(JSON.parse(hku.choices).length, 3);
+  assert.ok(/ug\.hku|admissions\.hku/.test(hku.sourceUrl));
+  const cuhk = d.unicycles.find((c) => c.universityId === d.universities.find((u) => u.name === 'CUHK').id && c.year === '2027');
+  assert.deepStrictEqual(JSON.parse(cuhk.requirements), [{ item: '선생님 메모', content: '그대로' }], '선생님이 입력한 주요 정보는 그대로');
+  // 지망 형식 검사 + 지원대학 추가 지망 저장
+  assert.throws(() => st.rpc.save(me, { table: 'unicycles', obj: { id: hku.id, updatedAt: hku.updatedAt, choices: JSON.stringify([{ label: '', n: 1 }]) } }), /지망 형식/);
+  assert.throws(() => st.rpc.save(me, { table: 'unicycles', obj: { id: hku.id, updatedAt: hku.updatedAt, choices: JSON.stringify([{ label: '1지망', n: 9 }]) } }), /지망 형식/);
+  d = st.rpc.save(me, { table: 'unicycles', obj: { id: hku.id, updatedAt: hku.updatedAt, choices: JSON.stringify([{ label: '1지망', n: 1 }, { label: '2·3지망', n: 2 }]) } });
+  assert.strictEqual(JSON.parse(d.unicycles.find((c) => c.id === hku.id).choices)[1].n, 2);
+  const sid = st.rpc.save(me, { table: 'students', obj: { name: '지망학생' } }).students[0].id;
+  const huid = d.universities.find((u) => u.name === 'HKU').id;
+  assert.throws(() => st.rpc.save(me, { table: 'apps', obj: { studentId: sid, universityId: huid, majorChoices: '{"x":1}' } }), /추가 지망/);
+  d = st.rpc.save(me, { table: 'apps', obj: { studentId: sid, universityId: huid, major: 'Psychology', majorChoices: JSON.stringify([{ label: '2·3지망 (1)', major: 'Education' }]) } });
+  assert.strictEqual(JSON.parse(d.apps.find((a) => a.studentId === sid).majorChoices)[0].major, 'Education');
+  st.close();
+});
+
 test('매출: 계약 금액·분할 입금·통화, 컨설턴트에게는 숨김', async () => {
   const admin = client();
   await admin.login('admin@revera.test', 'admin-pass-1');
