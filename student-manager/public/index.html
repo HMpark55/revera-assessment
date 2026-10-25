@@ -81,6 +81,7 @@
   td.clip { min-width:220px; cursor:pointer; }
   th.ck, td.ck { width:26px; padding-right:0; } td.ck input, th.ck input { width:16px; height:16px; margin:0; }
   tr.sel td { background:#f3f6fd; }
+  .dfile { padding:1px 4px; border-radius:4px; } .dfile.sel { background:#e3eafa; } .dfile input { vertical-align:middle; margin:0 2px 0 0; }
   .selbar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:8px 10px; margin-bottom:8px; background:#eef2fb; border:1px solid #cfd8ee; border-radius:8px; font-size:.88rem; font-weight:600; }
   td.clip > div { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; overflow-wrap:anywhere; }
   td.clip.open > div { display:block; }
@@ -3459,16 +3460,20 @@ function tabActivities(s) {
 function tabDocs(s) {
   var list = childOf('docs', s.id).sort(function (a, b) { return a.createdAt.localeCompare(b.createdAt); });
   var done = list.filter(function (d) { return DOC_DONE.indexOf(d.status) >= 0; }).length;
+  UI.fsel = UI.fsel || {};
+  var allF = childOf('files', s.id).filter(function (f) { return f.docId && list.some(function (d) { return d.id === f.docId; }); }).map(function (f) { return f.id; });
+  var nSel = allF.filter(function (id) { return UI.fsel[id]; }).length;
   return '<div class="card">' + secHead('서류' + (list.length ? ' <span class="muted">' + done + ' / ' + list.length + ' 완료</span>' : ''), addBtn('docs', s.id, '+ 서류 추가')) +
-    '<div class="muted" style="margin-bottom:8px">성적·재학·졸업 증명서를 포함해 학생에게 받는 서류를 모두 여기서 관리합니다. “+ 서류 추가” 창에서 파일까지 바로 올리거나, 줄마다 있는 점선 칸에 끌어다 놓기(또는 눌러서 고르기)로 올리세요. 한 줄에 파일 여러 개(예: 학년별 성적증명서)도 됩니다. 잘못 올린 파일은 “수정” 창에서 ✕로 지웁니다. 파일이 올라가면 자동으로 <b>수합 완료</b>가 되고 날짜와 올린 사람이 남습니다.</div>' +
-    (list.length ? '<div class="tbl-wrap"><table><thead><tr><th>서류</th><th>상태</th><th>저장된 파일</th><th></th></tr></thead><tbody>' +
+    '<div class="muted" style="margin-bottom:8px">성적·재학·졸업 증명서를 포함해 학생에게 받는 서류를 모두 여기서 관리합니다. “+ 서류 추가” 창에서 파일까지 바로 올리거나, 줄마다 있는 점선 칸에 끌어다 놓기(또는 눌러서 고르기)로 올리세요. 한 줄에 파일 여러 개(예: 학년별 성적증명서)도 됩니다. 파일 앞 체크로 여러 개를 골라 한꺼번에 지울 수 있습니다(휴지통으로). 파일이 올라가면 자동으로 <b>수합 완료</b>가 되고 날짜와 올린 사람이 남습니다.</div>' +
+    (nSel ? '<div class="selbar">파일 ' + nSel + '개 선택 <button class="btn danger sm" onclick="removeSelectedFiles()">선택한 ' + nSel + '개 삭제</button><button class="btn ghost sm" onclick="UI.fsel={};render()">선택 해제</button></div>' : '') +
+    (list.length ? '<div class="tbl-wrap"><table><thead><tr><th>서류</th><th>상태</th><th>저장된 파일' + (allF.length ? ' <label class="muted" style="font-weight:normal;margin-left:6px"><input type="checkbox"' + (nSel && nSel === allF.length ? ' checked' : '') + ' onchange="selAll(UI.fsel,' + js(allF) + ',this.checked)"> 모두 선택</label>' : '') + '</th><th></th></tr></thead><tbody>' +
       groupByDocCat(list, true).map(function (g) { return '<tr class="grp-h"><td colspan="4">' + esc(g[0]) + ' <span class="muted">' + g[1].length + '</span></td></tr>' + g[1].map(function (d) {
         var cls = d.status === '수합 완료' ? 'd-수합' : d.status === '해당 없음' ? 'd-해당' : d.status === '요청함' ? 'd-요청함' : '';
         var files = childOf('files', s.id).filter(function (f) { return f.docId === d.id; }).sort(function (a, b) { return b.createdAt.localeCompare(a.createdAt); });
         return '<tr><td style="min-width:120px"><b>' + esc(d.name) + '</b>' + (d.memo ? '<div class="muted">' + esc(d.memo) + '</div>' : '') + '</td>' +
           '<td><span class="pill ' + cls + '">' + esc(d.status) + '</span></td>' +
           '<td>' + (files.length ? files.map(function (f) {
-            return '<div><a href="/api/files/' + esc(f.id) + '" target="_blank" rel="noopener">' + esc(f.name) + '</a> <span class="muted">' + esc(fmtTime(f.createdAt)) + ' · ' + esc(teacherName(f.createdBy)) + '</span></div>';
+            return '<div class="dfile' + (UI.fsel[f.id] ? ' sel' : '') + '"><input type="checkbox" title="골라서 한꺼번에 삭제"' + (UI.fsel[f.id] ? ' checked' : '') + ' onchange="UI.fsel[' + js(f.id) + ']=this.checked;render()"> <a href="/api/files/' + esc(f.id) + '" target="_blank" rel="noopener">' + esc(f.name) + '</a> <span class="muted">' + esc(fmtTime(f.createdAt)) + ' · ' + esc(teacherName(f.createdBy)) + '</span></div>';
           }).join('') : '<span class="muted">-</span>') + '</td>' +
           '<td class="nw">' + dropBox('uploadFiles(this,' + js(s.id) + ',' + js(d.id) + ')', { sm: 1 }) + ' ' +
           '<button class="btn ghost sm" onclick="openForm(\'docs\',' + js(d.id) + ')">수정</button></td></tr>';
@@ -4220,6 +4225,11 @@ function viewTrash() {
     }).join('') + '</tbody></table></div>';
 }
 /** 여러 개 선택 (파일 목록·휴지통) */
+function removeSelectedFiles() {
+  var ids = Object.keys(UI.fsel || {}).filter(function (id) { return UI.fsel[id] && findRow('files', id); });
+  if (!ids.length || !confirm('선택한 파일 ' + ids.length + '개를 휴지통으로 옮깁니다.\n관리자·관리팀이 휴지통에서 복구할 수 있습니다. 계속할까요?')) return;
+  mutate('removeMany', { items: ids.map(function (id) { return { table: 'files', id: id }; }) }, ids.length + '개를 휴지통으로 옮겼습니다.').then(function (d) { if (d) { UI.fsel = {}; UI.trash = null; render(); } });
+}
 function selAll(map, keys, on) { keys.forEach(function (k) { map[k] = on; }); render(); }
 function selectedTrash() { return Object.keys(UI.tsel || {}).filter(function (k) { return UI.tsel[k]; }).map(function (k) { var i = k.indexOf(':'); return { table: k.slice(0, i), id: k.slice(i + 1) }; }); }
 function restoreSelected() {
