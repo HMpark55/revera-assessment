@@ -2039,3 +2039,76 @@ test('대회·프로그램 분류 목록(처음 목록 + 쓰던 분류, 이름 �
   assert.strictEqual(d.programs.find((x) => x.name === '분류 대회').category, '리서치·논문');
   await admin.ok('saveOption', { id: opt.id, kind: 'pgcat', value: '리서치' });
 });
+
+test('v30 지점: 예전 자료는 상해, 다른 지점 관리팀은 보기·팔로업·상담기록 추가만, 관리자는 전부, 일정은 지점별·공유', async () => {
+  const p = path.join(dir, 'v30.db');
+  let st = openStore(p);
+  st.db.prepare("INSERT INTO students (id, name, createdAt, updatedAt) VALUES ('s30','옛 학생','x','x')").run();
+  st.db.prepare("INSERT INTO meetings (id, studentId, date, time, createdAt, updatedAt) VALUES ('m30','s30','2026-10-01','PM 3:00','x','x')").run();
+  st.db.exec("UPDATE students SET branch = ''; UPDATE meetings SET tz = ''; DELETE FROM meta WHERE key = 'v30_branches'");
+  st.close();
+  st = openStore(p);
+  assert.strictEqual(st.db.prepare("SELECT branch FROM students WHERE id = 's30'").get().branch, '상해');
+  assert.strictEqual(st.db.prepare("SELECT tz FROM meetings WHERE id = 'm30'").get().tz, 'Asia/Shanghai');
+  st.close();
+
+  const admin = client(); await admin.login('admin@revera.test', 'admin-pass-1');
+  await admin.ok('saveTeacher', { email: 'sh30@revera.test', name: '상해팀', role: 'staff', password: 'pass-3000', branch: '상해' });
+  let d = await admin.ok('saveTeacher', { email: 'ap30@revera.test', name: '압구정팀', role: 'staff', password: 'pass-3000', branch: '압구정' });
+  assert.strictEqual(d.teachers.find((t) => t.email === 'ap30@revera.test').branch, '압구정');
+  assert.strictEqual((await admin.rpc('saveTeacher', { email: 'x30@revera.test', role: 'staff', password: 'pass-3000', branch: '부산' })).status, 400);
+  const sh = client(); await sh.login('sh30@revera.test', 'pass-3000');
+  const ap = client(); await ap.login('ap30@revera.test', 'pass-3000');
+  d = await ap.ok('getAll');
+  assert.deepStrictEqual([d.me.branch, d.branchTz['압구정']], ['압구정', 'Asia/Seoul']);
+
+  // 압구정 관리팀이 등록한 학생은 압구정, 다른 지점으로는 등록 못 함
+  d = await ap.saveOk('students', { name: '압구정 학생30' });
+  const apS = d.students.find((s) => s.id === d.savedId);
+  assert.strictEqual(apS.branch, '압구정');
+  assert.strictEqual((await ap.save('students', { name: '상해로 등록', branch: '상해' })).status, 403);
+  d = await sh.saveOk('students', { name: '상해 학생30' });
+  const shS = d.students.find((s) => s.id === d.savedId);
+  assert.strictEqual(shS.branch, '상해');
+
+  // 다른 지점 학생: 볼 수 있음, 정보 수정·지원대학·삭제 X, 팔로업·상담기록 추가 O
+  d = await ap.ok('getAll');
+  assert.ok(d.students.some((s) => s.id === shS.id), '다른 지점 학생도 보임');
+  let r = await ap.save('students', { id: shS.id, updatedAt: shS.updatedAt, memo: '고침' });
+  assert.strictEqual(r.status, 403); assert.match(r.data.error, /상해 지점 학생/);
+  assert.strictEqual((await ap.save('docs', { studentId: shS.id, name: '여권' })).status, 403);
+  assert.strictEqual((await ap.rpc('remove', { table: 'students', id: shS.id })).status, 403);
+  d = await ap.saveOk('followups', { studentId: shS.id, title: '압구정에서 챙긴 일', assignee: 'sh30@revera.test' });
+  const fu = d.followups.find((f) => f.id === d.savedId);
+  d = await ap.saveOk('notes', { studentId: shS.id, date: '2026-10-20', time: '15:00', content: '압구정 상담' });
+  assert.strictEqual(d.notes.find((n) => n.id === d.savedId).tz, 'Asia/Seoul', '상담 시간은 쓴 사람 지점 시간 기준');
+  // 남이 만든 팔로업은 못 고침, 내가 만든 건 고침
+  d = await sh.saveOk('followups', { studentId: shS.id, title: '상해 팔로업' });
+  const shFu = d.followups.find((f) => f.id === d.savedId);
+  assert.strictEqual((await ap.save('followups', { id: shFu.id, updatedAt: shFu.updatedAt, status: '완료' })).status, 403);
+  await ap.saveOk('followups', { id: fu.id, updatedAt: fu.updatedAt, detail: '내용 추가' });
+  // 같은 지점 관리팀·관리자는 그대로
+  await sh.saveOk('students', { id: shS.id, updatedAt: shS.updatedAt, memo: '상해팀 수정' });
+  d = await admin.saveOk('students', { id: apS.id, updatedAt: apS.updatedAt, memo: '관리자 수정', branch: '상해' });
+  assert.strictEqual(d.students.find((s) => s.id === apS.id).branch, '상해', '관리자는 지점도 옮김');
+
+  // 미팅 시간 기준: 안 보내면 쓴 사람 지점, 보내면 그 값 (목록에 없는 값은 거부)
+  d = await ap.saveOk('students', { name: '압구정 학생30-2' });
+  const ap2 = d.savedId;
+  d = await ap.saveOk('meetings', { studentId: ap2, date: '2026-10-22', time: 'PM 4:00' });
+  assert.strictEqual(d.meetings.find((m) => m.id === d.savedId).tz, 'Asia/Seoul');
+  d = await ap.saveOk('meetings', { studentId: ap2, date: '2026-10-22', time: 'PM 4:00', tz: 'Asia/Shanghai' });
+  assert.strictEqual(d.meetings.find((m) => m.id === d.savedId).tz, 'Asia/Shanghai');
+  assert.strictEqual((await ap.save('meetings', { studentId: ap2, date: '2026-10-22', tz: 'Europe/London' })).status, 400);
+
+  // 일정: 등록한 지점·시간 기준 저장, 다른 지점 관리팀은 못 고침, 공유 표시
+  d = await ap.ok('saveEvent', { title: '압구정 설명회', date: '2026-11-03', time: '19:00', tz: 'Asia/Seoul', shared: 'on' });
+  const ev = d.events.find((e) => e.id === d.savedId);
+  assert.deepStrictEqual([ev.branch, ev.time, ev.tz, ev.shared], ['압구정', '19:00', 'Asia/Seoul', 'TRUE']);
+  assert.strictEqual((await sh.rpc('saveEvent', { id: ev.id, updatedAt: ev.updatedAt, title: '바꿈', date: ev.date })).status, 403);
+  assert.strictEqual((await sh.rpc('removeEvent', { id: ev.id })).status, 403);
+  assert.strictEqual((await ap.rpc('saveEvent', { title: '시간 이상', date: '2026-11-03', time: '25:00' })).status, 400);
+  d = await ap.ok('saveEvent', { title: '나만', date: '2026-11-04', private: 'on', shared: 'on' });
+  assert.strictEqual(d.events.find((e) => e.id === d.savedId).shared, '', '나만 보기는 공유 안 됨');
+  await admin.ok('saveEvent', { id: ev.id, updatedAt: ev.updatedAt, title: '관리자가 고침', date: ev.date, time: ev.time, tz: ev.tz });
+});
