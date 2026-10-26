@@ -224,6 +224,11 @@
   .reqgrip { cursor:grab; color:#9aa0aa; font-size:1.1rem; line-height:34px; text-align:center; user-select:none; }
   .reqrow.dragging { opacity:.45; }
   .reqrow textarea { min-height:38px; }
+  .cprow { display:grid; grid-template-columns:1fr 1.4fr auto auto; gap:6px; margin-bottom:6px; align-items:center; }
+  #unimap { height:68vh; min-height:420px; border-radius:10px; border:1px solid var(--border); z-index:0; }
+  .maplegend { display:flex; flex-wrap:wrap; gap:6px 14px; font-size:.82rem; color:#374151; }
+  .maplegend i { display:inline-block; width:12px; height:12px; border-radius:50%; margin-right:4px; vertical-align:-1px; border:1px solid rgba(0,0,0,.25); }
+  .mappop { min-width:200px; font-size:.85rem; line-height:1.45; } .mappop h4 { margin:0 0 2px; font-size:.95rem; }
   .chrow { display:grid; grid-template-columns:1fr 80px auto; gap:6px; margin-bottom:6px; max-width:460px; }
   .mchoices { display:grid; gap:6px; } .mcrow { display:grid; grid-template-columns:130px 1fr; gap:8px; align-items:center; }
   .mclab { font-size:.85rem; color:#374151; } .mcrow.gone input { border-color:#f0c36d; }
@@ -779,7 +784,8 @@ var FORMS = {
     { k: 'fullName', l: '정식 이름', adm: 1, full: 1 },
     { k: 'aliases', l: '다른 이름 (쉼표로 구분 — 학생 지원대학을 자동 연결할 때 사용)', adm: 1, full: 1, ph: '예: 홍콩대, University of Hong Kong' },
     { k: 'website', l: '입학처 홈페이지', t: 'url', full: 1, ph: 'https://...' },
-    { k: 'portalUrl', l: '원서 접수(포털) 주소 — 학생 지원대학의 “열기”가 이 주소로 열림', t: 'url', full: 1, ph: '예: https://aal.hku.hk/... (지원서 로그인 페이지)' }, { k: 'sortOrder', l: '정렬 순서 (숫자)', adm: 1 }],
+    { k: 'portalUrl', l: '원서 접수(포털) 주소 — 학생 지원대학의 “열기”가 이 주소로 열림', t: 'url', full: 1, ph: '예: https://aal.hku.hk/... (지원서 로그인 페이지)' }, { k: 'sortOrder', l: '정렬 순서 (숫자)', adm: 1 },
+    { k: 'campuses', l: '캠퍼스 위치 (대학 지도에 표시)', t: 'campuses', full: 1 }],
     defaults: function () { return { country: '홍콩' }; } },
   unitips: { table: 'universities', title: '원서 준비 유의사항', noDelete: 1, fields: [
     { k: 'tips', l: '유의사항 (내부 메모 — 공식 정보와 구분됩니다)', t: 'textarea', full: 1, big: 1 }] },
@@ -1205,7 +1211,7 @@ function render() {
   if (isMgr()) admin.push(['sales', '매출'], ['unilist', '목록 관리']);
   if (isAdmin()) admin.push(['teachers', '계정 관리'], ['settings', '백업·알림'], ['storage', '저장 공간'], ['log', '변경 기록']);
   if (isMgr()) admin.push(['trash', '휴지통']);
-  var cur = r.view === 'student' ? 'students' : r.view === 'uni' ? 'unis' : r.view === 'program' ? 'programs' : r.view;
+  var cur = r.view === 'student' ? 'students' : r.view === 'uni' || r.view === 'map' ? 'unis' : r.view === 'program' ? 'programs' : r.view;
   var link = function (i) { return '<a href="#/' + i[0] + '" class="' + (cur === i[0] ? 'on' : '') + '">' + i[1] + '</a>'; };
   var curAdm = admin.filter(function (i) { return i[0] === cur; })[0];
   $('nav').innerHTML = '<div class="navrow-o"><div class="nav-in"><div class="navrow">' +
@@ -1215,7 +1221,7 @@ function render() {
   $('who').classList.remove('open');
   var v = { home: viewHome, students: viewStudents, student: viewStudent, materials: viewMaterials, deadlines: viewDeadlines,
     unis: viewUnis, uni: viewUni, followups: viewFollowups, search: viewSearch,
-    results: viewResults, sales: viewSales, trash: viewTrash, teachers: viewTeachers, log: viewLog, me: viewMe, unilist: viewLists, programs: viewPrograms, program: viewProgram, meetings: viewMeetings, settings: viewSettings, storage: viewStorage }[r.view] || viewHome;
+    results: viewResults, map: viewMap, sales: viewSales, trash: viewTrash, teachers: viewTeachers, log: viewLog, me: viewMe, unilist: viewLists, programs: viewPrograms, program: viewProgram, meetings: viewMeetings, settings: viewSettings, storage: viewStorage }[r.view] || viewHome;
   UI._view = function () { return v(route().id); };
   document.body.classList.toggle('wide', r.view === 'home');
   // 다시 그려도 안쪽 스크롤 칸(전공 목록 등 id 있는 칸)의 스크롤 위치는 그대로
@@ -1224,6 +1230,7 @@ function render() {
   Object.keys(keep).forEach(function (id) { var el = document.getElementById(id); if (el) el.scrollTop = keep[id]; });
   decorateSearch();
   colResizeSetup();
+  if (r.view === 'map') mapInit();
   if (UI.focusRef) { var fr = $('ref-' + UI.focusRef); UI.focusRef = null; if (fr) { fr.scrollIntoView({ block: 'center' }); fr.classList.add('flash'); } }
   var q = $('q'); if (q && UI._focusQ) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); UI._focusQ = false; }
 }
@@ -3443,7 +3450,7 @@ function tabApps(s) {
   var groups = {};
   list.forEach(function (a) { var c = a.country || '국가 미지정'; (groups[c] = groups[c] || []).push(a); });
   var keys = Object.keys(groups).sort(function (a, b) { return (COUNTRIES.indexOf(a) + 1 || 99) - (COUNTRIES.indexOf(b) + 1 || 99); });
-  return '<div class="card">' + secHead('지원 대학' + (list.length ? ' <span class="muted">' + esc(countrySummary(s.id)) + '</span>' : ''), addBtn('apps', s.id, '+ 지원 대학 추가')) +
+  return '<div class="card">' + secHead('지원 대학' + (list.length ? ' <span class="muted">' + esc(countrySummary(s.id)) + '</span>' : ''), '<span class="toolbar" style="margin:0">' + (list.length ? '<a class="btn ghost sm" href="#/map/' + esc(s.id) + '">🗺 지도에서 보기</a>' : '') + addBtn('apps', s.id, '+ 지원 대학 추가') + '</span>') +
     (list.length ? '<div class="tbl-wrap"><table><thead><tr><th>대학</th><th>🔑 원서 포털</th><th>전공</th><th>전형</th><th>마감</th><th>상태</th></tr></thead><tbody>' +
       keys.map(function (k) {
         return '<tr class="grp"><td colspan="6">' + esc(k) + ' <span class="muted">' + groups[k].length + '곳</span></td></tr>' +
@@ -3656,10 +3663,81 @@ function cyclesOf(uid) {
     return (b.year + pad(TERMS_INTAKE.length - TERMS_INTAKE.indexOf(b.term))).localeCompare(a.year + pad(TERMS_INTAKE.length - TERMS_INTAKE.indexOf(a.term))) || b.year.localeCompare(a.year);
   });
 }
+/* ============================== 대학 지도 ============================== */
+var MAP_COUNTRY_COLOR = { '홍콩': '#e11d48', '싱가폴': '#f97316', '캐나다': '#2563eb', '한국': '#16a34a', '미국': '#7c3aed', '영국': '#0f766e', '중국': '#b45309', '일본': '#db2777', '호주': '#0891b2', '기타': '#6b7280' };
+var MAP_DUE = [['over', '마감 지남', '#dc2626'], ['d14', '14일 안', '#f97316'], ['d30', '30일 안', '#eab308'], ['later', '30일 넘게 남음', '#2563eb'], ['none', '진행 중인 지원 없음', '#9ca3af']];
+/** 지도에 쓸 지원 목록: 학생 하나면 그 학생, 아니면 전체(볼 수 있는 학생) */
+function mapApps(sid) { return S.apps.filter(function (a) { return a.universityId && (sid ? a.studentId === sid : studentById(a.studentId)); }); }
+function mapDueKey(apps) {
+  var open = apps.filter(function (a) { return APP_FINAL.indexOf(a.status) < 0 && a.deadline; }).map(function (a) { return dayDiff(a.deadline); }).filter(function (n) { return n !== null; });
+  if (!open.length) return 'none';
+  var n = Math.min.apply(null, open);
+  return n < 0 ? 'over' : n <= 14 ? 'd14' : n <= 30 ? 'd30' : 'later';
+}
+function viewMap(sid) {
+  var st = sid ? studentById(sid) : null; if (sid && !st) sid = '';
+  UI.mapMode = UI.mapMode || 'country';
+  var withApps = S.students.filter(function (s) { return S.apps.some(function (a) { return a.studentId === s.id && a.universityId; }); }).sort(function (a, b) { return a.name.localeCompare(b.name, 'ko'); });
+  var unis = S.universities.filter(function (u) { return !u.deletedAt; });
+  var noPos = (sid ? unis.filter(function (u) { return mapApps(sid).some(function (a) { return a.universityId === u.id; }); }) : unis).filter(function (u) { return !parseReqs(u.campuses).length; });
+  var legend = UI.mapMode === 'due' ? MAP_DUE.map(function (d) { return '<span><i style="background:' + d[2] + '"></i>' + d[1] + '</span>'; })
+    : COUNTRIES.filter(function (c) { return unis.some(function (u) { return u.country === c && parseReqs(u.campuses).length; }); }).map(function (c) { return '<span><i style="background:' + (MAP_COUNTRY_COLOR[c] || '#6b7280') + '"></i>' + esc(c) + '</span>'; });
+  return '<div class="toolbar"><a href="#/unis">← 대학 정보</a></div>' +
+    '<div class="toolbar"><h2 style="margin:0;margin-right:auto">대학 지도' + (st ? ' <span class="muted">· ' + esc(st.name) + '의 지원 대학</span>' : '') + '</h2>' +
+    '<select onchange="go(this.value ? \'#/map/\' + this.value : \'#/map\')" title="학생을 고르면 그 학생이 지원한 대학만"><option value="">모든 대학</option>' +
+      withApps.map(function (s) { return '<option value="' + esc(s.id) + '"' + (s.id === sid ? ' selected' : '') + '>' + esc(s.name) + '</option>'; }).join('') + '</select>' +
+    seg([['country', '나라별 색'], ['due', '마감 임박 색']], UI.mapMode, 'mapMode') + '</div>' +
+    '<div class="card"><div class="maplegend" style="margin-bottom:8px">' + legend.join('') + '<span class="muted" style="margin-left:auto">점을 누르면 지원 학생·가까운 마감 · 핀이 겹치면 확대</span></div>' +
+    '<div id="unimap" data-sid="' + esc(sid || '') + '"></div>' +
+    '<div class="muted" style="font-size:.78rem;margin-top:6px">지도: © OpenStreetMap 기여자. “대략 위치”는 Compass가 처음 넣은 값이라 실제 캠퍼스와 조금 다를 수 있습니다 — 대학 정보 › 대학 정보 수정 › 캠퍼스 위치에서 고칠 수 있습니다.</div>' +
+    (noPos.length ? '<div class="notice" style="margin-top:8px">위치가 없는 대학 ' + noPos.length + '곳: ' + noPos.map(function (u) { return '<a href="#/uni/' + esc(u.id) + '">' + esc(u.name) + '</a>'; }).join(', ') + ' — 대학 정보 수정에서 캠퍼스 위치를 넣으면 지도에 나옵니다.</div>' : '') + '</div>';
+}
+/** Leaflet은 지도 화면을 처음 열 때만 불러옴 */
+function loadLeaflet(cb) {
+  if (window.L) return cb();
+  if (!document.getElementById('leaflet-css')) {
+    var l = document.createElement('link'); l.id = 'leaflet-css'; l.rel = 'stylesheet'; l.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'; document.head.appendChild(l);
+  }
+  var s = document.getElementById('leaflet-js');
+  if (!s) { s = document.createElement('script'); s.id = 'leaflet-js'; s.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'; document.head.appendChild(s); }
+  s.addEventListener('load', cb); s.addEventListener('error', function () { var el = $('unimap'); if (el) el.innerHTML = '<div class="empty">지도 도구를 불러오지 못했습니다. 인터넷 연결을 확인하고 새로고침 해주세요.</div>'; });
+}
+function mapInit() {
+  loadLeaflet(function () {
+    var el = $('unimap'); if (!el || el._done) return; el._done = 1;
+    var sid = el.getAttribute('data-sid'), apps = mapApps(sid);
+    var map = L.map(el, { worldCopyJump: true, minZoom: 2 });
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18, attribution: '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>' }).addTo(map);
+    var pts = [];
+    S.universities.filter(function (u) { return !u.deletedAt; }).forEach(function (u) {
+      var ua = apps.filter(function (a) { return a.universityId === u.id; });
+      if (sid && !ua.length) return;
+      var cps = parseReqs(u.campuses); if (!cps.length) return;
+      var due = mapDueKey(ua), color = UI.mapMode === 'due' ? MAP_DUE.filter(function (d) { return d[0] === due; })[0][2] : (MAP_COUNTRY_COLOR[u.country] || '#6b7280');
+      var open = ua.filter(function (a) { return APP_FINAL.indexOf(a.status) < 0 && a.deadline; }).sort(byDate('deadline'));
+      var who = {}; ua.forEach(function (a) { var s = studentById(a.studentId); if (s) who[s.id] = s.name; });
+      var names = Object.keys(who).map(function (k) { return who[k]; });
+      cps.forEach(function (c) {
+        var html = '<div class="mappop"><h4><a href="#/uni/' + esc(u.id) + '">' + esc(u.name) + '</a></h4>' +
+          '<div class="muted">' + esc(c.name) + ' · ' + esc(u.country) + (c.approx ? ' · 대략 위치' : '') + '</div>' +
+          (sid ? ua.map(function (a) { return '<div>' + esc(a.major || '전공 미정') + (a.round ? ' · ' + esc(a.round) : '') + ' · <b>' + esc(a.status) + '</b>' + (a.deadline ? ' · 마감 ' + esc(fmtD(a.deadline)) + ' ' + dday(a.deadline) : '') + '</div>'; }).join('')
+            : '<div>지원 학생 <b>' + names.length + '명</b>' + (names.length ? ': ' + esc(names.slice(0, 8).join(', ')) + (names.length > 8 ? ' 외 ' + (names.length - 8) + '명' : '') : '') + '</div>' +
+              (open.length ? '<div>가까운 마감 ' + esc(fmtD(open[0].deadline)) + ' ' + dday(open[0].deadline) + ' <span class="muted">(' + esc((studentById(open[0].studentId) || {}).name || '') + ')</span></div>' : '')) + '</div>';
+        L.circleMarker([c.lat, c.lng], { radius: 8, color: '#1f2937', weight: 1, fillColor: color, fillOpacity: .9 }).bindPopup(html).bindTooltip(u.name, { direction: 'top', offset: [0, -6] }).addTo(map);
+        pts.push([c.lat, c.lng]);
+      });
+    });
+    var key = 'v:' + (sid || 'all');
+    if (UI.mapView && UI.mapView.key === key) map.setView(UI.mapView.c, UI.mapView.z);
+    else if (pts.length) map.fitBounds(pts, { padding: [30, 30], maxZoom: 11 });
+    else map.setView([25, 60], 2);
+    map.on('moveend', function () { UI.mapView = { key: key, c: map.getCenter(), z: map.getZoom() }; });
+  });
+}
 function viewUnis() {
   var unis = sortedUnis();
   var h = '<div class="toolbar"><h2 style="margin:0;margin-right:auto">대학 정보 <span class="muted">' + unis.length + '곳</span></h2>' +
-    (isAdmin() ? '<button class="btn" onclick="openForm(\'universities\')">+ 대학 추가</button>' : '') + '</div>';
+    '<a class="btn ghost" href="#/map">🗺 대학 지도</a>' + (isAdmin() ? '<button class="btn" onclick="openForm(\'universities\')">+ 대학 추가</button>' : '') + '</div>';
   if (!unis.length) return h + '<div class="card empty">등록된 대학이 없습니다.</div>';
   var groups = {};
   unis.forEach(function (u) { (groups[u.country] = groups[u.country] || []).push(u); });
@@ -4639,6 +4717,23 @@ function reqRow(r) {
   document.addEventListener('dragend', function () { if (drag) { drag.classList.remove('dragging'); drag = null; } });
   document.addEventListener('drop', function (e) { if (drag) e.preventDefault(); });
 })();
+/** 캠퍼스 위치 한 줄: 이름 + 위치(링크 또는 “위도, 경도”) */
+function campusRow(c) {
+  var pos = typeof c.lat === 'number' ? c.lat + ', ' + c.lng : '';
+  return '<div class="cprow"><input type="text" data-cp="name" value="' + esc(c.name) + '" placeholder="캠퍼스 이름 (예: St. George)" maxlength="60">' +
+    '<input type="text" data-cp="pos" value="' + esc(pos) + '" data-orig="' + esc(pos) + '" data-approx="' + (c.approx ? '1' : '') + '" placeholder="구글 지도 링크 또는 위도, 경도">' +
+    (c.approx ? '<span class="pill d-요청함" title="Compass가 처음 넣은 대략 위치 — 확인 후 고쳐 주세요">대략 위치</span>' : '<span></span>') +
+    '<button type="button" class="btn ghost sm" onclick="this.parentNode.remove()">삭제</button></div>';
+}
+/** 구글 지도 링크·“위도, 경도”에서 좌표 읽기 (못 읽으면 null) */
+function parseLatLng(t) {
+  t = String(t || '').trim(); var m;
+  m = /!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/.exec(t) || /@(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/.exec(t) ||
+    /[?&](?:q|query|ll|center|destination)=(-?\d+(?:\.\d+)?)(?:,|%2C)\s*(-?\d+(?:\.\d+)?)/i.exec(t) || /^\(?\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*\)?$/.exec(t);
+  if (!m) return null;
+  var lat = Number(m[1]), lng = Number(m[2]);
+  return Math.abs(lat) <= 90 && Math.abs(lng) <= 180 ? { lat: Math.round(lat * 1e6) / 1e6, lng: Math.round(lng * 1e6) / 1e6 } : null;
+}
 /** 전공 지망 형식 한 칸: 이름 + 개수 */
 function choiceRow(c) {
   return '<div class="chrow"><input type="text" data-ch="label" value="' + esc(c.label) + '" placeholder="칸 이름 (예: 1지망, 2·3지망)" maxlength="30">' +
@@ -4733,6 +4828,11 @@ function field(f, rec) {
     var cyc = findRow('unicycles', rec.cycleId), trs = cyc ? cycleTracks(cyc) : [];
     if (!trs.length) return hidden('track', rec.track || '');
     h = '<select name="track">' + opts([''].concat(trs, rec.track && trs.indexOf(rec.track) < 0 ? [rec.track] : []), rec.track || '').replace('>—</option>', '>(전형 미지정)</option>') + '</select>';
+  }
+  else if (f.t === 'campuses') {
+    h = '<div id="cps">' + parseReqs(v).map(campusRow).join('') + '</div>' +
+      '<button type="button" class="btn ghost sm" onclick="document.getElementById(\'cps\').insertAdjacentHTML(\'beforeend\', campusRow({name:\'\'}))">+ 캠퍼스 추가</button>' +
+      '<div class="muted" style="font-size:.78rem;margin-top:4px">위치 칸에 구글 지도 링크(주소창의 긴 링크)를 붙여넣거나, 구글 지도에서 그 자리를 오른쪽 클릭하면 나오는 “위도, 경도” 숫자를 붙여넣으세요. “대략 위치”는 Compass가 처음 넣은 값입니다.</div>';
   }
   else if (f.t === 'choices') {
     var chs = parseReqs(v);
@@ -5057,6 +5157,20 @@ function submitForm(key) {
   if (table === 'apps' && !o.universityId && !(o.id && o.university)) return toast('대학을 목록에서 선택하세요.', true);
   if (table === 'payments' && !(amt(o.amount) > 0)) return toast('입금액을 숫자로 입력하세요.', true);
   if (table === 'apps' && $('f-choices')) o.majorChoices = JSON.stringify(readAppChoices().filter(function (c) { return c.major; }));
+  if (key === 'universities' && $('cps')) {
+    var cps = [], bad = '';
+    Array.prototype.forEach.call(document.querySelectorAll('#cps .cprow'), function (row) {
+      var nm = row.querySelector('[data-cp=name]').value.trim(), pi = row.querySelector('[data-cp=pos]'), raw = pi.value.trim();
+      if (!nm && !raw) return;
+      var ll = parseLatLng(raw);
+      if (!ll) { bad = bad || (nm || '캠퍼스'); return; }
+      var c = { name: nm || '캠퍼스', lat: ll.lat, lng: ll.lng };
+      if (pi.getAttribute('data-approx') && raw === pi.getAttribute('data-orig')) c.approx = true;
+      cps.push(c);
+    });
+    if (bad) return toast('“' + bad + '” 위치를 읽지 못했습니다. 구글 지도 주소창의 긴 링크(…/@위도,경도…)나 “37.46, 126.95”처럼 숫자를 넣어주세요. (maps.app.goo.gl 짧은 링크는 읽을 수 없습니다)', true);
+    o.campuses = JSON.stringify(cps);
+  }
   if (key === 'unicycles' && $('chs')) {
     o.choices = JSON.stringify(Array.prototype.map.call(document.querySelectorAll('#chs .chrow'), function (row) {
       return { label: row.querySelector('[data-ch=label]').value.trim(), n: Number(row.querySelector('[data-ch=n]').value) };

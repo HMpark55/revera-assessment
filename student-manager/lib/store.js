@@ -183,7 +183,7 @@ const CHILD_TABLES = Object.keys(TABLES).filter((t) => t !== 'students');
 /** 대학 정보 (학생과 무관한 공용 자료) */
 const CATALOG = {
   universities: {
-    label: '대학', fields: ['country', 'name', 'fullName', 'aliases', 'website', 'portalUrl', 'tips', 'sortOrder'],
+    label: '대학', fields: ['country', 'name', 'fullName', 'aliases', 'website', 'portalUrl', 'tips', 'sortOrder', 'campuses'], // campuses: 대학 지도용 [{name, lat, lng, approx}]
     summary: (r) => r.name,
   },
   unicycles: {
@@ -691,6 +691,67 @@ function migrate(db) {
         }
       }
       db.prepare("INSERT INTO meta VALUES ('v27_hku_2027', ?)").run(ts);
+    })();
+  }
+  // v28: 캐나다 3개 대학(2026-10-26 조사) — McGill·UBC 주요 정보(빈 연도에만), McGill·UBC·토론토대 전공(지원 단위) 목록.
+  // v24·v25와 같은 규칙: 선생님이 넣은 주요 정보는 그대로, 같은 이름 전공은 빈 칸만 채움
+  if (!db.prepare("SELECT 1 FROM meta WHERE key = 'v28_canada'").get() && db.prepare('SELECT 1 FROM universities LIMIT 1').get()) {
+    const RESEARCH = require('./uni-research-canada');
+    const MAJORS = require('./uni-majors-canada.json');
+    const ts = now();
+    const unis = db.prepare("SELECT id, name, aliases FROM universities WHERE deletedAt = ''").all();
+    const findUni = (n) => unis.find((x) => x.name === n || String(x.aliases || '').split(',').map((a) => a.trim()).includes(n));
+    db.transaction(() => {
+      for (const r of RESEARCH) {
+        const u = findUni(r.name);
+        if (!u) continue;
+        const cys = db.prepare("SELECT * FROM unicycles WHERE universityId = ? AND year = ? AND deletedAt = ''").all(u.id, r.year);
+        const cy = cys.find((c) => c.term === r.term) || (cys.length === 1 ? cys[0] : null);
+        if (!cy) continue;
+        const set = {};
+        let reqs; try { reqs = JSON.parse(cy.requirements || '[]'); } catch (e) { reqs = null; }
+        if (Array.isArray(reqs) && !reqs.length) {
+          set.requirements = JSON.stringify(r.requirements);
+          set.memo = [cy.memo, RESEARCH.MEMO].filter(Boolean).join('\n');
+        }
+        if (!cy.sourceUrl && r.sourceUrl) set.sourceUrl = r.sourceUrl;
+        if (r.choices && !(cy.choices && cy.choices !== '[]')) set.choices = JSON.stringify(r.choices);
+        const keys = Object.keys(set);
+        if (keys.length) db.prepare(`UPDATE unicycles SET ${keys.map((k) => k + ' = @' + k).join(', ')}, updatedAt = @t, updatedBy = 'system' WHERE id = @id`).run(Object.assign(set, { t: ts, id: cy.id }));
+      }
+      const key = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      for (const [uniName, majors] of Object.entries(MAJORS)) {
+        const u = findUni(uniName);
+        if (!u) continue;
+        const have = {};
+        db.prepare("SELECT * FROM unimajors WHERE universityId = ? AND deletedAt = ''").all(u.id).forEach((m) => { have[key(m.name)] = m; });
+        for (const m of majors) {
+          const cur = have[key(m.name)];
+          if (cur) {
+            const set = ['faculty', 'code', 'sourceUrl', 'detail'].filter((k) => !cur[k] && m[k]);
+            if (set.length) db.prepare(`UPDATE unimajors SET ${set.map((k) => k + ' = @' + k).join(', ')} WHERE id = @id`).run(Object.assign({ id: cur.id }, ...set.map((k) => ({ [k]: m[k] }))));
+            continue;
+          }
+          db.prepare("INSERT INTO unimajors (id, universityId, name, faculty, code, detail, sourceUrl, createdAt, createdBy, updatedAt, updatedBy) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'system', ?, 'system')")
+            .run(crypto.randomUUID(), u.id, m.name, m.faculty || '', m.code || '', m.detail || '', m.sourceUrl || '', ts, ts);
+          have[key(m.name)] = m;
+        }
+      }
+      db.prepare("INSERT INTO meta VALUES ('v28_canada', ?)").run(ts);
+    })();
+  }
+  // v29: 대학 지도 — 캠퍼스 위치가 비어 있는 대학에 대략 위치를 넣음(approx 표시, 대학 정보 수정에서 고침)
+  if (!db.prepare("SELECT 1 FROM meta WHERE key = 'v29_campuses'").get() && db.prepare('SELECT 1 FROM universities LIMIT 1').get()) {
+    const POS = require('./campus-positions.json');
+    const ts = now();
+    db.transaction(() => {
+      for (const u of db.prepare("SELECT id, name, aliases, campuses FROM universities WHERE deletedAt = ''").all()) {
+        if (u.campuses && u.campuses !== '[]') continue;
+        const names = [u.name].concat(String(u.aliases || '').split(',').map((a) => a.trim())).filter(Boolean);
+        const hit = names.map((n) => POS[n]).find(Boolean);
+        if (hit) db.prepare('UPDATE universities SET campuses = ? WHERE id = ?').run(JSON.stringify(hit.map((c) => Object.assign({}, c, { approx: true }))), u.id);
+      }
+      db.prepare("INSERT INTO meta VALUES ('v29_campuses', ?)").run(ts);
     })();
   }
   // v9: 메인 화면 공용 달력 (SAT 시험일 등 모두가 함께 보는 일정)
@@ -1219,6 +1280,12 @@ function openStore(dbPath, opts) {
       checkUrl(v('website'), '홈페이지'); checkUrl(v('portalUrl'), '원서 접수(포털) 주소');
       const dup = db.prepare("SELECT id FROM universities WHERE name = ? AND deletedAt = ''").get(v('name'));
       if (dup && (!cur || dup.id !== cur.id)) throw new UserError('같은 이름의 대학이 이미 있습니다.');
+      let cps;
+      try { cps = JSON.parse(v('campuses') || '[]'); } catch (e) { cps = null; }
+      const num = (x, m) => typeof x === 'number' && Number.isFinite(x) && Math.abs(x) <= m;
+      if (!Array.isArray(cps) || cps.length > 10 || cps.some((c) => !c || typeof c.name !== 'string' || c.name.length > 60 || !num(c.lat, 90) || !num(c.lng, 180))) {
+        throw new UserError('캠퍼스 위치 형식이 올바르지 않습니다. (위도 -90~90, 경도 -180~180, 최대 10곳)');
+      }
     }
     if (table === 'unicycles') {
       if (!/^\d{4}$/.test(v('year'))) throw new UserError('입학 연도를 4자리 숫자로 입력하세요. (예: 2027)');

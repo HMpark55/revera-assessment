@@ -461,6 +461,53 @@ test('v27: HKU 전공 메모 2027 기준 — 선생님이 고친 메모는 그�
   st.close();
 });
 
+test('v28: 캐나다 3개 대학 주요 정보·전공 — 빈 연도에만, 같은 이름 전공은 건너뜀', () => {
+  const p = path.join(dir, 'canada.db');
+  let st = openStore(p);
+  st.upsertAdmin('boss@revera.test', '원장', 'boss-pass-1');
+  st.close();
+  const Database = require('better-sqlite3');
+  let raw = new Database(p);
+  const uid = (n) => raw.prepare('SELECT id FROM universities WHERE name = ?').get(n).id;
+  raw.prepare("UPDATE unicycles SET requirements = '[]', choices = '' WHERE universityId = ?").run(uid('UBC'));
+  raw.prepare("UPDATE unicycles SET requirements = ? WHERE universityId = ?").run(JSON.stringify([{ item: '선생님 메모', content: '그대로' }]), uid('McGill'));
+  raw.close();
+  st = openStore(p);
+  const me = { email: 'boss@revera.test', name: '원장', role: 'admin' };
+  const d = st.rpc.getAll(me);
+  const u = (n) => d.universities.find((x) => x.name === n).id;
+  const ubc = d.unicycles.find((c) => c.universityId === u('UBC') && c.year === '2027');
+  assert.ok(JSON.parse(ubc.requirements).some((r) => r.item === '전형료' && /173\.25/.test(r.content)));
+  assert.strictEqual(JSON.parse(ubc.choices).length, 2);
+  const mc = d.unicycles.find((c) => c.universityId === u('McGill') && c.year === '2027');
+  assert.deepStrictEqual(JSON.parse(mc.requirements), [{ item: '선생님 메모', content: '그대로' }]);
+  const L = require('../lib/uni-majors-canada.json');
+  for (const n of ['McGill', 'UBC', 'University of Toronto']) {
+    const names = new Set(d.unimajors.filter((m) => m.universityId === u(n)).map((m) => m.name));
+    assert.ok(L[n].every((m) => names.has(m.name)), n);
+  }
+  assert.ok(d.unimajors.some((m) => m.code === 'OUAC 코드 TPG' || /TPG/.test(m.detail)));
+  st.close();
+});
+
+test('v29: 대학 지도 캠퍼스 위치 — 기본 대략 위치, 형식 검사', () => {
+  const p = path.join(dir, 'campus.db');
+  let st = openStore(p);
+  st.upsertAdmin('boss@revera.test', '원장', 'boss-pass-1');
+  st.close();
+  st = openStore(p); // 대학 초기 자료 다음 실행에 v29
+  const me = { email: 'boss@revera.test', name: '원장', role: 'admin' };
+  let d = st.rpc.getAll(me);
+  const ut = d.universities.find((u) => u.name === 'University of Toronto');
+  const cps = JSON.parse(ut.campuses);
+  assert.strictEqual(cps.length, 3);
+  assert.ok(cps.every((c) => c.approx && Math.abs(c.lat - 43.7) < 0.3));
+  assert.throws(() => st.rpc.save(me, { table: 'universities', obj: { id: ut.id, updatedAt: ut.updatedAt, campuses: JSON.stringify([{ name: 'X', lat: 123, lng: 0 }]) } }), /캠퍼스 위치/);
+  d = st.rpc.save(me, { table: 'universities', obj: { id: ut.id, updatedAt: ut.updatedAt, campuses: JSON.stringify([{ name: 'St. George', lat: 43.6629, lng: -79.3957 }]) } });
+  assert.strictEqual(JSON.parse(d.universities.find((u) => u.id === ut.id).campuses).length, 1);
+  st.close();
+});
+
 test('매출: 계약 금액·분할 입금·통화, 컨설턴트에게는 숨김', async () => {
   const admin = client();
   await admin.login('admin@revera.test', 'admin-pass-1');
