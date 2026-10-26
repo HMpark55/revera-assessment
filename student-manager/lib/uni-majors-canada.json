@@ -1,0 +1,1765 @@
+{
+ "McGill": [
+  {
+   "name": "Kindergarten and Elementary Education (Jewish Studies)",
+   "faculty": "Faculty of Education",
+   "code": "",
+   "detail": "과정: Professional Program · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/kindergarten-and-elementary-education-jewish-studies"
+  },
+  {
+   "name": "Kindergarten and Elementary Education (Pédagogie de l’immersion française)",
+   "faculty": "Faculty of Education",
+   "code": "",
+   "detail": "과정: Professional Program · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/kindergarten-and-elementary-education-pedagogie-de-limmersion-francaise"
+  },
+  {
+   "name": "Secondary Education: Mathematics",
+   "faculty": "Faculty of Education",
+   "code": "",
+   "detail": "과정: Professional Program · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/secondary-education-mathematics"
+  },
+  {
+   "name": "Teaching English as a Second Language (TESL) - Greek Language and Culture",
+   "faculty": "Faculty of Education",
+   "code": "",
+   "detail": "과정: Professional Program · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/teaching-english-second-language-tesl-greek-language-and-culture"
+  },
+  {
+   "name": "Secondary Education: English",
+   "faculty": "Faculty of Education",
+   "code": "",
+   "detail": "과정: Professional Program · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/secondary-education-english"
+  },
+  {
+   "name": "Kinesiology",
+   "faculty": "Faculty of Education",
+   "code": "",
+   "detail": "과정: Major, Honours · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/kinesiology"
+  },
+  {
+   "name": "Kindergarten and Elementary Education (First Nations and Inuit Studies)",
+   "faculty": "Faculty of Education",
+   "code": "",
+   "detail": "과정: Professional Program · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/kindergarten-and-elementary-education-first-nations-and-inuit-studies"
+  },
+  {
+   "name": "Secondary Education: Social Sciences",
+   "faculty": "Faculty of Education",
+   "code": "",
+   "detail": "과정: Professional Program · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/secondary-education-social-sciences"
+  },
+  {
+   "name": "Teaching English as a Second Language (TESL)",
+   "faculty": "Faculty of Education",
+   "code": "",
+   "detail": "과정: Professional Program · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/teaching-english-second-language-tesl"
+  },
+  {
+   "name": "Kinesiology (Minor for Science students)",
+   "faculty": "",
+   "code": "",
+   "detail": "과정: Major, Honours · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/kinesiology-minor-science-students-0"
+  },
+  {
+   "name": "Civil Engineering",
+   "faculty": "Faculty of Engineering",
+   "code": "",
+   "detail": "과정: Major · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/civil-engineering"
+  },
+  {
+   "name": "Software Engineering (Faculty of Arts)",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Major Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/software-engineering-faculty-arts"
+  },
+  {
+   "name": "Software Engineering (Bachelor of Arts and Science)",
+   "faculty": "Bachelor of Arts and Science",
+   "code": "",
+   "detail": "과정: Major Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/software-engineering-bachelor-arts-and-science"
+  },
+  {
+   "name": "Bioengineering",
+   "faculty": "Faculty of Engineering",
+   "code": "",
+   "detail": "과정: Major · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/bioengineering"
+  },
+  {
+   "name": "Electrical Engineering (Faculty of Engineering)",
+   "faculty": "Faculty of Engineering",
+   "code": "",
+   "detail": "과정: Major, Honours · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/electrical-engineering-faculty-engineering"
+  },
+  {
+   "name": "Mechanical Engineering",
+   "faculty": "Faculty of Engineering",
+   "code": "",
+   "detail": "과정: Major, Honours · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/mechanical-engineering"
+  },
+  {
+   "name": "Global Engineering",
+   "faculty": "Faculty of Engineering",
+   "code": "",
+   "detail": "과정: Major · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/global-engineering"
+  },
+  {
+   "name": "Computer Engineering",
+   "faculty": "Faculty of Engineering",
+   "code": "",
+   "detail": "과정: Major · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/computer-engineering"
+  },
+  {
+   "name": "Software Engineering (Faculty of Engineering)",
+   "faculty": "Faculty of Engineering",
+   "code": "",
+   "detail": "과정: Major, Minor · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/software-engineering-faculty-engineering"
+  },
+  {
+   "name": "Land Surface Processes and Environmental Change (Faculty of Science)",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Domain · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/land-surface-processes-and-environmental-change-faculty-science"
+  },
+  {
+   "name": "Water Environments and Ecosystems (Biological Stream) (Faculty of Science)",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Domain · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/water-environments-and-ecosystems-biological-stream-faculty-science"
+  },
+  {
+   "name": "Water Environments and Ecosystems (Physical Stream) (Faculty of Science)",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Domain · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/water-environments-and-ecosystems-physical-stream-faculty-science"
+  },
+  {
+   "name": "Food Production and Environment (Faculty of Science)",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Domain · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/food-production-and-environment-faculty-science"
+  },
+  {
+   "name": "Environmental Biology",
+   "faculty": "Faculty of Agricultural and Environmental Sciences",
+   "code": "",
+   "detail": "과정: Major · Macdonald Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/environmental-biology"
+  },
+  {
+   "name": "Economics and the Earth’s Environment",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Domain · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/economics-and-earths-environment"
+  },
+  {
+   "name": "Environmetrics (Faculty of Science)",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Domain · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/environmetrics-faculty-science"
+  },
+  {
+   "name": "Earth System Science",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Major, Honours, Minor · Downtown (Montreal) Campus · 지원 그룹: Physical, Earth, Math & Computer Sciences",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/earth-system-science"
+  },
+  {
+   "name": "Food Science",
+   "faculty": "Faculty of Agricultural and Environmental Sciences",
+   "code": "",
+   "detail": "과정: Major, Honours · Macdonald Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/food-science"
+  },
+  {
+   "name": "Food Production and Environment (Faculty of Agricultural and Environmental Sciences)",
+   "faculty": "Faculty of Agricultural and Environmental Sciences",
+   "code": "",
+   "detail": "과정: Domain · Macdonald Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/food-production-and-environment"
+  },
+  {
+   "name": "Atmospheric Science",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Major, Honours, Liberal Program, Minor · Downtown (Montreal) Campus · 지원 그룹: Physical, Earth, Math & Computer Sciences",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/atmospheric-science"
+  },
+  {
+   "name": "Applied Ecology",
+   "faculty": "Faculty of Agricultural and Environmental Sciences",
+   "code": "",
+   "detail": "과정: Minor, Specialization · Macdonald Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/applied-ecology"
+  },
+  {
+   "name": "Biodiversity and Conservation (Faculty of Agricultural and Environmental Sciences)",
+   "faculty": "Faculty of Agricultural and Environmental Sciences",
+   "code": "",
+   "detail": "과정: Domain · Macdonald Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/biodiversity-and-conservation"
+  },
+  {
+   "name": "Sustainable Agricultural Systems",
+   "faculty": "Faculty of Agricultural and Environmental Sciences",
+   "code": "",
+   "detail": "과정: Major · Macdonald Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/sustainable-agricultural-systems"
+  },
+  {
+   "name": "Agricultural Economics",
+   "faculty": "Faculty of Agricultural and Environmental Sciences",
+   "code": "",
+   "detail": "과정: Major, Minor · Macdonald Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/agricultural-economics"
+  },
+  {
+   "name": "Water Environments and Ecosystems (Biological Stream) (Faculty of Agricultural and Environmental Sciences)",
+   "faculty": "Faculty of Agricultural and Environmental Sciences",
+   "code": "",
+   "detail": "과정: Domain · Macdonald Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/water-environments-and-ecosystems-biological-stream"
+  },
+  {
+   "name": "Atmospheric Science and Physics",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Joint Majors · Downtown (Montreal) Campus · 지원 그룹: Physical, Earth, Math and Computer Sciences",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/atmospheric-science-and-physics"
+  },
+  {
+   "name": "Ecological Determinants of Health (Cellular) (Faculty of Science)",
+   "faculty": "Faculty of Agricultural and Environmental Sciences",
+   "code": "",
+   "detail": "과정: Domain · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/ecological-determinants-health-cellular-faculty-science"
+  },
+  {
+   "name": "Geology",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Major, Honours, Minor · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/geology"
+  },
+  {
+   "name": "Earth and Planetary Sciences",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Liberal Program · Downtown (Montreal) Campus · 지원 그룹: Physical, Earth, Math & Computer Sciences",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/earth-and-planetary-sciences"
+  },
+  {
+   "name": "Water Environments and Ecosystems (Physical Stream) (Faculty of Agricultural and Environmental Sciences)",
+   "faculty": "Faculty of Agricultural and Environmental Sciences",
+   "code": "",
+   "detail": "과정: Domain · Macdonald Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/water-environments-and-ecosystems-physical-stream"
+  },
+  {
+   "name": "Ecological Determinants of Health (Population) (Faculty of Science)",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Domain · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/ecological-determinants-health-population-faculty-science"
+  },
+  {
+   "name": "Environment and Development",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Domain · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/environment-and-development"
+  },
+  {
+   "name": "Physics and Geophysics",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Joint Majors · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/physics-and-geophysics"
+  },
+  {
+   "name": "Environment (Faculty of Arts)",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Honours, Joint Honours, Faculty Program, Minor Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/environment-faculty-arts"
+  },
+  {
+   "name": "Planetary Sciences",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Honours · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/planetary-sciences"
+  },
+  {
+   "name": "Environment (Bachelor of Arts and Science)",
+   "faculty": "Bachelor of Arts and Science",
+   "code": "",
+   "detail": "과정: Interfaculty Program · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/environment-bachelor-arts-and-science"
+  },
+  {
+   "name": "Biology and Mathematics",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Major · Downtown (Montreal) Campus · 지원 그룹: Bio-Physical-Computational Sciences",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/biology-and-mathematics"
+  },
+  {
+   "name": "Ecological Determinants of Health (Population) (Faculty of Agricultural and Environmental Sciences)",
+   "faculty": "Faculty of Agricultural and Environmental Sciences",
+   "code": "",
+   "detail": "과정: Domain · Macdonald Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/ecological-determinants-health-population"
+  },
+  {
+   "name": "Biology",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Major, Honours, Liberal Program, Minor · Downtown (Montreal) Campus · 지원 그룹: Biological, Biomedical & Life Sciences",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/biology"
+  },
+  {
+   "name": "Faculty Program in Population and Global Health",
+   "faculty": "Bachelor of Arts in Population and Global Health",
+   "code": "",
+   "detail": "과정: Major · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/faculty-program-population-and-global-health"
+  },
+  {
+   "name": "Atmospheric Environment and Air Quality",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Domain · Downtown (Montreal) Campus · 지원 그룹: Physical, Earth, Math & Computer Sciences",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/atmospheric-environment-and-air-quality"
+  },
+  {
+   "name": "Environmetrics (Faculty of Agricultural and Environmental Sciences)",
+   "faculty": "Faculty of Agricultural and Environmental Sciences",
+   "code": "",
+   "detail": "과정: Domain · Macdonald Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/environmetrics"
+  },
+  {
+   "name": "Land Surface Processes and Environmental Change (Faculty of Agricultural and Environmental Sciences)",
+   "faculty": "Faculty of Agricultural and Environmental Sciences",
+   "code": "",
+   "detail": "과정: Domain · Macdonald Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/land-surface-processes-and-environmental-change"
+  },
+  {
+   "name": "Ecological Determinants of Health (Cellular) (Faculty of Agricultural and Environmental Sciences)",
+   "faculty": "Faculty of Agricultural and Environmental Sciences",
+   "code": "",
+   "detail": "과정: Domain · Macdonald Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/ecological-determinants-health-cellular"
+  },
+  {
+   "name": "Geography (Faculty of Science)",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Major, Honours, Minor · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/geography-faculty-science"
+  },
+  {
+   "name": "Biodiversity and Conservation (Faculty of Science)",
+   "faculty": "Faculty of Agricultural and Environmental Sciences",
+   "code": "",
+   "detail": "과정: Domain · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/biodiversity-and-conservation-faculty-science"
+  },
+  {
+   "name": "Agribusiness",
+   "faculty": "Faculty of Agricultural and Environmental Sciences",
+   "code": "",
+   "detail": "과정: Specialization · Macdonald Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/agribusiness"
+  },
+  {
+   "name": "Wildlife Biology",
+   "faculty": "Faculty of Agricultural and Environmental Sciences",
+   "code": "",
+   "detail": "과정: Specialization · Macdonald Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/wildlife-biology"
+  },
+  {
+   "name": "Environment (Faculty of Agricultural and Environmental Sciences)",
+   "faculty": "Faculty of Agricultural and Environmental Sciences",
+   "code": "",
+   "detail": "과정: Major · Macdonald Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/environment-faculty-agricultural-and-environmental-sciences"
+  },
+  {
+   "name": "Food Science & Nutritional Science",
+   "faculty": "School of Human Nutrition",
+   "code": "",
+   "detail": "과정: Major, Honours · Macdonald Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/food-science-nutritional-science"
+  },
+  {
+   "name": "Nursing (Integrated)",
+   "faculty": "Ingram School of Nursing",
+   "code": "",
+   "detail": "과정: Downtown (Montreal) Campus · The Ingram School of Nursing at McGill University offers the Bachelor of Nursing (Integrated) (BNI) Program for students with a Quebec diploma in nursing.  Students enter this 2-year, 5-semester, 65-credit program (3 year...",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/nursing-integrated"
+  },
+  {
+   "name": "Livestock",
+   "faculty": "Faculty of Agricultural and Environmental Sciences",
+   "code": "",
+   "detail": "과정: Specialization · Macdonald Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/livestock"
+  },
+  {
+   "name": "Nutrition",
+   "faculty": "School of Human Nutrition",
+   "code": "",
+   "detail": "과정: Major · Macdonald Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/nutrition"
+  },
+  {
+   "name": "Dietetics",
+   "faculty": "School of Human Nutrition",
+   "code": "",
+   "detail": "과정: Major · Macdonald Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/dietetics"
+  },
+  {
+   "name": "Microbiology and Immunology",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Major, Honours, Liberal Program · Downtown (Montreal) Campus · 지원 그룹: Biological, Biomedical & Life Sciences",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/microbiology-and-immunology"
+  },
+  {
+   "name": "Animal Biology",
+   "faculty": "Faculty of Agricultural and Environmental Sciences",
+   "code": "",
+   "detail": "과정: Minor, Specialization · Macdonald Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/animal-biology"
+  },
+  {
+   "name": "Psychology (Bachelor of Arts and Science)",
+   "faculty": "Bachelor of Arts and Science",
+   "code": "",
+   "detail": "과정: Major Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/psychology-bachelor-arts-and-science"
+  },
+  {
+   "name": "Global Food Security",
+   "faculty": "Faculty of Agricultural and Environmental Sciences",
+   "code": "",
+   "detail": "과정: Specialization · Macdonald Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/global-food-security"
+  },
+  {
+   "name": "Neuroscience",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Major, Honours, Minor · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/neuroscience"
+  },
+  {
+   "name": "Nursing",
+   "faculty": "Ingram School of Nursing",
+   "code": "",
+   "detail": "과정: Downtown (Montreal) Campus · If your goal is to become a skilled and knowledgeable nurse practitioner or researcher, get the preparation you deserve at McGill University’s School of Nursing! The Ingram School of Nursing seeks to inspire and challenge its...",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/nursing"
+  },
+  {
+   "name": "Animal Production",
+   "faculty": "Faculty of Agricultural and Environmental Sciences",
+   "code": "",
+   "detail": "과정: Specialization · Macdonald Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/animal-production"
+  },
+  {
+   "name": "Computer Science and Biology",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Honours, Joint Majors · Downtown (Montreal) Campus · 지원 그룹: Bio-Physical-Computational Sciences",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/computer-science-and-biology"
+  },
+  {
+   "name": "Physiology",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Major, Honours, Minor · Downtown (Montreal) Campus · 지원 그룹: Biological, Biomedical & Life Sciences",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/physiology"
+  },
+  {
+   "name": "Medicine (Med-P)",
+   "faculty": "Faculty of Medicine and Health Sciences",
+   "code": "",
+   "detail": "과정: Downtown (Montreal) Campus · If you are passionate about science and medicine, and dream of becoming a doctor, then you are a perfect candidate for the McGill Faculty of Medicine and Health Sciences one-year Med-P Program. This one-year preparatory...",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/medicine-med-p"
+  },
+  {
+   "name": "Life Sciences (Biological & Agricultural)",
+   "faculty": "Faculty of Agricultural and Environmental Sciences",
+   "code": "",
+   "detail": "과정: Major · Macdonald Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/life-sciences-biological-agricultural"
+  },
+  {
+   "name": "Biochemistry",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Major, Honours, Liberal Program · Downtown (Montreal) Campus · 지원 그룹: Biological, Biomedical & Life Sciences",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/biochemistry"
+  },
+  {
+   "name": "Nursing (Integrated), online",
+   "faculty": "Ingram School of Nursing",
+   "code": "",
+   "detail": "과정: Downtown (Montreal) Campus · The Ingram School of Nursing at McGill University offers the Bachelor of Nursing (Integrated) (BNI) Program for students with a Quebec diploma in nursing.  Students enter this 2-year, 5-semester, 65-credit program (3-year...",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/nursing-integrated-online"
+  },
+  {
+   "name": "Professional Agrology",
+   "faculty": "Faculty of Agricultural and Environmental Sciences",
+   "code": "",
+   "detail": "과정: Specialization · Macdonald Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/professional-agrology"
+  },
+  {
+   "name": "Quantitative Biology",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Honours · Downtown (Montreal) Campus · 지원 그룹: Biological, Biomedical & Life Sciences",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/quantitative-biology"
+  },
+  {
+   "name": "Sustainability, Science & Society (Bachelor of Arts and Science)",
+   "faculty": "Bachelor of Arts and Science",
+   "code": "",
+   "detail": "과정: Honours, Interfaculty Program · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/sustainability-science-society-bachelor-arts-and-science"
+  },
+  {
+   "name": "Life Sciences (Multidisciplinary)",
+   "faculty": "Faculty of Agricultural and Environmental Sciences",
+   "code": "",
+   "detail": "과정: Specialization · Macdonald Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/life-sciences"
+  },
+  {
+   "name": "Plant Production",
+   "faculty": "Faculty of Agricultural and Environmental Sciences",
+   "code": "",
+   "detail": "과정: Specialization · Macdonald Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/plant-production"
+  },
+  {
+   "name": "Anatomy & Cell Biology",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Major, Honours, Liberal Program · Downtown (Montreal) Campus · 지원 그룹: Biological, Biomedical & Life Sciences",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/anatomy-cell-biology"
+  },
+  {
+   "name": "Physical and Health Education",
+   "faculty": "Faculty of Education",
+   "code": "",
+   "detail": "과정: Professional Program · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/physical-and-health-education"
+  },
+  {
+   "name": "Physiology and Physics",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Joint Majors · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/physiology-and-physics"
+  },
+  {
+   "name": "Physiology and Mathematics",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Joint Majors · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/physiology-and-mathematics"
+  },
+  {
+   "name": "Plant Biology",
+   "faculty": "Faculty of Agricultural and Environmental Sciences",
+   "code": "",
+   "detail": "과정: Specialization · Macdonald Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/plant-biology"
+  },
+  {
+   "name": "International Development Studies",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Major Concentration, Honours, Joint Honours, Minor Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/international-development-studies"
+  },
+  {
+   "name": "Ecological Determinants of Health in Society",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Domain · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/ecological-determinants-health-society"
+  },
+  {
+   "name": "Latin American and Caribbean Studies",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Major Concentration, Honours, Joint Honours, Minor Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/latin-american-and-caribbean-studies"
+  },
+  {
+   "name": "Religious Studies (Bachelor of Theology)",
+   "faculty": "",
+   "code": "",
+   "detail": "과정: Major · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/religious-studies"
+  },
+  {
+   "name": "Geography (Faculty of Arts)",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Major Concentration, Honours, Joint Honours, Minor Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/geography-faculty-arts"
+  },
+  {
+   "name": "Geography (Urban Studies)",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Major Concentration, Honours, Minor Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/geography-urban-studies"
+  },
+  {
+   "name": "English: Drama and Theatre",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Major Concentration, Honours, Joint Honours, Minor Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/english-drama-and-theatre"
+  },
+  {
+   "name": "East Asian Studies",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Major, Honours, Joint Honours · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/east-asian-studies"
+  },
+  {
+   "name": "Russian",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Major Concentration, Honours, Joint Honours, Minor Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/russian"
+  },
+  {
+   "name": "English: Cultural Studies",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Major Concentration, Honours, Joint Honours, Minor Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/english-cultural-studies"
+  },
+  {
+   "name": "World Islamic and Middle East Studies",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Major Concentration, Honours, Joint Honours, Minor Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/world-islamic-and-middle-east-studies"
+  },
+  {
+   "name": "Strategic Management – Social Business and Enterprise",
+   "faculty": "Desautels Faculty of Management",
+   "code": "",
+   "detail": "과정: Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/strategic-management-social-business-and-enterprise"
+  },
+  {
+   "name": "Social Work",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Professional Program · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/social-work"
+  },
+  {
+   "name": "Sociology",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Major Concentration, Honours, Joint Honours, Minor Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/sociology"
+  },
+  {
+   "name": "Industrial & Labour Relations (discontinued as of September 2023)",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Faculty Program · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/industrial-labour-relations"
+  },
+  {
+   "name": "German Studies",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Major Concentration, Honours, Joint Honours, Minor Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/german-studies"
+  },
+  {
+   "name": "History",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Major Concentration, Honours, Joint Honours, Minor Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/history"
+  },
+  {
+   "name": "Cognitive Science (Bachelor of Arts and Science)",
+   "faculty": "Bachelor of Arts and Science",
+   "code": "",
+   "detail": "과정: Interfaculty Program · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/cognitive-science"
+  },
+  {
+   "name": "International Management",
+   "faculty": "Desautels Faculty of Management",
+   "code": "",
+   "detail": "과정: Major · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/international-management"
+  },
+  {
+   "name": "Langue & littérature françaises: Études et pratiques littéraires (Spécialisation enrichie)",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Specialization · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/langue-litterature-francaises-etudes-et-pratiques-litteraires-specialisation-enrichie"
+  },
+  {
+   "name": "Managing for Sustainability",
+   "faculty": "Desautels Faculty of Management",
+   "code": "",
+   "detail": "과정: Major, Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/managing-sustainability"
+  },
+  {
+   "name": "Classical Studies",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Major Concentration, Honours, Joint Honours, Minor Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/classical-studies"
+  },
+  {
+   "name": "Italian Studies",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Major Concentration, Honours, Joint Honours, Minor Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/italian-studies"
+  },
+  {
+   "name": "Psychology (Faculty of Arts)",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Major Concentration, Honours, Joint Honours, Minor Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/psychology-faculty-arts"
+  },
+  {
+   "name": "Political Science",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Major Concentration, Honours, Joint Honours, Minor Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/political-science"
+  },
+  {
+   "name": "Hispanic Studies",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Major Concentration, Honours, Joint Honours, Minor Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/hispanic-studies"
+  },
+  {
+   "name": "Gender, Sexuality, Feminist and Social Justice Studies",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Major Concentration, Honours, Joint Honours, Minor Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/gender-sexuality-feminist-and-social-justice-studies"
+  },
+  {
+   "name": "Psychology (Faculty of Science)",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Major, Honours, Liberal Program, Minor · Downtown (Montreal) Campus · 지원 그룹: Biological, Biomedical & Life Sciences",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/psychology-faculty-science"
+  },
+  {
+   "name": "English: Literature",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Major Concentration, Honours, Joint Honours, Minor Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/english-literature"
+  },
+  {
+   "name": "Philosophy",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Major Concentration, Honours, Joint Honours, Minor Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/philosophy"
+  },
+  {
+   "name": "Anthropology",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Major Concentration, Honours, Joint Honours, Minor Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/anthropology"
+  },
+  {
+   "name": "Strategic Management – Global Strategy",
+   "faculty": "Desautels Faculty of Management",
+   "code": "",
+   "detail": "과정: Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/strategic-management-global-strategy"
+  },
+  {
+   "name": "Langue et littérature françaises: Langue française",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Major Concentration, Minor Concentration, Specialization · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/langue-et-litterature-francaises-langue-francaise"
+  },
+  {
+   "name": "Langue et littérature françaises: Traduction",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Major Concentration, Minor Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/langue-et-litterature-francaises-traduction"
+  },
+  {
+   "name": "Langue et littérature françaises: Études et pratiques littéraires",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Major Concentration, Minor Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/langue-et-litterature-francaises-etudes-et-pratiques-litteraires"
+  },
+  {
+   "name": "African Studies",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Major Concentration, Joint Honours, Minor Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/african-studies"
+  },
+  {
+   "name": "East Asian Studies: Language (Supplementary)",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Supplementary Minor · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/east-asian-studies-language-supplementary"
+  },
+  {
+   "name": "Mathematics (Desautels Faculty of Management)",
+   "faculty": "Desautels Faculty of Management",
+   "code": "",
+   "detail": "과정: Major Concentration, Minor · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/mathematics-desautels-faculty-management"
+  },
+  {
+   "name": "Applied Mathematics (Faculty of Science)",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Honours · Downtown (Montreal) Campus · 지원 그룹: Physical, Earth, Math & Computer Sciences",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/applied-mathematics-faculty-science"
+  },
+  {
+   "name": "Statistics (Desautels Faculty of Management)",
+   "faculty": "Desautels Faculty of Management",
+   "code": "",
+   "detail": "과정: Major, Minor · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/statistics-desautels-faculty-management"
+  },
+  {
+   "name": "Software Engineering (Faculty of Science)",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Major, Honours, Liberal Program · Downtown (Montreal) Campus · 지원 그룹: Physical, Earth, Math & Computer Sciences",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/software-engineering-faculty-science"
+  },
+  {
+   "name": "Applied Mathematics (Faculty of Arts)",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Honours · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/applied-mathematics-faculty-arts"
+  },
+  {
+   "name": "Architecture",
+   "faculty": "Faculty of Engineering",
+   "code": "",
+   "detail": "과정: Major · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/architecture"
+  },
+  {
+   "name": "Microbiology & Molecular Biotechnology",
+   "faculty": "Faculty of Agricultural and Environmental Sciences",
+   "code": "",
+   "detail": "과정: Specialization · Macdonald Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/microbiology-molecular-biotechnology"
+  },
+  {
+   "name": "Statistics (Faculty of Arts)",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Major, Minor, Minor Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/statistics-faculty-arts"
+  },
+  {
+   "name": "Information Technology Management Concentration",
+   "faculty": "Desautels Faculty of Management",
+   "code": "",
+   "detail": "과정: Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/itmconcentration"
+  },
+  {
+   "name": "Mathematics and Computer Science (Faculty of Science)",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Joint Honours, Joint Majors · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/mathematics-and-computer-science-faculty-science"
+  },
+  {
+   "name": "Mathematics and Computer Science (Faculty of Arts)",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Joint Honours · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/mathematics-and-computer-science-faculty-arts"
+  },
+  {
+   "name": "Physics (Bachelor of Arts and Science)",
+   "faculty": "Bachelor of Arts and Science",
+   "code": "",
+   "detail": "과정: Major Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/physics-bachelor-arts-and-science"
+  },
+  {
+   "name": "Mining Engineering",
+   "faculty": "Faculty of Engineering",
+   "code": "",
+   "detail": "과정: Major, Minor · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/mining-engineering"
+  },
+  {
+   "name": "Business Analytics",
+   "faculty": "Desautels Faculty of Management",
+   "code": "",
+   "detail": "과정: Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/business-analytics"
+  },
+  {
+   "name": "Physics (Faculty of Science)",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Major, Honours, Liberal Program · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/physics-faculty-science"
+  },
+  {
+   "name": "Mathematics (Faculty of Arts)",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Major Concentration, Honours, Joint Honours, Minor Concentration, Supplementary Minor · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/mathematics-faculty-arts"
+  },
+  {
+   "name": "Finance",
+   "faculty": "Desautels Faculty of Management",
+   "code": "",
+   "detail": "과정: Major, Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/finance"
+  },
+  {
+   "name": "Mathematics and Physics",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Honours · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/mathematics-and-physics"
+  },
+  {
+   "name": "Computer Science (Faculty of Science)",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Major, Honours, Liberal Program, Minor · Downtown (Montreal) Campus · 지원 그룹: Physical, Earth, Math & Computer Sciences",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/computer-science-faculty-science"
+  },
+  {
+   "name": "Geography - Physical Geography (Bachelor of Arts and Science)",
+   "faculty": "Bachelor of Arts and Science",
+   "code": "",
+   "detail": "과정: Major Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/geography-physical-geography-bachelor-arts-and-science"
+  },
+  {
+   "name": "Computer Science (Bachelor of Arts and Science)",
+   "faculty": "Bachelor of Arts and Science",
+   "code": "",
+   "detail": "과정: Major Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/computer-science-bachelor-arts-and-science"
+  },
+  {
+   "name": "Physics and Chemistry",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Joint Honours · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/physics-and-chemistry"
+  },
+  {
+   "name": "Immunology (Interdepartmental)",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Honours · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/immunology-interdepartmental"
+  },
+  {
+   "name": "Bioresource Engineering (Faculty of Agricultural and Environmental Sciences)",
+   "faculty": "Faculty of Agricultural and Environmental Sciences",
+   "code": "",
+   "detail": "과정: Major, Honours · Macdonald Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/bioresource-engineering-faculty-agricultural-and-environmental-sciences"
+  },
+  {
+   "name": "Chemical Engineering (Faculty of Engineering)",
+   "faculty": "Faculty of Engineering",
+   "code": "",
+   "detail": "과정: Major · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/chemical-engineering-faculty-engineering"
+  },
+  {
+   "name": "Animal Health and Disease",
+   "faculty": "Faculty of Agricultural and Environmental Sciences",
+   "code": "",
+   "detail": "과정: Specialization · Macdonald Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/animal-health-and-disease"
+  },
+  {
+   "name": "Environment (Faculty of Science)",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Major, Honours, Minor · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/environment-faculty-science"
+  },
+  {
+   "name": "Chemistry (Faculty of Science)",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Major, Honours, Liberal Program, Minor · Downtown (Montreal) Campus · 지원 그룹: Physical, Earth, Math & Computer Sciences",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/chemistry-faculty-science"
+  },
+  {
+   "name": "Secondary Education: Science and Technology",
+   "faculty": "Faculty of Education",
+   "code": "",
+   "detail": "과정: Professional Program · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/secondary-education-science-and-technology"
+  },
+  {
+   "name": "Labour-Management Relations and Human Resources",
+   "faculty": "Desautels Faculty of Management",
+   "code": "",
+   "detail": "과정: Major, Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/labour-management-relations-and-human-resources"
+  },
+  {
+   "name": "Canadian Studies",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Major Concentration, Minor Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/canadian-studies"
+  },
+  {
+   "name": "Religious Studies: World Religions",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Major Concentration, Minor Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/religious-studies-world-religions"
+  },
+  {
+   "name": "Economics (Faculty of Arts)",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Major Concentration, Honours, Joint Honours, Minor Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/economics-faculty-arts"
+  },
+  {
+   "name": "Music Performance: Organ, Guitar",
+   "faculty": "Schulich School of Music",
+   "code": "",
+   "detail": "과정: Major · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/music-performance-organ-guitar"
+  },
+  {
+   "name": "Music Performance: Early Music (Voice)",
+   "faculty": "Schulich School of Music",
+   "code": "",
+   "detail": "과정: Major, Minor · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/music-performance-early-music-voice"
+  },
+  {
+   "name": "Music History",
+   "faculty": "Schulich School of Music",
+   "code": "",
+   "detail": "과정: Major, Minor · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/music-history"
+  },
+  {
+   "name": "Music Performance: Jazz",
+   "faculty": "Schulich School of Music",
+   "code": "",
+   "detail": "과정: Major · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/music-performance-jazz"
+  },
+  {
+   "name": "Music (Bachelor of Arts)",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Major Concentration, Minor Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/music"
+  },
+  {
+   "name": "Music Performance: Early Music (Instruments)",
+   "faculty": "Schulich School of Music",
+   "code": "",
+   "detail": "과정: Major, Minor · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/music-performance-early-music-instruments"
+  },
+  {
+   "name": "Faculty Program in Music",
+   "faculty": "Schulich School of Music",
+   "code": "",
+   "detail": "과정: Major · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/faculty-program-music"
+  },
+  {
+   "name": "Music Composition",
+   "faculty": "Schulich School of Music",
+   "code": "",
+   "detail": "과정: Major, Minor · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/music-composition"
+  },
+  {
+   "name": "Music Performance: Piano",
+   "faculty": "Schulich School of Music",
+   "code": "",
+   "detail": "과정: Major · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/music-performance-piano"
+  },
+  {
+   "name": "Music Performance: Orchestral Instruments",
+   "faculty": "Schulich School of Music",
+   "code": "",
+   "detail": "과정: Major · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/music-performance-orchestral-instruments"
+  },
+  {
+   "name": "Licentiate in Music (L. Mus.)",
+   "faculty": "Schulich School of Music",
+   "code": "",
+   "detail": "과정: Licentiate · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/licentiate-music-l-mus"
+  },
+  {
+   "name": "Faculty Program in Music: Jazz",
+   "faculty": "Schulich School of Music",
+   "code": "",
+   "detail": "과정: Major · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/faculty-program-music-jazz"
+  },
+  {
+   "name": "Music Theory",
+   "faculty": "Schulich School of Music",
+   "code": "",
+   "detail": "과정: Major, Minor · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/music-theory"
+  }
+ ],
+ "UBC": [
+  {
+   "name": "Bachelor of Arts (Okanagan)",
+   "faculty": "Okanagan — Arts, Social Sciences, and Humanities",
+   "code": "",
+   "detail": "추가 요건: 개인 프로필(고교 지원자 공통)",
+   "sourceUrl": "https://you.ubc.ca/programs/#mode=by-topic&viewMode=list&filters[search]=Bachelor%20of%20Arts&filters[campus][]=10"
+  },
+  {
+   "name": "Bachelor of Arts (Vancouver)",
+   "faculty": "Vancouver — Arts, Social Sciences, and Humanities",
+   "code": "",
+   "detail": "추가 요건: 개인 프로필(고교 지원자 공통)",
+   "sourceUrl": "https://www.arts.ubc.ca/programs/program-options/"
+  },
+  {
+   "name": "Bachelor of Design in Architecture, Landscape Architecture, and Urbanism (Vancouver)",
+   "faculty": "Vancouver — Arts, Social Sciences, and Humanities",
+   "code": "",
+   "detail": "추가 요건: 보충 지원서 (개인 프로필 없음)",
+   "sourceUrl": "https://sala.ubc.ca/program/bachelor-of-design-in-architecture-landscape-architecture-and-urbanism/#why-study-design-here"
+  },
+  {
+   "name": "Bachelor of Fine Arts (Okanagan)",
+   "faculty": "Okanagan — Arts, Social Sciences, and Humanities",
+   "code": "",
+   "detail": "추가 요건: 포트폴리오 등",
+   "sourceUrl": "https://blogs.ubc.ca/fccsartwork/"
+  },
+  {
+   "name": "Bachelor of Fine Arts (Vancouver)",
+   "faculty": "Vancouver — Arts, Social Sciences, and Humanities",
+   "code": "",
+   "detail": "추가 요건: 전공별 보충 자료(Acting·Creative Writing·Film Production·Theatre Design·Visual Arts)",
+   "sourceUrl": "https://www.arts.ubc.ca/programs/program-options/"
+  },
+  {
+   "name": "Bachelor of Media Studies (Okanagan)",
+   "faculty": "Okanagan — Arts, Social Sciences, and Humanities",
+   "code": "",
+   "detail": "추가 요건: 포트폴리오 등",
+   "sourceUrl": "https://vems.ok.ubc.ca/"
+  },
+  {
+   "name": "Bachelor of Media Studies (Vancouver)",
+   "faculty": "Vancouver — Arts, Social Sciences, and Humanities",
+   "code": "",
+   "detail": "추가 요건: 보충 지원서",
+   "sourceUrl": "https://mediastudies.arts.ubc.ca/"
+  },
+  {
+   "name": "Bachelor of Music (Vancouver)",
+   "faculty": "Vancouver — Arts, Social Sciences, and Humanities",
+   "code": "",
+   "detail": "추가 요건: 보충 지원서와 자료 (개인 프로필 없음)",
+   "sourceUrl": "https://www.arts.ubc.ca/degree-type/bmus/"
+  },
+  {
+   "name": "Bachelor of Commerce (Okanagan)",
+   "faculty": "Okanagan — Business & Economics",
+   "code": "",
+   "detail": "추가 요건: 개인 프로필(고교 지원자 공통)",
+   "sourceUrl": "https://management.ok.ubc.ca/academic-programs/bcom"
+  },
+  {
+   "name": "Bachelor of Commerce (Vancouver)",
+   "faculty": "Vancouver — Business & Economics",
+   "code": "",
+   "detail": "추가 요건: 개인 프로필 안 영상 인터뷰",
+   "sourceUrl": "https://www.sauder.ubc.ca/programs/bachelors-degrees/bachelor-commerce"
+  },
+  {
+   "name": "Bachelor of International Economics (Vancouver)",
+   "faculty": "Vancouver — Business & Economics",
+   "code": "",
+   "detail": "추가 요건: 개인 프로필",
+   "sourceUrl": "https://economics.ubc.ca/undergraduate/bie-program/"
+  },
+  {
+   "name": "Bachelor of Science in Food and Resource Economics (Vancouver)",
+   "faculty": "Vancouver — Business & Economics",
+   "code": "",
+   "detail": "추가 요건: 학업 계획서(letter of academic intent)",
+   "sourceUrl": "https://www.landfood.ubc.ca/future/future-undergraduate/food-and-resource-economics/"
+  },
+  {
+   "name": "Bachelor of Education (Okanagan)",
+   "faculty": "Okanagan — Education",
+   "code": "",
+   "detail": "추가 요건: 보충 지원서와 자료",
+   "sourceUrl": "https://education.ok.ubc.ca/degrees-programs/bachelor-of-education/"
+  },
+  {
+   "name": "Bachelor of Education (Vancouver)",
+   "faculty": "Vancouver — Education",
+   "code": "",
+   "detail": "추가 요건: 보충 지원서와 자료",
+   "sourceUrl": "https://teach.educ.ubc.ca/bachelor-of-education-program/"
+  },
+  {
+   "name": "Indigenous Teacher Education Program (NITEP) (Vancouver)",
+   "faculty": "Vancouver — Education",
+   "code": "",
+   "detail": "추가 요건: 개인 프로필(고교 지원자 공통)",
+   "sourceUrl": "https://nitep.educ.ubc.ca/"
+  },
+  {
+   "name": "Bachelor of Applied Science (Okanagan)",
+   "faculty": "Okanagan — Engineering",
+   "code": "",
+   "detail": "추가 요건: 개인 프로필(고교 지원자 공통)",
+   "sourceUrl": "https://engineering.ok.ubc.ca/programs-admissions/civil/"
+  },
+  {
+   "name": "Bachelor of Applied Science (Vancouver)",
+   "faculty": "Vancouver — Engineering",
+   "code": "",
+   "detail": "추가 요건: 개인 프로필(고교 지원자 공통)",
+   "sourceUrl": "https://engineering.ok.ubc.ca/"
+  },
+  {
+   "name": "Bachelor of Science in Global Resource Systems (Vancouver)",
+   "faculty": "Vancouver — Sustainability & Environmental Sciences",
+   "code": "",
+   "detail": "추가 요건: 개인 프로필(고교 지원자 공통)",
+   "sourceUrl": "https://www.landfood.ubc.ca/future/future-undergraduate/global-resource-systems/"
+  },
+  {
+   "name": "Bachelor of Science in Natural Resources (Vancouver)",
+   "faculty": "Vancouver — Sustainability & Environmental Sciences",
+   "code": "",
+   "detail": "추가 요건: 개인 프로필(고교 지원자 공통)",
+   "sourceUrl": "https://forestry.ubc.ca/future-students/undergraduate/"
+  },
+  {
+   "name": "Bachelor of Sustainability (Okanagan)",
+   "faculty": "Okanagan — Sustainability & Environmental Sciences",
+   "code": "",
+   "detail": "추가 요건: concentration form",
+   "sourceUrl": "https://sustainability.ok.ubc.ca/"
+  },
+  {
+   "name": "Bachelor of Urban Forestry (Vancouver)",
+   "faculty": "Vancouver — Sustainability & Environmental Sciences",
+   "code": "",
+   "detail": "추가 요건: 개인 프로필(고교 지원자 공통)",
+   "sourceUrl": "https://forestry.ubc.ca/future-students/undergraduate/urban-forestry/"
+  },
+  {
+   "name": "Bachelor of Indigenous Land Stewardship (Vancouver)",
+   "faculty": "Vancouver — Sustainability & Environmental Sciences",
+   "code": "",
+   "detail": "추가 요건: 개인 프로필(고교 지원자 공통)",
+   "sourceUrl": "https://forestry.ubc.ca/future-students/undergraduate/indigenous-land-stewardship/"
+  },
+  {
+   "name": "Bachelor of Science in Food, Nutrition, and Health (Vancouver)",
+   "faculty": "Vancouver — Health & Life Sciences",
+   "code": "",
+   "detail": "추가 요건: 개인 프로필(고교 지원자 공통)",
+   "sourceUrl": "https://www.landfood.ubc.ca/future/future-undergraduate/food-nutrition-and-health/food-nutrition-and-health-major/"
+  },
+  {
+   "name": "Bachelor of Health and Exercise Sciences (Okanagan)",
+   "faculty": "Okanagan — Health & Life Sciences",
+   "code": "",
+   "detail": "추가 요건: 개인 프로필(고교 지원자 공통)",
+   "sourceUrl": "https://hes.ok.ubc.ca/"
+  },
+  {
+   "name": "Bachelor of Kinesiology (Vancouver)",
+   "faculty": "Vancouver — Health & Life Sciences",
+   "code": "",
+   "detail": "추가 요건: 개인 프로필(고교 지원자 공통)",
+   "sourceUrl": "https://kin.educ.ubc.ca/undergraduate/prospective-students/"
+  },
+  {
+   "name": "Bachelor of Science in Nursing (Vancouver)",
+   "faculty": "Vancouver — Health & Life Sciences",
+   "code": "",
+   "detail": "추가 요건: 보충 지원서와 자료",
+   "sourceUrl": "https://nursing.ubc.ca/undergraduate/bachelor-of-science-in-nursing-bsn"
+  },
+  {
+   "name": "Bachelor of Science in Nursing (Okanagan)",
+   "faculty": "Okanagan — Health & Life Sciences",
+   "code": "",
+   "detail": "추가 요건: 개인 프로필",
+   "sourceUrl": "https://nursing.ok.ubc.ca/undergraduate/nursing/"
+  },
+  {
+   "name": "Bachelor of Science in Applied Biology (Vancouver)",
+   "faculty": "Vancouver — Sciences",
+   "code": "",
+   "detail": "추가 요건: 개인 프로필(고교 지원자 공통)",
+   "sourceUrl": "https://www.landfood.ubc.ca/future/future-undergraduate/applied-biology/"
+  },
+  {
+   "name": "Bachelor of Dental Science (Vancouver)",
+   "faculty": "Vancouver — Sciences",
+   "code": "",
+   "detail": "추가 요건: 보충 지원서 (개인 프로필 없음)",
+   "sourceUrl": "https://www.dentistry.ubc.ca/education/dental-hygiene-degree-program/"
+  },
+  {
+   "name": "Bachelor of Science (Okanagan)",
+   "faculty": "Okanagan — Sciences",
+   "code": "",
+   "detail": "추가 요건: 개인 프로필(고교 지원자 공통)",
+   "sourceUrl": "https://science.ok.ubc.ca/programs/undergraduate/"
+  },
+  {
+   "name": "Bachelor of Science (Vancouver)",
+   "faculty": "Vancouver — Sciences",
+   "code": "",
+   "detail": "추가 요건: 개인 프로필(고교 지원자 공통)",
+   "sourceUrl": "https://science.ubc.ca/future"
+  },
+  {
+   "name": "Bachelor of Pharmaceutical Sciences (Vancouver)",
+   "faculty": "Vancouver — Sciences",
+   "code": "",
+   "detail": "추가 요건: 추가 전형료 + 녹화 인터뷰",
+   "sourceUrl": "https://you.ubc.ca/ubc_programs/pharmaceutical-sciences/"
+  }
+ ],
+ "University of Toronto": [
+  {
+   "name": "Computer Science (BCS) — St. George",
+   "faculty": "St. George — Faculty of Arts & Science",
+   "code": "TAD",
+   "detail": "OUAC 코드 TAD · 영어 외 선수과목: M(미적분 포함); 보충 지원서(Supp). Computer Science·Data Science·Applied Data Science — 출처: U of T 2027-28 International Undergraduate Admissions Bulletin (https://future.utoronto.ca/media/1081).",
+   "sourceUrl": "https://www.artsci.utoronto.ca/future"
+  },
+  {
+   "name": "Humanities (HBA) — St. George",
+   "faculty": "St. George — Faculty of Arts & Science",
+   "code": "TAH",
+   "detail": "OUAC 코드 TAH · 영어 외 선수과목: 대부분 없음. Music 전공 일부는 오디션·포트폴리오·인터뷰 — 출처: U of T 2027-28 International Undergraduate Admissions Bulletin (https://future.utoronto.ca/media/1081).",
+   "sourceUrl": "https://www.artsci.utoronto.ca/future"
+  },
+  {
+   "name": "Life Sciences (HBSc) — St. George",
+   "faculty": "St. George — Faculty of Arts & Science",
+   "code": "TLG",
+   "detail": "OUAC 코드 TLG · 영어 외 선수과목: 대부분 M, Bio, Ch (권장 Ph). Psychology·Neuroscience·Biochemistry·Human Biology 등 — 출처: U of T 2027-28 International Undergraduate Admissions Bulletin (https://future.utoronto.ca/media/1081).",
+   "sourceUrl": "https://www.artsci.utoronto.ca/future"
+  },
+  {
+   "name": "Mathematical & Physical Sciences (HBSc) — St. George",
+   "faculty": "St. George — Faculty of Arts & Science",
+   "code": "TPG",
+   "detail": "OUAC 코드 TPG · 영어 외 선수과목: M (+프로그램별 Ph·Ch). Mathematics·Physics·Statistics·Actuarial Science 등 — 출처: U of T 2027-28 International Undergraduate Admissions Bulletin (https://future.utoronto.ca/media/1081).",
+   "sourceUrl": "https://www.artsci.utoronto.ca/future"
+  },
+  {
+   "name": "Rotman Commerce (BCom) — St. George",
+   "faculty": "St. George — Faculty of Arts & Science",
+   "code": "TAC",
+   "detail": "OUAC 코드 TAC · 영어 외 선수과목: M; 보충 지원서(Supp). Accounting·Finance and Economics·Management — 출처: U of T 2027-28 International Undergraduate Admissions Bulletin (https://future.utoronto.ca/media/1081).",
+   "sourceUrl": "https://www.artsci.utoronto.ca/future"
+  },
+  {
+   "name": "Social Sciences (HBA) — St. George",
+   "faculty": "St. George — Faculty of Arts & Science",
+   "code": "TAX",
+   "detail": "OUAC 코드 TAX · 영어 외 선수과목: 대부분 없음 (Economics 등은 M). Economics·Political Science·Sociology·International Relations 등 — 출처: U of T 2027-28 International Undergraduate Admissions Bulletin (https://future.utoronto.ca/media/1081).",
+   "sourceUrl": "https://www.artsci.utoronto.ca/future"
+  },
+  {
+   "name": "Chemical Engineering (BASc) — St. George",
+   "faculty": "St. George — Faculty of Applied Science & Engineering",
+   "code": "TB",
+   "detail": "OUAC 코드 TB · 영어 외 선수과목: Ch, M, Ph; 보충 지원서(Supp). PEY Co-op 가능. SAT/ACT 제출 기대 — 출처: U of T 2027-28 International Undergraduate Admissions Bulletin (https://future.utoronto.ca/media/1081).",
+   "sourceUrl": "https://discover.engineering.utoronto.ca"
+  },
+  {
+   "name": "Civil Engineering (BASc) — St. George",
+   "faculty": "St. George — Faculty of Applied Science & Engineering",
+   "code": "TV",
+   "detail": "OUAC 코드 TV · 영어 외 선수과목: Ch, M, Ph; 보충 지원서(Supp). PEY Co-op 가능. SAT/ACT 제출 기대 — 출처: U of T 2027-28 International Undergraduate Admissions Bulletin (https://future.utoronto.ca/media/1081).",
+   "sourceUrl": "https://discover.engineering.utoronto.ca"
+  },
+  {
+   "name": "Computer Engineering (BASc) — St. George",
+   "faculty": "St. George — Faculty of Applied Science & Engineering",
+   "code": "TCS",
+   "detail": "OUAC 코드 TCS · 영어 외 선수과목: Ch, M, Ph; 보충 지원서(Supp). PEY Co-op 가능. SAT/ACT 제출 기대 — 출처: U of T 2027-28 International Undergraduate Admissions Bulletin (https://future.utoronto.ca/media/1081).",
+   "sourceUrl": "https://discover.engineering.utoronto.ca"
+  },
+  {
+   "name": "Electrical Engineering (BASc) — St. George",
+   "faculty": "St. George — Faculty of Applied Science & Engineering",
+   "code": "TE",
+   "detail": "OUAC 코드 TE · 영어 외 선수과목: Ch, M, Ph; 보충 지원서(Supp). PEY Co-op 가능. SAT/ACT 제출 기대 — 출처: U of T 2027-28 International Undergraduate Admissions Bulletin (https://future.utoronto.ca/media/1081).",
+   "sourceUrl": "https://discover.engineering.utoronto.ca"
+  },
+  {
+   "name": "Engineering Science (BASc) — St. George",
+   "faculty": "St. George — Faculty of Applied Science & Engineering",
+   "code": "TK",
+   "detail": "OUAC 코드 TK · 영어 외 선수과목: Ch, M, Ph; 보충 지원서(Supp). PEY Co-op 가능. SAT/ACT 제출 기대 — 출처: U of T 2027-28 International Undergraduate Admissions Bulletin (https://future.utoronto.ca/media/1081).",
+   "sourceUrl": "https://discover.engineering.utoronto.ca"
+  },
+  {
+   "name": "Industrial Engineering (BASc) — St. George",
+   "faculty": "St. George — Faculty of Applied Science & Engineering",
+   "code": "TI",
+   "detail": "OUAC 코드 TI · 영어 외 선수과목: Ch, M, Ph; 보충 지원서(Supp). PEY Co-op 가능. SAT/ACT 제출 기대 — 출처: U of T 2027-28 International Undergraduate Admissions Bulletin (https://future.utoronto.ca/media/1081).",
+   "sourceUrl": "https://discover.engineering.utoronto.ca"
+  },
+  {
+   "name": "Materials Engineering (BASc) — St. George",
+   "faculty": "St. George — Faculty of Applied Science & Engineering",
+   "code": "TTM",
+   "detail": "OUAC 코드 TTM · 영어 외 선수과목: Ch, M, Ph; 보충 지원서(Supp). PEY Co-op 가능. SAT/ACT 제출 기대 — 출처: U of T 2027-28 International Undergraduate Admissions Bulletin (https://future.utoronto.ca/media/1081).",
+   "sourceUrl": "https://discover.engineering.utoronto.ca"
+  },
+  {
+   "name": "Mechanical Engineering (BASc) — St. George",
+   "faculty": "St. George — Faculty of Applied Science & Engineering",
+   "code": "TM",
+   "detail": "OUAC 코드 TM · 영어 외 선수과목: Ch, M, Ph; 보충 지원서(Supp). PEY Co-op 가능. SAT/ACT 제출 기대 — 출처: U of T 2027-28 International Undergraduate Admissions Bulletin (https://future.utoronto.ca/media/1081).",
+   "sourceUrl": "https://discover.engineering.utoronto.ca"
+  },
+  {
+   "name": "Mineral Engineering (BASc) — St. George",
+   "faculty": "St. George — Faculty of Applied Science & Engineering",
+   "code": "TG",
+   "detail": "OUAC 코드 TG · 영어 외 선수과목: Ch, M, Ph; 보충 지원서(Supp). PEY Co-op 가능. SAT/ACT 제출 기대 — 출처: U of T 2027-28 International Undergraduate Admissions Bulletin (https://future.utoronto.ca/media/1081).",
+   "sourceUrl": "https://discover.engineering.utoronto.ca"
+  },
+  {
+   "name": "Architectural Studies (HBA) — St. George",
+   "faculty": "St. George — John H. Daniels Faculty of Architecture, Landscape, and Design",
+   "code": "TLA",
+   "detail": "OUAC 코드 TLA · 영어 외 선수과목: 보충 지원서(Supp) — 출처: U of T 2027-28 International Undergraduate Admissions Bulletin (https://future.utoronto.ca/media/1081).",
+   "sourceUrl": "https://www.daniels.utoronto.ca"
+  },
+  {
+   "name": "Visual Studies (HBA) — St. George",
+   "faculty": "St. George — John H. Daniels Faculty of Architecture, Landscape, and Design",
+   "code": "TLB",
+   "detail": "OUAC 코드 TLB · 영어 외 선수과목: 보충 지원서(Supp) — 출처: U of T 2027-28 International Undergraduate Admissions Bulletin (https://future.utoronto.ca/media/1081).",
+   "sourceUrl": "https://www.daniels.utoronto.ca"
+  },
+  {
+   "name": "Kinesiology and Physical Education (BKin) — St. George",
+   "faculty": "St. George — Faculty of Kinesiology & Physical Education",
+   "code": "TPK",
+   "detail": "OUAC 코드 TPK · 영어 외 선수과목: Bio/Ch/Ph 중, M; 보충 지원서(Supp) — 출처: U of T 2027-28 International Undergraduate Admissions Bulletin (https://future.utoronto.ca/media/1081).",
+   "sourceUrl": "https://kinesiology.utoronto.ca"
+  },
+  {
+   "name": "Information (BI) — St. George",
+   "faculty": "St. George — Faculty of Information",
+   "code": "TTX",
+   "detail": "OUAC 코드 TTX · 영어 외 선수과목: M — 출처: U of T 2027-28 International Undergraduate Admissions Bulletin (https://future.utoronto.ca/media/1081).",
+   "sourceUrl": "https://ischool.utoronto.ca"
+  },
+  {
+   "name": "Artist Diploma - Classical (Music) — St. George",
+   "faculty": "St. George — Faculty of Music",
+   "code": "TO",
+   "detail": "OUAC 코드 TO · 영어 외 선수과목: 보충 지원서(Supp); 오디션. 12월 1일까지 지원 권장(질문지 작성 시간) — 출처: U of T 2027-28 International Undergraduate Admissions Bulletin (https://future.utoronto.ca/media/1081).",
+   "sourceUrl": "https://music.utoronto.ca"
+  },
+  {
+   "name": "Music (Mus.Bac) — Composition·History, Culture & Theory·Interdisciplinary·Music Technology — St. George",
+   "faculty": "St. George — Faculty of Music",
+   "code": "TZ",
+   "detail": "OUAC 코드 TZ · 영어 외 선수과목: 보충 지원서(Supp); 오디션. 12월 1일까지 지원 권장(질문지 작성 시간) — 출처: U of T 2027-28 International Undergraduate Admissions Bulletin (https://future.utoronto.ca/media/1081).",
+   "sourceUrl": "https://music.utoronto.ca"
+  },
+  {
+   "name": "Music Education - Classical or Jazz (Mus.Bac) — St. George",
+   "faculty": "St. George — Faculty of Music",
+   "code": "TD",
+   "detail": "OUAC 코드 TD · 영어 외 선수과목: 보충 지원서(Supp); 오디션. 12월 1일까지 지원 권장(질문지 작성 시간) — 출처: U of T 2027-28 International Undergraduate Admissions Bulletin (https://future.utoronto.ca/media/1081).",
+   "sourceUrl": "https://music.utoronto.ca"
+  },
+  {
+   "name": "Performance - Classical or Jazz (Mus.Bac.Perf) — St. George",
+   "faculty": "St. George — Faculty of Music",
+   "code": "TX",
+   "detail": "OUAC 코드 TX · 영어 외 선수과목: 보충 지원서(Supp); 오디션. 12월 1일까지 지원 권장(질문지 작성 시간) — 출처: U of T 2027-28 International Undergraduate Admissions Bulletin (https://future.utoronto.ca/media/1081).",
+   "sourceUrl": "https://music.utoronto.ca"
+  },
+  {
+   "name": "Chemical and Physical Sciences (HBSc) — UTM",
+   "faculty": "U of T Mississauga (UTM)",
+   "code": "TMW",
+   "detail": "OUAC 코드 TMW · 영어 외 선수과목: M (+프로그램별 Ph·Ch·Bio) — 출처: U of T 2027-28 International Undergraduate Admissions Bulletin (https://future.utoronto.ca/media/1081).",
+   "sourceUrl": "https://www.utm.utoronto.ca/future-students"
+  },
+  {
+   "name": "Commerce & Management (BCom/BBA) — UTM",
+   "faculty": "U of T Mississauga (UTM)",
+   "code": "TMO",
+   "detail": "OUAC 코드 TMO · 영어 외 선수과목: M — 출처: U of T 2027-28 International Undergraduate Admissions Bulletin (https://future.utoronto.ca/media/1081).",
+   "sourceUrl": "https://www.utm.utoronto.ca/future-students"
+  },
+  {
+   "name": "Communication, Culture, Information & Technology (HBA) — UTM",
+   "faculty": "U of T Mississauga (UTM)",
+   "code": "TMC",
+   "detail": "OUAC 코드 TMC · 영어 외 선수과목: 없음 (일부 권장 M) — 출처: U of T 2027-28 International Undergraduate Admissions Bulletin (https://future.utoronto.ca/media/1081).",
+   "sourceUrl": "https://www.utm.utoronto.ca/future-students"
+  },
+  {
+   "name": "Computer Science (BCS) — UTM",
+   "faculty": "U of T Mississauga (UTM)",
+   "code": "TMX",
+   "detail": "OUAC 코드 TMX · 영어 외 선수과목: M; 보충 지원서(Supp). Computer Science·Information Security — 출처: U of T 2027-28 International Undergraduate Admissions Bulletin (https://future.utoronto.ca/media/1081).",
+   "sourceUrl": "https://www.utm.utoronto.ca/future-students"
+  },
+  {
+   "name": "Forensic Sciences (HBSc) — UTM",
+   "faculty": "U of T Mississauga (UTM)",
+   "code": "TMK",
+   "detail": "OUAC 코드 TMK · 영어 외 선수과목: M, Bio (+일부 Ch) — 출처: U of T 2027-28 International Undergraduate Admissions Bulletin (https://future.utoronto.ca/media/1081).",
+   "sourceUrl": "https://www.utm.utoronto.ca/future-students"
+  },
+  {
+   "name": "Humanities (HBA) — UTM",
+   "faculty": "U of T Mississauga (UTM)",
+   "code": "TMH",
+   "detail": "OUAC 코드 TMH · 영어 외 선수과목: 대부분 없음 — 출처: U of T 2027-28 International Undergraduate Admissions Bulletin (https://future.utoronto.ca/media/1081).",
+   "sourceUrl": "https://www.utm.utoronto.ca/future-students"
+  },
+  {
+   "name": "Life Sciences (HBSc) — UTM",
+   "faculty": "U of T Mississauga (UTM)",
+   "code": "TML",
+   "detail": "OUAC 코드 TML · 영어 외 선수과목: 대부분 M, Bio, Ch — 출처: U of T 2027-28 International Undergraduate Admissions Bulletin (https://future.utoronto.ca/media/1081).",
+   "sourceUrl": "https://www.utm.utoronto.ca/future-students"
+  },
+  {
+   "name": "Mathematical & Computational Sciences (HBSc) — UTM",
+   "faculty": "U of T Mississauga (UTM)",
+   "code": "TMZ",
+   "detail": "OUAC 코드 TMZ · 영어 외 선수과목: M — 출처: U of T 2027-28 International Undergraduate Admissions Bulletin (https://future.utoronto.ca/media/1081).",
+   "sourceUrl": "https://www.utm.utoronto.ca/future-students"
+  },
+  {
+   "name": "Psychological & Brain Sciences (HBSc) — UTM",
+   "faculty": "U of T Mississauga (UTM)",
+   "code": "TMP",
+   "detail": "OUAC 코드 TMP · 영어 외 선수과목: M, Bio (Neuroscience는 +Ch). Psychology·Neuroscience — 출처: U of T 2027-28 International Undergraduate Admissions Bulletin (https://future.utoronto.ca/media/1081).",
+   "sourceUrl": "https://www.utm.utoronto.ca/future-students"
+  },
+  {
+   "name": "Social Sciences (HBA) — UTM",
+   "faculty": "U of T Mississauga (UTM)",
+   "code": "TMS",
+   "detail": "OUAC 코드 TMS · 영어 외 선수과목: 대부분 없음 (Economics 등은 M) — 출처: U of T 2027-28 International Undergraduate Admissions Bulletin (https://future.utoronto.ca/media/1081).",
+   "sourceUrl": "https://www.utm.utoronto.ca/future-students"
+  },
+  {
+   "name": "Theatre and Drama (HBA) — UTM",
+   "faculty": "U of T Mississauga (UTM)",
+   "code": "TMT",
+   "detail": "OUAC 코드 TMT · 영어 외 선수과목: 오디션 필수 (Sheridan College 공동) — 출처: U of T 2027-28 International Undergraduate Admissions Bulletin (https://future.utoronto.ca/media/1081).",
+   "sourceUrl": "https://www.utm.utoronto.ca/future-students"
+  },
+  {
+   "name": "Visual Studies (HBA) — UTM",
+   "faculty": "U of T Mississauga (UTM)",
+   "code": "TEV",
+   "detail": "OUAC 코드 TEV · 영어 외 선수과목: 없음 — 출처: U of T 2027-28 International Undergraduate Admissions Bulletin (https://future.utoronto.ca/media/1081).",
+   "sourceUrl": "https://www.utm.utoronto.ca/future-students"
+  },
+  {
+   "name": "Computer Science (BCS) — UTSC",
+   "faculty": "U of T Scarborough (UTSC)",
+   "code": "TXC",
+   "detail": "OUAC 코드 TXC · 영어 외 선수과목: M. Co-op 가능 — 출처: U of T 2027-28 International Undergraduate Admissions Bulletin (https://future.utoronto.ca/media/1081).",
+   "sourceUrl": "https://www.utsc.utoronto.ca/admissions"
+  },
+  {
+   "name": "Double Degree: Management & Finance and Statistics (BBA & HBSc) — UTSC",
+   "faculty": "U of T Scarborough (UTSC)",
+   "code": "TXQ",
+   "detail": "OUAC 코드 TXQ · 영어 외 선수과목: M; 보충 지원서(Supp) — 출처: U of T 2027-28 International Undergraduate Admissions Bulletin (https://future.utoronto.ca/media/1081).",
+   "sourceUrl": "https://www.utsc.utoronto.ca/admissions"
+  },
+  {
+   "name": "International Development Studies (Co-op) (HBA/HBSc) — UTSC",
+   "faculty": "U of T Scarborough (UTSC)",
+   "code": "TSD",
+   "detail": "OUAC 코드 TSD · 영어 외 선수과목: 보충 지원서(Supp) (HBSc는 M, Bio) — 출처: U of T 2027-28 International Undergraduate Admissions Bulletin (https://future.utoronto.ca/media/1081).",
+   "sourceUrl": "https://www.utsc.utoronto.ca/admissions"
+  },
+  {
+   "name": "Journalism (HBA) — UTSC",
+   "faculty": "U of T Scarborough (UTSC)",
+   "code": "TSJ",
+   "detail": "OUAC 코드 TSJ · 영어 외 선수과목: 없음. Centennial College 공동 — 출처: U of T 2027-28 International Undergraduate Admissions Bulletin (https://future.utoronto.ca/media/1081).",
+   "sourceUrl": "https://www.utsc.utoronto.ca/admissions"
+  },
+  {
+   "name": "Life Sciences (HBSc) — UTSC",
+   "faculty": "U of T Scarborough (UTSC)",
+   "code": "TSL / TXD",
+   "detail": "OUAC 코드 TSL / TXD · 영어 외 선수과목: M, Bio (권장 Ch). TXD = Health Sciences Stream(고교 지원자만) — 출처: U of T 2027-28 International Undergraduate Admissions Bulletin (https://future.utoronto.ca/media/1081).",
+   "sourceUrl": "https://www.utsc.utoronto.ca/admissions"
+  },
+  {
+   "name": "Management (BBA) — UTSC",
+   "faculty": "U of T Scarborough (UTSC)",
+   "code": "TSM",
+   "detail": "OUAC 코드 TSM · 영어 외 선수과목: M; 보충 지원서(Supp) — 출처: U of T 2027-28 International Undergraduate Admissions Bulletin (https://future.utoronto.ca/media/1081).",
+   "sourceUrl": "https://www.utsc.utoronto.ca/admissions"
+  },
+  {
+   "name": "Management & International Business (Co-op) (BBA) — UTSC",
+   "faculty": "U of T Scarborough (UTSC)",
+   "code": "TXB",
+   "detail": "OUAC 코드 TXB · 영어 외 선수과목: M; 보충 지원서(Supp) — 출처: U of T 2027-28 International Undergraduate Admissions Bulletin (https://future.utoronto.ca/media/1081).",
+   "sourceUrl": "https://www.utsc.utoronto.ca/admissions"
+  },
+  {
+   "name": "Mathematics (HBSc) — UTSC",
+   "faculty": "U of T Scarborough (UTSC)",
+   "code": "TXS",
+   "detail": "OUAC 코드 TXS · 영어 외 선수과목: M — 출처: U of T 2027-28 International Undergraduate Admissions Bulletin (https://future.utoronto.ca/media/1081).",
+   "sourceUrl": "https://www.utsc.utoronto.ca/admissions"
+  },
+  {
+   "name": "Music Industry & Technology (HBA) — UTSC",
+   "faculty": "U of T Scarborough (UTSC)",
+   "code": "TXW",
+   "detail": "OUAC 코드 TXW · 영어 외 선수과목: 보충 지원서(Supp). Centennial College 공동 — 출처: U of T 2027-28 International Undergraduate Admissions Bulletin (https://future.utoronto.ca/media/1081).",
+   "sourceUrl": "https://www.utsc.utoronto.ca/admissions"
+  },
+  {
+   "name": "Physical & Environmental Sciences (HBSc) — UTSC",
+   "faculty": "U of T Scarborough (UTSC)",
+   "code": "TSP / TXH",
+   "detail": "OUAC 코드 TSP / TXH · 영어 외 선수과목: M (+Ph·Bio 등 프로그램별). TXH = Health Sciences Stream — 출처: U of T 2027-28 International Undergraduate Admissions Bulletin (https://future.utoronto.ca/media/1081).",
+   "sourceUrl": "https://www.utsc.utoronto.ca/admissions"
+  },
+  {
+   "name": "Psychology & Health Studies (HBSc) — UTSC",
+   "faculty": "U of T Scarborough (UTSC)",
+   "code": "TPS / TXF",
+   "detail": "OUAC 코드 TPS / TXF · 영어 외 선수과목: 없음 (권장 Bio, M). TXF = Health Sciences Stream — 출처: U of T 2027-28 International Undergraduate Admissions Bulletin (https://future.utoronto.ca/media/1081).",
+   "sourceUrl": "https://www.utsc.utoronto.ca/admissions"
+  },
+  {
+   "name": "Social Sciences & Humanities (HBA) — UTSC",
+   "faculty": "U of T Scarborough (UTSC)",
+   "code": "TUD",
+   "detail": "OUAC 코드 TUD · 영어 외 선수과목: 대부분 없음 — 출처: U of T 2027-28 International Undergraduate Admissions Bulletin (https://future.utoronto.ca/media/1081).",
+   "sourceUrl": "https://www.utsc.utoronto.ca/admissions"
+  },
+  {
+   "name": "Statistics (HBSc) — UTSC",
+   "faculty": "U of T Scarborough (UTSC)",
+   "code": "TXU",
+   "detail": "OUAC 코드 TXU · 영어 외 선수과목: M — 출처: U of T 2027-28 International Undergraduate Admissions Bulletin (https://future.utoronto.ca/media/1081).",
+   "sourceUrl": "https://www.utsc.utoronto.ca/admissions"
+  },
+  {
+   "name": "Visual & Performing Arts, Arts Management, and Media (HBA) — UTSC",
+   "faculty": "U of T Scarborough (UTSC)",
+   "code": "TUC",
+   "detail": "OUAC 코드 TUC · 영어 외 선수과목: 없음 — 출처: U of T 2027-28 International Undergraduate Admissions Bulletin (https://future.utoronto.ca/media/1081).",
+   "sourceUrl": "https://www.utsc.utoronto.ca/admissions"
+  }
+ ]
+}

@@ -693,6 +693,53 @@ function migrate(db) {
       db.prepare("INSERT INTO meta VALUES ('v27_hku_2027', ?)").run(ts);
     })();
   }
+  // v28: 캐나다 3개 대학(2026-10-26 조사) — McGill·UBC 주요 정보(빈 연도에만), McGill·UBC·토론토대 전공(지원 단위) 목록.
+  // v24·v25와 같은 규칙: 선생님이 넣은 주요 정보는 그대로, 같은 이름 전공은 빈 칸만 채움
+  if (!db.prepare("SELECT 1 FROM meta WHERE key = 'v28_canada'").get() && db.prepare('SELECT 1 FROM universities LIMIT 1').get()) {
+    const RESEARCH = require('./uni-research-canada');
+    const MAJORS = require('./uni-majors-canada.json');
+    const ts = now();
+    const unis = db.prepare("SELECT id, name, aliases FROM universities WHERE deletedAt = ''").all();
+    const findUni = (n) => unis.find((x) => x.name === n || String(x.aliases || '').split(',').map((a) => a.trim()).includes(n));
+    db.transaction(() => {
+      for (const r of RESEARCH) {
+        const u = findUni(r.name);
+        if (!u) continue;
+        const cys = db.prepare("SELECT * FROM unicycles WHERE universityId = ? AND year = ? AND deletedAt = ''").all(u.id, r.year);
+        const cy = cys.find((c) => c.term === r.term) || (cys.length === 1 ? cys[0] : null);
+        if (!cy) continue;
+        const set = {};
+        let reqs; try { reqs = JSON.parse(cy.requirements || '[]'); } catch (e) { reqs = null; }
+        if (Array.isArray(reqs) && !reqs.length) {
+          set.requirements = JSON.stringify(r.requirements);
+          set.memo = [cy.memo, RESEARCH.MEMO].filter(Boolean).join('\n');
+        }
+        if (!cy.sourceUrl && r.sourceUrl) set.sourceUrl = r.sourceUrl;
+        if (r.choices && !(cy.choices && cy.choices !== '[]')) set.choices = JSON.stringify(r.choices);
+        const keys = Object.keys(set);
+        if (keys.length) db.prepare(`UPDATE unicycles SET ${keys.map((k) => k + ' = @' + k).join(', ')}, updatedAt = @t, updatedBy = 'system' WHERE id = @id`).run(Object.assign(set, { t: ts, id: cy.id }));
+      }
+      const key = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      for (const [uniName, majors] of Object.entries(MAJORS)) {
+        const u = findUni(uniName);
+        if (!u) continue;
+        const have = {};
+        db.prepare("SELECT * FROM unimajors WHERE universityId = ? AND deletedAt = ''").all(u.id).forEach((m) => { have[key(m.name)] = m; });
+        for (const m of majors) {
+          const cur = have[key(m.name)];
+          if (cur) {
+            const set = ['faculty', 'code', 'sourceUrl', 'detail'].filter((k) => !cur[k] && m[k]);
+            if (set.length) db.prepare(`UPDATE unimajors SET ${set.map((k) => k + ' = @' + k).join(', ')} WHERE id = @id`).run(Object.assign({ id: cur.id }, ...set.map((k) => ({ [k]: m[k] }))));
+            continue;
+          }
+          db.prepare("INSERT INTO unimajors (id, universityId, name, faculty, code, detail, sourceUrl, createdAt, createdBy, updatedAt, updatedBy) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'system', ?, 'system')")
+            .run(crypto.randomUUID(), u.id, m.name, m.faculty || '', m.code || '', m.detail || '', m.sourceUrl || '', ts, ts);
+          have[key(m.name)] = m;
+        }
+      }
+      db.prepare("INSERT INTO meta VALUES ('v28_canada', ?)").run(ts);
+    })();
+  }
   // v9: 메인 화면 공용 달력 (SAT 시험일 등 모두가 함께 보는 일정)
   // 학교 방학 (목록 관리 › 학교) — 달력에는 "방학 n곳" 한 줄, 학생 화면·오늘 챙길 일·학생 목록 필터
   db.exec('CREATE TABLE IF NOT EXISTS schoolbreaks (id TEXT PRIMARY KEY)');
