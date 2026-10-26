@@ -21,6 +21,13 @@ class UserError extends Error {
 }
 
 const ROLES = ['admin', 'staff', 'consultant'];
+/** 지점: 계정·학생마다 하나. 화면 시간은 계정 지점의 시간대로 보임 (첫 번째 = 예전 자료의 기본값) */
+const BRANCHES = ['상해', '압구정'];
+const BRANCH_TZ = { 상해: 'Asia/Shanghai', 압구정: 'Asia/Seoul' };
+const TZS = Object.values(BRANCH_TZ);
+const branchOf = (x) => (x && BRANCHES.includes(x.branch) ? x.branch : BRANCHES[0]);
+/** 다른 지점 학생에게 관리팀이 할 수 있는 것: 팔로업·답변·상담기록 추가 (학생 정보 수정은 그 지점 관리팀·관리자) */
+const CROSS_BRANCH_TABLES = ['followups', 'fureplies', 'notes'];
 
 /** 테이블별 입력 가능한 필드 */
 const TABLES = {
@@ -30,12 +37,12 @@ const TABLES = {
       'parentName', 'parentPhone', 'email', 'tags', 'memo', 'driveUrl', 'resumeUrl', 'englishName', 'address', 'addressEn',
       'hopeUnis', 'focusArea', 'recommenders', 'onlineCourse', 'meetingUrl',
       'fatherName', 'fatherPhone', 'fatherWechat', 'fatherEmail', 'motherName', 'motherPhone', 'motherWechat', 'motherEmail',
-      'storyTrigger', 'storyProcess', 'storyLink', 'storyConclusion', 'storyStatus'],
+      'storyTrigger', 'storyProcess', 'storyLink', 'storyConclusion', 'storyStatus', 'branch'], // branch: 지점 (상해·압구정)
     summary: (r) => r.name,
   },
   notes: {
     label: '상담기록',
-    fields: ['studentId', 'date', 'time', 'place', 'attendees', 'type', 'content', 'contentHtml', 'nextAction', 'nextDue', 'done', 'sourceUrl', 'needsReview'],
+    fields: ['studentId', 'date', 'time', 'tz', 'place', 'attendees', 'type', 'content', 'contentHtml', 'nextAction', 'nextDue', 'done', 'sourceUrl', 'needsReview'], // tz: 시간을 어느 나라 기준으로 적었는지
     summary: (r) => [r.date, r.type].join(' '),
   },
   contracts: {
@@ -103,7 +110,7 @@ const TABLES = {
   },
   meetings: {
     label: '미팅',
-    fields: ['studentId', 'date', 'time', 'status', 'type', 'place', 'attendees', 'writer', 'topic', 'content', 'contentHtml', 'parentNote', 'nextStep', 'nextDate', 'sourceUrl', 'needsReview'],
+    fields: ['studentId', 'date', 'time', 'tz', 'status', 'type', 'place', 'attendees', 'writer', 'topic', 'content', 'contentHtml', 'parentNote', 'nextStep', 'nextDate', 'sourceUrl', 'needsReview'],
     summary: (r) => [r.date, r.status, r.topic].filter(Boolean).join(' · '),
   },
   accounts: {
@@ -754,6 +761,17 @@ function migrate(db) {
       db.prepare("INSERT INTO meta VALUES ('v29_campuses', ?)").run(ts);
     })();
   }
+  // v30: 지점(상해·압구정) — 지금까지 자료는 모두 상해. 미팅·상담 시간은 중국 시간으로 적은 것
+  ensureColumns(db, 'teachers', ['branch']);
+  db.exec('CREATE TABLE IF NOT EXISTS events (id TEXT PRIMARY KEY)');
+  ensureColumns(db, 'events', ['branch', 'shared', 'time', 'tz']); // shared: 'TRUE' = 전체 지점에 보임, time: 'HH:MM' (없으면 하루 종일)
+  if (!db.prepare("SELECT 1 FROM meta WHERE key = 'v30_branches'").get()) {
+    db.transaction(() => {
+      for (const t of ['teachers', 'students', 'events']) db.prepare(`UPDATE ${t} SET branch = ? WHERE branch = ''`).run(BRANCHES[0]);
+      for (const t of ['meetings', 'notes']) db.prepare(`UPDATE ${t} SET tz = ? WHERE tz = ''`).run(BRANCH_TZ[BRANCHES[0]]);
+      db.prepare("INSERT INTO meta VALUES ('v30_branches', ?)").run(now());
+    })();
+  }
   // v9: 메인 화면 공용 달력 (SAT 시험일 등 모두가 함께 보는 일정)
   // 학교 방학 (목록 관리 › 학교) — 달력에는 "방학 n곳" 한 줄, 학생 화면·오늘 챙길 일·학생 목록 필터
   db.exec('CREATE TABLE IF NOT EXISTS schoolbreaks (id TEXT PRIMARY KEY)');
@@ -866,6 +884,12 @@ function openStore(dbPath, opts) {
     if (!canSeeStudent(me, s)) throw new UserError('담당 학생이 아니어서 접근할 수 없습니다.', 403);
     return s;
   }
+  /** 학생 자료를 고칠 수 있는지: 관리자 = 전부, 관리팀 = 같은 지점 학생 (다른 지점은 팔로업·상담기록 추가와 내가 쓴·내 담당 것만), 컨설턴트 = 담당 학생 */
+  function requireEdit(me, s, table, cur) {
+    if (me.role !== 'staff' || branchOf(me) === branchOf(s)) return;
+    if (CROSS_BRANCH_TABLES.includes(table) && (!cur || cur.createdBy === me.email || cur.assignee === me.email)) return;
+    throw new UserError(branchOf(s) + ' 지점 학생입니다. 다른 지점 학생은 보기와 팔로업·상담기록 추가만 할 수 있습니다 (수정은 ' + branchOf(s) + ' 관리팀·관리자).', 403);
+  }
   function requireManager(me, what) {
     if (!isManager(me)) throw new UserError((what || '이 작업') + '은(는) 관리자·관리팀만 할 수 있습니다.', 403);
   }
@@ -919,7 +943,7 @@ function openStore(dbPath, opts) {
     const row = db.prepare(`SELECT t.*, s.expiresAt FROM sessions s JOIN teachers t ON t.email = s.email
       WHERE s.tokenHash = ?`).get(sha256(token));
     if (!row || !row.active || row.expiresAt < Date.now()) return null;
-    return { email: row.email, name: row.name, role: ROLES.includes(row.role) ? row.role : 'consultant',
+    return { email: row.email, name: row.name, role: ROLES.includes(row.role) ? row.role : 'consultant', branch: branchOf(row),
       mustChangePassword: !!row.mustChangePassword, token };
   }
 
@@ -951,13 +975,14 @@ function openStore(dbPath, opts) {
     const students = db.prepare("SELECT * FROM students WHERE deletedAt = ''").all().filter((s) => canSeeStudent(me, s));
     const ids = new Set(students.map((s) => s.id));
     const out = {
-      me: { email: me.email, name: me.name, role: me.role, mustChangePassword: !!me.mustChangePassword,
+      me: { email: me.email, name: me.name, role: me.role, branch: branchOf(me), mustChangePassword: !!me.mustChangePassword,
         homeLayout: parseLayout((db.prepare('SELECT homeLayout FROM teachers WHERE email = ?').get(me.email) || {}).homeLayout) },
       homeDefault: parseLayout(getMeta('homeLayoutDefault')),
       studentCols: parseCols(getMeta('studentCols')),
       uploadMB: uploadMB(),
-      teachers: db.prepare("SELECT email, name, role, active, notify, color, sortOrder FROM teachers ORDER BY CASE WHEN sortOrder = '' OR sortOrder IS NULL THEN 1 ELSE 0 END, CAST(sortOrder AS INTEGER), name").all()
-        .map((t) => ({ email: t.email, name: t.name, role: t.role, active: !!t.active, notify: t.notify !== 'off', color: t.color || '', sortOrder: Number(t.sortOrder) || 0 })),
+      branches: BRANCHES, branchTz: BRANCH_TZ,
+      teachers: db.prepare("SELECT email, name, role, active, notify, color, sortOrder, branch FROM teachers ORDER BY CASE WHEN sortOrder = '' OR sortOrder IS NULL THEN 1 ELSE 0 END, CAST(sortOrder AS INTEGER), name").all()
+        .map((t) => ({ email: t.email, name: t.name, role: t.role, active: !!t.active, notify: t.notify !== 'off', color: t.color || '', sortOrder: Number(t.sortOrder) || 0, branch: branchOf(t) })),
       students,
       serverTime: now(),
     };
@@ -1058,6 +1083,8 @@ function openStore(dbPath, opts) {
       if (v('date') && !DATE_RE.test(v('date'))) throw new UserError('답변 날짜 형식이 올바르지 않습니다.');
     }
     if (table === 'students') checkUrl(v('meetingUrl'), '미팅 회의록 링크');
+    if (table === 'students' && v('branch') && !BRANCHES.includes(v('branch'))) throw new UserError('지점이 올바르지 않습니다.');
+    if ((table === 'meetings' || table === 'notes') && v('tz') && !TZS.includes(v('tz'))) throw new UserError('시간 기준(나라)이 올바르지 않습니다.');
     if (table === 'majorplans') {
       need('major', '전공을 입력하세요.');
       if (v('status') && !MAJOR_STATUS.includes(v('status'))) throw new UserError('상태가 올바르지 않습니다.');
@@ -1142,11 +1169,11 @@ function openStore(dbPath, opts) {
         const cur = getRow(table, obj.id);
         if (!cur || cur.deletedAt) throw new UserError('다른 선생님이 이미 삭제한 항목입니다. 새로고침 해주세요.', 409);
         if (table === 'students') {
-          requireStudent(me, cur.id);
-          if (!isManager(me)) { delete rec.counselor; delete rec.manager; } // 컨설턴트는 담당자 변경 불가
+          requireEdit(me, requireStudent(me, cur.id), table, cur);
+          if (!isManager(me)) { delete rec.counselor; delete rec.manager; delete rec.branch; } // 컨설턴트는 담당자·지점 변경 불가
         } else {
-          requireStudent(me, cur.studentId);
-          if (rec.studentId && rec.studentId !== cur.studentId) requireStudent(me, rec.studentId);
+          requireEdit(me, requireStudent(me, cur.studentId), table, cur);
+          if (rec.studentId && rec.studentId !== cur.studentId) requireEdit(me, requireStudent(me, rec.studentId), table, null);
           if (!isManager(me)) (HIDDEN_FOR_CONSULTANT[table] || []).forEach((k) => delete rec[k]);
         }
         // 동시 수정 방지: 화면을 불러온 뒤 다른 사람이 먼저 저장했으면 거부
@@ -1189,9 +1216,12 @@ function openStore(dbPath, opts) {
       } else {
         if (table === 'students') {
           requireManager(me, '학생 등록');
+          if (!rec.branch) rec.branch = branchOf(me);
+          if (me.role === 'staff' && rec.branch !== branchOf(me)) throw new UserError('다른 지점 학생은 그 지점 관리팀·관리자가 등록합니다.', 403);
         } else {
           if (!rec.studentId) throw new UserError('학생이 지정되지 않았습니다.');
-          requireStudent(me, rec.studentId);
+          requireEdit(me, requireStudent(me, rec.studentId), table, null);
+          if ((table === 'meetings' || table === 'notes') && !rec.tz) rec.tz = BRANCH_TZ[branchOf(me)];
           if (table === 'files') throw new UserError('파일은 업로드로만 추가할 수 있습니다.');
         }
         if (table === 'payments' && !rec.currency) {
@@ -1586,12 +1616,20 @@ function openStore(dbPath, opts) {
 
   /** 공용 달력 일정: 누구나 추가, 수정·삭제는 등록한 사람 또는 관리자·관리팀 */
   function eventLabel(r) { return r.date + (r.endDate && r.endDate !== r.date ? '~' + r.endDate : '') + ' ' + (r.private === 'TRUE' ? '(나만 보기 일정)' : r.title); } // 나만 보기 일정은 변경 기록에도 제목을 남기지 않음
+  /** 다른 지점 일정은 등록한 사람·관리자만 고치거나 지움 */
+  function requireEventBranch(me, cur) {
+    if (me.role === 'staff' && cur.createdBy !== me.email && branchOf(cur) !== branchOf(me)) throw new UserError(branchOf(cur) + ' 지점 일정은 등록한 사람이나 관리자만 고칠 수 있습니다.', 403);
+  }
   function saveEvent(me, arg) {
     arg = arg || {};
     const rec = {
       date: clean(arg.date).trim(), endDate: clean(arg.endDate).trim(), title: clean(arg.title).trim().slice(0, 200),
       category: clean(arg.category).trim(), memo: clean(arg.memo).trim(), private: arg.private === true || arg.private === 'TRUE' || arg.private === 'on' ? 'TRUE' : '',
+      shared: arg.shared === true || arg.shared === 'TRUE' || arg.shared === 'on' ? 'TRUE' : '', time: clean(arg.time).trim(),
     };
+    if (rec.time && !/^([01]\d|2[0-3]):[0-5]\d$/.test(rec.time)) throw new UserError('시간은 HH:MM 형식으로 입력하세요. (예: 15:00)');
+    if (rec.private) rec.shared = '';
+    rec.tz = TZS.includes(arg.tz) ? arg.tz : BRANCH_TZ[branchOf(me)]; // 시간을 어느 나라 기준으로 적었는지 (화면은 보는 사람 시간으로 바꿔 보여줌)
     if (!rec.title) throw new UserError('일정 이름을 입력하세요.');
     if (!DATE_RE.test(rec.date)) throw new UserError('날짜를 YYYY-MM-DD 형식으로 입력하세요.');
     if (rec.endDate && !DATE_RE.test(rec.endDate)) throw new UserError('끝나는 날짜를 YYYY-MM-DD 형식으로 입력하세요.');
@@ -1607,18 +1645,19 @@ function openStore(dbPath, opts) {
         const cur = getRow('events', id);
         if (!cur) throw new UserError('다른 선생님이 이미 삭제한 일정입니다. 새로고침 해주세요.', 409);
         if (cur.createdBy !== me.email && (!isManager(me) || cur.private === 'TRUE')) throw new UserError(cur.private === 'TRUE' ? '일정을 찾을 수 없습니다.' : '일정은 등록한 사람이나 관리자·관리팀만 고칠 수 있습니다.', cur.private === 'TRUE' ? 404 : 403);
+        requireEventBranch(me, cur);
         if (cur.createdBy !== me.email) rec.private = cur.private; // 다른 사람 일정을 나만 보기로 바꿀 수 없음
         if (arg.updatedAt && arg.updatedAt !== cur.updatedAt) {
           const who = getTeacher(cur.updatedBy);
           throw new UserError('그 사이 ' + (who ? who.name : cur.updatedBy) + ' 님이 먼저 수정했습니다. 새로고침 후 다시 입력해주세요.', 409);
         }
-        db.prepare('UPDATE events SET date=?, endDate=?, title=?, category=?, memo=?, private=?, updatedAt=?, updatedBy=? WHERE id=?')
-          .run(rec.date, rec.endDate, rec.title, rec.category, rec.memo, rec.private, t, me.email, id);
+        db.prepare('UPDATE events SET date=?, endDate=?, title=?, category=?, memo=?, private=?, shared=?, time=?, tz=?, updatedAt=?, updatedBy=? WHERE id=?')
+          .run(rec.date, rec.endDate, rec.title, rec.category, rec.memo, rec.private, rec.shared, rec.time, rec.time ? rec.tz : '', t, me.email, id);
         log(me.email, 'update', 'events', id, eventLabel(rec));
       } else {
         id = newId();
-        db.prepare('INSERT INTO events (id, date, endDate, title, category, memo, private, createdAt, createdBy, updatedAt, updatedBy) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
-          .run(id, rec.date, rec.endDate, rec.title, rec.category, rec.memo, rec.private, t, me.email, t, me.email);
+        db.prepare('INSERT INTO events (id, date, endDate, title, category, memo, private, branch, shared, time, tz, createdAt, createdBy, updatedAt, updatedBy) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+          .run(id, rec.date, rec.endDate, rec.title, rec.category, rec.memo, rec.private, branchOf(me), rec.shared, rec.time, rec.time ? rec.tz : '', t, me.email, t, me.email);
         log(me.email, 'create', 'events', id, eventLabel(rec));
       }
     });
@@ -1657,6 +1696,7 @@ function openStore(dbPath, opts) {
     const cur = getRow('events', arg && arg.id);
     if (!cur) throw new UserError('이미 삭제된 일정입니다.', 404);
     if (cur.createdBy !== me.email && (!isManager(me) || cur.private === 'TRUE')) throw new UserError(cur.private === 'TRUE' ? '이미 삭제된 일정입니다.' : '일정은 등록한 사람이나 관리자·관리팀만 지울 수 있습니다.', cur.private === 'TRUE' ? 404 : 403);
+    requireEventBranch(me, cur);
     db.prepare('DELETE FROM events WHERE id = ?').run(cur.id);
     log(me.email, 'delete', 'events', cur.id, eventLabel(cur) + (cur.memo && cur.private !== 'TRUE' ? ' — ' + cur.memo.slice(0, 200) : ''));
     return getAll(me);
@@ -1797,6 +1837,7 @@ function openStore(dbPath, opts) {
     const f = getRow('followups', arg && arg.id);
     if (!f || f.deletedAt) throw new UserError('팔로업을 찾을 수 없습니다. 새로고침 해주세요.', 404);
     const s = requireStudent(me, f.studentId);
+    requireEdit(me, s, 'followups', f);
     if (f.status === '완료') throw new UserError('이미 완료된 팔로업입니다.');
     const to = getTeacher(arg.to);
     if (!to || !to.active) throw new UserError('요청할 선생님을 찾을 수 없습니다.');
@@ -2023,9 +2064,10 @@ function openStore(dbPath, opts) {
         requireUni(cur.universityId);
       } else if (table === 'students') {
         requireManager(me, '학생 삭제');
+        requireEdit(me, cur, table, cur);
       } else {
         requireTableAccess(me, table);
-        requireStudent(me, cur.studentId);
+        requireEdit(me, requireStudent(me, cur.studentId), table, cur);
       }
       db.prepare(`UPDATE ${table} SET deletedAt = ?, deletedBy = ? WHERE id = ?`).run(now(), me.email, cur.id);
       log(me.email, 'delete', table, cur.id, describe(table, cur));
@@ -2077,7 +2119,8 @@ function openStore(dbPath, opts) {
         const s = getRow('students', cur.studentId);
         if (!s) throw new UserError('학생 정보가 영구 삭제되어 복구할 수 없습니다.');
         if (s.deletedAt) throw new UserError('"' + s.name + '" 학생이 휴지통에 있습니다. 학생을 먼저 복구하세요.');
-      }
+        requireEdit(me, s, table, cur);
+      } else if (table === 'students') requireEdit(me, cur, table, cur);
       db.prepare(`UPDATE ${table} SET deletedAt = '', deletedBy = '' WHERE id = ?`).run(cur.id);
       log(me.email, 'restore', table, cur.id, describe(table, cur));
     });
@@ -2190,6 +2233,7 @@ function openStore(dbPath, opts) {
   }
   function addFile(me, info) {
     const s = requireStudent(me, info.studentId);
+    requireEdit(me, s, 'files', null);
     const stored = [];
     try {
       tx(() => { storeFile(me, s, info, stored); });
@@ -2375,6 +2419,7 @@ function openStore(dbPath, opts) {
     if (password) checkPasswordRule(password);
     const color = String(obj.color || '').toLowerCase();
     if (color && !/^#[0-9a-f]{6}$/.test(color)) throw new UserError('색상 형식이 올바르지 않습니다.');
+    if (obj.branch && !BRANCHES.includes(obj.branch)) throw new UserError('지점이 올바르지 않습니다.');
     tx(() => {
       const found = getTeacher(email);
       const name = String(obj.name || '').trim() || (found ? found.name : email.split('@')[0]);
@@ -2383,6 +2428,7 @@ function openStore(dbPath, opts) {
         db.prepare('UPDATE teachers SET name=?, role=?, active=?, updatedAt=? WHERE email=?').run(name, role, active, t, email);
         if ('notify' in obj) db.prepare('UPDATE teachers SET notify=? WHERE email=?').run(obj.notify === false ? 'off' : '', email);
         if ('color' in obj) db.prepare('UPDATE teachers SET color=? WHERE email=?').run(color, email);
+        if (obj.branch) db.prepare('UPDATE teachers SET branch=? WHERE email=?').run(obj.branch, email);
         if (password) {
           db.prepare('UPDATE teachers SET passwordHash=?, mustChangePassword=0 WHERE email=?').run(hashPassword(password), email);
         }
@@ -2390,12 +2436,12 @@ function openStore(dbPath, opts) {
         if (!active || password || role !== found.role) db.prepare('DELETE FROM sessions WHERE email = ?').run(email);
       } else {
         if (!password) throw new UserError('새 계정의 비밀번호를 입력하세요 (6자 이상).');
-        db.prepare('INSERT INTO teachers (email, name, role, active, passwordHash, mustChangePassword, createdAt, updatedAt, notify, color) VALUES (?,?,?,?,?,?,?,?,?,?)')
-          .run(email, name, role, active, hashPassword(password), 0, t, t, obj.notify === false ? 'off' : '', color);
+        db.prepare('INSERT INTO teachers (email, name, role, active, passwordHash, mustChangePassword, createdAt, updatedAt, notify, color, branch) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
+          .run(email, name, role, active, hashPassword(password), 0, t, t, obj.notify === false ? 'off' : '', color, obj.branch || BRANCHES[0]);
       }
       const roleLabel = { admin: '관리자', staff: '관리팀', consultant: '컨설턴트' }[role];
       log(me.email, found ? 'update' : 'create', 'teachers', email,
-        [name, email, roleLabel, active ? '활성' : '비활성', password ? (found ? '비밀번호 초기화' : '임시 비밀번호 설정') : '']
+        [name, email, roleLabel, obj.branch || '', active ? '활성' : '비활성', password ? (found ? '비밀번호 초기화' : '임시 비밀번호 설정') : '']
           .filter(Boolean).join(' · '));
     });
     return getAll(me);
