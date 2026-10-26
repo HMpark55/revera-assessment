@@ -2112,3 +2112,16 @@ test('v30 지점: 예전 자료는 상해, 다른 지점 관리팀은 보기·�
   assert.strictEqual(d.events.find((e) => e.id === d.savedId).shared, '', '나만 보기는 공유 안 됨');
   await admin.ok('saveEvent', { id: ev.id, updatedAt: ev.updatedAt, title: '관리자가 고침', date: ev.date, time: ev.time, tz: ev.tz });
 });
+
+test('큰 JSON 응답은 gzip 압축 (작은 응답·gzip 못 받는 경우는 그대로)', async () => {
+  const admin = client(); await admin.login('admin@revera.test', 'admin-pass-1');
+  let r = await admin.req('POST', '/api/rpc/getAll', { arg: null });
+  assert.strictEqual(r.status, 200);
+  assert.strictEqual(r.headers.get('content-encoding'), 'gzip');
+  assert.ok(r.data.me && r.data.students, '압축을 풀면 원래 데이터');
+  r = await admin.req('POST', '/api/rpc/getAll', { arg: null }, { 'Accept-Encoding': 'identity' });
+  assert.strictEqual(r.headers.get('content-encoding'), null);
+  assert.ok(r.data.me);
+  r = await admin.req('POST', '/api/rpc/nope', { arg: null });
+  assert.strictEqual(r.status, 404); assert.strictEqual(r.headers.get('content-encoding'), null);
+});

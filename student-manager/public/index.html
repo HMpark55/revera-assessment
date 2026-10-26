@@ -874,10 +874,17 @@ function post(url, body) {
     .then(function (res) { return handle(res); }, function () { busy(false); throw new Error('서버에 연결할 수 없습니다. 인터넷(VPN) 연결을 확인하세요.'); });
 }
 var APP_VER = '';
+/** 응답이 중간에 끊긴 경우 (서버는 정상 응답했지만 본문이 다 오지 못함 — 해외 구간 연결이 잠깐 불안정할 때) */
+var CUT_MSG = '서버 응답이 중간에 끊겼습니다. 인터넷 연결이 잠깐 불안정했던 것 같습니다.';
+function cutError() { var e = new Error(CUT_MSG); e.cut = true; return e; }
 function handle(res) {
   checkVersion(res.headers.get('X-App-Version'));
-  return res.json().catch(function () { return {}; }).then(function (data) {
+  return res.text().then(function (txt) {
+    try { return txt ? JSON.parse(txt) : null; } catch (e) { return null; }
+  }, function () { return null; }).then(function (data) {
     busy(false);
+    if (res.ok && !data) throw cutError();
+    data = data || {};
     if (res.ok) return data;
     if (data.needLogin) showLogin();
     var e = new Error(data.error || ('서버 오류 (' + res.status + ')')); e.needLogin = !!data.needLogin; throw e;
@@ -899,6 +906,7 @@ function busy(on) { busyCount = Math.max(0, busyCount + (on ? 1 : -1)); $('loadi
 function errMsg(e) { return (e && e.message ? e.message : String(e)).replace(/^Error:\s*/, ''); }
 
 function load(data) {
+  if (!data || !data.me) throw cutError(); // 받은 데이터가 온전하지 않으면 보던 화면·로그인 상태를 그대로 둠
   S.me = data.me; S.teachers = data.teachers; S.allStudents = data.students; S.loadedAt = Date.now();
   CHILD.forEach(function (t) { S[t] = data[t] || []; });
   S.options = data.options || [];
@@ -923,18 +931,33 @@ function load(data) {
   render();
   if (S.me.mustChangePassword) openPasswordForm(true);
 }
+var refreshRetry = 0, refreshTimer = null;
 function refresh(manual) {
-  return api('getAll').then(function (d) { load(d); if (manual) toast('최신 데이터로 새로고침했습니다.'); })
+  clearTimeout(refreshTimer);
+  return api('getAll').then(function (d) { load(d); refreshRetry = 0; if (manual) toast('최신 데이터로 새로고침했습니다.'); })
     .catch(function (e) {
       if (e.needLogin) return;
-      if (!S.me) $('app').innerHTML = '<div id="gate"><div class="card"><h3>접속할 수 없습니다</h3><p>' + esc(errMsg(e)) + '</p></div></div>';
-      else toast(errMsg(e), true);
+      // 연결이 잠깐 끊긴 것: 보던 화면은 그대로 두고 3초·6초·12초 뒤 다시 받아옴
+      if (refreshRetry < 3) {
+        var wait = 3000 * Math.pow(2, refreshRetry++);
+        if (S.me) toast((e.cut ? '연결이 잠깐 끊겼습니다.' : errMsg(e)) + ' ' + wait / 1000 + '초 뒤 다시 불러옵니다.', true);
+        else $('app').innerHTML = '<div id="gate"><div class="card"><h3>연결하는 중…</h3><p>' + esc(errMsg(e)) + '<br>' + wait / 1000 + '초 뒤 다시 시도합니다.</p></div></div>';
+        refreshTimer = setTimeout(refresh, wait);
+        return;
+      }
+      refreshRetry = 0;
+      if (!S.me) $('app').innerHTML = '<div id="gate"><div class="card"><h3>접속할 수 없습니다</h3><p>' + esc(errMsg(e)) + '</p><button class="btn" onclick="refresh(true)">다시 시도</button></div></div>';
+      else toast(errMsg(e) + ' 잠시 후 위쪽 “새로고침”을 눌러주세요.', true);
     });
 }
 /** 저장 계열 호출: 성공 시 전체 데이터 갱신 후 응답을 돌려줌(실패 시 null) */
 function mutate(fn, arg, okMsg) {
   return api(fn, arg).then(function (d) { load(d); closeModal(true); if (okMsg) toast(okMsg); return d; })
-    .catch(function (e) { toast(errMsg(e), true); return null; });
+    .catch(function (e) {
+      // 저장 응답만 끊긴 경우 서버에는 저장됐을 수 있음 → 다시 받아와서 확인하게 함 (입력 창은 그대로 둠)
+      if (e.cut) { toast('저장 결과를 받는 중 연결이 끊겼습니다. 저장됐는지 화면을 다시 불러와 확인합니다 — 안 보이면 다시 저장해주세요.', true); refresh(); return null; }
+      toast(errMsg(e), true); return null;
+    });
 }
 
 /* ============================== 로그인 ============================== */

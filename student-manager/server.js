@@ -8,6 +8,7 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
+const zlib = require('zlib');
 const { openStore, UserError, MAX_UPLOAD } = require('./lib/store');
 const automation = require('./lib/automation');
 
@@ -30,6 +31,17 @@ function createApp(store, opts) {
       'Referrer-Policy': 'same-origin',
       'Cache-Control': 'no-store',
     });
+    next();
+  });
+  // 큰 JSON 응답(화면 전체 데이터 등)은 gzip으로 압축 — 상해↔서버 구간에서 받는 양을 줄여 끊김을 줄이고 빠르게
+  app.use('/api', (req, res, next) => {
+    res.json = (body) => {
+      const text = JSON.stringify(body);
+      res.type('application/json');
+      if (text.length < 2048 || !/\bgzip\b/.test(req.headers['accept-encoding'] || '')) return res.send(text);
+      res.set({ 'Content-Encoding': 'gzip', Vary: 'Accept-Encoding' });
+      return res.send(zlib.gzipSync(text));
+    };
     next();
   });
   // 가져오기 파일(회의록 첨부 이미지 포함)은 크기가 커서 따로 허용
@@ -314,10 +326,10 @@ function createApp(store, opts) {
   app.use('/vendor', (req, res, next) => {
     const type = VENDOR[req.path] || (/^\/world10\/\d{1,2}_\d{1,2}\.json$/.test(req.path) && fs.existsSync(path.join(__dirname, 'public', 'vendor', req.path)) ? VENDOR['/world.json'] : ''); // world10 = 확대했을 때 받는 지역 조각
     if (!type || req.method !== 'GET') return next();
-    if (!vendorGz[req.path]) vendorGz[req.path] = require('zlib').gzipSync(fs.readFileSync(path.join(__dirname, 'public', 'vendor', req.path)));
+    if (!vendorGz[req.path]) vendorGz[req.path] = zlib.gzipSync(fs.readFileSync(path.join(__dirname, 'public', 'vendor', req.path)));
     res.set({ 'Content-Type': type, 'Cache-Control': 'public, max-age=2592000, immutable', Vary: 'Accept-Encoding' });
     if (/\bgzip\b/.test(req.headers['accept-encoding'] || '')) return res.set('Content-Encoding', 'gzip').send(vendorGz[req.path]);
-    res.send(require('zlib').gunzipSync(vendorGz[req.path]));
+    res.send(zlib.gunzipSync(vendorGz[req.path]));
   });
   app.use(express.static(path.join(__dirname, 'public'), { index: 'index.html' }));
   return app;
