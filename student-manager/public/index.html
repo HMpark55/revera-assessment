@@ -579,6 +579,8 @@
   .brsel select { padding: 2px 6px; font-size: .85rem; width: auto; }
   .pill.br { background: #eef2ff; color: #3730a3; font-size: .7rem; }
   .pill.br-2 { background: #fff1e6; color: #9a3412; }
+  #unimap { background: #dbe7f3; }
+  .mapcity { font-size: 11px; color: #4b5563; white-space: nowrap; text-shadow: 0 0 2px #fff, 0 0 2px #fff; pointer-events: none; }
 </style>
 </head>
 <body>
@@ -3778,26 +3780,81 @@ function viewMap(sid) {
     seg([['country', '나라별 색'], ['due', '마감 임박 색']], UI.mapMode, 'mapMode') + '</div>' +
     '<div class="card"><div class="maplegend" style="margin-bottom:8px">' + legend.join('') + '<span class="muted" style="margin-left:auto">점을 누르면 지원 학생·가까운 마감 · 핀이 겹치면 확대</span></div>' +
     '<div id="unimap" data-sid="' + esc(sid || '') + '"></div>' +
-    '<div class="muted" style="font-size:.78rem;margin-top:6px">지도: © OpenStreetMap 기여자. “대략 위치”는 Compass가 처음 넣은 값이라 실제 캠퍼스와 조금 다를 수 있습니다 — 대학 정보 › 대학 정보 수정 › 캠퍼스 위치에서 고칠 수 있습니다.</div>' +
+    '<div class="muted" style="font-size:.78rem;margin-top:6px">지도: Natural Earth 나라 경계(공개 자료, Compass 서버에 저장 — 도로·건물은 없음). “대략 위치”는 Compass가 처음 넣은 값이라 실제 캠퍼스와 조금 다를 수 있습니다 — 대학 정보 › 대학 정보 수정 › 캠퍼스 위치에서 고칠 수 있습니다.</div>' +
     (noPos.length ? '<div class="notice" style="margin-top:8px">위치가 없는 대학 ' + noPos.length + '곳: ' + noPos.map(function (u) { return '<a href="#/uni/' + esc(u.id) + '">' + esc(u.name) + '</a>'; }).join(', ') + ' — 대학 정보 수정에서 캠퍼스 위치를 넣으면 지도에 나옵니다.</div>' : '') + '</div>';
 }
-/** Leaflet은 지도 화면을 처음 열 때만 불러옴 */
+/** 지도 도구(Leaflet 1.9.4)와 세계 지도 윤곽(Natural Earth)은 Compass 서버에 있음 — 바깥 지도 서버를 쓰지 않아 인터넷 상태와 상관없이 빠름. 처음 열 때 한 번 받고 브라우저에 보관 */
+var MAP_VER = '1';
 function loadLeaflet(cb) {
-  if (window.L) return cb();
-  if (!document.getElementById('leaflet-css')) {
-    var l = document.createElement('link'); l.id = 'leaflet-css'; l.rel = 'stylesheet'; l.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'; document.head.appendChild(l);
-  }
-  var s = document.getElementById('leaflet-js');
-  if (!s) { s = document.createElement('script'); s.id = 'leaflet-js'; s.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'; document.head.appendChild(s); }
-  s.addEventListener('load', cb); s.addEventListener('error', function () { var el = $('unimap'); if (el) el.innerHTML = '<div class="empty">지도 도구를 불러오지 못했습니다. 인터넷 연결을 확인하고 새로고침 해주세요.</div>'; });
+  var fail = function () { var el = $('unimap'); if (el) el.innerHTML = '<div class="empty">지도를 불러오지 못했습니다. 새로고침 해주세요.</div>'; };
+  if (!UI.world) UI.world = fetch('/vendor/world.json?v=' + MAP_VER, { credentials: 'same-origin' }).then(function (r) { if (!r.ok) throw new Error(); return r.json(); });
+  var lib = window.L ? Promise.resolve() : new Promise(function (ok, no) {
+    if (!document.getElementById('leaflet-css')) {
+      var l = document.createElement('link'); l.id = 'leaflet-css'; l.rel = 'stylesheet'; l.href = '/vendor/leaflet/leaflet.css?v=' + MAP_VER; document.head.appendChild(l);
+    }
+    var s = document.getElementById('leaflet-js');
+    if (!s) { s = document.createElement('script'); s.id = 'leaflet-js'; s.src = '/vendor/leaflet/leaflet.js?v=' + MAP_VER; document.head.appendChild(s); }
+    s.addEventListener('load', ok); s.addEventListener('error', no);
+  });
+  Promise.all([lib, UI.world]).then(function (r) { cb(r[1]); }, function () { UI.world = null; fail(); });
+}
+/** 세계 지도 윤곽 (Natural Earth): 멀리서는 world.json(1:50m 나라·호수), 확대(6단계부터)하면 보이는 지역의 world10/ 조각(1:10m 땅·호수·국경)만 받아서 그림. 도시 이름은 확대할수록 작은 도시까지 */
+var MAP_DETAIL_ZOOM = 6;
+function worldLayers(map, w) {
+  var poly = function (rs) { return rs.map(function (r) { return r.map(function (c) { return [c[1], c[0]]; }); }); };
+  map.createPane('base').style.zIndex = 200; // 땅 < 도시 이름 < 대학 점
+  map.createPane('cities').style.zIndex = 350;
+  var cv = L.canvas({ pane: 'base', padding: .3 });
+  var LAND = '#f4f1ea', WATER = '#dbe7f3', LINE = '#9aa7b8';
+  var base = L.layerGroup();
+  w.countries.forEach(function (c) { c[1].forEach(function (p) { L.polygon(poly(p), { renderer: cv, color: LINE, weight: .8, fillColor: LAND, fillOpacity: 1, interactive: false }).addTo(base); }); });
+  w.lakes.forEach(function (g) { g.forEach(function (p) { L.polygon(poly(p), { renderer: cv, color: LINE, weight: .5, fillColor: WATER, fillOpacity: 1, interactive: false }).addTo(base); }); });
+  var detail = L.layerGroup(), drawn = {};
+  UI.mapTiles = UI.mapTiles || {};
+  var tile = function (k) {
+    if (drawn[k]) return; drawn[k] = 1;
+    var got = UI.mapTiles[k] || (UI.mapTiles[k] = fetch('/vendor/world10/' + k + '.json?v=' + MAP_VER, { credentials: 'same-origin' }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { delete UI.mapTiles[k]; drawn[k] = 0; return null; }));
+    got.then(function (t) {
+      if (!t || !drawn[k]) return;
+      var g = L.layerGroup();
+      t.fill.forEach(function (r) { L.polygon(poly([r]), { renderer: cv, stroke: false, fillColor: LAND, fillOpacity: 1, interactive: false }).addTo(g); });
+      (t.hole || []).concat(t.lake).forEach(function (r) { L.polygon(poly([r]), { renderer: cv, stroke: false, fillColor: WATER, fillOpacity: 1, interactive: false }).addTo(g); });
+      t.line.forEach(function (l) { L.polyline(l.map(function (c) { return [c[1], c[0]]; }), { renderer: cv, color: LINE, weight: 1, dashArray: '4 3', interactive: false }).addTo(g); });
+      g.addTo(detail);
+    });
+  };
+  var cities = L.layerGroup().addTo(map);
+  var draw = function () {
+    var z = map.getZoom(), b = map.getBounds();
+    if (z >= MAP_DETAIL_ZOOM) {
+      if (map.hasLayer(base)) map.removeLayer(base);
+      if (!map.hasLayer(detail)) detail.addTo(map);
+      var x0 = Math.max(0, Math.floor((b.getWest() + 180) / 20)), x1 = Math.min(17, Math.floor((b.getEast() + 180) / 20));
+      var y0 = Math.max(0, Math.floor((b.getSouth() + 90) / 20)), y1 = Math.min(8, Math.floor((b.getNorth() + 90) / 20));
+      for (var x = x0; x <= x1; x++) for (var y = y0; y <= y1; y++) tile(x + '_' + y);
+    } else {
+      if (map.hasLayer(detail)) map.removeLayer(detail);
+      if (!map.hasLayer(base)) base.addTo(map);
+    }
+    cities.clearLayers();
+    var taken = [], bb = b.pad(.1);
+    w.cities.forEach(function (c) {
+      if (c[3] > z + .5 || !bb.contains([c[1], c[2]])) return;
+      var pt = map.latLngToContainerPoint([c[1], c[2]]), wd = c[0].length * 11 + 8;
+      if (taken.some(function (t) { return pt.x < t.x + t.w && pt.x + wd > t.x - 6 && Math.abs(pt.y - t.y) < 16; })) return;
+      taken.push({ x: pt.x, y: pt.y, w: wd });
+      L.circleMarker([c[1], c[2]], { pane: 'cities', radius: 2, color: '#6b7280', weight: 1, fillColor: '#6b7280', fillOpacity: 1, interactive: false }).addTo(cities);
+      L.marker([c[1], c[2]], { pane: 'cities', interactive: false, keyboard: false, icon: L.divIcon({ className: 'mapcity', html: esc(c[0]), iconSize: null, iconAnchor: [-4, 7] }) }).addTo(cities);
+    });
+  };
+  map.on('zoomend moveend', draw); map.whenReady(draw); // 처음 위치를 정한 뒤에 그림
 }
 function mapInit() {
-  loadLeaflet(function () {
+  loadLeaflet(function (world) {
     var el = $('unimap'); if (!el || el._done) return; el._done = 1;
     var sid = el.getAttribute('data-sid'), apps = mapApps(sid);
-    var map = L.map(el, { worldCopyJump: true, minZoom: 2 });
-    // OpenStreetMap은 출처(Referer)가 없는 요청을 막음 — 페이지는 same-origin 정책이라 지도 그림 요청에만 사이트 주소(도메인까지)를 붙임
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18, referrerPolicy: 'strict-origin-when-cross-origin', attribution: '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>' }).addTo(map);
+    var map = L.map(el, { minZoom: 2, maxZoom: 11, maxBounds: [[-85, -190], [85, 190]], zoomSnap: .5, preferCanvas: true, attributionControl: false });
+    worldLayers(map, world);
     var pts = [];
     S.universities.filter(function (u) { return !u.deletedAt; }).forEach(function (u) {
       var ua = apps.filter(function (a) { return a.universityId === u.id; });

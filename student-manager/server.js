@@ -308,6 +308,17 @@ function createApp(store, opts) {
     }
   });
 
+  // 대학 지도 도구(Leaflet)·세계 지도 윤곽(Natural Earth) — 바뀌지 않는 파일이라 압축해서 보내고 브라우저에 30일 보관 (바꾸면 화면의 ?v= 를 올림)
+  const VENDOR = { '/world.json': 'application/json; charset=utf-8', '/leaflet/leaflet.js': 'text/javascript; charset=utf-8', '/leaflet/leaflet.css': 'text/css; charset=utf-8' };
+  const vendorGz = {};
+  app.use('/vendor', (req, res, next) => {
+    const type = VENDOR[req.path] || (/^\/world10\/\d{1,2}_\d{1,2}\.json$/.test(req.path) && fs.existsSync(path.join(__dirname, 'public', 'vendor', req.path)) ? VENDOR['/world.json'] : ''); // world10 = 확대했을 때 받는 지역 조각
+    if (!type || req.method !== 'GET') return next();
+    if (!vendorGz[req.path]) vendorGz[req.path] = require('zlib').gzipSync(fs.readFileSync(path.join(__dirname, 'public', 'vendor', req.path)));
+    res.set({ 'Content-Type': type, 'Cache-Control': 'public, max-age=2592000, immutable', Vary: 'Accept-Encoding' });
+    if (/\bgzip\b/.test(req.headers['accept-encoding'] || '')) return res.set('Content-Encoding', 'gzip').send(vendorGz[req.path]);
+    res.send(require('zlib').gunzipSync(vendorGz[req.path]));
+  });
   app.use(express.static(path.join(__dirname, 'public'), { index: 'index.html' }));
   return app;
 }
