@@ -1,6 +1,720 @@
 {
  "McGill": [
   {
+   "name": "Accounting",
+   "faculty": "Desautels Faculty of Management",
+   "code": "",
+   "detail": "과정: Major, Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/accounting"
+  },
+  {
+   "name": "African Studies",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Major Concentration, Joint Honours, Minor Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/african-studies"
+  },
+  {
+   "name": "Agribusiness",
+   "faculty": "Faculty of Agricultural and Environmental Sciences",
+   "code": "",
+   "detail": "과정: Specialization · Macdonald Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/agribusiness"
+  },
+  {
+   "name": "Agricultural Economics",
+   "faculty": "Faculty of Agricultural and Environmental Sciences",
+   "code": "",
+   "detail": "과정: Major, Minor · Macdonald Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/agricultural-economics"
+  },
+  {
+   "name": "Anatomy & Cell Biology",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Major, Honours, Liberal Program · Downtown (Montreal) Campus · 지원 그룹: Biological, Biomedical & Life Sciences",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/anatomy-cell-biology"
+  },
+  {
+   "name": "Animal Biology",
+   "faculty": "Faculty of Agricultural and Environmental Sciences",
+   "code": "",
+   "detail": "과정: Minor, Specialization · Macdonald Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/animal-biology"
+  },
+  {
+   "name": "Animal Health and Disease",
+   "faculty": "Faculty of Agricultural and Environmental Sciences",
+   "code": "",
+   "detail": "과정: Specialization · Macdonald Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/animal-health-and-disease"
+  },
+  {
+   "name": "Animal Production",
+   "faculty": "Faculty of Agricultural and Environmental Sciences",
+   "code": "",
+   "detail": "과정: Specialization · Macdonald Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/animal-production"
+  },
+  {
+   "name": "Anthropology",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Major Concentration, Honours, Joint Honours, Minor Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/anthropology"
+  },
+  {
+   "name": "Applied Ecology",
+   "faculty": "Faculty of Agricultural and Environmental Sciences",
+   "code": "",
+   "detail": "과정: Minor, Specialization · Macdonald Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/applied-ecology"
+  },
+  {
+   "name": "Applied Mathematics (Faculty of Arts)",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Honours · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/applied-mathematics-faculty-arts"
+  },
+  {
+   "name": "Applied Mathematics (Faculty of Science)",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Honours · Downtown (Montreal) Campus · 지원 그룹: Physical, Earth, Math & Computer Sciences",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/applied-mathematics-faculty-science"
+  },
+  {
+   "name": "Architecture",
+   "faculty": "Faculty of Engineering",
+   "code": "",
+   "detail": "과정: Major · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/architecture"
+  },
+  {
+   "name": "Art History",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Major Concentration, Honours, Joint Honours, Minor Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/art-history"
+  },
+  {
+   "name": "Atmospheric Environment and Air Quality",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Domain · Downtown (Montreal) Campus · 지원 그룹: Physical, Earth, Math & Computer Sciences",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/atmospheric-environment-and-air-quality"
+  },
+  {
+   "name": "Atmospheric Science",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Major, Honours, Liberal Program, Minor · Downtown (Montreal) Campus · 지원 그룹: Physical, Earth, Math & Computer Sciences",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/atmospheric-science"
+  },
+  {
+   "name": "Atmospheric Science and Physics",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Joint Majors · Downtown (Montreal) Campus · 지원 그룹: Physical, Earth, Math and Computer Sciences",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/atmospheric-science-and-physics"
+  },
+  {
+   "name": "Biochemistry",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Major, Honours, Liberal Program · Downtown (Montreal) Campus · 지원 그룹: Biological, Biomedical & Life Sciences",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/biochemistry"
+  },
+  {
+   "name": "Biodiversity and Conservation (Faculty of Agricultural and Environmental Sciences)",
+   "faculty": "Faculty of Agricultural and Environmental Sciences",
+   "code": "",
+   "detail": "과정: Domain · Macdonald Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/biodiversity-and-conservation"
+  },
+  {
+   "name": "Biodiversity and Conservation (Faculty of Science)",
+   "faculty": "Faculty of Agricultural and Environmental Sciences",
+   "code": "",
+   "detail": "과정: Domain · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/biodiversity-and-conservation-faculty-science"
+  },
+  {
+   "name": "Bioengineering",
+   "faculty": "Faculty of Engineering",
+   "code": "",
+   "detail": "과정: Major · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/bioengineering"
+  },
+  {
+   "name": "Biology",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Major, Honours, Liberal Program, Minor · Downtown (Montreal) Campus · 지원 그룹: Biological, Biomedical & Life Sciences",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/biology"
+  },
+  {
+   "name": "Biology and Mathematics",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Major · Downtown (Montreal) Campus · 지원 그룹: Bio-Physical-Computational Sciences",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/biology-and-mathematics"
+  },
+  {
+   "name": "Bioresource Engineering (Faculty of Agricultural and Environmental Sciences)",
+   "faculty": "Faculty of Agricultural and Environmental Sciences",
+   "code": "",
+   "detail": "과정: Major, Honours · Macdonald Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/bioresource-engineering-faculty-agricultural-and-environmental-sciences"
+  },
+  {
+   "name": "Business Analytics",
+   "faculty": "Desautels Faculty of Management",
+   "code": "",
+   "detail": "과정: Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/business-analytics"
+  },
+  {
+   "name": "Canadian Studies",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Major Concentration, Minor Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/canadian-studies"
+  },
+  {
+   "name": "Chemical Engineering (Faculty of Engineering)",
+   "faculty": "Faculty of Engineering",
+   "code": "",
+   "detail": "과정: Major · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/chemical-engineering-faculty-engineering"
+  },
+  {
+   "name": "Chemistry (Bachelor of Arts and Science)",
+   "faculty": "Bachelor of Arts and Science",
+   "code": "",
+   "detail": "과정: Major Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/chemistry-bachelor-arts-and-science"
+  },
+  {
+   "name": "Chemistry (Faculty of Science)",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Major, Honours, Liberal Program, Minor · Downtown (Montreal) Campus · 지원 그룹: Physical, Earth, Math & Computer Sciences",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/chemistry-faculty-science"
+  },
+  {
+   "name": "Civil Engineering",
+   "faculty": "Faculty of Engineering",
+   "code": "",
+   "detail": "과정: Major · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/civil-engineering"
+  },
+  {
+   "name": "Classical Studies",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Major Concentration, Honours, Joint Honours, Minor Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/classical-studies"
+  },
+  {
+   "name": "Cognitive Science (Bachelor of Arts and Science)",
+   "faculty": "Bachelor of Arts and Science",
+   "code": "",
+   "detail": "과정: Interfaculty Program · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/cognitive-science"
+  },
+  {
+   "name": "Computer Engineering",
+   "faculty": "Faculty of Engineering",
+   "code": "",
+   "detail": "과정: Major · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/computer-engineering"
+  },
+  {
+   "name": "Computer Science and Biology",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Honours, Joint Majors · Downtown (Montreal) Campus · 지원 그룹: Bio-Physical-Computational Sciences",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/computer-science-and-biology"
+  },
+  {
+   "name": "Computer Science (Bachelor of Arts and Science)",
+   "faculty": "Bachelor of Arts and Science",
+   "code": "",
+   "detail": "과정: Major Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/computer-science-bachelor-arts-and-science"
+  },
+  {
+   "name": "Computer Science (Faculty of Arts)",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Major Concentration, Minor Concentration, Supplementary Minor · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/computer-science-faculty-arts"
+  },
+  {
+   "name": "Computer Science (Faculty of Science)",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Major, Honours, Liberal Program, Minor · Downtown (Montreal) Campus · 지원 그룹: Physical, Earth, Math & Computer Sciences",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/computer-science-faculty-science"
+  },
+  {
+   "name": "Dietetics",
+   "faculty": "School of Human Nutrition",
+   "code": "",
+   "detail": "과정: Major · Macdonald Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/dietetics"
+  },
+  {
+   "name": "Dentistry (Dent-P)",
+   "faculty": "Faculty of Dental Medicine and Oral Sciences",
+   "code": "",
+   "detail": "과정: Faculty Program · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/doctor-medicine-dentistry-dmd"
+  },
+  {
+   "name": "Earth and Planetary Sciences",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Liberal Program · Downtown (Montreal) Campus · 지원 그룹: Physical, Earth, Math & Computer Sciences",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/earth-and-planetary-sciences"
+  },
+  {
+   "name": "Earth Sciences and Economics",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Domain · Downtown (Montreal) Campus · 지원 그룹: Physical, Earth, Math & Computer Sciences",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/earth-sciences-and-economics"
+  },
+  {
+   "name": "Earth System Science",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Major, Honours, Minor · Downtown (Montreal) Campus · 지원 그룹: Physical, Earth, Math & Computer Sciences",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/earth-system-science"
+  },
+  {
+   "name": "East Asian Studies",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Major, Honours, Joint Honours · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/east-asian-studies"
+  },
+  {
+   "name": "East Asian Studies: Language (Supplementary)",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Supplementary Minor · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/east-asian-studies-language-supplementary"
+  },
+  {
+   "name": "Ecological Determinants of Health (Cellular) (Faculty of Agricultural and Environmental Sciences)",
+   "faculty": "Faculty of Agricultural and Environmental Sciences",
+   "code": "",
+   "detail": "과정: Domain · Macdonald Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/ecological-determinants-health-cellular"
+  },
+  {
+   "name": "Ecological Determinants of Health (Cellular) (Faculty of Science)",
+   "faculty": "Faculty of Agricultural and Environmental Sciences",
+   "code": "",
+   "detail": "과정: Domain · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/ecological-determinants-health-cellular-faculty-science"
+  },
+  {
+   "name": "Ecological Determinants of Health (Population) (Faculty of Agricultural and Environmental Sciences)",
+   "faculty": "Faculty of Agricultural and Environmental Sciences",
+   "code": "",
+   "detail": "과정: Domain · Macdonald Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/ecological-determinants-health-population"
+  },
+  {
+   "name": "Ecological Determinants of Health (Population) (Faculty of Science)",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Domain · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/ecological-determinants-health-population-faculty-science"
+  },
+  {
+   "name": "Ecological Determinants of Health in Society",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Domain · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/ecological-determinants-health-society"
+  },
+  {
+   "name": "Economics and Accounting",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Joint Honours · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/economics-and-accounting"
+  },
+  {
+   "name": "Economics and the Earth’s Environment",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Domain · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/economics-and-earths-environment"
+  },
+  {
+   "name": "Economics and Finance",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: 확인 못 함 — 링크 참고",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/economics-and-finance"
+  },
+  {
+   "name": "Economics (Desautels Faculty of Management)",
+   "faculty": "Desautels Faculty of Management",
+   "code": "",
+   "detail": "과정: Major, Honours · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/economics-desautels-faculty-management"
+  },
+  {
+   "name": "Economics (Faculty of Arts)",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Major Concentration, Honours, Joint Honours, Minor Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/economics-faculty-arts"
+  },
+  {
+   "name": "B.A. (Education); Education in Global Contexts",
+   "faculty": "Faculty of Education",
+   "code": "",
+   "detail": "과정: Major · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/education-global-contexts"
+  },
+  {
+   "name": "Electrical Engineering (Faculty of Engineering)",
+   "faculty": "Faculty of Engineering",
+   "code": "",
+   "detail": "과정: Major, Honours · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/electrical-engineering-faculty-engineering"
+  },
+  {
+   "name": "English: Cultural Studies",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Major Concentration, Honours, Joint Honours, Minor Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/english-cultural-studies"
+  },
+  {
+   "name": "English: Drama and Theatre",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Major Concentration, Honours, Joint Honours, Minor Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/english-drama-and-theatre"
+  },
+  {
+   "name": "English: Literature",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Major Concentration, Honours, Joint Honours, Minor Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/english-literature"
+  },
+  {
+   "name": "Entrepreneurship",
+   "faculty": "Desautels Faculty of Management",
+   "code": "",
+   "detail": "과정: Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/entrepreneurship"
+  },
+  {
+   "name": "Environment and Development",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Domain · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/environment-and-development"
+  },
+  {
+   "name": "Environment (Bachelor of Arts and Science)",
+   "faculty": "Bachelor of Arts and Science",
+   "code": "",
+   "detail": "과정: Interfaculty Program · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/environment-bachelor-arts-and-science"
+  },
+  {
+   "name": "Environment (Faculty of Agricultural and Environmental Sciences)",
+   "faculty": "Faculty of Agricultural and Environmental Sciences",
+   "code": "",
+   "detail": "과정: Major · Macdonald Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/environment-faculty-agricultural-and-environmental-sciences"
+  },
+  {
+   "name": "Environment (Faculty of Arts)",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Honours, Joint Honours, Faculty Program, Minor Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/environment-faculty-arts"
+  },
+  {
+   "name": "Environment (Faculty of Science)",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Major, Honours, Minor · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/environment-faculty-science"
+  },
+  {
+   "name": "Environmental Biology",
+   "faculty": "Faculty of Agricultural and Environmental Sciences",
+   "code": "",
+   "detail": "과정: Major · Macdonald Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/environmental-biology"
+  },
+  {
+   "name": "Environmental Economics",
+   "faculty": "Faculty of Agricultural and Environmental Sciences",
+   "code": "",
+   "detail": "과정: Specialization · Macdonald Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/environmental-economics"
+  },
+  {
+   "name": "Environmetrics (Faculty of Agricultural and Environmental Sciences)",
+   "faculty": "Faculty of Agricultural and Environmental Sciences",
+   "code": "",
+   "detail": "과정: Domain · Macdonald Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/environmetrics"
+  },
+  {
+   "name": "Environmetrics (Faculty of Science)",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Domain · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/environmetrics-faculty-science"
+  },
+  {
+   "name": "Faculty Program in Music",
+   "faculty": "Schulich School of Music",
+   "code": "",
+   "detail": "과정: Major · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/faculty-program-music"
+  },
+  {
+   "name": "Faculty Program in Music: Jazz",
+   "faculty": "Schulich School of Music",
+   "code": "",
+   "detail": "과정: Major · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/faculty-program-music-jazz"
+  },
+  {
+   "name": "Faculty Program in Population and Global Health",
+   "faculty": "Bachelor of Arts in Population and Global Health",
+   "code": "",
+   "detail": "과정: Major · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/faculty-program-population-and-global-health"
+  },
+  {
+   "name": "Field Crops and Horticulture",
+   "faculty": "Faculty of Agricultural and Environmental Sciences",
+   "code": "",
+   "detail": "과정: Specialization · Macdonald Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/field-crops-and-horticulture"
+  },
+  {
+   "name": "Finance",
+   "faculty": "Desautels Faculty of Management",
+   "code": "",
+   "detail": "과정: Major, Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/finance"
+  },
+  {
+   "name": "Food Production and Environment (Faculty of Agricultural and Environmental Sciences)",
+   "faculty": "Faculty of Agricultural and Environmental Sciences",
+   "code": "",
+   "detail": "과정: Domain · Macdonald Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/food-production-and-environment"
+  },
+  {
+   "name": "Food Production and Environment (Faculty of Science)",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Domain · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/food-production-and-environment-faculty-science"
+  },
+  {
+   "name": "Food Science",
+   "faculty": "Faculty of Agricultural and Environmental Sciences",
+   "code": "",
+   "detail": "과정: Major, Honours · Macdonald Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/food-science"
+  },
+  {
+   "name": "Food Science & Nutritional Science",
+   "faculty": "School of Human Nutrition",
+   "code": "",
+   "detail": "과정: Major, Honours · Macdonald Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/food-science-nutritional-science"
+  },
+  {
+   "name": "Gender, Sexuality, Feminist and Social Justice Studies",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Major Concentration, Honours, Joint Honours, Minor Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/gender-sexuality-feminist-and-social-justice-studies"
+  },
+  {
+   "name": "General Science",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: 확인 못 함 — 링크 참고",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/general-science"
+  },
+  {
+   "name": "Geography (Faculty of Arts)",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Major Concentration, Honours, Joint Honours, Minor Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/geography-faculty-arts"
+  },
+  {
+   "name": "Geography (Faculty of Science)",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Major, Honours, Minor · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/geography-faculty-science"
+  },
+  {
+   "name": "Geography - Physical Geography (Bachelor of Arts and Science)",
+   "faculty": "Bachelor of Arts and Science",
+   "code": "",
+   "detail": "과정: Major Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/geography-physical-geography-bachelor-arts-and-science"
+  },
+  {
+   "name": "Geography (Urban Studies)",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Major Concentration, Honours, Minor Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/geography-urban-studies"
+  },
+  {
+   "name": "Geology",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Major, Honours, Minor · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/geology"
+  },
+  {
+   "name": "German Studies",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Major Concentration, Honours, Joint Honours, Minor Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/german-studies"
+  },
+  {
+   "name": "Global Engineering",
+   "faculty": "Faculty of Engineering",
+   "code": "",
+   "detail": "과정: Major · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/global-engineering"
+  },
+  {
+   "name": "Global Food Security",
+   "faculty": "Faculty of Agricultural and Environmental Sciences",
+   "code": "",
+   "detail": "과정: Specialization · Macdonald Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/global-food-security"
+  },
+  {
+   "name": "Hispanic Studies",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Major Concentration, Honours, Joint Honours, Minor Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/hispanic-studies"
+  },
+  {
+   "name": "History",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Major Concentration, Honours, Joint Honours, Minor Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/history"
+  },
+  {
+   "name": "Immunology (Interdepartmental)",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Honours · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/immunology-interdepartmental"
+  },
+  {
+   "name": "Industrial & Labour Relations (discontinued as of September 2023)",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Faculty Program · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/industrial-labour-relations"
+  },
+  {
+   "name": "International Business",
+   "faculty": "Desautels Faculty of Management",
+   "code": "",
+   "detail": "과정: Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/international-business"
+  },
+  {
+   "name": "International Development Studies",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Major Concentration, Honours, Joint Honours, Minor Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/international-development-studies"
+  },
+  {
+   "name": "International Management",
+   "faculty": "Desautels Faculty of Management",
+   "code": "",
+   "detail": "과정: Major · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/international-management"
+  },
+  {
+   "name": "Investment Management",
+   "faculty": "Desautels Faculty of Management",
+   "code": "",
+   "detail": "과정: Honours · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/investment-management"
+  },
+  {
+   "name": "Italian Studies",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Major Concentration, Honours, Joint Honours, Minor Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/italian-studies"
+  },
+  {
+   "name": "Information Technology Management",
+   "faculty": "Desautels Faculty of Management",
+   "code": "",
+   "detail": "과정: Major · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/itm"
+  },
+  {
+   "name": "Information Technology Management Concentration",
+   "faculty": "Desautels Faculty of Management",
+   "code": "",
+   "detail": "과정: Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/itmconcentration"
+  },
+  {
+   "name": "Jewish Studies",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Major Concentration, Honours, Joint Honours, Minor Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/jewish-studies"
+  },
+  {
+   "name": "Kindergarten and Elementary Education",
+   "faculty": "Faculty of Education",
+   "code": "",
+   "detail": "과정: Professional Program · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/kindergarten-and-elementary-education"
+  },
+  {
+   "name": "Kindergarten and Elementary Education (First Nations and Inuit Studies)",
+   "faculty": "Faculty of Education",
+   "code": "",
+   "detail": "과정: Professional Program · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/kindergarten-and-elementary-education-first-nations-and-inuit-studies"
+  },
+  {
    "name": "Kindergarten and Elementary Education (Jewish Studies)",
    "faculty": "Faculty of Education",
    "code": "",
@@ -15,53 +729,11 @@
    "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/kindergarten-and-elementary-education-pedagogie-de-limmersion-francaise"
   },
   {
-   "name": "Secondary Education: Mathematics",
-   "faculty": "Faculty of Education",
-   "code": "",
-   "detail": "과정: Professional Program · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/secondary-education-mathematics"
-  },
-  {
-   "name": "Teaching English as a Second Language (TESL) - Greek Language and Culture",
-   "faculty": "Faculty of Education",
-   "code": "",
-   "detail": "과정: Professional Program · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/teaching-english-second-language-tesl-greek-language-and-culture"
-  },
-  {
-   "name": "Secondary Education: English",
-   "faculty": "Faculty of Education",
-   "code": "",
-   "detail": "과정: Professional Program · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/secondary-education-english"
-  },
-  {
    "name": "Kinesiology",
    "faculty": "Faculty of Education",
    "code": "",
    "detail": "과정: Major, Honours · Downtown (Montreal) Campus",
    "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/kinesiology"
-  },
-  {
-   "name": "Kindergarten and Elementary Education (First Nations and Inuit Studies)",
-   "faculty": "Faculty of Education",
-   "code": "",
-   "detail": "과정: Professional Program · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/kindergarten-and-elementary-education-first-nations-and-inuit-studies"
-  },
-  {
-   "name": "Secondary Education: Social Sciences",
-   "faculty": "Faculty of Education",
-   "code": "",
-   "detail": "과정: Professional Program · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/secondary-education-social-sciences"
-  },
-  {
-   "name": "Teaching English as a Second Language (TESL)",
-   "faculty": "Faculty of Education",
-   "code": "",
-   "detail": "과정: Professional Program · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/teaching-english-second-language-tesl"
   },
   {
    "name": "Kinesiology (Minor for Science students)",
@@ -71,298 +743,11 @@
    "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/kinesiology-minor-science-students-0"
   },
   {
-   "name": "Civil Engineering",
-   "faculty": "Faculty of Engineering",
+   "name": "Labour-Management Relations and Human Resources",
+   "faculty": "Desautels Faculty of Management",
    "code": "",
-   "detail": "과정: Major · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/civil-engineering"
-  },
-  {
-   "name": "Software Engineering (Faculty of Arts)",
-   "faculty": "Faculty of Arts",
-   "code": "",
-   "detail": "과정: Major Concentration · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/software-engineering-faculty-arts"
-  },
-  {
-   "name": "Software Engineering (Bachelor of Arts and Science)",
-   "faculty": "Bachelor of Arts and Science",
-   "code": "",
-   "detail": "과정: Major Concentration · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/software-engineering-bachelor-arts-and-science"
-  },
-  {
-   "name": "Bioengineering",
-   "faculty": "Faculty of Engineering",
-   "code": "",
-   "detail": "과정: Major · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/bioengineering"
-  },
-  {
-   "name": "Electrical Engineering (Faculty of Engineering)",
-   "faculty": "Faculty of Engineering",
-   "code": "",
-   "detail": "과정: Major, Honours · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/electrical-engineering-faculty-engineering"
-  },
-  {
-   "name": "Mechanical Engineering",
-   "faculty": "Faculty of Engineering",
-   "code": "",
-   "detail": "과정: Major, Honours · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/mechanical-engineering"
-  },
-  {
-   "name": "Global Engineering",
-   "faculty": "Faculty of Engineering",
-   "code": "",
-   "detail": "과정: Major · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/global-engineering"
-  },
-  {
-   "name": "Computer Engineering",
-   "faculty": "Faculty of Engineering",
-   "code": "",
-   "detail": "과정: Major · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/computer-engineering"
-  },
-  {
-   "name": "Software Engineering (Faculty of Engineering)",
-   "faculty": "Faculty of Engineering",
-   "code": "",
-   "detail": "과정: Major, Minor · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/software-engineering-faculty-engineering"
-  },
-  {
-   "name": "Land Surface Processes and Environmental Change (Faculty of Science)",
-   "faculty": "Faculty of Science",
-   "code": "",
-   "detail": "과정: Domain · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/land-surface-processes-and-environmental-change-faculty-science"
-  },
-  {
-   "name": "Water Environments and Ecosystems (Biological Stream) (Faculty of Science)",
-   "faculty": "Faculty of Science",
-   "code": "",
-   "detail": "과정: Domain · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/water-environments-and-ecosystems-biological-stream-faculty-science"
-  },
-  {
-   "name": "Water Environments and Ecosystems (Physical Stream) (Faculty of Science)",
-   "faculty": "Faculty of Science",
-   "code": "",
-   "detail": "과정: Domain · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/water-environments-and-ecosystems-physical-stream-faculty-science"
-  },
-  {
-   "name": "Food Production and Environment (Faculty of Science)",
-   "faculty": "Faculty of Science",
-   "code": "",
-   "detail": "과정: Domain · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/food-production-and-environment-faculty-science"
-  },
-  {
-   "name": "Environmental Biology",
-   "faculty": "Faculty of Agricultural and Environmental Sciences",
-   "code": "",
-   "detail": "과정: Major · Macdonald Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/environmental-biology"
-  },
-  {
-   "name": "Economics and the Earth’s Environment",
-   "faculty": "Faculty of Arts",
-   "code": "",
-   "detail": "과정: Domain · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/economics-and-earths-environment"
-  },
-  {
-   "name": "Environmetrics (Faculty of Science)",
-   "faculty": "Faculty of Science",
-   "code": "",
-   "detail": "과정: Domain · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/environmetrics-faculty-science"
-  },
-  {
-   "name": "Earth System Science",
-   "faculty": "Faculty of Science",
-   "code": "",
-   "detail": "과정: Major, Honours, Minor · Downtown (Montreal) Campus · 지원 그룹: Physical, Earth, Math & Computer Sciences",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/earth-system-science"
-  },
-  {
-   "name": "Food Science",
-   "faculty": "Faculty of Agricultural and Environmental Sciences",
-   "code": "",
-   "detail": "과정: Major, Honours · Macdonald Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/food-science"
-  },
-  {
-   "name": "Food Production and Environment (Faculty of Agricultural and Environmental Sciences)",
-   "faculty": "Faculty of Agricultural and Environmental Sciences",
-   "code": "",
-   "detail": "과정: Domain · Macdonald Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/food-production-and-environment"
-  },
-  {
-   "name": "Atmospheric Science",
-   "faculty": "Faculty of Science",
-   "code": "",
-   "detail": "과정: Major, Honours, Liberal Program, Minor · Downtown (Montreal) Campus · 지원 그룹: Physical, Earth, Math & Computer Sciences",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/atmospheric-science"
-  },
-  {
-   "name": "Applied Ecology",
-   "faculty": "Faculty of Agricultural and Environmental Sciences",
-   "code": "",
-   "detail": "과정: Minor, Specialization · Macdonald Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/applied-ecology"
-  },
-  {
-   "name": "Biodiversity and Conservation (Faculty of Agricultural and Environmental Sciences)",
-   "faculty": "Faculty of Agricultural and Environmental Sciences",
-   "code": "",
-   "detail": "과정: Domain · Macdonald Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/biodiversity-and-conservation"
-  },
-  {
-   "name": "Sustainable Agricultural Systems",
-   "faculty": "Faculty of Agricultural and Environmental Sciences",
-   "code": "",
-   "detail": "과정: Major · Macdonald Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/sustainable-agricultural-systems"
-  },
-  {
-   "name": "Agricultural Economics",
-   "faculty": "Faculty of Agricultural and Environmental Sciences",
-   "code": "",
-   "detail": "과정: Major, Minor · Macdonald Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/agricultural-economics"
-  },
-  {
-   "name": "Water Environments and Ecosystems (Biological Stream) (Faculty of Agricultural and Environmental Sciences)",
-   "faculty": "Faculty of Agricultural and Environmental Sciences",
-   "code": "",
-   "detail": "과정: Domain · Macdonald Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/water-environments-and-ecosystems-biological-stream"
-  },
-  {
-   "name": "Atmospheric Science and Physics",
-   "faculty": "Faculty of Science",
-   "code": "",
-   "detail": "과정: Joint Majors · Downtown (Montreal) Campus · 지원 그룹: Physical, Earth, Math and Computer Sciences",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/atmospheric-science-and-physics"
-  },
-  {
-   "name": "Ecological Determinants of Health (Cellular) (Faculty of Science)",
-   "faculty": "Faculty of Agricultural and Environmental Sciences",
-   "code": "",
-   "detail": "과정: Domain · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/ecological-determinants-health-cellular-faculty-science"
-  },
-  {
-   "name": "Geology",
-   "faculty": "Faculty of Science",
-   "code": "",
-   "detail": "과정: Major, Honours, Minor · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/geology"
-  },
-  {
-   "name": "Earth and Planetary Sciences",
-   "faculty": "Faculty of Science",
-   "code": "",
-   "detail": "과정: Liberal Program · Downtown (Montreal) Campus · 지원 그룹: Physical, Earth, Math & Computer Sciences",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/earth-and-planetary-sciences"
-  },
-  {
-   "name": "Water Environments and Ecosystems (Physical Stream) (Faculty of Agricultural and Environmental Sciences)",
-   "faculty": "Faculty of Agricultural and Environmental Sciences",
-   "code": "",
-   "detail": "과정: Domain · Macdonald Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/water-environments-and-ecosystems-physical-stream"
-  },
-  {
-   "name": "Ecological Determinants of Health (Population) (Faculty of Science)",
-   "faculty": "Faculty of Science",
-   "code": "",
-   "detail": "과정: Domain · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/ecological-determinants-health-population-faculty-science"
-  },
-  {
-   "name": "Environment and Development",
-   "faculty": "Faculty of Arts",
-   "code": "",
-   "detail": "과정: Domain · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/environment-and-development"
-  },
-  {
-   "name": "Physics and Geophysics",
-   "faculty": "Faculty of Science",
-   "code": "",
-   "detail": "과정: Joint Majors · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/physics-and-geophysics"
-  },
-  {
-   "name": "Environment (Faculty of Arts)",
-   "faculty": "Faculty of Arts",
-   "code": "",
-   "detail": "과정: Honours, Joint Honours, Faculty Program, Minor Concentration · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/environment-faculty-arts"
-  },
-  {
-   "name": "Planetary Sciences",
-   "faculty": "Faculty of Science",
-   "code": "",
-   "detail": "과정: Honours · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/planetary-sciences"
-  },
-  {
-   "name": "Environment (Bachelor of Arts and Science)",
-   "faculty": "Bachelor of Arts and Science",
-   "code": "",
-   "detail": "과정: Interfaculty Program · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/environment-bachelor-arts-and-science"
-  },
-  {
-   "name": "Biology and Mathematics",
-   "faculty": "Faculty of Science",
-   "code": "",
-   "detail": "과정: Major · Downtown (Montreal) Campus · 지원 그룹: Bio-Physical-Computational Sciences",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/biology-and-mathematics"
-  },
-  {
-   "name": "Ecological Determinants of Health (Population) (Faculty of Agricultural and Environmental Sciences)",
-   "faculty": "Faculty of Agricultural and Environmental Sciences",
-   "code": "",
-   "detail": "과정: Domain · Macdonald Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/ecological-determinants-health-population"
-  },
-  {
-   "name": "Biology",
-   "faculty": "Faculty of Science",
-   "code": "",
-   "detail": "과정: Major, Honours, Liberal Program, Minor · Downtown (Montreal) Campus · 지원 그룹: Biological, Biomedical & Life Sciences",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/biology"
-  },
-  {
-   "name": "Faculty Program in Population and Global Health",
-   "faculty": "Bachelor of Arts in Population and Global Health",
-   "code": "",
-   "detail": "과정: Major · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/faculty-program-population-and-global-health"
-  },
-  {
-   "name": "Atmospheric Environment and Air Quality",
-   "faculty": "Faculty of Science",
-   "code": "",
-   "detail": "과정: Domain · Downtown (Montreal) Campus · 지원 그룹: Physical, Earth, Math & Computer Sciences",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/atmospheric-environment-and-air-quality"
-  },
-  {
-   "name": "Environmetrics (Faculty of Agricultural and Environmental Sciences)",
-   "faculty": "Faculty of Agricultural and Environmental Sciences",
-   "code": "",
-   "detail": "과정: Domain · Macdonald Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/environmetrics"
+   "detail": "과정: Major, Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/labour-management-relations-and-human-resources"
   },
   {
    "name": "Land Surface Processes and Environmental Change (Faculty of Agricultural and Environmental Sciences)",
@@ -372,466 +757,18 @@
    "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/land-surface-processes-and-environmental-change"
   },
   {
-   "name": "Ecological Determinants of Health (Cellular) (Faculty of Agricultural and Environmental Sciences)",
-   "faculty": "Faculty of Agricultural and Environmental Sciences",
-   "code": "",
-   "detail": "과정: Domain · Macdonald Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/ecological-determinants-health-cellular"
-  },
-  {
-   "name": "Geography (Faculty of Science)",
+   "name": "Land Surface Processes and Environmental Change (Faculty of Science)",
    "faculty": "Faculty of Science",
-   "code": "",
-   "detail": "과정: Major, Honours, Minor · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/geography-faculty-science"
-  },
-  {
-   "name": "Biodiversity and Conservation (Faculty of Science)",
-   "faculty": "Faculty of Agricultural and Environmental Sciences",
    "code": "",
    "detail": "과정: Domain · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/biodiversity-and-conservation-faculty-science"
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/land-surface-processes-and-environmental-change-faculty-science"
   },
   {
-   "name": "Agribusiness",
-   "faculty": "Faculty of Agricultural and Environmental Sciences",
-   "code": "",
-   "detail": "과정: Specialization · Macdonald Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/agribusiness"
-  },
-  {
-   "name": "Wildlife Biology",
-   "faculty": "Faculty of Agricultural and Environmental Sciences",
-   "code": "",
-   "detail": "과정: Specialization · Macdonald Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/wildlife-biology"
-  },
-  {
-   "name": "Environment (Faculty of Agricultural and Environmental Sciences)",
-   "faculty": "Faculty of Agricultural and Environmental Sciences",
-   "code": "",
-   "detail": "과정: Major · Macdonald Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/environment-faculty-agricultural-and-environmental-sciences"
-  },
-  {
-   "name": "Food Science & Nutritional Science",
-   "faculty": "School of Human Nutrition",
-   "code": "",
-   "detail": "과정: Major, Honours · Macdonald Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/food-science-nutritional-science"
-  },
-  {
-   "name": "Nursing (Integrated)",
-   "faculty": "Ingram School of Nursing",
-   "code": "",
-   "detail": "과정: Downtown (Montreal) Campus · The Ingram School of Nursing at McGill University offers the Bachelor of Nursing (Integrated) (BNI) Program for students with a Quebec diploma in nursing.  Students enter this 2-year, 5-semester, 65-credit program (3 year...",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/nursing-integrated"
-  },
-  {
-   "name": "Livestock",
-   "faculty": "Faculty of Agricultural and Environmental Sciences",
-   "code": "",
-   "detail": "과정: Specialization · Macdonald Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/livestock"
-  },
-  {
-   "name": "Nutrition",
-   "faculty": "School of Human Nutrition",
-   "code": "",
-   "detail": "과정: Major · Macdonald Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/nutrition"
-  },
-  {
-   "name": "Dietetics",
-   "faculty": "School of Human Nutrition",
-   "code": "",
-   "detail": "과정: Major · Macdonald Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/dietetics"
-  },
-  {
-   "name": "Microbiology and Immunology",
-   "faculty": "Faculty of Science",
-   "code": "",
-   "detail": "과정: Major, Honours, Liberal Program · Downtown (Montreal) Campus · 지원 그룹: Biological, Biomedical & Life Sciences",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/microbiology-and-immunology"
-  },
-  {
-   "name": "Animal Biology",
-   "faculty": "Faculty of Agricultural and Environmental Sciences",
-   "code": "",
-   "detail": "과정: Minor, Specialization · Macdonald Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/animal-biology"
-  },
-  {
-   "name": "Psychology (Bachelor of Arts and Science)",
-   "faculty": "Bachelor of Arts and Science",
-   "code": "",
-   "detail": "과정: Major Concentration · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/psychology-bachelor-arts-and-science"
-  },
-  {
-   "name": "Global Food Security",
-   "faculty": "Faculty of Agricultural and Environmental Sciences",
-   "code": "",
-   "detail": "과정: Specialization · Macdonald Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/global-food-security"
-  },
-  {
-   "name": "Neuroscience",
-   "faculty": "Faculty of Science",
-   "code": "",
-   "detail": "과정: Major, Honours, Minor · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/neuroscience"
-  },
-  {
-   "name": "Nursing",
-   "faculty": "Ingram School of Nursing",
-   "code": "",
-   "detail": "과정: Downtown (Montreal) Campus · If your goal is to become a skilled and knowledgeable nurse practitioner or researcher, get the preparation you deserve at McGill University’s School of Nursing! The Ingram School of Nursing seeks to inspire and challenge its...",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/nursing"
-  },
-  {
-   "name": "Animal Production",
-   "faculty": "Faculty of Agricultural and Environmental Sciences",
-   "code": "",
-   "detail": "과정: Specialization · Macdonald Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/animal-production"
-  },
-  {
-   "name": "Computer Science and Biology",
-   "faculty": "Faculty of Science",
-   "code": "",
-   "detail": "과정: Honours, Joint Majors · Downtown (Montreal) Campus · 지원 그룹: Bio-Physical-Computational Sciences",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/computer-science-and-biology"
-  },
-  {
-   "name": "Physiology",
-   "faculty": "Faculty of Science",
-   "code": "",
-   "detail": "과정: Major, Honours, Minor · Downtown (Montreal) Campus · 지원 그룹: Biological, Biomedical & Life Sciences",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/physiology"
-  },
-  {
-   "name": "Medicine (Med-P)",
-   "faculty": "Faculty of Medicine and Health Sciences",
-   "code": "",
-   "detail": "과정: Downtown (Montreal) Campus · If you are passionate about science and medicine, and dream of becoming a doctor, then you are a perfect candidate for the McGill Faculty of Medicine and Health Sciences one-year Med-P Program. This one-year preparatory...",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/medicine-med-p"
-  },
-  {
-   "name": "Life Sciences (Biological & Agricultural)",
-   "faculty": "Faculty of Agricultural and Environmental Sciences",
-   "code": "",
-   "detail": "과정: Major · Macdonald Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/life-sciences-biological-agricultural"
-  },
-  {
-   "name": "Biochemistry",
-   "faculty": "Faculty of Science",
-   "code": "",
-   "detail": "과정: Major, Honours, Liberal Program · Downtown (Montreal) Campus · 지원 그룹: Biological, Biomedical & Life Sciences",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/biochemistry"
-  },
-  {
-   "name": "Nursing (Integrated), online",
-   "faculty": "Ingram School of Nursing",
-   "code": "",
-   "detail": "과정: Downtown (Montreal) Campus · The Ingram School of Nursing at McGill University offers the Bachelor of Nursing (Integrated) (BNI) Program for students with a Quebec diploma in nursing.  Students enter this 2-year, 5-semester, 65-credit program (3-year...",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/nursing-integrated-online"
-  },
-  {
-   "name": "Professional Agrology",
-   "faculty": "Faculty of Agricultural and Environmental Sciences",
-   "code": "",
-   "detail": "과정: Specialization · Macdonald Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/professional-agrology"
-  },
-  {
-   "name": "Quantitative Biology",
-   "faculty": "Faculty of Science",
-   "code": "",
-   "detail": "과정: Honours · Downtown (Montreal) Campus · 지원 그룹: Biological, Biomedical & Life Sciences",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/quantitative-biology"
-  },
-  {
-   "name": "Sustainability, Science & Society (Bachelor of Arts and Science)",
-   "faculty": "Bachelor of Arts and Science",
-   "code": "",
-   "detail": "과정: Honours, Interfaculty Program · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/sustainability-science-society-bachelor-arts-and-science"
-  },
-  {
-   "name": "Life Sciences (Multidisciplinary)",
-   "faculty": "Faculty of Agricultural and Environmental Sciences",
-   "code": "",
-   "detail": "과정: Specialization · Macdonald Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/life-sciences"
-  },
-  {
-   "name": "Plant Production",
-   "faculty": "Faculty of Agricultural and Environmental Sciences",
-   "code": "",
-   "detail": "과정: Specialization · Macdonald Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/plant-production"
-  },
-  {
-   "name": "Anatomy & Cell Biology",
-   "faculty": "Faculty of Science",
-   "code": "",
-   "detail": "과정: Major, Honours, Liberal Program · Downtown (Montreal) Campus · 지원 그룹: Biological, Biomedical & Life Sciences",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/anatomy-cell-biology"
-  },
-  {
-   "name": "Physical and Health Education",
-   "faculty": "Faculty of Education",
-   "code": "",
-   "detail": "과정: Professional Program · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/physical-and-health-education"
-  },
-  {
-   "name": "Physiology and Physics",
-   "faculty": "Faculty of Science",
-   "code": "",
-   "detail": "과정: Joint Majors · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/physiology-and-physics"
-  },
-  {
-   "name": "Physiology and Mathematics",
-   "faculty": "Faculty of Science",
-   "code": "",
-   "detail": "과정: Joint Majors · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/physiology-and-mathematics"
-  },
-  {
-   "name": "Plant Biology",
-   "faculty": "Faculty of Agricultural and Environmental Sciences",
-   "code": "",
-   "detail": "과정: Specialization · Macdonald Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/plant-biology"
-  },
-  {
-   "name": "International Development Studies",
+   "name": "Langue et littérature françaises: Études et pratiques littéraires",
    "faculty": "Faculty of Arts",
    "code": "",
-   "detail": "과정: Major Concentration, Honours, Joint Honours, Minor Concentration · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/international-development-studies"
-  },
-  {
-   "name": "Ecological Determinants of Health in Society",
-   "faculty": "Faculty of Arts",
-   "code": "",
-   "detail": "과정: Domain · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/ecological-determinants-health-society"
-  },
-  {
-   "name": "Latin American and Caribbean Studies",
-   "faculty": "Faculty of Arts",
-   "code": "",
-   "detail": "과정: Major Concentration, Honours, Joint Honours, Minor Concentration · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/latin-american-and-caribbean-studies"
-  },
-  {
-   "name": "Religious Studies (Bachelor of Theology)",
-   "faculty": "",
-   "code": "",
-   "detail": "과정: Major · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/religious-studies"
-  },
-  {
-   "name": "Geography (Faculty of Arts)",
-   "faculty": "Faculty of Arts",
-   "code": "",
-   "detail": "과정: Major Concentration, Honours, Joint Honours, Minor Concentration · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/geography-faculty-arts"
-  },
-  {
-   "name": "Geography (Urban Studies)",
-   "faculty": "Faculty of Arts",
-   "code": "",
-   "detail": "과정: Major Concentration, Honours, Minor Concentration · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/geography-urban-studies"
-  },
-  {
-   "name": "English: Drama and Theatre",
-   "faculty": "Faculty of Arts",
-   "code": "",
-   "detail": "과정: Major Concentration, Honours, Joint Honours, Minor Concentration · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/english-drama-and-theatre"
-  },
-  {
-   "name": "East Asian Studies",
-   "faculty": "Faculty of Arts",
-   "code": "",
-   "detail": "과정: Major, Honours, Joint Honours · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/east-asian-studies"
-  },
-  {
-   "name": "Russian",
-   "faculty": "Faculty of Arts",
-   "code": "",
-   "detail": "과정: Major Concentration, Honours, Joint Honours, Minor Concentration · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/russian"
-  },
-  {
-   "name": "English: Cultural Studies",
-   "faculty": "Faculty of Arts",
-   "code": "",
-   "detail": "과정: Major Concentration, Honours, Joint Honours, Minor Concentration · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/english-cultural-studies"
-  },
-  {
-   "name": "World Islamic and Middle East Studies",
-   "faculty": "Faculty of Arts",
-   "code": "",
-   "detail": "과정: Major Concentration, Honours, Joint Honours, Minor Concentration · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/world-islamic-and-middle-east-studies"
-  },
-  {
-   "name": "Strategic Management – Social Business and Enterprise",
-   "faculty": "Desautels Faculty of Management",
-   "code": "",
-   "detail": "과정: Concentration · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/strategic-management-social-business-and-enterprise"
-  },
-  {
-   "name": "Social Work",
-   "faculty": "Faculty of Arts",
-   "code": "",
-   "detail": "과정: Professional Program · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/social-work"
-  },
-  {
-   "name": "Sociology",
-   "faculty": "Faculty of Arts",
-   "code": "",
-   "detail": "과정: Major Concentration, Honours, Joint Honours, Minor Concentration · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/sociology"
-  },
-  {
-   "name": "Industrial & Labour Relations (discontinued as of September 2023)",
-   "faculty": "Faculty of Arts",
-   "code": "",
-   "detail": "과정: Faculty Program · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/industrial-labour-relations"
-  },
-  {
-   "name": "German Studies",
-   "faculty": "Faculty of Arts",
-   "code": "",
-   "detail": "과정: Major Concentration, Honours, Joint Honours, Minor Concentration · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/german-studies"
-  },
-  {
-   "name": "History",
-   "faculty": "Faculty of Arts",
-   "code": "",
-   "detail": "과정: Major Concentration, Honours, Joint Honours, Minor Concentration · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/history"
-  },
-  {
-   "name": "Cognitive Science (Bachelor of Arts and Science)",
-   "faculty": "Bachelor of Arts and Science",
-   "code": "",
-   "detail": "과정: Interfaculty Program · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/cognitive-science"
-  },
-  {
-   "name": "International Management",
-   "faculty": "Desautels Faculty of Management",
-   "code": "",
-   "detail": "과정: Major · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/international-management"
-  },
-  {
-   "name": "Langue & littérature françaises: Études et pratiques littéraires (Spécialisation enrichie)",
-   "faculty": "Faculty of Arts",
-   "code": "",
-   "detail": "과정: Specialization · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/langue-litterature-francaises-etudes-et-pratiques-litteraires-specialisation-enrichie"
-  },
-  {
-   "name": "Managing for Sustainability",
-   "faculty": "Desautels Faculty of Management",
-   "code": "",
-   "detail": "과정: Major, Concentration · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/managing-sustainability"
-  },
-  {
-   "name": "Classical Studies",
-   "faculty": "Faculty of Arts",
-   "code": "",
-   "detail": "과정: Major Concentration, Honours, Joint Honours, Minor Concentration · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/classical-studies"
-  },
-  {
-   "name": "Italian Studies",
-   "faculty": "Faculty of Arts",
-   "code": "",
-   "detail": "과정: Major Concentration, Honours, Joint Honours, Minor Concentration · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/italian-studies"
-  },
-  {
-   "name": "Psychology (Faculty of Arts)",
-   "faculty": "Faculty of Arts",
-   "code": "",
-   "detail": "과정: Major Concentration, Honours, Joint Honours, Minor Concentration · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/psychology-faculty-arts"
-  },
-  {
-   "name": "Political Science",
-   "faculty": "Faculty of Arts",
-   "code": "",
-   "detail": "과정: Major Concentration, Honours, Joint Honours, Minor Concentration · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/political-science"
-  },
-  {
-   "name": "Hispanic Studies",
-   "faculty": "Faculty of Arts",
-   "code": "",
-   "detail": "과정: Major Concentration, Honours, Joint Honours, Minor Concentration · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/hispanic-studies"
-  },
-  {
-   "name": "Gender, Sexuality, Feminist and Social Justice Studies",
-   "faculty": "Faculty of Arts",
-   "code": "",
-   "detail": "과정: Major Concentration, Honours, Joint Honours, Minor Concentration · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/gender-sexuality-feminist-and-social-justice-studies"
-  },
-  {
-   "name": "Psychology (Faculty of Science)",
-   "faculty": "Faculty of Science",
-   "code": "",
-   "detail": "과정: Major, Honours, Liberal Program, Minor · Downtown (Montreal) Campus · 지원 그룹: Biological, Biomedical & Life Sciences",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/psychology-faculty-science"
-  },
-  {
-   "name": "English: Literature",
-   "faculty": "Faculty of Arts",
-   "code": "",
-   "detail": "과정: Major Concentration, Honours, Joint Honours, Minor Concentration · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/english-literature"
-  },
-  {
-   "name": "Philosophy",
-   "faculty": "Faculty of Arts",
-   "code": "",
-   "detail": "과정: Major Concentration, Honours, Joint Honours, Minor Concentration · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/philosophy"
-  },
-  {
-   "name": "Anthropology",
-   "faculty": "Faculty of Arts",
-   "code": "",
-   "detail": "과정: Major Concentration, Honours, Joint Honours, Minor Concentration · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/anthropology"
-  },
-  {
-   "name": "Strategic Management – Global Strategy",
-   "faculty": "Desautels Faculty of Management",
-   "code": "",
-   "detail": "과정: Concentration · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/strategic-management-global-strategy"
+   "detail": "과정: Major Concentration, Minor Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/langue-et-litterature-francaises-etudes-et-pratiques-litteraires"
   },
   {
    "name": "Langue et littérature françaises: Langue française",
@@ -848,326 +785,32 @@
    "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/langue-et-litterature-francaises-traduction"
   },
   {
-   "name": "Langue et littérature françaises: Études et pratiques littéraires",
+   "name": "Langue & littérature françaises: Études et pratiques littéraires (Spécialisation enrichie)",
    "faculty": "Faculty of Arts",
    "code": "",
-   "detail": "과정: Major Concentration, Minor Concentration · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/langue-et-litterature-francaises-etudes-et-pratiques-litteraires"
+   "detail": "과정: Specialization · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/langue-litterature-francaises-etudes-et-pratiques-litteraires-specialisation-enrichie"
   },
   {
-   "name": "African Studies",
-   "faculty": "Faculty of Arts",
-   "code": "",
-   "detail": "과정: Major Concentration, Joint Honours, Minor Concentration · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/african-studies"
-  },
-  {
-   "name": "East Asian Studies: Language (Supplementary)",
-   "faculty": "Faculty of Arts",
-   "code": "",
-   "detail": "과정: Supplementary Minor · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/east-asian-studies-language-supplementary"
-  },
-  {
-   "name": "Mathematics (Desautels Faculty of Management)",
-   "faculty": "Desautels Faculty of Management",
-   "code": "",
-   "detail": "과정: Major Concentration, Minor · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/mathematics-desautels-faculty-management"
-  },
-  {
-   "name": "Applied Mathematics (Faculty of Science)",
-   "faculty": "Faculty of Science",
-   "code": "",
-   "detail": "과정: Honours · Downtown (Montreal) Campus · 지원 그룹: Physical, Earth, Math & Computer Sciences",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/applied-mathematics-faculty-science"
-  },
-  {
-   "name": "Statistics (Desautels Faculty of Management)",
-   "faculty": "Desautels Faculty of Management",
-   "code": "",
-   "detail": "과정: Major, Minor · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/statistics-desautels-faculty-management"
-  },
-  {
-   "name": "Software Engineering (Faculty of Science)",
-   "faculty": "Faculty of Science",
-   "code": "",
-   "detail": "과정: Major, Honours, Liberal Program · Downtown (Montreal) Campus · 지원 그룹: Physical, Earth, Math & Computer Sciences",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/software-engineering-faculty-science"
-  },
-  {
-   "name": "Applied Mathematics (Faculty of Arts)",
-   "faculty": "Faculty of Arts",
-   "code": "",
-   "detail": "과정: Honours · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/applied-mathematics-faculty-arts"
-  },
-  {
-   "name": "Architecture",
-   "faculty": "Faculty of Engineering",
-   "code": "",
-   "detail": "과정: Major · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/architecture"
-  },
-  {
-   "name": "Microbiology & Molecular Biotechnology",
-   "faculty": "Faculty of Agricultural and Environmental Sciences",
-   "code": "",
-   "detail": "과정: Specialization · Macdonald Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/microbiology-molecular-biotechnology"
-  },
-  {
-   "name": "Statistics (Faculty of Arts)",
-   "faculty": "Faculty of Arts",
-   "code": "",
-   "detail": "과정: Major, Minor, Minor Concentration · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/statistics-faculty-arts"
-  },
-  {
-   "name": "Information Technology Management Concentration",
-   "faculty": "Desautels Faculty of Management",
-   "code": "",
-   "detail": "과정: Concentration · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/itmconcentration"
-  },
-  {
-   "name": "Mathematics and Computer Science (Faculty of Science)",
-   "faculty": "Faculty of Science",
-   "code": "",
-   "detail": "과정: Joint Honours, Joint Majors · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/mathematics-and-computer-science-faculty-science"
-  },
-  {
-   "name": "Mathematics and Computer Science (Faculty of Arts)",
-   "faculty": "Faculty of Arts",
-   "code": "",
-   "detail": "과정: Joint Honours · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/mathematics-and-computer-science-faculty-arts"
-  },
-  {
-   "name": "Physics (Bachelor of Arts and Science)",
-   "faculty": "Bachelor of Arts and Science",
-   "code": "",
-   "detail": "과정: Major Concentration · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/physics-bachelor-arts-and-science"
-  },
-  {
-   "name": "Mining Engineering",
-   "faculty": "Faculty of Engineering",
-   "code": "",
-   "detail": "과정: Major, Minor · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/mining-engineering"
-  },
-  {
-   "name": "Business Analytics",
-   "faculty": "Desautels Faculty of Management",
-   "code": "",
-   "detail": "과정: Concentration · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/business-analytics"
-  },
-  {
-   "name": "Physics (Faculty of Science)",
-   "faculty": "Faculty of Science",
-   "code": "",
-   "detail": "과정: Major, Honours, Liberal Program · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/physics-faculty-science"
-  },
-  {
-   "name": "Mathematics (Faculty of Arts)",
-   "faculty": "Faculty of Arts",
-   "code": "",
-   "detail": "과정: Major Concentration, Honours, Joint Honours, Minor Concentration, Supplementary Minor · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/mathematics-faculty-arts"
-  },
-  {
-   "name": "Finance",
-   "faculty": "Desautels Faculty of Management",
-   "code": "",
-   "detail": "과정: Major, Concentration · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/finance"
-  },
-  {
-   "name": "Mathematics and Physics",
-   "faculty": "Faculty of Science",
-   "code": "",
-   "detail": "과정: Honours · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/mathematics-and-physics"
-  },
-  {
-   "name": "Computer Science (Faculty of Science)",
-   "faculty": "Faculty of Science",
-   "code": "",
-   "detail": "과정: Major, Honours, Liberal Program, Minor · Downtown (Montreal) Campus · 지원 그룹: Physical, Earth, Math & Computer Sciences",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/computer-science-faculty-science"
-  },
-  {
-   "name": "Geography - Physical Geography (Bachelor of Arts and Science)",
-   "faculty": "Bachelor of Arts and Science",
-   "code": "",
-   "detail": "과정: Major Concentration · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/geography-physical-geography-bachelor-arts-and-science"
-  },
-  {
-   "name": "Computer Science (Bachelor of Arts and Science)",
-   "faculty": "Bachelor of Arts and Science",
-   "code": "",
-   "detail": "과정: Major Concentration · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/computer-science-bachelor-arts-and-science"
-  },
-  {
-   "name": "Physics and Chemistry",
-   "faculty": "Faculty of Science",
-   "code": "",
-   "detail": "과정: Joint Honours · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/physics-and-chemistry"
-  },
-  {
-   "name": "Immunology (Interdepartmental)",
-   "faculty": "Faculty of Science",
-   "code": "",
-   "detail": "과정: Honours · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/immunology-interdepartmental"
-  },
-  {
-   "name": "Bioresource Engineering (Faculty of Agricultural and Environmental Sciences)",
-   "faculty": "Faculty of Agricultural and Environmental Sciences",
-   "code": "",
-   "detail": "과정: Major, Honours · Macdonald Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/bioresource-engineering-faculty-agricultural-and-environmental-sciences"
-  },
-  {
-   "name": "Chemical Engineering (Faculty of Engineering)",
-   "faculty": "Faculty of Engineering",
-   "code": "",
-   "detail": "과정: Major · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/chemical-engineering-faculty-engineering"
-  },
-  {
-   "name": "Animal Health and Disease",
-   "faculty": "Faculty of Agricultural and Environmental Sciences",
-   "code": "",
-   "detail": "과정: Specialization · Macdonald Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/animal-health-and-disease"
-  },
-  {
-   "name": "Environment (Faculty of Science)",
-   "faculty": "Faculty of Science",
-   "code": "",
-   "detail": "과정: Major, Honours, Minor · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/environment-faculty-science"
-  },
-  {
-   "name": "Chemistry (Faculty of Science)",
-   "faculty": "Faculty of Science",
-   "code": "",
-   "detail": "과정: Major, Honours, Liberal Program, Minor · Downtown (Montreal) Campus · 지원 그룹: Physical, Earth, Math & Computer Sciences",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/chemistry-faculty-science"
-  },
-  {
-   "name": "Secondary Education: Science and Technology",
-   "faculty": "Faculty of Education",
-   "code": "",
-   "detail": "과정: Professional Program · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/secondary-education-science-and-technology"
-  },
-  {
-   "name": "Labour-Management Relations and Human Resources",
-   "faculty": "Desautels Faculty of Management",
-   "code": "",
-   "detail": "과정: Major, Concentration · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/labour-management-relations-and-human-resources"
-  },
-  {
-   "name": "Canadian Studies",
-   "faculty": "Faculty of Arts",
-   "code": "",
-   "detail": "과정: Major Concentration, Minor Concentration · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/canadian-studies"
-  },
-  {
-   "name": "Religious Studies: World Religions",
-   "faculty": "Faculty of Arts",
-   "code": "",
-   "detail": "과정: Major Concentration, Minor Concentration · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/religious-studies-world-religions"
-  },
-  {
-   "name": "Economics (Faculty of Arts)",
+   "name": "Latin American and Caribbean Studies",
    "faculty": "Faculty of Arts",
    "code": "",
    "detail": "과정: Major Concentration, Honours, Joint Honours, Minor Concentration · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/economics-faculty-arts"
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/latin-american-and-caribbean-studies"
   },
   {
-   "name": "Music Performance: Organ, Guitar",
-   "faculty": "Schulich School of Music",
+   "name": "Law (BCL/JD)",
+   "faculty": "Faculty of Law",
    "code": "",
-   "detail": "과정: Major · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/music-performance-organ-guitar"
+   "detail": "과정: Major, Honours, Minor · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/law-bcljd"
   },
   {
-   "name": "Music Performance: Early Music (Voice)",
-   "faculty": "Schulich School of Music",
-   "code": "",
-   "detail": "과정: Major, Minor · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/music-performance-early-music-voice"
-  },
-  {
-   "name": "Music History",
-   "faculty": "Schulich School of Music",
-   "code": "",
-   "detail": "과정: Major, Minor · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/music-history"
-  },
-  {
-   "name": "Music Performance: Jazz",
-   "faculty": "Schulich School of Music",
-   "code": "",
-   "detail": "과정: Major · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/music-performance-jazz"
-  },
-  {
-   "name": "Music (Bachelor of Arts)",
+   "name": "Liberal Arts",
    "faculty": "Faculty of Arts",
    "code": "",
-   "detail": "과정: Major Concentration, Minor Concentration · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/music"
-  },
-  {
-   "name": "Music Performance: Early Music (Instruments)",
-   "faculty": "Schulich School of Music",
-   "code": "",
-   "detail": "과정: Major, Minor · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/music-performance-early-music-instruments"
-  },
-  {
-   "name": "Faculty Program in Music",
-   "faculty": "Schulich School of Music",
-   "code": "",
-   "detail": "과정: Major · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/faculty-program-music"
-  },
-  {
-   "name": "Music Composition",
-   "faculty": "Schulich School of Music",
-   "code": "",
-   "detail": "과정: Major, Minor · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/music-composition"
-  },
-  {
-   "name": "Music Performance: Piano",
-   "faculty": "Schulich School of Music",
-   "code": "",
-   "detail": "과정: Major · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/music-performance-piano"
-  },
-  {
-   "name": "Music Performance: Orchestral Instruments",
-   "faculty": "Schulich School of Music",
-   "code": "",
-   "detail": "과정: Major · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/music-performance-orchestral-instruments"
+   "detail": "과정: 확인 못 함 — 링크 참고",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/liberal-arts"
   },
   {
    "name": "Licentiate in Music (L. Mus.)",
@@ -1177,11 +820,214 @@
    "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/licentiate-music-l-mus"
   },
   {
-   "name": "Faculty Program in Music: Jazz",
+   "name": "Life Sciences (Multidisciplinary)",
+   "faculty": "Faculty of Agricultural and Environmental Sciences",
+   "code": "",
+   "detail": "과정: Specialization · Macdonald Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/life-sciences"
+  },
+  {
+   "name": "Life Sciences (Biological & Agricultural)",
+   "faculty": "Faculty of Agricultural and Environmental Sciences",
+   "code": "",
+   "detail": "과정: Major · Macdonald Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/life-sciences-biological-agricultural"
+  },
+  {
+   "name": "Linguistics",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Major Concentration, Honours, Joint Honours, Minor Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/linguistics"
+  },
+  {
+   "name": "Livestock",
+   "faculty": "Faculty of Agricultural and Environmental Sciences",
+   "code": "",
+   "detail": "과정: Specialization · Macdonald Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/livestock"
+  },
+  {
+   "name": "Managing for Sustainability",
+   "faculty": "Desautels Faculty of Management",
+   "code": "",
+   "detail": "과정: Major, Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/managing-sustainability"
+  },
+  {
+   "name": "Marketing",
+   "faculty": "Desautels Faculty of Management",
+   "code": "",
+   "detail": "과정: 확인 못 함 — 링크 참고",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/marketing"
+  },
+  {
+   "name": "Materials Engineering",
+   "faculty": "Faculty of Engineering",
+   "code": "",
+   "detail": "과정: Major, Minor · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/materials-engineering"
+  },
+  {
+   "name": "Mathematics and Computer Science (Faculty of Arts)",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Joint Honours · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/mathematics-and-computer-science-faculty-arts"
+  },
+  {
+   "name": "Mathematics and Computer Science (Faculty of Science)",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Joint Honours, Joint Majors · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/mathematics-and-computer-science-faculty-science"
+  },
+  {
+   "name": "Mathematics and Physics",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Honours · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/mathematics-and-physics"
+  },
+  {
+   "name": "Mathematics (Bachelor of Arts and Science)",
+   "faculty": "Bachelor of Arts and Science",
+   "code": "",
+   "detail": "과정: 확인 못 함 — 링크 참고",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/mathematics-bachelor-arts-and-science"
+  },
+  {
+   "name": "Mathematics (Desautels Faculty of Management)",
+   "faculty": "Desautels Faculty of Management",
+   "code": "",
+   "detail": "과정: Major Concentration, Minor · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/mathematics-desautels-faculty-management"
+  },
+  {
+   "name": "Mathematics (Faculty of Arts)",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Major Concentration, Honours, Joint Honours, Minor Concentration, Supplementary Minor · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/mathematics-faculty-arts"
+  },
+  {
+   "name": "Mathematics (Faculty of Science)",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Major, Honours, Liberal Program, Minor · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/mathematics-faculty-science"
+  },
+  {
+   "name": "Mechanical Engineering",
+   "faculty": "Faculty of Engineering",
+   "code": "",
+   "detail": "과정: Major, Honours · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/mechanical-engineering"
+  },
+  {
+   "name": "Medicine (Med-P)",
+   "faculty": "Faculty of Medicine and Health Sciences",
+   "code": "",
+   "detail": "과정: Downtown (Montreal) Campus · If you are passionate about science and medicine, and dream of becoming a doctor, then you are a perfect candidate for the McGill Faculty of Medicine and Health Sciences one-year Med-P Program. This one-year preparatory...",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/medicine-med-p"
+  },
+  {
+   "name": "Microbiology and Immunology",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Major, Honours, Liberal Program · Downtown (Montreal) Campus · 지원 그룹: Biological, Biomedical & Life Sciences",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/microbiology-and-immunology"
+  },
+  {
+   "name": "Microbiology & Molecular Biotechnology",
+   "faculty": "Faculty of Agricultural and Environmental Sciences",
+   "code": "",
+   "detail": "과정: Specialization · Macdonald Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/microbiology-molecular-biotechnology"
+  },
+  {
+   "name": "Mining Engineering",
+   "faculty": "Faculty of Engineering",
+   "code": "",
+   "detail": "과정: Major, Minor · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/mining-engineering"
+  },
+  {
+   "name": "Music (Bachelor of Arts)",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Major Concentration, Minor Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/music"
+  },
+  {
+   "name": "Music Composition",
+   "faculty": "Schulich School of Music",
+   "code": "",
+   "detail": "과정: Major, Minor · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/music-composition"
+  },
+  {
+   "name": "Music Education",
+   "faculty": "",
+   "code": "",
+   "detail": "과정: Professional Program · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/music-education"
+  },
+  {
+   "name": "Music History",
+   "faculty": "Schulich School of Music",
+   "code": "",
+   "detail": "과정: Major, Minor · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/music-history"
+  },
+  {
+   "name": "Music Performance: Early Music (Instruments)",
+   "faculty": "Schulich School of Music",
+   "code": "",
+   "detail": "과정: Major, Minor · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/music-performance-early-music-instruments"
+  },
+  {
+   "name": "Music Performance: Early Music (Voice)",
+   "faculty": "Schulich School of Music",
+   "code": "",
+   "detail": "과정: Major, Minor · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/music-performance-early-music-voice"
+  },
+  {
+   "name": "Music Performance: Jazz",
    "faculty": "Schulich School of Music",
    "code": "",
    "detail": "과정: Major · Downtown (Montreal) Campus",
-   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/faculty-program-music-jazz"
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/music-performance-jazz"
+  },
+  {
+   "name": "Music Performance: Orchestral Instruments",
+   "faculty": "Schulich School of Music",
+   "code": "",
+   "detail": "과정: Major · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/music-performance-orchestral-instruments"
+  },
+  {
+   "name": "Music Performance: Organ, Guitar",
+   "faculty": "Schulich School of Music",
+   "code": "",
+   "detail": "과정: Major · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/music-performance-organ-guitar"
+  },
+  {
+   "name": "Music Performance: Piano",
+   "faculty": "Schulich School of Music",
+   "code": "",
+   "detail": "과정: Major · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/music-performance-piano"
+  },
+  {
+   "name": "Music Performance: Voice",
+   "faculty": "Schulich School of Music",
+   "code": "",
+   "detail": "과정: Major · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/music-performance-voice"
   },
   {
    "name": "Music Theory",
@@ -1189,6 +1035,454 @@
    "code": "",
    "detail": "과정: Major, Minor · Downtown (Montreal) Campus",
    "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/music-theory"
+  },
+  {
+   "name": "Neuroscience",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Major, Honours, Minor · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/neuroscience"
+  },
+  {
+   "name": "Nursing",
+   "faculty": "Ingram School of Nursing",
+   "code": "",
+   "detail": "과정: Downtown (Montreal) Campus · If your goal is to become a skilled and knowledgeable nurse practitioner or researcher, get the preparation you deserve at McGill University’s School of Nursing! The Ingram School of Nursing seeks to inspire and challenge its...",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/nursing"
+  },
+  {
+   "name": "Nursing (Integrated)",
+   "faculty": "Ingram School of Nursing",
+   "code": "",
+   "detail": "과정: Downtown (Montreal) Campus · The Ingram School of Nursing at McGill University offers the Bachelor of Nursing (Integrated) (BNI) Program for students with a Quebec diploma in nursing.  Students enter this 2-year, 5-semester, 65-credit program (3 year...",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/nursing-integrated"
+  },
+  {
+   "name": "Nursing (Integrated), online",
+   "faculty": "Ingram School of Nursing",
+   "code": "",
+   "detail": "과정: Downtown (Montreal) Campus · The Ingram School of Nursing at McGill University offers the Bachelor of Nursing (Integrated) (BNI) Program for students with a Quebec diploma in nursing.  Students enter this 2-year, 5-semester, 65-credit program (3-year...",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/nursing-integrated-online"
+  },
+  {
+   "name": "Nutrition",
+   "faculty": "School of Human Nutrition",
+   "code": "",
+   "detail": "과정: Major · Macdonald Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/nutrition"
+  },
+  {
+   "name": "Occupational Therapy",
+   "faculty": "School of Physical and Occupational Therapy",
+   "code": "",
+   "detail": "과정: 확인 못 함 — 링크 참고",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/occupational-therapy"
+  },
+  {
+   "name": "Operations Management",
+   "faculty": "Desautels Faculty of Management",
+   "code": "",
+   "detail": "과정: Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/operations-management"
+  },
+  {
+   "name": "Organizational Behaviour",
+   "faculty": "Desautels Faculty of Management",
+   "code": "",
+   "detail": "과정: Major, Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/organizational-behaviour"
+  },
+  {
+   "name": "Pharmacology",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Major, Honours, Minor · Downtown (Montreal) Campus · 지원 그룹: Biological, Biomedical & Life Sciences",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/pharmacology"
+  },
+  {
+   "name": "Philosophy",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Major Concentration, Honours, Joint Honours, Minor Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/philosophy"
+  },
+  {
+   "name": "Physical and Health Education",
+   "faculty": "Faculty of Education",
+   "code": "",
+   "detail": "과정: Professional Program · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/physical-and-health-education"
+  },
+  {
+   "name": "Physical Therapy",
+   "faculty": "School of Physical and Occupational Therapy",
+   "code": "",
+   "detail": "과정: Major · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/physical-therapy"
+  },
+  {
+   "name": "Physics and Chemistry",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Joint Honours · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/physics-and-chemistry"
+  },
+  {
+   "name": "Physics and Computer Science",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Joint Majors · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/physics-and-computer-science"
+  },
+  {
+   "name": "Physics and Geophysics",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Joint Majors · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/physics-and-geophysics"
+  },
+  {
+   "name": "Physics (Bachelor of Arts and Science)",
+   "faculty": "Bachelor of Arts and Science",
+   "code": "",
+   "detail": "과정: Major Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/physics-bachelor-arts-and-science"
+  },
+  {
+   "name": "Physics (Faculty of Science)",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Major, Honours, Liberal Program · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/physics-faculty-science"
+  },
+  {
+   "name": "Physiology",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Major, Honours, Minor · Downtown (Montreal) Campus · 지원 그룹: Biological, Biomedical & Life Sciences",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/physiology"
+  },
+  {
+   "name": "Physiology and Mathematics",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Joint Majors · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/physiology-and-mathematics"
+  },
+  {
+   "name": "Physiology and Physics",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Joint Majors · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/physiology-and-physics"
+  },
+  {
+   "name": "Planetary Sciences",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Honours · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/planetary-sciences"
+  },
+  {
+   "name": "Plant Biology",
+   "faculty": "Faculty of Agricultural and Environmental Sciences",
+   "code": "",
+   "detail": "과정: Specialization · Macdonald Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/plant-biology"
+  },
+  {
+   "name": "Plant Production",
+   "faculty": "Faculty of Agricultural and Environmental Sciences",
+   "code": "",
+   "detail": "과정: Specialization · Macdonald Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/plant-production"
+  },
+  {
+   "name": "Political Science",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Major Concentration, Honours, Joint Honours, Minor Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/political-science"
+  },
+  {
+   "name": "Probability and Statistics (Faculty of Science)",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Honours · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/probability-and-statistics-faculty-science"
+  },
+  {
+   "name": "Professional Agrology",
+   "faculty": "Faculty of Agricultural and Environmental Sciences",
+   "code": "",
+   "detail": "과정: Specialization · Macdonald Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/professional-agrology"
+  },
+  {
+   "name": "Psychology (Bachelor of Arts and Science)",
+   "faculty": "Bachelor of Arts and Science",
+   "code": "",
+   "detail": "과정: Major Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/psychology-bachelor-arts-and-science"
+  },
+  {
+   "name": "Psychology (Faculty of Arts)",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Major Concentration, Honours, Joint Honours, Minor Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/psychology-faculty-arts"
+  },
+  {
+   "name": "Psychology (Faculty of Science)",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Major, Honours, Liberal Program, Minor · Downtown (Montreal) Campus · 지원 그룹: Biological, Biomedical & Life Sciences",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/psychology-faculty-science"
+  },
+  {
+   "name": "Quantitative Biology",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Honours · Downtown (Montreal) Campus · 지원 그룹: Biological, Biomedical & Life Sciences",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/quantitative-biology"
+  },
+  {
+   "name": "Religious Studies (Bachelor of Theology)",
+   "faculty": "",
+   "code": "",
+   "detail": "과정: Major · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/religious-studies"
+  },
+  {
+   "name": "Religious Studies: World Religions",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Major Concentration, Minor Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/religious-studies-world-religions"
+  },
+  {
+   "name": "Renewable Resource Management (Faculty of Agricultural and Environmental Sciences)",
+   "faculty": "Faculty of Agricultural and Environmental Sciences",
+   "code": "",
+   "detail": "과정: 확인 못 함 — 링크 참고",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/renewable-resource-management"
+  },
+  {
+   "name": "Renewable Resource Management (Faculty of Science)",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Domain · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/renewable-resource-management-faculty-science"
+  },
+  {
+   "name": "Retail Management",
+   "faculty": "Desautels Faculty of Management",
+   "code": "",
+   "detail": "과정: Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/retail-management"
+  },
+  {
+   "name": "Russian",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Major Concentration, Honours, Joint Honours, Minor Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/russian"
+  },
+  {
+   "name": "Secondary Education: English",
+   "faculty": "Faculty of Education",
+   "code": "",
+   "detail": "과정: Professional Program · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/secondary-education-english"
+  },
+  {
+   "name": "Secondary Education: Mathematics",
+   "faculty": "Faculty of Education",
+   "code": "",
+   "detail": "과정: Professional Program · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/secondary-education-mathematics"
+  },
+  {
+   "name": "Secondary Education: Science and Technology",
+   "faculty": "Faculty of Education",
+   "code": "",
+   "detail": "과정: Professional Program · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/secondary-education-science-and-technology"
+  },
+  {
+   "name": "Secondary Education: Social Sciences",
+   "faculty": "Faculty of Education",
+   "code": "",
+   "detail": "과정: Professional Program · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/secondary-education-social-sciences"
+  },
+  {
+   "name": "Social Work",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Professional Program · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/social-work"
+  },
+  {
+   "name": "Sociology",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Major Concentration, Honours, Joint Honours, Minor Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/sociology"
+  },
+  {
+   "name": "Software Engineering (Bachelor of Arts and Science)",
+   "faculty": "Bachelor of Arts and Science",
+   "code": "",
+   "detail": "과정: Major Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/software-engineering-bachelor-arts-and-science"
+  },
+  {
+   "name": "Software Engineering (Faculty of Arts)",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Major Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/software-engineering-faculty-arts"
+  },
+  {
+   "name": "Software Engineering (Faculty of Engineering)",
+   "faculty": "Faculty of Engineering",
+   "code": "",
+   "detail": "과정: Major, Minor · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/software-engineering-faculty-engineering"
+  },
+  {
+   "name": "Software Engineering (Faculty of Science)",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Major, Honours, Liberal Program · Downtown (Montreal) Campus · 지원 그룹: Physical, Earth, Math & Computer Sciences",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/software-engineering-faculty-science"
+  },
+  {
+   "name": "South Asian Studies",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: 확인 못 함 — 링크 참고",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/south-asian-studies"
+  },
+  {
+   "name": "Statistics and Computer Science",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Major, Honours · Downtown (Montreal) Campus · 지원 그룹: Physical, Earth, Math & Computer Sciences",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/statistics-and-computer-science"
+  },
+  {
+   "name": "Statistics (Desautels Faculty of Management)",
+   "faculty": "Desautels Faculty of Management",
+   "code": "",
+   "detail": "과정: Major, Minor · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/statistics-desautels-faculty-management"
+  },
+  {
+   "name": "Statistics (Faculty of Arts)",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Major, Minor, Minor Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/statistics-faculty-arts"
+  },
+  {
+   "name": "Statistics (Faculty of Science)",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: 확인 못 함 — 링크 참고 · 지원 그룹: Physical, Earth, Math & Computer Sciences",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/statistics-faculty-science"
+  },
+  {
+   "name": "Strategic Management",
+   "faculty": "Desautels Faculty of Management",
+   "code": "",
+   "detail": "과정: 확인 못 함 — 링크 참고",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/strategic-management"
+  },
+  {
+   "name": "Strategic Management – Global Strategy",
+   "faculty": "Desautels Faculty of Management",
+   "code": "",
+   "detail": "과정: Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/strategic-management-global-strategy"
+  },
+  {
+   "name": "Strategic Management – Social Business and Enterprise",
+   "faculty": "Desautels Faculty of Management",
+   "code": "",
+   "detail": "과정: Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/strategic-management-social-business-and-enterprise"
+  },
+  {
+   "name": "Sustainability, Science & Society (Bachelor of Arts and Science)",
+   "faculty": "Bachelor of Arts and Science",
+   "code": "",
+   "detail": "과정: Honours, Interfaculty Program · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/sustainability-science-society-bachelor-arts-and-science"
+  },
+  {
+   "name": "Sustainable Agricultural Systems",
+   "faculty": "Faculty of Agricultural and Environmental Sciences",
+   "code": "",
+   "detail": "과정: Major · Macdonald Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/sustainable-agricultural-systems"
+  },
+  {
+   "name": "Teaching English as a Second Language (TESL)",
+   "faculty": "Faculty of Education",
+   "code": "",
+   "detail": "과정: Professional Program · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/teaching-english-second-language-tesl"
+  },
+  {
+   "name": "Teaching English as a Second Language (TESL) - Greek Language and Culture",
+   "faculty": "Faculty of Education",
+   "code": "",
+   "detail": "과정: Professional Program · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/teaching-english-second-language-tesl-greek-language-and-culture"
+  },
+  {
+   "name": "Water Environments and Ecosystems (Biological Stream) (Faculty of Agricultural and Environmental Sciences)",
+   "faculty": "Faculty of Agricultural and Environmental Sciences",
+   "code": "",
+   "detail": "과정: Domain · Macdonald Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/water-environments-and-ecosystems-biological-stream"
+  },
+  {
+   "name": "Water Environments and Ecosystems (Biological Stream) (Faculty of Science)",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Domain · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/water-environments-and-ecosystems-biological-stream-faculty-science"
+  },
+  {
+   "name": "Water Environments and Ecosystems (Physical Stream) (Faculty of Agricultural and Environmental Sciences)",
+   "faculty": "Faculty of Agricultural and Environmental Sciences",
+   "code": "",
+   "detail": "과정: Domain · Macdonald Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/water-environments-and-ecosystems-physical-stream"
+  },
+  {
+   "name": "Water Environments and Ecosystems (Physical Stream) (Faculty of Science)",
+   "faculty": "Faculty of Science",
+   "code": "",
+   "detail": "과정: Domain · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/water-environments-and-ecosystems-physical-stream-faculty-science"
+  },
+  {
+   "name": "Wildlife Biology",
+   "faculty": "Faculty of Agricultural and Environmental Sciences",
+   "code": "",
+   "detail": "과정: Specialization · Macdonald Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/wildlife-biology"
+  },
+  {
+   "name": "World Islamic and Middle East Studies",
+   "faculty": "Faculty of Arts",
+   "code": "",
+   "detail": "과정: Major Concentration, Honours, Joint Honours, Minor Concentration · Downtown (Montreal) Campus",
+   "sourceUrl": "https://www.mcgill.ca/undergraduate-admissions/program/world-islamic-and-middle-east-studies"
   }
  ],
  "UBC": [
