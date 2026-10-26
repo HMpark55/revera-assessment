@@ -490,6 +490,24 @@ test('v28: 캐나다 3개 대학 주요 정보·전공 — 빈 연도에만, 같
   st.close();
 });
 
+test('v29: 대학 지도 캠퍼스 위치 — 기본 대략 위치, 형식 검사', () => {
+  const p = path.join(dir, 'campus.db');
+  let st = openStore(p);
+  st.upsertAdmin('boss@revera.test', '원장', 'boss-pass-1');
+  st.close();
+  st = openStore(p); // 대학 초기 자료 다음 실행에 v29
+  const me = { email: 'boss@revera.test', name: '원장', role: 'admin' };
+  let d = st.rpc.getAll(me);
+  const ut = d.universities.find((u) => u.name === 'University of Toronto');
+  const cps = JSON.parse(ut.campuses);
+  assert.strictEqual(cps.length, 3);
+  assert.ok(cps.every((c) => c.approx && Math.abs(c.lat - 43.7) < 0.3));
+  assert.throws(() => st.rpc.save(me, { table: 'universities', obj: { id: ut.id, updatedAt: ut.updatedAt, campuses: JSON.stringify([{ name: 'X', lat: 123, lng: 0 }]) } }), /캠퍼스 위치/);
+  d = st.rpc.save(me, { table: 'universities', obj: { id: ut.id, updatedAt: ut.updatedAt, campuses: JSON.stringify([{ name: 'St. George', lat: 43.6629, lng: -79.3957 }]) } });
+  assert.strictEqual(JSON.parse(d.universities.find((u) => u.id === ut.id).campuses).length, 1);
+  st.close();
+});
+
 test('매출: 계약 금액·분할 입금·통화, 컨설턴트에게는 숨김', async () => {
   const admin = client();
   await admin.login('admin@revera.test', 'admin-pass-1');

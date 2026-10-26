@@ -183,7 +183,7 @@ const CHILD_TABLES = Object.keys(TABLES).filter((t) => t !== 'students');
 /** 대학 정보 (학생과 무관한 공용 자료) */
 const CATALOG = {
   universities: {
-    label: '대학', fields: ['country', 'name', 'fullName', 'aliases', 'website', 'portalUrl', 'tips', 'sortOrder'],
+    label: '대학', fields: ['country', 'name', 'fullName', 'aliases', 'website', 'portalUrl', 'tips', 'sortOrder', 'campuses'], // campuses: 대학 지도용 [{name, lat, lng, approx}]
     summary: (r) => r.name,
   },
   unicycles: {
@@ -740,6 +740,20 @@ function migrate(db) {
       db.prepare("INSERT INTO meta VALUES ('v28_canada', ?)").run(ts);
     })();
   }
+  // v29: 대학 지도 — 캠퍼스 위치가 비어 있는 대학에 대략 위치를 넣음(approx 표시, 대학 정보 수정에서 고침)
+  if (!db.prepare("SELECT 1 FROM meta WHERE key = 'v29_campuses'").get() && db.prepare('SELECT 1 FROM universities LIMIT 1').get()) {
+    const POS = require('./campus-positions.json');
+    const ts = now();
+    db.transaction(() => {
+      for (const u of db.prepare("SELECT id, name, aliases, campuses FROM universities WHERE deletedAt = ''").all()) {
+        if (u.campuses && u.campuses !== '[]') continue;
+        const names = [u.name].concat(String(u.aliases || '').split(',').map((a) => a.trim())).filter(Boolean);
+        const hit = names.map((n) => POS[n]).find(Boolean);
+        if (hit) db.prepare('UPDATE universities SET campuses = ? WHERE id = ?').run(JSON.stringify(hit.map((c) => Object.assign({}, c, { approx: true }))), u.id);
+      }
+      db.prepare("INSERT INTO meta VALUES ('v29_campuses', ?)").run(ts);
+    })();
+  }
   // v9: 메인 화면 공용 달력 (SAT 시험일 등 모두가 함께 보는 일정)
   // 학교 방학 (목록 관리 › 학교) — 달력에는 "방학 n곳" 한 줄, 학생 화면·오늘 챙길 일·학생 목록 필터
   db.exec('CREATE TABLE IF NOT EXISTS schoolbreaks (id TEXT PRIMARY KEY)');
@@ -1266,6 +1280,12 @@ function openStore(dbPath, opts) {
       checkUrl(v('website'), '홈페이지'); checkUrl(v('portalUrl'), '원서 접수(포털) 주소');
       const dup = db.prepare("SELECT id FROM universities WHERE name = ? AND deletedAt = ''").get(v('name'));
       if (dup && (!cur || dup.id !== cur.id)) throw new UserError('같은 이름의 대학이 이미 있습니다.');
+      let cps;
+      try { cps = JSON.parse(v('campuses') || '[]'); } catch (e) { cps = null; }
+      const num = (x, m) => typeof x === 'number' && Number.isFinite(x) && Math.abs(x) <= m;
+      if (!Array.isArray(cps) || cps.length > 10 || cps.some((c) => !c || typeof c.name !== 'string' || c.name.length > 60 || !num(c.lat, 90) || !num(c.lng, 180))) {
+        throw new UserError('캠퍼스 위치 형식이 올바르지 않습니다. (위도 -90~90, 경도 -180~180, 최대 10곳)');
+      }
     }
     if (table === 'unicycles') {
       if (!/^\d{4}$/.test(v('year'))) throw new UserError('입학 연도를 4자리 숫자로 입력하세요. (예: 2027)');

@@ -1,0 +1,22 @@
+{
+ "HKU": [{"name": "Main Campus (Pok Fu Lam)", "lat": 22.2830, "lng": 114.1371}],
+ "HKUST": [{"name": "Clear Water Bay", "lat": 22.3364, "lng": 114.2655}],
+ "CUHK": [{"name": "Sha Tin", "lat": 22.4196, "lng": 114.2068}],
+ "CityU": [{"name": "Kowloon Tong", "lat": 22.3365, "lng": 114.1722}],
+ "PolyU": [{"name": "Hung Hom", "lat": 22.3046, "lng": 114.1798}],
+ "NUS": [{"name": "Kent Ridge", "lat": 1.2966, "lng": 103.7764}],
+ "NTU": [{"name": "Jurong West", "lat": 1.3483, "lng": 103.6831}],
+ "SUTD": [{"name": "Tampines", "lat": 1.3413, "lng": 103.9638}],
+ "SMU": [{"name": "Bras Basah (City Campus)", "lat": 1.2966, "lng": 103.8496}],
+ "McGill": [{"name": "Downtown (Montreal)", "lat": 45.5048, "lng": -73.5772}, {"name": "Macdonald (Sainte-Anne-de-Bellevue)", "lat": 45.4072, "lng": -73.9420}],
+ "UBC": [{"name": "Vancouver", "lat": 49.2606, "lng": -123.2460}, {"name": "Okanagan (Kelowna)", "lat": 49.9401, "lng": -119.3960}],
+ "University of Toronto": [{"name": "St. George", "lat": 43.6629, "lng": -79.3957}, {"name": "Mississauga (UTM)", "lat": 43.5483, "lng": -79.6627}, {"name": "Scarborough (UTSC)", "lat": 43.7844, "lng": -79.1867}],
+ "서울대": [{"name": "관악캠퍼스", "lat": 37.4602, "lng": 126.9520}],
+ "KAIST": [{"name": "대전 본원", "lat": 36.3721, "lng": 127.3604}],
+ "성균관대": [{"name": "인문사회과학캠퍼스 (서울)", "lat": 37.5880, "lng": 126.9930}, {"name": "자연과학캠퍼스 (수원)", "lat": 37.2939, "lng": 126.9750}],
+ "연세대": [{"name": "신촌캠퍼스", "lat": 37.5658, "lng": 126.9386}],
+ "고려대": [{"name": "안암캠퍼스", "lat": 37.5894, "lng": 127.0322}],
+ "한양대": [{"name": "서울캠퍼스", "lat": 37.5574, "lng": 127.0450}],
+ "이화여대": [{"name": "신촌캠퍼스", "lat": 37.5618, "lng": 126.9468}],
+ "서강대": [{"name": "신촌캠퍼스", "lat": 37.5509, "lng": 126.9410}]
+}
