@@ -3707,7 +3707,8 @@ function mapInit() {
     var el = $('unimap'); if (!el || el._done) return; el._done = 1;
     var sid = el.getAttribute('data-sid'), apps = mapApps(sid);
     var map = L.map(el, { worldCopyJump: true, minZoom: 2 });
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18, attribution: '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>' }).addTo(map);
+    // OpenStreetMap은 출처(Referer)가 없는 요청을 막음 — 페이지는 same-origin 정책이라 지도 그림 요청에만 사이트 주소(도메인까지)를 붙임
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18, referrerPolicy: 'strict-origin-when-cross-origin', attribution: '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>' }).addTo(map);
     var pts = [];
     S.universities.filter(function (u) { return !u.deletedAt; }).forEach(function (u) {
       var ua = apps.filter(function (a) { return a.universityId === u.id; });
