@@ -26,6 +26,11 @@ const BRANCHES = ['상해', '압구정'];
 const BRANCH_TZ = { 상해: 'Asia/Shanghai', 압구정: 'Asia/Seoul' };
 const TZS = Object.values(BRANCH_TZ);
 const branchOf = (x) => (x && BRANCHES.includes(x.branch) ? x.branch : BRANCHES[0]);
+/** 계정 지점: 상해·압구정 + 전체(지점 구분 없음 — 원장님처럼 두 지점을 모두 맡는 계정). 전체 계정의 화면 시간은 계정에서 고른 나라 */
+const ALL_BRANCH = '전체';
+const ACCOUNT_BRANCHES = BRANCHES.concat([ALL_BRANCH]);
+const accountBranch = (t) => (t && ACCOUNT_BRANCHES.includes(t.branch) ? t.branch : BRANCHES[0]);
+const accountTz = (t) => (accountBranch(t) === ALL_BRANCH ? (TZS.includes(t.tz) ? t.tz : BRANCH_TZ[BRANCHES[0]]) : BRANCH_TZ[accountBranch(t)]);
 /** 다른 지점 학생에게 관리팀이 할 수 있는 것: 팔로업·답변·상담기록 추가 (학생 정보 수정은 그 지점 관리팀·관리자) */
 const CROSS_BRANCH_TABLES = ['followups', 'fureplies', 'notes'];
 
@@ -206,7 +211,7 @@ const CATALOG = {
     summary: (r) => r.name,
   },
 };
-/** 대학 목록 자체(추가·삭제·이름/국가 변경)는 관리자만 */
+/** 대학 목록 자체(추가·이름/국가 변경·순서)는 관리자·관리팀, 삭제는 관리자만 */
 const UNI_ADMIN_FIELDS = ['country', 'name', 'fullName', 'aliases', 'sortOrder'];
 const CYCLE_STATUS = ['확인 필요', '확인 완료'];
 const DEF = Object.assign({}, TABLES, CATALOG);
@@ -762,7 +767,7 @@ function migrate(db) {
     })();
   }
   // v30: 지점(상해·압구정) — 지금까지 자료는 모두 상해. 미팅·상담 시간은 중국 시간으로 적은 것
-  ensureColumns(db, 'teachers', ['branch']);
+  ensureColumns(db, 'teachers', ['branch', 'tz']); // tz: 지점이 '전체'인 계정의 화면 시간
   db.exec('CREATE TABLE IF NOT EXISTS events (id TEXT PRIMARY KEY)');
   ensureColumns(db, 'events', ['branch', 'shared', 'time', 'tz']); // shared: 'TRUE' = 전체 지점에 보임, time: 'HH:MM' (없으면 하루 종일)
   if (!db.prepare("SELECT 1 FROM meta WHERE key = 'v30_branches'").get()) {
@@ -886,7 +891,7 @@ function openStore(dbPath, opts) {
   }
   /** 학생 자료를 고칠 수 있는지: 관리자 = 전부, 관리팀 = 같은 지점 학생 (다른 지점은 팔로업·상담기록 추가와 내가 쓴·내 담당 것만), 컨설턴트 = 담당 학생 */
   function requireEdit(me, s, table, cur) {
-    if (me.role !== 'staff' || branchOf(me) === branchOf(s)) return;
+    if (me.role !== 'staff' || me.branch === ALL_BRANCH || branchOf(me) === branchOf(s)) return;
     if (CROSS_BRANCH_TABLES.includes(table) && (!cur || cur.createdBy === me.email || cur.assignee === me.email)) return;
     throw new UserError(branchOf(s) + ' 지점 학생입니다. 다른 지점 학생은 보기와 팔로업·상담기록 추가만 할 수 있습니다 (수정은 ' + branchOf(s) + ' 관리팀·관리자).', 403);
   }
@@ -943,7 +948,7 @@ function openStore(dbPath, opts) {
     const row = db.prepare(`SELECT t.*, s.expiresAt FROM sessions s JOIN teachers t ON t.email = s.email
       WHERE s.tokenHash = ?`).get(sha256(token));
     if (!row || !row.active || row.expiresAt < Date.now()) return null;
-    return { email: row.email, name: row.name, role: ROLES.includes(row.role) ? row.role : 'consultant', branch: branchOf(row),
+    return { email: row.email, name: row.name, role: ROLES.includes(row.role) ? row.role : 'consultant', branch: accountBranch(row), tz: accountTz(row),
       mustChangePassword: !!row.mustChangePassword, token };
   }
 
@@ -975,14 +980,14 @@ function openStore(dbPath, opts) {
     const students = db.prepare("SELECT * FROM students WHERE deletedAt = ''").all().filter((s) => canSeeStudent(me, s));
     const ids = new Set(students.map((s) => s.id));
     const out = {
-      me: { email: me.email, name: me.name, role: me.role, branch: branchOf(me), mustChangePassword: !!me.mustChangePassword,
+      me: { email: me.email, name: me.name, role: me.role, branch: accountBranch(me), tz: accountTz(me), mustChangePassword: !!me.mustChangePassword,
         homeLayout: parseLayout((db.prepare('SELECT homeLayout FROM teachers WHERE email = ?').get(me.email) || {}).homeLayout) },
       homeDefault: parseLayout(getMeta('homeLayoutDefault')),
       studentCols: parseCols(getMeta('studentCols')),
       uploadMB: uploadMB(),
       branches: BRANCHES, branchTz: BRANCH_TZ,
-      teachers: db.prepare("SELECT email, name, role, active, notify, color, sortOrder, branch FROM teachers ORDER BY CASE WHEN sortOrder = '' OR sortOrder IS NULL THEN 1 ELSE 0 END, CAST(sortOrder AS INTEGER), name").all()
-        .map((t) => ({ email: t.email, name: t.name, role: t.role, active: !!t.active, notify: t.notify !== 'off', color: t.color || '', sortOrder: Number(t.sortOrder) || 0, branch: branchOf(t) })),
+      teachers: db.prepare("SELECT email, name, role, active, notify, color, sortOrder, branch, tz FROM teachers ORDER BY CASE WHEN sortOrder = '' OR sortOrder IS NULL THEN 1 ELSE 0 END, CAST(sortOrder AS INTEGER), name").all()
+        .map((t) => ({ email: t.email, name: t.name, role: t.role, active: !!t.active, notify: t.notify !== 'off', color: t.color || '', sortOrder: Number(t.sortOrder) || 0, branch: accountBranch(t), tz: accountTz(t) })),
       students,
       serverTime: now(),
     };
@@ -1216,12 +1221,12 @@ function openStore(dbPath, opts) {
       } else {
         if (table === 'students') {
           requireManager(me, '학생 등록');
-          if (!rec.branch) rec.branch = branchOf(me);
-          if (me.role === 'staff' && rec.branch !== branchOf(me)) throw new UserError('다른 지점 학생은 그 지점 관리팀·관리자가 등록합니다.', 403);
+          if (!rec.branch) rec.branch = branchOf(me); // 전체 계정이면 첫 지점(상해) — 등록 창에서 고름
+          if (me.role === 'staff' && me.branch !== ALL_BRANCH && rec.branch !== branchOf(me)) throw new UserError('다른 지점 학생은 그 지점 관리팀·관리자가 등록합니다.', 403);
         } else {
           if (!rec.studentId) throw new UserError('학생이 지정되지 않았습니다.');
           requireEdit(me, requireStudent(me, rec.studentId), table, null);
-          if ((table === 'meetings' || table === 'notes') && !rec.tz) rec.tz = BRANCH_TZ[branchOf(me)];
+          if ((table === 'meetings' || table === 'notes') && !rec.tz) rec.tz = accountTz(me);
           if (table === 'files') throw new UserError('파일은 업로드로만 추가할 수 있습니다.');
         }
         if (table === 'payments' && !rec.currency) {
@@ -1233,7 +1238,7 @@ function openStore(dbPath, opts) {
         if (table === 'apps') {
           if (!rec.universityId && rec.university) rec.universityId = findUniByName(rec.university);
           resolveApp(rec, null);
-          if (!rec.universityId) throw new UserError('대학은 목록에서 선택하세요. 목록에 없으면 관리자에게 대학 추가를 요청하세요.');
+          if (!rec.universityId) throw new UserError('대학은 목록에서 선택하세요. 목록에 없으면 관리자·관리팀에게 대학 추가를 요청하세요.');
           if (rec.parentConfirmed === 'TRUE') { rec.parentConfirmedAt = t; rec.parentConfirmedBy = me.email; }
         }
         if (table === 'appinfo' && rec.sent === 'TRUE') { rec.sentAt = t; rec.sentBy = me.email; }
@@ -1357,7 +1362,7 @@ function openStore(dbPath, opts) {
         const cur = getRow(table, obj.id);
         if (!cur || cur.deletedAt) throw new UserError('다른 선생님이 이미 삭제한 항목입니다. 새로고침 해주세요.', 409);
         if (table === 'universities') {
-          if (me.role !== 'admin') UNI_ADMIN_FIELDS.forEach((k) => delete rec[k]);
+          if (!isManager(me)) UNI_ADMIN_FIELDS.forEach((k) => delete rec[k]);
         } else {
           requireUni(cur.universityId);
           delete rec.universityId; // 다른 대학으로 옮기기 불가
@@ -1395,7 +1400,7 @@ function openStore(dbPath, opts) {
         log(me.email, 'update', table, cur.id, describe(table, after) + (changed.length ? ' — 변경: ' + changed.join(', ') : ' — 변경 없음') + cascade);
         result = cur.id;
       } else {
-        if (table === 'universities') requireAdmin(me, '대학 추가');
+        if (table === 'universities') requireManager(me, '대학 추가');
         else requireUni(rec.universityId);
         if (table === 'unicycles') {
           if (!rec.requirements) rec.requirements = '[]';
@@ -1616,10 +1621,6 @@ function openStore(dbPath, opts) {
 
   /** 공용 달력 일정: 누구나 추가, 수정·삭제는 등록한 사람 또는 관리자·관리팀 */
   function eventLabel(r) { return r.date + (r.endDate && r.endDate !== r.date ? '~' + r.endDate : '') + ' ' + (r.private === 'TRUE' ? '(나만 보기 일정)' : r.title); } // 나만 보기 일정은 변경 기록에도 제목을 남기지 않음
-  /** 다른 지점 일정은 등록한 사람·관리자만 고치거나 지움 */
-  function requireEventBranch(me, cur) {
-    if (me.role === 'staff' && cur.createdBy !== me.email && branchOf(cur) !== branchOf(me)) throw new UserError(branchOf(cur) + ' 지점 일정은 등록한 사람이나 관리자만 고칠 수 있습니다.', 403);
-  }
   function saveEvent(me, arg) {
     arg = arg || {};
     const rec = {
@@ -1629,7 +1630,7 @@ function openStore(dbPath, opts) {
     };
     if (rec.time && !/^([01]\d|2[0-3]):[0-5]\d$/.test(rec.time)) throw new UserError('시간은 HH:MM 형식으로 입력하세요. (예: 15:00)');
     if (rec.private) rec.shared = '';
-    rec.tz = TZS.includes(arg.tz) ? arg.tz : BRANCH_TZ[branchOf(me)]; // 시간을 어느 나라 기준으로 적었는지 (화면은 보는 사람 시간으로 바꿔 보여줌)
+    rec.tz = TZS.includes(arg.tz) ? arg.tz : accountTz(me); // 시간을 어느 나라 기준으로 적었는지 (화면은 보는 사람 시간으로 바꿔 보여줌)
     if (!rec.title) throw new UserError('일정 이름을 입력하세요.');
     if (!DATE_RE.test(rec.date)) throw new UserError('날짜를 YYYY-MM-DD 형식으로 입력하세요.');
     if (rec.endDate && !DATE_RE.test(rec.endDate)) throw new UserError('끝나는 날짜를 YYYY-MM-DD 형식으로 입력하세요.');
@@ -1645,7 +1646,6 @@ function openStore(dbPath, opts) {
         const cur = getRow('events', id);
         if (!cur) throw new UserError('다른 선생님이 이미 삭제한 일정입니다. 새로고침 해주세요.', 409);
         if (cur.createdBy !== me.email && (!isManager(me) || cur.private === 'TRUE')) throw new UserError(cur.private === 'TRUE' ? '일정을 찾을 수 없습니다.' : '일정은 등록한 사람이나 관리자·관리팀만 고칠 수 있습니다.', cur.private === 'TRUE' ? 404 : 403);
-        requireEventBranch(me, cur);
         if (cur.createdBy !== me.email) rec.private = cur.private; // 다른 사람 일정을 나만 보기로 바꿀 수 없음
         if (arg.updatedAt && arg.updatedAt !== cur.updatedAt) {
           const who = getTeacher(cur.updatedBy);
@@ -1657,7 +1657,7 @@ function openStore(dbPath, opts) {
       } else {
         id = newId();
         db.prepare('INSERT INTO events (id, date, endDate, title, category, memo, private, branch, shared, time, tz, createdAt, createdBy, updatedAt, updatedBy) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
-          .run(id, rec.date, rec.endDate, rec.title, rec.category, rec.memo, rec.private, branchOf(me), rec.shared, rec.time, rec.time ? rec.tz : '', t, me.email, t, me.email);
+          .run(id, rec.date, rec.endDate, rec.title, rec.category, rec.memo, rec.private, accountBranch(me), rec.shared, rec.time, rec.time ? rec.tz : '', t, me.email, t, me.email);
         log(me.email, 'create', 'events', id, eventLabel(rec));
       }
     });
@@ -1696,7 +1696,6 @@ function openStore(dbPath, opts) {
     const cur = getRow('events', arg && arg.id);
     if (!cur) throw new UserError('이미 삭제된 일정입니다.', 404);
     if (cur.createdBy !== me.email && (!isManager(me) || cur.private === 'TRUE')) throw new UserError(cur.private === 'TRUE' ? '이미 삭제된 일정입니다.' : '일정은 등록한 사람이나 관리자·관리팀만 지울 수 있습니다.', cur.private === 'TRUE' ? 404 : 403);
-    requireEventBranch(me, cur);
     db.prepare('DELETE FROM events WHERE id = ?').run(cur.id);
     log(me.email, 'delete', 'events', cur.id, eventLabel(cur) + (cur.memo && cur.private !== 'TRUE' ? ' — ' + cur.memo.slice(0, 200) : ''));
     return getAll(me);
@@ -1869,7 +1868,7 @@ function openStore(dbPath, opts) {
       tx(() => ids.forEach((id, i) => db.prepare("UPDATE options SET sortOrder = ?, updatedAt = ?, updatedBy = ? WHERE id = ? AND kind = 'evauto'").run(String(i + 1), t, me.email, String(id))));
       log(me.email, 'update', 'options', '', '달력 자동 표시 순서 변경');
     } else if (arg.kind === 'universities') {
-      requireAdmin(me, '대학 순서 변경');
+      requireManager(me, '대학 순서 변경');
       tx(() => ids.forEach((id, i) => db.prepare('UPDATE universities SET sortOrder = ?, updatedAt = ?, updatedBy = ? WHERE id = ?').run(String(i + 1), t, me.email, String(id))));
       log(me.email, 'update', 'universities', '', '대학 순서 변경 (' + ids.length + '곳)');
     } else {
@@ -2419,7 +2418,8 @@ function openStore(dbPath, opts) {
     if (password) checkPasswordRule(password);
     const color = String(obj.color || '').toLowerCase();
     if (color && !/^#[0-9a-f]{6}$/.test(color)) throw new UserError('색상 형식이 올바르지 않습니다.');
-    if (obj.branch && !BRANCHES.includes(obj.branch)) throw new UserError('지점이 올바르지 않습니다.');
+    if (obj.branch && !ACCOUNT_BRANCHES.includes(obj.branch)) throw new UserError('지점이 올바르지 않습니다.');
+    if (obj.tz && !TZS.includes(obj.tz)) throw new UserError('화면 시간이 올바르지 않습니다.');
     tx(() => {
       const found = getTeacher(email);
       const name = String(obj.name || '').trim() || (found ? found.name : email.split('@')[0]);
@@ -2429,6 +2429,7 @@ function openStore(dbPath, opts) {
         if ('notify' in obj) db.prepare('UPDATE teachers SET notify=? WHERE email=?').run(obj.notify === false ? 'off' : '', email);
         if ('color' in obj) db.prepare('UPDATE teachers SET color=? WHERE email=?').run(color, email);
         if (obj.branch) db.prepare('UPDATE teachers SET branch=? WHERE email=?').run(obj.branch, email);
+        if (obj.tz) db.prepare('UPDATE teachers SET tz=? WHERE email=?').run(obj.tz, email);
         if (password) {
           db.prepare('UPDATE teachers SET passwordHash=?, mustChangePassword=0 WHERE email=?').run(hashPassword(password), email);
         }
@@ -2436,8 +2437,8 @@ function openStore(dbPath, opts) {
         if (!active || password || role !== found.role) db.prepare('DELETE FROM sessions WHERE email = ?').run(email);
       } else {
         if (!password) throw new UserError('새 계정의 비밀번호를 입력하세요 (6자 이상).');
-        db.prepare('INSERT INTO teachers (email, name, role, active, passwordHash, mustChangePassword, createdAt, updatedAt, notify, color, branch) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
-          .run(email, name, role, active, hashPassword(password), 0, t, t, obj.notify === false ? 'off' : '', color, obj.branch || BRANCHES[0]);
+        db.prepare('INSERT INTO teachers (email, name, role, active, passwordHash, mustChangePassword, createdAt, updatedAt, notify, color, branch, tz) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)')
+          .run(email, name, role, active, hashPassword(password), 0, t, t, obj.notify === false ? 'off' : '', color, obj.branch || BRANCHES[0], obj.tz || '');
       }
       const roleLabel = { admin: '관리자', staff: '관리팀', consultant: '컨설턴트' }[role];
       log(me.email, found ? 'update' : 'create', 'teachers', email,
