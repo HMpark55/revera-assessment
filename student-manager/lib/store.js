@@ -206,7 +206,7 @@ const CATALOG = {
     summary: (r) => r.name,
   },
 };
-/** 대학 목록 자체(추가·삭제·이름/국가 변경)는 관리자만 */
+/** 대학 목록 자체(추가·이름/국가 변경·순서)는 관리자·관리팀, 삭제는 관리자만 */
 const UNI_ADMIN_FIELDS = ['country', 'name', 'fullName', 'aliases', 'sortOrder'];
 const CYCLE_STATUS = ['확인 필요', '확인 완료'];
 const DEF = Object.assign({}, TABLES, CATALOG);
@@ -1233,7 +1233,7 @@ function openStore(dbPath, opts) {
         if (table === 'apps') {
           if (!rec.universityId && rec.university) rec.universityId = findUniByName(rec.university);
           resolveApp(rec, null);
-          if (!rec.universityId) throw new UserError('대학은 목록에서 선택하세요. 목록에 없으면 관리자에게 대학 추가를 요청하세요.');
+          if (!rec.universityId) throw new UserError('대학은 목록에서 선택하세요. 목록에 없으면 관리자·관리팀에게 대학 추가를 요청하세요.');
           if (rec.parentConfirmed === 'TRUE') { rec.parentConfirmedAt = t; rec.parentConfirmedBy = me.email; }
         }
         if (table === 'appinfo' && rec.sent === 'TRUE') { rec.sentAt = t; rec.sentBy = me.email; }
@@ -1357,7 +1357,7 @@ function openStore(dbPath, opts) {
         const cur = getRow(table, obj.id);
         if (!cur || cur.deletedAt) throw new UserError('다른 선생님이 이미 삭제한 항목입니다. 새로고침 해주세요.', 409);
         if (table === 'universities') {
-          if (me.role !== 'admin') UNI_ADMIN_FIELDS.forEach((k) => delete rec[k]);
+          if (!isManager(me)) UNI_ADMIN_FIELDS.forEach((k) => delete rec[k]);
         } else {
           requireUni(cur.universityId);
           delete rec.universityId; // 다른 대학으로 옮기기 불가
@@ -1395,7 +1395,7 @@ function openStore(dbPath, opts) {
         log(me.email, 'update', table, cur.id, describe(table, after) + (changed.length ? ' — 변경: ' + changed.join(', ') : ' — 변경 없음') + cascade);
         result = cur.id;
       } else {
-        if (table === 'universities') requireAdmin(me, '대학 추가');
+        if (table === 'universities') requireManager(me, '대학 추가');
         else requireUni(rec.universityId);
         if (table === 'unicycles') {
           if (!rec.requirements) rec.requirements = '[]';
@@ -1616,10 +1616,6 @@ function openStore(dbPath, opts) {
 
   /** 공용 달력 일정: 누구나 추가, 수정·삭제는 등록한 사람 또는 관리자·관리팀 */
   function eventLabel(r) { return r.date + (r.endDate && r.endDate !== r.date ? '~' + r.endDate : '') + ' ' + (r.private === 'TRUE' ? '(나만 보기 일정)' : r.title); } // 나만 보기 일정은 변경 기록에도 제목을 남기지 않음
-  /** 다른 지점 일정은 등록한 사람·관리자만 고치거나 지움 */
-  function requireEventBranch(me, cur) {
-    if (me.role === 'staff' && cur.createdBy !== me.email && branchOf(cur) !== branchOf(me)) throw new UserError(branchOf(cur) + ' 지점 일정은 등록한 사람이나 관리자만 고칠 수 있습니다.', 403);
-  }
   function saveEvent(me, arg) {
     arg = arg || {};
     const rec = {
@@ -1645,7 +1641,6 @@ function openStore(dbPath, opts) {
         const cur = getRow('events', id);
         if (!cur) throw new UserError('다른 선생님이 이미 삭제한 일정입니다. 새로고침 해주세요.', 409);
         if (cur.createdBy !== me.email && (!isManager(me) || cur.private === 'TRUE')) throw new UserError(cur.private === 'TRUE' ? '일정을 찾을 수 없습니다.' : '일정은 등록한 사람이나 관리자·관리팀만 고칠 수 있습니다.', cur.private === 'TRUE' ? 404 : 403);
-        requireEventBranch(me, cur);
         if (cur.createdBy !== me.email) rec.private = cur.private; // 다른 사람 일정을 나만 보기로 바꿀 수 없음
         if (arg.updatedAt && arg.updatedAt !== cur.updatedAt) {
           const who = getTeacher(cur.updatedBy);
@@ -1696,7 +1691,6 @@ function openStore(dbPath, opts) {
     const cur = getRow('events', arg && arg.id);
     if (!cur) throw new UserError('이미 삭제된 일정입니다.', 404);
     if (cur.createdBy !== me.email && (!isManager(me) || cur.private === 'TRUE')) throw new UserError(cur.private === 'TRUE' ? '이미 삭제된 일정입니다.' : '일정은 등록한 사람이나 관리자·관리팀만 지울 수 있습니다.', cur.private === 'TRUE' ? 404 : 403);
-    requireEventBranch(me, cur);
     db.prepare('DELETE FROM events WHERE id = ?').run(cur.id);
     log(me.email, 'delete', 'events', cur.id, eventLabel(cur) + (cur.memo && cur.private !== 'TRUE' ? ' — ' + cur.memo.slice(0, 200) : ''));
     return getAll(me);
@@ -1869,7 +1863,7 @@ function openStore(dbPath, opts) {
       tx(() => ids.forEach((id, i) => db.prepare("UPDATE options SET sortOrder = ?, updatedAt = ?, updatedBy = ? WHERE id = ? AND kind = 'evauto'").run(String(i + 1), t, me.email, String(id))));
       log(me.email, 'update', 'options', '', '달력 자동 표시 순서 변경');
     } else if (arg.kind === 'universities') {
-      requireAdmin(me, '대학 순서 변경');
+      requireManager(me, '대학 순서 변경');
       tx(() => ids.forEach((id, i) => db.prepare('UPDATE universities SET sortOrder = ?, updatedAt = ?, updatedBy = ? WHERE id = ?').run(String(i + 1), t, me.email, String(id))));
       log(me.email, 'update', 'universities', '', '대학 순서 변경 (' + ids.length + '곳)');
     } else {

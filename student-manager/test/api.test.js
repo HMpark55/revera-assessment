@@ -672,9 +672,14 @@ test('대학 정보: 초기 자료, 권한, 전형 마감일 자동 반영', asy
   const early = d.unirounds.find((r) => r.cycleId === cyc.id && r.deadline === '2026-11-25');
   assert.ok(early);
 
-  // 대학 추가·삭제·이름 변경은 관리자만
+  // 대학 추가·이름 변경은 관리자·관리팀, 삭제는 관리자만
   assert.strictEqual((await lee.save('universities', { name: 'Test U', country: '기타' })).status, 403);
-  assert.strictEqual((await staff.save('universities', { name: 'Test U', country: '기타' })).status, 403);
+  d = await staff.saveOk('universities', { name: 'Staff U', country: '기타' });
+  const su = d.universities.find((u) => u.name === 'Staff U');
+  d = await staff.saveOk('universities', { id: su.id, updatedAt: su.updatedAt, name: 'Staff U2', fullName: 'Staff University' });
+  assert.strictEqual(d.universities.find((u) => u.id === su.id).name, 'Staff U2', '관리팀은 대학 이름 변경 가능');
+  assert.strictEqual((await staff.rpc('remove', { table: 'universities', id: su.id })).status, 403);
+  await admin.ok('remove', { table: 'universities', id: su.id });
   assert.strictEqual((await lee.rpc('remove', { table: 'universities', id: hku.id })).status, 403);
   d = await lee.saveOk('universities', { id: hku.id, updatedAt: hku.updatedAt, name: '바뀐이름', website: 'https://x.hku.hk', tips: '컨설턴트 메모' });
   const hku2 = d.universities.find((u) => u.id === hku.id);
@@ -1248,15 +1253,15 @@ test('v7: 계약 날짜, 회의록·상담기록의 팔로업, 팔로업 요청(
   const dg = require('../lib/automation').buildDigests(store, '2026-10-01').find((m) => m.to === 'v7staff@revera.test');
   assert.ok(dg && dg.counts.requests >= 1 && /넘겨받은 일/.test(dg.html));
 
-  // 목록 순서 (드래그): 관리팀은 학교 순서, 대학 순서는 관리자만
+  // 목록 순서 (드래그): 학교·대학 순서 모두 관리자·관리팀
   await admin.ok('saveOption', { kind: 'school', value: 'v7 A학교' });
   d = await admin.ok('saveOption', { kind: 'school', value: 'v7 B학교' });
   const sch = d.options.filter((o) => o.kind === 'school' && /^v7/.test(o.value));
   d = await staff.ok('saveOrder', { kind: 'school', ids: [sch[1].id, sch[0].id] });
   assert.strictEqual(d.options.find((o) => o.id === sch[1].id).sortOrder, '1');
   const unis = d.universities.slice(0, 2).map((u) => u.id);
-  assert.strictEqual((await staff.rpc('saveOrder', { kind: 'universities', ids: unis })).status, 403);
-  d = await admin.ok('saveOrder', { kind: 'universities', ids: [unis[1], unis[0]] });
+  assert.strictEqual((await lee.rpc('saveOrder', { kind: 'universities', ids: unis })).status, 403);
+  d = await staff.ok('saveOrder', { kind: 'universities', ids: [unis[1], unis[0]] });
   assert.strictEqual(d.universities.find((u) => u.id === unis[1]).sortOrder, '1');
 
   // 대학 자료: 입학 연도별 업로드, 모두 보기, 수정·삭제는 올린 사람·관리팀
@@ -2101,16 +2106,18 @@ test('v30 지점: 예전 자료는 상해, 다른 지점 관리팀은 보기·�
   assert.strictEqual(d.meetings.find((m) => m.id === d.savedId).tz, 'Asia/Shanghai');
   assert.strictEqual((await ap.save('meetings', { studentId: ap2, date: '2026-10-22', tz: 'Europe/London' })).status, 400);
 
-  // 일정: 등록한 지점·시간 기준 저장, 다른 지점 관리팀은 못 고침, 공유 표시
+  // 일정: 등록한 지점·시간 기준 저장, 공유 표시, 다른 지점 관리팀도 고칠 수 있음
   d = await ap.ok('saveEvent', { title: '압구정 설명회', date: '2026-11-03', time: '19:00', tz: 'Asia/Seoul', shared: 'on' });
   const ev = d.events.find((e) => e.id === d.savedId);
   assert.deepStrictEqual([ev.branch, ev.time, ev.tz, ev.shared], ['압구정', '19:00', 'Asia/Seoul', 'TRUE']);
-  assert.strictEqual((await sh.rpc('saveEvent', { id: ev.id, updatedAt: ev.updatedAt, title: '바꿈', date: ev.date })).status, 403);
-  assert.strictEqual((await sh.rpc('removeEvent', { id: ev.id })).status, 403);
+  d = await sh.ok('saveEvent', { id: ev.id, updatedAt: ev.updatedAt, title: '상해에서 고침', date: ev.date, time: ev.time, tz: ev.tz, shared: 'on' });
+  const ev2 = d.events.find((e) => e.id === ev.id);
+  assert.deepStrictEqual([ev2.title, ev2.branch], ['상해에서 고침', '압구정'], '고쳐도 등록한 지점은 그대로');
   assert.strictEqual((await ap.rpc('saveEvent', { title: '시간 이상', date: '2026-11-03', time: '25:00' })).status, 400);
   d = await ap.ok('saveEvent', { title: '나만', date: '2026-11-04', private: 'on', shared: 'on' });
   assert.strictEqual(d.events.find((e) => e.id === d.savedId).shared, '', '나만 보기는 공유 안 됨');
-  await admin.ok('saveEvent', { id: ev.id, updatedAt: ev.updatedAt, title: '관리자가 고침', date: ev.date, time: ev.time, tz: ev.tz });
+  await admin.ok('saveEvent', { id: ev.id, updatedAt: ev2.updatedAt, title: '관리자가 고침', date: ev.date, time: ev.time, tz: ev.tz });
+  await sh.ok('removeEvent', { id: ev.id });
 });
 
 test('큰 JSON 응답은 gzip 압축 (작은 응답·gzip 못 받는 경우는 그대로)', async () => {

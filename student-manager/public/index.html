@@ -330,6 +330,8 @@
   .contract .h input[type=checkbox] { width:16px; height:16px; margin:0 4px 0 0; }
   .portal { padding:2px 0 4px; } .portal .pw { word-break:break-all; margin-bottom:3px; }
   .portal .pbtns { display:flex; gap:4px; flex-wrap:nowrap; } .portal + .portal { border-top:1px dashed var(--border); padding-top:4px; }
+  .rv-grp b { font-size:.82rem; color:var(--muted, #555); }
+  .rv-far { margin-top:6px; } .rv-far summary { cursor:pointer; font-size:.85rem; color:#555; }
   .rvbox { display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-top:6px; }
   .rvchip { font-size:.78rem; background:#fff4e0; color:#7a4d00; border:1px solid #f1d9a8; border-radius:999px; padding:2px 8px; }
   .rvchip.ok { background:#eaf6f0; color:#0f7a55; border-color:#bfe3d1; }
@@ -354,6 +356,8 @@
   .lb-nav.prev { left:16px; } .lb-nav.next { right:16px; }
   .swatches { display:flex; gap:6px; flex-wrap:wrap; }
   .swatches label { cursor:pointer; } .swatches input { display:none; }
+  .swatches .sw-pick { display:inline-flex; align-items:center; gap:4px; }
+  .swatches .sw-pick input[type=color] { display:inline-block; width:30px; height:26px; padding:0; border:1px solid #c8cfdc; border-radius:6px; background:none; cursor:pointer; }
   .swatches span { display:inline-flex; align-items:center; justify-content:center; width:34px; height:26px; border:1px solid #c8cfdc; border-radius:6px; font-size:.7rem; color:#666; }
   .swatches input:checked + span { outline:3px solid #0B1B45; outline-offset:1px; }
   .swatch { display:inline-block; width:14px; height:14px; border:1px solid #c8cfdc; border-radius:3px; vertical-align:middle; margin-right:6px; }
@@ -738,7 +742,7 @@ var FORMS = {
   contact: { table: 'followups', title: '받은 연락', fields: [
     { k: 'fromWho', l: '보낸 사람', t: 'select', o: CONTACT_FROM }, { k: 'channel', l: '어떻게', t: 'select', o: CONTACT_CHANNELS },
     { k: 'receivedDate', l: '받은 날짜', t: 'date' }, { k: 'assignee', l: '담당 (답할 사람)', t: 'teacher' },
-    { k: 'detail', l: '받은 내용 (질문·확인 요청 — 위챗 내용을 그대로 붙여넣어도 됩니다)', t: 'textarea', full: 1, big: 1, req: 1 },
+    { k: 'detail', l: '받은 내용', t: 'textarea', full: 1, big: 1, req: 1 },
     { t: 'shots', full: 1 },
     { k: 'need', l: '답이 필요한가요?', t: 'need', full: 1 },
     { k: 'due', l: '언제까지 답할지 (정해졌으면)', t: 'date' }, { t: 'replies', full: 1 }, { t: 'review', full: 1 }],
@@ -787,9 +791,9 @@ var FORMS = {
     { k: 'memo', l: '메모 (추천서·장학금 등)', t: 'textarea', full: 1 }],
     defaults: function () { return { status: '준비중' }; } },
   universities: { title: '대학', fields: [
-    { k: 'name', l: '대학 이름 (짧은 이름)', req: 1, adm: 1, ph: '예: HKU' }, { k: 'country', l: '국가', t: 'select', o: COUNTRIES, req: 1, adm: 1 },
-    { k: 'fullName', l: '정식 이름', adm: 1, full: 1 },
-    { k: 'aliases', l: '다른 이름 (쉼표로 구분 — 학생 지원대학을 자동 연결할 때 사용)', adm: 1, full: 1, ph: '예: 홍콩대, University of Hong Kong' },
+    { k: 'name', l: '대학 이름 (짧은 이름)', req: 1, mgr: 1, ph: '예: HKU' }, { k: 'country', l: '국가', t: 'select', o: COUNTRIES, req: 1, mgr: 1 },
+    { k: 'fullName', l: '정식 이름', mgr: 1, full: 1 },
+    { k: 'aliases', l: '다른 이름 (쉼표로 구분 — 학생 지원대학을 자동 연결할 때 사용)', mgr: 1, full: 1, ph: '예: 홍콩대, University of Hong Kong' },
     { k: 'website', l: '입학처 홈페이지', t: 'url', full: 1, ph: 'https://...' },
     { k: 'portalUrl', l: '원서 접수(포털) 주소 — 학생 지원대학의 “열기”가 이 주소로 열림', t: 'url', full: 1, ph: '예: https://aal.hku.hk/... (지원서 로그인 페이지)' }, { k: 'sortOrder', l: '정렬 순서 (숫자)', adm: 1 },
     { k: 'campuses', l: '캠퍼스 위치 (대학 지도에 표시)', t: 'campuses', full: 1 }],
@@ -1131,8 +1135,10 @@ function byDate(k) { return function (a, b) { return (a[k] || '9999').localeComp
 function isActive(s) { return s.status !== '완료' && s.status !== '종료'; }
 function isMine(s) { return !!s && (String(s.counselor).toLowerCase() === S.me.email || String(s.manager || '').toLowerCase() === S.me.email); }
 /** 관리팀 색 (계정 관리에서 선택) — 구글 시트 기본 색 중 연한 색 + 노랑 */
-var TEACHER_COLORS = [['#ffff00', '노랑'], ['#fff2cc', '연노랑'], ['#fce5cd', '살구'], ['#f4cccc', '연빨강'], ['#ead1dc', '연분홍'], ['#d9d2e9', '연보라'],
-  ['#cfe2f3', '연파랑'], ['#c9daf8', '하늘'], ['#d0e0e3', '연청록'], ['#d9ead3', '연두'], ['#efefef', '회색']];
+/** 관리팀 색 (학생 목록 줄 배경) — 글자가 잘 보이는 옅은 색 위주, 그 밖의 색은 “직접 고르기” */
+var TEACHER_COLORS = [['#ffff00', '노랑'], ['#fff2cc', '연노랑'], ['#ffe599', '진노랑'], ['#fce5cd', '살구'], ['#f9cb9c', '주황'], ['#f4cccc', '연빨강'], ['#ea9999', '분홍빨강'],
+  ['#ead1dc', '연분홍'], ['#f8c8dc', '핑크'], ['#d9d2e9', '연보라'], ['#b4a7d6', '보라'], ['#cfe2f3', '연파랑'], ['#9fc5e8', '파랑'], ['#c9daf8', '하늘'],
+  ['#a4c2f4', '진하늘'], ['#d0e0e3', '연청록'], ['#a2c4c9', '청록'], ['#d9ead3', '연두'], ['#b6d7a8', '초록'], ['#e6dfcc', '베이지'], ['#d5c4b0', '갈색'], ['#efefef', '회색'], ['#cccccc', '진회색']];
 function teacherColor(email) { var t = S.teachers.filter(function (x) { return x.email === String(email || '').toLowerCase(); })[0]; return t && t.role !== 'consultant' && t.color ? t.color : ''; }
 /** 학생 줄 배경: 담당 관리팀 색 */
 function rowColor(s) { var c = teacherColor(s.manager); return c ? ' style="background:' + c + '"' : ''; }
@@ -1910,7 +1916,7 @@ function openDay(iso) {
   }).join('') : '<div class="empty">등록된 일정이 없습니다.</div>') + '</div>',
     '<button class="btn ghost" onclick="closeModal()">닫기</button><button class="btn" onclick="openEvent(null,' + js(iso) + ')">+ 이 날 일정 추가</button>');
 }
-function canEditEvent(e) { return !e || e.createdBy === S.me.email || (isMgr() && e.private !== 'TRUE' && (isAdmin() || branchOf(e) === myBranch())); }
+function canEditEvent(e) { return !e || e.createdBy === S.me.email || (isMgr() && e.private !== 'TRUE'); } // 다른 지점 일정도 관리자·관리팀이면 고칠 수 있음
 function openEvent(id, date) {
   var e = id ? (S.events || []).filter(function (x) { return x.id === id; })[0] : { date: date || today(), category: (evCats()[0] || {}).value || '' };
   if (!e) return toast('일정을 찾을 수 없습니다. 새로고침 해주세요.', true);
@@ -1930,7 +1936,7 @@ function openEvent(id, date) {
     (!id || e.createdBy === S.me.email ? '<div class="full"><label style="display:inline-flex;gap:6px;align-items:center;color:#222;white-space:nowrap"><input type="checkbox" name="private"' + (e.private === 'TRUE' ? ' checked' : '') + '> <span style="font-weight:600">🔒 나만 보기</span></label>' +
       '<div class="muted" style="font-size:.8rem">체크하면 다른 선생님 달력에는 보이지 않습니다. 변경 기록에도 제목이 남지 않습니다.</div></div>' : '') +
     (id ? '<div class="full muted">' + esc(teacherName(e.createdBy)) + ' 등록' + (e.updatedAt !== e.createdAt ? ' · 마지막 수정 ' + esc(fmtTime(e.updatedAt)) + ' ' + esc(teacherName(e.updatedBy)) : '') +
-      (can ? '' : ' · 수정은 등록한 사람이나 ' + esc(branchOf(e)) + ' 관리팀·관리자만 할 수 있습니다.') + '</div>' : ''),
+      (can ? '' : ' · 수정은 등록한 사람이나 관리자·관리팀만 할 수 있습니다.') + '</div>' : ''),
     (id && can ? '<button class="btn danger left" onclick="removeEvent(' + js(e.id) + ')">삭제</button>' : '') +
     '<button class="btn ghost" onclick="closeModal()">' + (can ? '취소' : '닫기') + '</button>' + (can ? '<button class="btn" onclick="submitEvent()">저장</button>' : ''));
 }
@@ -2878,11 +2884,20 @@ function reviewField(table, rec) {
   var s = studentById(rec.studentId), list = reviewCandidates(table, s);
   var already = rec.id ? reviewsOf(table, rec.id).filter(function (r) { return !r.doneAt; }).map(function (r) { return r.toEmail; }) : [];
   return '<div class="full"><label>👀 확인 요청 <span class="muted" style="font-weight:400">— 휴무 등으로 이 기록을 꼭 봐야 할 선생님 (체크하면 그분 “오늘 챙길 일” 맨 위에 뜸)</span></label>' +
-    '<div class="multi" id="rvbox">' + (list.length ? list.map(function (t) {
-      var on = already.indexOf(t.email) >= 0;
-      return '<label><input type="checkbox" value="' + esc(t.email) + '"' + (on ? ' checked disabled' : '') + '> ' + esc(t.name) + (on ? ' <span class="muted">(요청 중)</span>' : '') + '</label>';
-    }).join('') : '<span class="muted">요청할 수 있는 선생님이 없습니다.</span>') + '</div>' +
+    '<div id="rvbox">' + (list.length ? reviewGroups(list, s, already) : '<span class="muted">요청할 수 있는 선생님이 없습니다.</span>') + '</div>' +
     '<input type="text" id="rvnote" placeholder="메모 (선택) — 예: 어머님 문의, 답변까지 완료했어요. 참고만 해주세요" style="margin-top:6px"></div>';
+}
+/** 확인 요청 받을 사람: 이 학생 지점의 관리팀·관리자 + 담당 컨설턴트를 먼저, 다른 지점 선생님은 접어둠 (펼쳐서 고를 수 있음) */
+function reviewGroups(list, s, already) {
+  var br = branchOf(s), box = function (t) {
+    var on = already.indexOf(t.email) >= 0;
+    return '<label><input type="checkbox" value="' + esc(t.email) + '"' + (on ? ' checked disabled' : '') + '> ' + esc(t.name) +
+      (t.role === 'consultant' ? ' <span class="muted">(담당 컨설턴트)</span>' : t.role === 'admin' ? ' <span class="muted">(관리자)</span>' : '') + (on ? ' <span class="muted">(요청 중)</span>' : '') + '</label>';
+  };
+  var near = list.filter(function (t) { return t.role === 'consultant' || branchOf(t) === br; }), far = list.filter(function (t) { return near.indexOf(t) < 0; });
+  var farOpen = far.some(function (t) { return already.indexOf(t.email) >= 0; });
+  return '<div class="rv-grp"><b>' + esc(br) + ' 관리팀</b>' + (near.length ? '<div class="multi">' + near.map(box).join('') + '</div>' : '<div class="muted">없음</div>') + '</div>' +
+    (far.length ? '<details class="rv-far"' + (farOpen ? ' open' : '') + '><summary>다른 지점 선생님 ' + far.length + '명 보기</summary><div class="multi">' + far.map(box).join('') + '</div></details>' : '');
 }
 function reviewData() {
   var box = $('rvbox'); if (!box) return null;
@@ -3505,11 +3520,11 @@ function viewUniList() {
   var list = sortedUnis().filter(function (u) {
     return (!c || u.country === c) && (!q || [u.name, u.fullName, u.aliases].join(' ').toLowerCase().indexOf(q) >= 0);
   });
-  var h = '<div class="toolbar"><h3 style="margin:0;margin-right:auto">대학 <span class="muted">' + S.universities.length + '곳</span></h3>' + (isAdmin() ? '<button class="btn" onclick="openForm(\'universities\')">+ 대학 추가</button>' : '<span class="muted">대학 추가·수정은 관리자만 할 수 있습니다</span>') + '</div>';
+  var h = '<div class="toolbar"><h3 style="margin:0;margin-right:auto">대학 <span class="muted">' + S.universities.length + '곳</span></h3>' + (isMgr() ? '<button class="btn" onclick="openForm(\'universities\')">+ 대학 추가</button>' : '<span class="muted">대학 추가·수정은 관리자만 할 수 있습니다</span>') + '</div>';
   h += '<div class="notice">여기 있는 대학만 학생 “지원대학 추가”에서 고를 수 있습니다. 요강·마감일·전공 같은 상세 내용은 “대학 정보”에서 컨설턴트도 고칠 수 있습니다.</div>';
   h += '<div class="toolbar"><input type="text" id="q" class="grow" placeholder="대학 이름·다른 이름 검색" value="' + esc(UI.ulQ || '') + '" oninput="searchInput(event,\'ulQ\')" oncompositionend="searchInput(event,\'ulQ\')">' +
     '<select onchange="UI.ulC=this.value;render()"><option value="">모든 국가</option>' + opts(COUNTRIES, c).replace('<option value="">—</option>', '') + '</select></div>';
-  var canDrag = isAdmin() && !q;
+  var canDrag = isMgr() && !q;
   h += '<div class="card tbl-wrap">' + (canDrag ? '<div class="muted" style="margin-bottom:6px">⋮⋮ 를 끌어서 같은 나라 안에서 순서를 바꾸면 바로 저장됩니다. (대학 정보·선택 목록에 이 순서로 나옵니다)</div>' : '') +
     '<table><thead><tr>' + (canDrag ? '<th class="gripc"></th>' : '') + '<th>국가</th><th>대학</th><th>정식 이름</th><th>다른 이름 (자동 연결용)</th><th>입학 연도 정보</th><th>지원 학생</th><th></th></tr></thead><tbody data-order="universities">' +
     (list.length ? list.map(function (u) {
@@ -3517,7 +3532,7 @@ function viewUniList() {
       var st = {}; ap.forEach(function (a) { st[a.studentId] = 1; });
       return (canDrag ? '<tr class="drag" draggable="true" data-id="' + esc(u.id) + '" data-grp="' + esc(u.country) + '">' + '<td class="nw gripc"><span class="grip" title="끌어서 순서 바꾸기">⋮⋮</span></td>' : '<tr>') + '<td class="nw">' + esc(u.country) + '</td><td><b>' + esc(u.name) + '</b></td><td>' + esc(u.fullName) + '</td><td class="muted">' + esc(u.aliases) + '</td>' +
         '<td class="nw">' + cyc + '개</td><td class="nw">' + Object.keys(st).length + '명</td>' +
-        '<td class="nw">' + (isAdmin() ? '<button class="btn ghost sm" onclick="openForm(\'universities\',' + js(u.id) + ')">수정</button> ' : '') + '<a class="btn ghost sm" href="#/uni/' + esc(u.id) + '">상세 →</a></td></tr>';
+        '<td class="nw">' + (isMgr() ? '<button class="btn ghost sm" onclick="openForm(\'universities\',' + js(u.id) + ')">수정</button> ' : '') + '<a class="btn ghost sm" href="#/uni/' + esc(u.id) + '">상세 →</a></td></tr>';
     }).join('') : '<tr><td colspan="8" class="empty">해당하는 대학이 없습니다.</td></tr>') + '</tbody></table></div>';
   var loose = {};
   S.apps.filter(function (a) { return !a.universityId && a.university; }).forEach(function (a) { (loose[a.university] = loose[a.university] || []).push(a); });
@@ -3527,7 +3542,7 @@ function viewUniList() {
       '<div class="muted" style="margin-bottom:8px">대학으로 추가하거나, 기존 대학의 “다른 이름”에 넣으면 자동으로 연결됩니다.</div><div class="tbl-wrap"><table class="compact"><tbody>' +
       names.map(function (n) {
         var who = loose[n].map(function (a) { var s = studentById(a.studentId); return s ? s.name : ''; }).filter(Boolean);
-        return '<tr><td><b>' + esc(n) + '</b></td><td class="muted">' + esc(who.join(', ')) + '</td><td class="nw">' + (isAdmin() ? '<button class="btn ghost sm" onclick="openForm(\'universities\',null,null,{name:' + js(n) + '})">대학으로 추가</button>' : '') + '</td></tr>';
+        return '<tr><td><b>' + esc(n) + '</b></td><td class="muted">' + esc(who.join(', ')) + '</td><td class="nw">' + (isMgr() ? '<button class="btn ghost sm" onclick="openForm(\'universities\',null,null,{name:' + js(n) + '})">대학으로 추가</button>' : '') + '</td></tr>';
       }).join('') + '</tbody></table></div></div>';
   }
   return h;
@@ -3907,7 +3922,7 @@ function mapInit() {
 function viewUnis() {
   var unis = sortedUnis();
   var h = '<div class="toolbar"><h2 style="margin:0;margin-right:auto">대학 정보 <span class="muted">' + unis.length + '곳</span></h2>' +
-    '<a class="btn ghost" href="#/map">🗺 대학 지도</a>' + (isAdmin() ? '<button class="btn" onclick="openForm(\'universities\')">+ 대학 추가</button>' : '') + '</div>';
+    '<a class="btn ghost" href="#/map">🗺 대학 지도</a>' + (isMgr() ? '<button class="btn" onclick="openForm(\'universities\')">+ 대학 추가</button>' : '') + '</div>';
   if (!unis.length) return h + '<div class="card empty">등록된 대학이 없습니다.</div>';
   var groups = {};
   unis.forEach(function (u) { (groups[u.country] = groups[u.country] || []).push(u); });
@@ -4177,7 +4192,7 @@ function viewUni(id) {
     '<div class="muted" style="margin-top:4px">' + esc(u.fullName || '') + (u.aliases ? ' · 다른 이름: ' + esc(u.aliases) : '') + '</div></div>' +
     (web ? '<a class="btn ghost" href="' + esc(web) + '" target="_blank" rel="noopener">🌐 입학처</a>' : '') +
     (safeUrl(u.portalUrl) ? '<a class="btn ghost" href="' + esc(u.portalUrl) + '" target="_blank" rel="noopener">📝 원서 접수(포털)</a>' : '') +
-    '<button class="btn ghost" onclick="openForm(\'universities\',' + js(u.id) + ')">' + (isAdmin() ? '대학 정보 수정' : '홈페이지·포털 링크 수정') + '</button></div>';
+    '<button class="btn ghost" onclick="openForm(\'universities\',' + js(u.id) + ')">' + (isMgr() ? '대학 정보 수정' : '홈페이지·포털 링크 수정') + '</button></div>';
   h += '<div class="cycbar"><span class="muted">입학 연도</span> ' + cycles.map(function (c) {
     return '<a class="cyc' + (cy && c.id === cy.id ? ' on' : '') + '" onclick="UI.uniCycle[' + js(id) + ']=' + js(c.id) + ';render()">' + esc(cycleLabel(c)) + '</a>';
   }).join('') + '<button class="btn ghost sm" onclick="openForm(\'unicycles\',null,null,{universityId:' + js(id) + '})">+ 입학 연도 추가</button>' +
@@ -4670,7 +4685,11 @@ function openTeacherForm(email) {
     '<div class="full"><label>색 (관리팀·관리자 — 학생 목록에서 이 선생님이 관리하는 학생 줄의 배경색)</label><div class="swatches">' +
       [['', '없음']].concat(TEACHER_COLORS).map(function (c) {
         return '<label title="' + esc(c[1]) + '"><input type="radio" name="color" value="' + c[0] + '"' + ((t.color || '') === c[0] ? ' checked' : '') + '><span style="background:' + (c[0] || '#fff') + '">' + (c[0] ? '' : '없음') + '</span></label>';
-      }).join('') + '</div><div class="muted" style="font-size:.8rem">컨설턴트는 색을 정해도 표시되지 않습니다.</div></div>' +
+      }).join('') + (function () { // 목록에 없는 색: 직접 고르기
+        var own = t.color && !TEACHER_COLORS.some(function (c) { return c[0] === t.color; });
+        return '<label title="직접 고르기" class="sw-pick"><input type="radio" name="color" value="custom" id="tc-custom"' + (own ? ' checked' : '') + '><span style="background:' + (own ? esc(t.color) : '#fff') + '" id="tc-sw">🎨</span>' +
+          '<input type="color" id="tc-pick" value="' + esc(own ? t.color : '#ffd966') + '" oninput="$(\'tc-custom\').checked=true;$(\'tc-sw\').style.background=this.value" aria-label="색 직접 고르기"></label>';
+      })() + '</div><div class="muted" style="font-size:.8rem">🎨 을 누르면 원하는 색을 직접 고를 수 있습니다 (글자가 잘 보이게 옅은 색 권장). 컨설턴트는 색을 정해도 표시되지 않습니다.</div></div>' +
     fld(email ? '비밀번호 초기화 (바꿀 때만 입력)' : '비밀번호 (6자 이상)', inp('password', '', 'text', ' autocomplete="off"' + (email ? ' placeholder="비워두면 그대로"' : ' required')), true, !email);
   modal(email ? '계정 수정' : '계정 추가', body,
     (email && email !== S.me.email ? '<button class="btn danger left" onclick="deleteTeacher(' + js(email) + ')">계정 삭제</button>' : '') +
@@ -4842,6 +4861,7 @@ function copyScript() {
 }
 function submitTeacher() {
   var o = formData($('mf'));
+  if (o.color === 'custom') o.color = ($('tc-pick').value || '').toLowerCase();
   o.active = o.active === '1';
   if (o.password && o.password.length < 6) return toast('비밀번호는 6자 이상이어야 합니다.', true);
   mutate('saveTeacher', o, o.password ? '저장했습니다. 임시 비밀번호를 전달하세요.' : '저장했습니다.');
@@ -5023,7 +5043,7 @@ function field(f, rec) {
     COUNTRIES.map(function (c) {
       var us = sortedUnis().filter(function (u) { return u.country === c; });
       return us.length ? '<optgroup label="' + esc(c) + '">' + us.map(function (u) { return '<option value="' + esc(u.id) + '"' + (u.id === v ? ' selected' : '') + '>' + esc(u.name) + (u.fullName && u.fullName !== u.name ? ' — ' + esc(u.fullName) : '') + '</option>'; }).join('') + '</optgroup>' : '';
-    }).join('') + '</select><div class="muted" style="font-size:.78rem;margin-top:3px">목록에 없는 대학은 관리자가 “대학 목록 관리”에서 추가합니다.</div>';
+    }).join('') + '</select><div class="muted" style="font-size:.78rem;margin-top:3px">목록에 없는 대학은 관리자·관리팀이 “목록 관리 › 대학”에서 추가합니다.</div>';
   else if (f.t === 'round') h = '<select name="roundId" id="f-round" data-cur="' + esc(v) + '" onchange="appFormSync()"></select>';
   else if (f.t === 'major') h = '<select name="majorId" id="f-major" data-cur="' + esc(v) + '" onchange="appFormSync()"></select>';
   else if (f.t === 'track') {
