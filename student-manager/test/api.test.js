@@ -2132,3 +2132,25 @@ test('큰 JSON 응답은 gzip 압축 (작은 응답·gzip 못 받는 경우는 �
   r = await admin.req('POST', '/api/rpc/nope', { arg: null });
   assert.strictEqual(r.status, 404); assert.strictEqual(r.headers.get('content-encoding'), null);
 });
+
+test('계정 지점 "전체": 지점 구분 없이 모든 학생 수정, 화면 시간은 계정에서 고름, 등록한 일정은 모든 지점에', async () => {
+  const admin = client(); await admin.login('admin@revera.test', 'admin-pass-1');
+  await admin.ok('saveTeacher', { email: 'boss@revera.test', name: '원장님', role: 'staff', password: 'pass-3100', branch: '전체', tz: 'Asia/Seoul' });
+  await admin.ok('saveTeacher', { email: 'ap31@revera.test', name: '압구정31', role: 'staff', password: 'pass-3100', branch: '압구정' });
+  assert.strictEqual((await admin.rpc('saveTeacher', { email: 'x31@revera.test', role: 'staff', password: 'pass-3100', branch: '전체', tz: 'Europe/Paris' })).status, 400);
+  const boss = client(); await boss.login('boss@revera.test', 'pass-3100');
+  const ap = client(); await ap.login('ap31@revera.test', 'pass-3100');
+  let d = await boss.ok('getAll');
+  assert.deepStrictEqual([d.me.branch, d.me.tz], ['전체', 'Asia/Seoul']);
+  assert.strictEqual(d.teachers.find((t) => t.email === 'boss@revera.test').branch, '전체');
+  // 압구정 학생도 고칠 수 있음 (관리팀 역할이어도)
+  d = await ap.saveOk('students', { name: '압구정 학생31' });
+  const st = d.students.find((s) => s.id === d.savedId);
+  await boss.saveOk('students', { id: st.id, updatedAt: st.updatedAt, memo: '원장님 메모' });
+  d = await boss.saveOk('students', { name: '원장님 등록', branch: '압구정' });
+  assert.strictEqual(d.students.find((s) => s.id === d.savedId).branch, '압구정', '전체 계정은 어느 지점으로든 등록');
+  d = await boss.saveOk('meetings', { studentId: st.id, date: '2026-10-27', time: '15:00' });
+  assert.strictEqual(d.meetings.find((m) => m.id === d.savedId).tz, 'Asia/Seoul', '시간 기준 = 계정에서 고른 시간');
+  d = await boss.ok('saveEvent', { title: '원장님 일정', date: '2026-11-05' });
+  assert.strictEqual(d.events.find((e) => e.id === d.savedId).branch, '전체');
+});

@@ -930,7 +930,7 @@ function load(data) {
   UI.activity = {}; // 최근 활동은 저장할 때마다 새로 불러옴
   $('whoami').textContent = S.me.name + ' · ' + myBranch();
   $('um-av').textContent = String(S.me.name || '?').trim().slice(0, 1);
-  $('um-h').innerHTML = '<b>' + esc(S.me.name) + '</b> · ' + esc(ROLE_LABEL[S.me.role] || S.me.role) + '<br>' + esc(S.me.email) + '<br><span class="muted">' + esc(myBranch()) + ' 지점 · 화면 시간은 ' + esc(TZ_NAME[myTZ()]) + ' 시간 기준</span>';
+  $('um-h').innerHTML = '<b>' + esc(S.me.name) + '</b> · ' + esc(ROLE_LABEL[S.me.role] || S.me.role) + '<br>' + esc(S.me.email) + '<br><span class="muted">' + esc(isAllBranch() ? '전체 지점(지점 구분 없음)' : myBranch() + ' 지점') + ' · 화면 시간은 ' + esc(TZ_NAME[myTZ()]) + ' 시간 기준</span>';
   $('who').style.display = ''; $('gs').style.display = ''; $('rf').style.display = '';
   render();
   if (S.me.mustChangePassword) openPasswordForm(true);
@@ -1037,8 +1037,10 @@ function pad(n) { return (n < 10 ? '0' : '') + n; }
 var BRANCHES = ['상해', '압구정'], BRANCH_TZ = { '상해': 'Asia/Shanghai', '압구정': 'Asia/Seoul' };
 var TZ_NAME = { 'Asia/Shanghai': '중국', 'Asia/Seoul': '한국' };
 var SERVER_TZ = 'Asia/Seoul', SCHED_TZ = 'Asia/Shanghai'; // 저장 시각(등록·수정·변경 기록)은 한국 시간, 원장님 스케줄은 중국 시간으로 저장돼 있음
+var ALL_BRANCH = '전체'; // 계정 지점 '전체' = 지점 구분 없음 (원장님처럼 두 지점을 모두 맡는 계정)
 function myBranch() { return (S.me && S.me.branch) || BRANCHES[0]; }
-function myTZ() { return BRANCH_TZ[myBranch()] || SCHED_TZ; }
+function myTZ() { return (S.me && S.me.tz) || BRANCH_TZ[myBranch()] || SCHED_TZ; }
+function isAllBranch() { return myBranch() === ALL_BRANCH; }
 function branchOf(x) { return x && BRANCHES.indexOf(x.branch) >= 0 ? x.branch : BRANCHES[0]; }
 var _tzFmt = {};
 /** tz 의 지금 시각 'YYYY-MM-DDTHH:MM' */
@@ -1082,9 +1084,9 @@ function recTime(r) {
   return { date: conv[0].slice(0, 10), time: conv.map(function (w) { return w.slice(11, 16); }).join('~'), orig: on + ' ' + (conv[0].slice(0, 10) !== r.date ? fmtD(r.date) + ' ' : '') + r.time };
 }
 /** 메인·목록 화면에 보이는 지점: 관리자·관리팀은 고를 수 있음 (처음엔 내 지점), 컨설턴트는 담당 학생만이라 지점 구분 없음 */
-function viewBranch() { if (!isMgr()) return myBranch(); if (!UI.br) { try { UI.br = localStorage.getItem('compass.br') || ''; } catch (e) {} } return BRANCHES.concat(['전체']).indexOf(UI.br) >= 0 ? UI.br : myBranch(); }
+function viewBranch() { if (!isMgr()) return isAllBranch() ? ALL_BRANCH : myBranch(); if (!UI.br) { try { UI.br = localStorage.getItem('compass.br') || ''; } catch (e) {} } return BRANCHES.concat(['전체']).indexOf(UI.br) >= 0 ? UI.br : myBranch(); } // 전체 계정은 처음부터 전체 지점
 function inBranch(s) { return !isMgr() || viewBranch() === '전체' || branchOf(s) === viewBranch(); }
-function evInBranch(e) { return e.private === 'TRUE' || e.shared === 'TRUE' || (isMgr() && viewBranch() === '전체') || branchOf(e) === viewBranch(); }
+function evInBranch(e) { return e.private === 'TRUE' || e.shared === 'TRUE' || e.branch === ALL_BRANCH || viewBranch() === '전체' || branchOf(e) === viewBranch(); } // 전체 계정이 등록한 일정은 모든 지점에
 /** 받은 자료를 지금 고른 지점에 맞게: 학생·일정 목록 + 시간 있는 일정은 내 시간으로 */
 function applyBranch() {
   S.students = (S.allStudents || []).filter(inBranch);
@@ -1095,9 +1097,9 @@ function applyBranch() {
   });
 }
 function setBranch(b) { UI.br = b; try { localStorage.setItem('compass.br', b); } catch (e) {} applyBranch(); render(); }
-function branchPill(s) { return isMgr() && (viewBranch() === '전체' || branchOf(s) !== myBranch()) ? '<span class="pill br br-' + (BRANCHES.indexOf(branchOf(s)) + 1) + '" title="' + esc(branchOf(s)) + ' 지점 학생">' + esc(branchOf(s)) + '</span>' : ''; }
+function branchPill(s) { return (isMgr() || isAllBranch()) && (viewBranch() === '전체' || branchOf(s) !== myBranch()) ? '<span class="pill br br-' + (BRANCHES.indexOf(branchOf(s)) + 1) + '" title="' + esc(branchOf(s)) + ' 지점 학생">' + esc(branchOf(s)) + '</span>' : ''; }
 /** 관리팀이 다른 지점 학생을 볼 때: 보기와 팔로업·상담기록 추가만 */
-function otherBranch(s) { return !!s && S.me.role === 'staff' && branchOf(s) !== myBranch(); }
+function otherBranch(s) { return !!s && S.me.role === 'staff' && !isAllBranch() && branchOf(s) !== myBranch(); }
 function dayDiff(dateStr) {
   if (!/^\d{4}-\d{2}-\d{2}/.test(dateStr || '')) return null;
   var a = new Date(dateStr.slice(0, 10) + 'T00:00:00'), b = new Date(today() + 'T00:00:00');
@@ -1931,7 +1933,7 @@ function openEvent(id, date) {
     fld('시간 (' + TZ_NAME[myTZ()] + ' 시간 · 없으면 하루 종일)', inp('time', e.time || '', 'time', ro) + hidden('tz', myTZ()) +
       (e.origTime ? '<div class="muted" style="font-size:.8rem">등록할 때 적은 시간: ' + esc(e.origTime) + '</div>' : '')) + '<div></div>' +
     (!id || can ? '<div class="full"><label style="display:inline-flex;gap:6px;align-items:center;color:#222;white-space:nowrap"><input type="checkbox" name="shared"' + (e.shared === 'TRUE' ? ' checked' : '') + '> <span style="font-weight:600">🌐 전체 지점에 공유</span></label>' +
-      '<div class="muted" style="font-size:.8rem">' + (id && branchOf(e) !== myBranch() ? esc(branchOf(e)) + ' 지점 일정입니다. ' : '') + '체크하지 않으면 ' + esc(id ? branchOf(e) : myBranch()) + ' 지점 달력에만 보입니다 (원장님 미팅은 늘 모든 지점에 보임).</div></div>' : '') +
+      '<div class="muted" style="font-size:.8rem">' + (id && e.branch !== ALL_BRANCH && branchOf(e) !== myBranch() ? esc(branchOf(e)) + ' 지점 일정입니다. ' : '') + (e.branch === ALL_BRANCH || (!id && isAllBranch()) ? '전체 지점 계정이 등록한 일정이라 체크하지 않아도 모든 지점 달력에 보입니다.' : '체크하지 않으면 ' + esc(id ? branchOf(e) : myBranch()) + ' 지점 달력에만 보입니다 (원장님 미팅은 늘 모든 지점에 보임).') + '</div></div>' : '') +
     fld('메모', '<textarea name="memo" placeholder="예: 접수 마감일, 시험장, 준비물"' + ro + '>' + esc(e.memo || '') + '</textarea>', true) +
     (!id || e.createdBy === S.me.email ? '<div class="full"><label style="display:inline-flex;gap:6px;align-items:center;color:#222;white-space:nowrap"><input type="checkbox" name="private"' + (e.private === 'TRUE' ? ' checked' : '') + '> <span style="font-weight:600">🔒 나만 보기</span></label>' +
       '<div class="muted" style="font-size:.8rem">체크하면 다른 선생님 달력에는 보이지 않습니다. 변경 기록에도 제목이 남지 않습니다.</div></div>' : '') +
@@ -2892,9 +2894,9 @@ function reviewGroups(list, s, already) {
   var br = branchOf(s), box = function (t) {
     var on = already.indexOf(t.email) >= 0;
     return '<label><input type="checkbox" value="' + esc(t.email) + '"' + (on ? ' checked disabled' : '') + '> ' + esc(t.name) +
-      (t.role === 'consultant' ? ' <span class="muted">(담당 컨설턴트)</span>' : t.role === 'admin' ? ' <span class="muted">(관리자)</span>' : '') + (on ? ' <span class="muted">(요청 중)</span>' : '') + '</label>';
+      (t.role === 'consultant' ? ' <span class="muted">(담당 컨설턴트)</span>' : t.branch === ALL_BRANCH ? ' <span class="muted">(전체 지점)</span>' : t.role === 'admin' ? ' <span class="muted">(관리자)</span>' : '') + (on ? ' <span class="muted">(요청 중)</span>' : '') + '</label>';
   };
-  var near = list.filter(function (t) { return t.role === 'consultant' || branchOf(t) === br; }), far = list.filter(function (t) { return near.indexOf(t) < 0; });
+  var near = list.filter(function (t) { return t.role === 'consultant' || t.branch === ALL_BRANCH || branchOf(t) === br; }), far = list.filter(function (t) { return near.indexOf(t) < 0; });
   var farOpen = far.some(function (t) { return already.indexOf(t.email) >= 0; });
   return '<div class="rv-grp"><b>' + esc(br) + ' 관리팀</b>' + (near.length ? '<div class="multi">' + near.map(box).join('') + '</div>' : '<div class="muted">없음</div>') + '</div>' +
     (far.length ? '<details class="rv-far"' + (farOpen ? ' open' : '') + '><summary>다른 지점 선생님 ' + far.length + '명 보기</summary><div class="multi">' + far.map(box).join('') + '</div></details>' : '');
@@ -4605,7 +4607,7 @@ function viewTeachers() {
   h += '<div class="card muted" style="line-height:1.7"><b>관리자</b>: 모든 기능 + 계정 관리·변경 기록·영구 삭제 · ' +
     '<b>관리팀</b>: 모든 학생, 상담기록, 계약 금액, 삭제·복구 · ' +
     '<b>컨설턴트</b>: 담당 학생만 (상담기록·계약 금액은 볼 수 없음)<br>' +
-    '<b>지점</b>: 관리팀은 모든 지점 학생을 볼 수 있고, 다른 지점 학생에게는 팔로업·상담기록 추가만 (관리자는 모든 지점 전부) · 화면 시간은 계정 지점 기준 (상해 = 중국, 압구정 = 한국)<br>' +
+    '<b>지점</b>: 관리팀은 모든 지점 학생을 볼 수 있고, 다른 지점 학생에게는 팔로업·상담기록 추가만 (관리자와 지점 “전체” 계정은 모든 지점 전부) · 화면 시간은 계정 지점 기준 (상해 = 중국, 압구정 = 한국, 전체 = 계정에서 고른 시간)<br>' +
     '계정을 추가할 때 <b>임시 비밀번호</b>를 정해서 직접 전달하세요. 처음 로그인하면 본인 비밀번호로 바꾸도록 안내됩니다. 퇴사자는 “비활성”으로 바꾸면 즉시 로그아웃됩니다.</div>';
   h += '<div class="grid g2"><div class="card"><h3>데이터 백업</h3><div class="muted" style="margin-bottom:10px"><b>기록만</b>: 학생·기록·계약·입금 데이터와 파일 목록 (가벼움). <b>전체</b>: 여기에 <b>업로드한 파일 전체</b>까지 ZIP 하나로 — 파일이 많으면 오래 걸리고 큽니다. 구글 드라이브 자동 백업을 켜두었다면 파일은 “Compass 파일” 폴더에 따로 쌓입니다.</div>' +
     '<div class="toolbar" style="margin:0"><a class="btn ghost" href="/api/backup?mode=db" download>기록만 다운로드</a><a class="btn ghost" href="/api/backup" download>전체 다운로드 (파일 포함)</a></div>' +
@@ -4624,7 +4626,7 @@ function viewTeachers() {
     '<table><thead><tr><th class="gripc"></th><th>이름</th><th>이메일</th><th>지점</th><th>역할</th><th>상태</th><th>담당 학생</th><th>메일 알림</th><th></th></tr></thead><tbody data-order="teachers">' +
     S.teachers.map(function (t) {
       var cnt = S.allStudents.filter(function (s) { return isActive(s) && (String(s.counselor).toLowerCase() === t.email.toLowerCase() || String(s.manager || '').toLowerCase() === t.email.toLowerCase()); }).length;
-      return '<tr class="drag" draggable="true" data-id="' + esc(t.email) + '" data-grp=""><td class="nw gripc"><span class="grip" title="끌어서 순서 바꾸기">⋮⋮</span></td><td><b>' + esc(t.name) + '</b></td><td>' + esc(t.email) + '</td><td class="nw">' + esc(branchOf(t)) + '</td><td>' + esc(ROLE_LABEL[t.role] || t.role) + '</td>' +
+      return '<tr class="drag" draggable="true" data-id="' + esc(t.email) + '" data-grp=""><td class="nw gripc"><span class="grip" title="끌어서 순서 바꾸기">⋮⋮</span></td><td><b>' + esc(t.name) + '</b></td><td>' + esc(t.email) + '</td><td class="nw">' + esc(t.branch === ALL_BRANCH ? '전체' : branchOf(t)) + '</td><td>' + esc(ROLE_LABEL[t.role] || t.role) + '</td>' +
         '<td>' + (t.color && t.role !== 'consultant' ? '<span class="swatch" style="background:' + esc(t.color) + '"></span>' : '') + (t.active ? '<span class="pill s-진행중">활성</span>' : '<span class="pill s-종료">비활성</span>') + '</td><td>' + cnt + '명</td><td>' + (t.notify !== false ? '받음' : '<span class="muted">안 받음</span>') + '</td>' +
         '<td><button class="btn ghost sm" onclick="openTeacherForm(' + js(t.email) + ')">수정</button></td></tr>';
     }).join('') + '</tbody></table></div>';
@@ -4680,7 +4682,9 @@ function openTeacherForm(email) {
     fld('역할', '<select name="role">' + ['consultant', 'staff', 'admin'].map(function (r) {
       return '<option value="' + r + '"' + (t.role === r ? ' selected' : '') + '>' + ROLE_LABEL[r] + '</option>'; }).join('') + '</select>') +
     fld('상태', '<select name="active"><option value="1"' + (t.active ? ' selected' : '') + '>활성</option><option value="0"' + (!t.active ? ' selected' : '') + '>비활성</option></select>') +
-    fld('지점', sel('branch', BRANCHES, t.branch || myBranch()) + '<div class="muted" style="font-size:.78rem;margin-top:3px">화면 시간: 상해 = 중국 시간, 압구정 = 한국 시간 · 메인·목록은 처음에 이 지점이 보임</div>') + '<div></div>' +
+    fld('지점', '<select name="branch" onchange="$(\'tc-tz\').disabled=this.value!==\'전체\'">' + BRANCHES.concat([ALL_BRANCH]).map(function (b) { var cur = t.branch || (isAllBranch() ? BRANCHES[0] : myBranch()); return '<option value="' + esc(b) + '"' + (b === cur ? ' selected' : '') + '>' + esc(b === ALL_BRANCH ? '전체 (지점 구분 없음)' : b) + '</option>'; }).join('') + '</select>' +
+      '<div class="muted" style="font-size:.78rem;margin-top:3px">상해 = 중국 시간, 압구정 = 한국 시간 · 전체 = 두 지점을 모두 맡는 계정(원장님 등), 처음부터 전체 지점이 보임</div>') +
+    fld('화면 시간 (지점이 “전체”일 때)', '<select name="tz" id="tc-tz"' + (t.branch === ALL_BRANCH ? '' : ' disabled') + '>' + Object.keys(TZ_NAME).map(function (z) { return '<option value="' + esc(z) + '"' + (z === (t.tz || SCHED_TZ) ? ' selected' : '') + '>' + esc(TZ_NAME[z]) + ' 시간</option>'; }).join('') + '</select>') +
     fld('이메일 알림', '<div><label style="display:inline-flex;gap:6px;align-items:center;color:#222"><input type="checkbox" name="notify"' + (t.notify !== false ? ' checked' : '') + '> 매일 아침 “오늘 챙길 일” 메일 받기</label></div>', true) +
     '<div class="full"><label>색 (관리팀·관리자 — 학생 목록에서 이 선생님이 관리하는 학생 줄의 배경색)</label><div class="swatches">' +
       [['', '없음']].concat(TEACHER_COLORS).map(function (c) {
@@ -5020,7 +5024,7 @@ function field(f, rec) {
     return '<div class="full" data-showif="' + esc(f.showIf) + '"' + (on ? '' : ' style="display:none"') + '><label>' + esc(f.l) + '</label>' + inp(f.k, rec[f.k] == null ? '' : rec[f.k], 'text', f.ph ? ' placeholder="' + esc(f.ph) + '"' : '') + '</div>';
   }
   if (f.t === 'review') return reviewField(UI.formTable, rec);
-  if (f.t === 'branch') return fld(f.l, sel('branch', BRANCHES, rec.branch || (rec.id ? BRANCHES[0] : myBranch())) +
+  if (f.t === 'branch') return fld(f.l, sel('branch', BRANCHES, rec.branch || (rec.id || isAllBranch() ? BRANCHES[0] : myBranch())) +
     '<div class="muted" style="font-size:.78rem;margin-top:3px">다른 지점 관리팀은 이 학생을 보기·팔로업·상담기록 추가만 할 수 있습니다.</div>');
   if (f.t === 'tz') { // 시간을 어느 나라 기준으로 적었는지 (처음엔 내 지점 시간) — 보는 사람 화면에는 그 사람 시간으로 바뀌어 보임
     var tzv = rec.tz || (rec.id ? SCHED_TZ : myTZ());
