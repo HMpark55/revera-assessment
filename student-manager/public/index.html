@@ -980,10 +980,11 @@ function doLogin(ev) {
   ev.preventDefault();
   $('lg-msg').textContent = '';
   post('/api/login', { email: $('lg-email').value.trim(), password: $('lg-pw').value })
-    .then(function () { return refresh(); })
+    // 화면을 새로 불러와 시작 — 같은 창에서 앞사람이 쓰던 필터·지점·화면 상태가 남지 않게 (보던 화면 주소는 유지)
+    .then(function () { clearSession(); location.reload(); })
     .catch(function (e) { $('lg-msg').textContent = errMsg(e); $('lg-pw').value = ''; $('lg-pw').focus(); });
 }
-function logout() { post('/api/logout').then(showLogin, showLogin); }
+function logout() { var out = function () { clearSession(); location.replace('/#/home'); location.reload(); }; post('/api/logout').then(out, out); } // 다음 사람은 메인에서 깨끗하게 시작
 function openPasswordForm(forced) {
   modal(forced ? '처음 로그인 — 비밀번호를 변경해주세요' : '비밀번호 변경',
     (forced ? '<div class="full muted">관리자가 정한 임시 비밀번호를 본인만 아는 비밀번호로 바꿔야 사용할 수 있습니다.</div>' : '') +
@@ -1084,7 +1085,11 @@ function recTime(r) {
   return { date: conv[0].slice(0, 10), time: conv.map(function (w) { return w.slice(11, 16); }).join('~'), orig: on + ' ' + (conv[0].slice(0, 10) !== r.date ? fmtD(r.date) + ' ' : '') + r.time };
 }
 /** 메인·목록 화면에 보이는 지점: 관리자·관리팀은 고를 수 있음 (처음엔 내 지점), 컨설턴트는 담당 학생만이라 지점 구분 없음 */
-function viewBranch() { if (!isMgr()) return isAllBranch() ? ALL_BRANCH : myBranch(); if (!UI.br) { try { UI.br = localStorage.getItem('compass.br') || ''; } catch (e) {} } return BRANCHES.concat(['전체']).indexOf(UI.br) >= 0 ? UI.br : myBranch(); } // 전체 계정은 처음부터 전체 지점
+/** 보고 있는 지점: 로그인할 때마다 내 계정 지점에서 시작. 📍로 바꾼 것은 로그아웃할 때까지(이 창에서 새로고침해도) 유지 */
+function viewBranch() {
+  if (!isMgr()) return isAllBranch() ? ALL_BRANCH : myBranch();
+  if (!UI.br) { try { UI.br = sessionStorage.getItem('compass.br@' + S.me.email) || ''; } catch (e) {} }
+  return BRANCHES.concat(['전체']).indexOf(UI.br) >= 0 ? UI.br : myBranch(); } // 전체 계정은 처음부터 전체 지점
 function inBranch(s) { return !isMgr() || viewBranch() === '전체' || branchOf(s) === viewBranch(); }
 function evInBranch(e) { return e.private === 'TRUE' || e.shared === 'TRUE' || e.branch === ALL_BRANCH || viewBranch() === '전체' || branchOf(e) === viewBranch(); } // 전체 계정이 등록한 일정은 모든 지점에
 /** 받은 자료를 지금 고른 지점에 맞게: 학생·일정 목록 + 시간 있는 일정은 내 시간으로 */
@@ -1096,7 +1101,8 @@ function applyBranch() {
     return Object.assign({}, e, { date: d, endDate: e.endDate && shift ? addDays(e.endDate, shift) : e.endDate, time: w.slice(11, 16), tz: myTZ(), origTime: (TZ_NAME[e.tz] || e.tz) + ' ' + (shift ? fmtD(e.date) + ' ' : '') + e.time });
   });
 }
-function setBranch(b) { UI.br = b; try { localStorage.setItem('compass.br', b); } catch (e) {} applyBranch(); render(); }
+function setBranch(b) { UI.br = b; try { sessionStorage.setItem('compass.br@' + S.me.email, b); } catch (e) {} applyBranch(); render(); }
+function clearSession() { try { sessionStorage.clear(); } catch (e) {} } // 로그인·로그아웃 때 이번 접속 동안의 선택(지점 등)을 비움
 function branchPill(s) { return (isMgr() || isAllBranch()) && (viewBranch() === '전체' || branchOf(s) !== myBranch()) ? '<span class="pill br br-' + (BRANCHES.indexOf(branchOf(s)) + 1) + '" title="' + esc(branchOf(s)) + ' 지점 학생">' + esc(branchOf(s)) + '</span>' : ''; }
 /** 관리팀이 다른 지점 학생을 볼 때: 보기와 팔로업·상담기록 추가만 */
 function otherBranch(s) { return !!s && S.me.role === 'staff' && !isAllBranch() && branchOf(s) !== myBranch(); }
@@ -1628,10 +1634,14 @@ function alertKey(kind, x) {
   if (kind === 'storage') return 'st:' + (x.lowDisk ? Math.floor((x.free || 0) / 104857600) : '-') + ':' + Math.floor(x.pct / 5);
   return 'bk:' + x.kind + ':' + String(x.result || '').replace(/\s*\(\d+개는 보냄\)/, '');
 }
-function dismissedAlerts() { try { return JSON.parse(localStorage.getItem('compass.alertsOff') || '[]') || []; } catch (e) { return []; } }
+/* ----- 이 브라우저에 저장하는 화면 설정 (접기·칸 너비·공유 항목 등) — 계정마다 따로 ----- */
+function prefKey(k) { return k + '@' + ((S.me && S.me.email) || ''); }
+function prefGet(k, def) { try { var v = localStorage.getItem(prefKey(k)); return v == null ? def : JSON.parse(v); } catch (e) { return def; } }
+function prefSet(k, v) { try { if (v == null) localStorage.removeItem(prefKey(k)); else localStorage.setItem(prefKey(k), JSON.stringify(v)); } catch (e) { /* 저장 안 되는 브라우저는 이번 화면에만 */ } }
+function dismissedAlerts() { return prefGet('compass.alertsOff', null) || UI.alertsOff || []; }
 function dismissAlert(key) {
   var list = dismissedAlerts().filter(function (k) { return k !== key; }).concat([key]).slice(-30);
-  try { localStorage.setItem('compass.alertsOff', JSON.stringify(list)); } catch (e) { UI.alertsOff = list; }
+  UI.alertsOff = list; prefSet('compass.alertsOff', list);
   UI.alertsOff = list; render();
 }
 function systemAlerts(all) {
@@ -2274,7 +2284,7 @@ var EXPORT_FIELDS = [
 ];
 function exApps(s) { return childOf('apps', s.id).slice().sort(function (a, b) { return (a.deadline || '9999').localeCompare(b.deadline || '9999'); }); }
 function exportFieldsOn() {
-  var on; try { on = JSON.parse(localStorage.getItem('exportFields2') || 'null'); } catch (e) { on = null; }
+  var on = prefGet('exportFields2', null);
   return on || EXPORT_FIELDS.filter(function (f) { return f.def; }).map(function (f) { return f.k; });
 }
 function openExport(sids) {
@@ -2302,7 +2312,7 @@ function renderExport() {
 function exPickAll(on) { UI.exSids.forEach(function (id) { UI.exPick[id] = on ? 1 : 0; }); renderExport(); }
 function exField(k, on) {
   var l = exportFieldsOn().filter(function (x) { return x !== k; }); if (on) l.push(k);
-  try { localStorage.setItem('exportFields2', JSON.stringify(l)); } catch (e) { /* 저장 안 되는 브라우저 */ }
+  prefSet('exportFields2', l);
   exRefresh();
 }
 /** 고른 학생 × 항목 → [[머리줄], [학생별 칸…]] */
@@ -2978,8 +2988,8 @@ function tabContracts(s) {
 var SCORE_ORDER = SCORE_KINDS;
 /** 성적·학력 탭: 자주 쓰는 점수가 위(증명서는 서류 탭), 학력·수강 과목은 아래에 접어 둠 (펼침 상태는 이 브라우저에 기억) */
 function tabScores(s) { return tabScoresOnly(s) + foldSection('schools', s) + foldSection('courses', s); }
-function scFold() { if (!UI.scFold) { try { UI.scFold = JSON.parse(localStorage.getItem('scFold') || '{}'); } catch (e) { UI.scFold = {}; } } return UI.scFold; }
-function scFoldToggle(k) { var f = scFold(); f[k] = !f[k]; try { localStorage.setItem('scFold', JSON.stringify(f)); } catch (e) { /* 이번 화면에만 */ } render(); }
+function scFold() { if (!UI.scFold) UI.scFold = prefGet('scFold', null) || {}; return UI.scFold; }
+function scFoldToggle(k) { var f = scFold(); f[k] = !f[k]; prefSet('scFold', f); render(); }
 function foldSection(k, s) {
   var open = !!scFold()[k];
   if (k === 'schools') {
@@ -3735,8 +3745,8 @@ function viewDeadlines() {
       }).join(''));
     }).join('') + '</tbody></table></div>';
 }
-function dlFold() { if (!UI.dlFold) { try { UI.dlFold = JSON.parse(localStorage.getItem('dlFold') || '{}'); } catch (e) { UI.dlFold = {}; } } return UI.dlFold; }
-function dlFoldSave() { try { localStorage.setItem('dlFold', JSON.stringify(UI.dlFold)); } catch (e) { /* 이번 화면에만 */ } }
+function dlFold() { if (!UI.dlFold) UI.dlFold = prefGet('dlFold', null) || {}; return UI.dlFold; }
+function dlFoldSave() { prefSet('dlFold', UI.dlFold); }
 function dlToggle(sid) { var f = dlFold(); if (f[sid]) delete f[sid]; else f[sid] = 1; dlFoldSave(); render(); }
 function dlFoldAll(close, sids) { var f = dlFold(); sids.forEach(function (sid) { if (close) f[sid] = 1; else delete f[sid]; }); dlFoldSave(); render(); }
 function saveAppMemo(id, v) {
@@ -4060,12 +4070,12 @@ function removeProgram(id) {
 /** 대학 정보 나라별 접기 상태 (이 브라우저에만 기억) */
 /* ----- 대학 전공: 학부별로 접어서, 검색, 여러 개 붙여넣기 ----- */
 function majFold() {
-  if (!UI.majFold) { try { UI.majFold = JSON.parse(localStorage.getItem('compass.majFold') || '{}') || {}; } catch (e) { UI.majFold = {}; } }
+  if (!UI.majFold) UI.majFold = prefGet('compass.majFold', null) || {};
   return UI.majFold;
 }
 function setMajFold(key, open) {
   var f = majFold(); f[key] = open ? 1 : 0;
-  try { localStorage.setItem('compass.majFold', JSON.stringify(f)); } catch (e) { /* 저장 못 해도 화면은 동작 */ }
+  prefSet('compass.majFold', f);
 }
 /** 학부별 묶음 [{ fac, list }] — 학부 이름순, 학부 미지정은 맨 뒤 */
 function majorGroups(majors) {
@@ -4172,13 +4182,13 @@ function submitMajorPaste() {
   }).catch(function (e) { toast(errMsg(e), true); });
 }
 function uniFold() {
-  if (!UI.uniFold) { try { UI.uniFold = JSON.parse(localStorage.getItem('compass.uniFold') || '{}') || {}; } catch (e) { UI.uniFold = {}; } }
+  if (!UI.uniFold) UI.uniFold = prefGet('compass.uniFold', null) || {};
   return UI.uniFold;
 }
 function setUniFold(countries, closed) {
   var f = uniFold();
   countries.forEach(function (c) { if (closed) f[c] = 1; else delete f[c]; });
-  try { localStorage.setItem('compass.uniFold', JSON.stringify(f)); } catch (e) { /* 저장 못 해도 화면은 동작 */ }
+  prefSet('compass.uniFold', f);
   render();
 }
 function viewUni(id) {
@@ -5184,8 +5194,8 @@ function colKey(t) {
   var view = (location.hash || '#/home').replace(/\/[0-9a-f-]{8,}/gi, '/:id');
   return 'colw:' + view + ':' + Array.prototype.map.call(t.tHead.rows[0].cells, function (c) { return c.textContent.trim(); }).join('|');
 }
-function colLoad(k) { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return null; } }
-function colSave(k, v) { try { if (v) localStorage.setItem(k, JSON.stringify(v)); else localStorage.removeItem(k); } catch (e) { /* 저장 안 되는 브라우저는 이번 화면에만 */ } }
+function colLoad(k) { return prefGet(k, null); }
+function colSave(k, v) { prefSet(k, v || null); }
 function colApply(t, w) {
   var cells = t.tHead.rows[0].cells;
   if (!w || w.length !== cells.length) { t.classList.remove('colfix'); t.style.width = ''; Array.prototype.forEach.call(cells, function (c) { c.style.width = ''; }); return; }
@@ -5510,6 +5520,9 @@ document.addEventListener('keydown', function (e) {
 document.addEventListener('click', function (e) {
   ['adm', 'who'].forEach(function (id) { var el = $(id); if (el && el.classList.contains('open') && !el.contains(e.target)) el.classList.remove('open'); });
 });
+// 예전 버전이 계정 구분 없이 저장하던 화면 설정 정리 (지금은 계정마다 따로 저장)
+try { ['compass.br', 'compass.alertsOff', 'exportFields2', 'scFold', 'dlFold', 'compass.majFold', 'compass.uniFold'].forEach(function (k) { localStorage.removeItem(k); });
+  Object.keys(localStorage).forEach(function (k) { if (/^colw:/.test(k)) localStorage.removeItem(k); }); } catch (e) { /* 저장소를 못 쓰는 브라우저 */ }
 refresh();
 // 다른 선생님의 변경사항 반영: 창이 보이고 입력 중이 아닐 때 2분마다 자동 새로고침
 setInterval(function () {
