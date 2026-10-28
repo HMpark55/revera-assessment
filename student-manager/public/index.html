@@ -914,6 +914,7 @@ function load(data) {
   S.me = data.me; S.teachers = data.teachers; S.allStudents = data.students; S.loadedAt = Date.now();
   CHILD.forEach(function (t) { S[t] = data[t] || []; });
   S.options = data.options || [];
+  tzFromOptions();
   S.allEvents = data.events || [];
   S.unifiles = data.unifiles || [];
   S.programs = data.programs || [];
@@ -930,7 +931,7 @@ function load(data) {
   UI.activity = {}; // 최근 활동은 저장할 때마다 새로 불러옴
   $('whoami').textContent = S.me.name + ' · ' + myBranch();
   $('um-av').textContent = String(S.me.name || '?').trim().slice(0, 1);
-  $('um-h').innerHTML = '<b>' + esc(S.me.name) + '</b> · ' + esc(ROLE_LABEL[S.me.role] || S.me.role) + '<br>' + esc(S.me.email) + '<br><span class="muted">' + esc(isAllBranch() ? '전체 지점(지점 구분 없음)' : myBranch() + ' 지점') + ' · 화면 시간은 ' + esc(TZ_NAME[myTZ()]) + ' 시간 기준</span>';
+  $('um-h').innerHTML = '<b>' + esc(S.me.name) + '</b> · ' + esc(ROLE_LABEL[S.me.role] || S.me.role) + '<br>' + esc(S.me.email) + '<br><span class="muted">' + esc(isAllBranch() ? '전체 지점(지점 구분 없음)' : myBranch() + ' 지점') + ' · 화면 시간은 ' + esc(tzName(myTZ())) + ' 시간 기준</span>';
   $('who').style.display = ''; $('gs').style.display = ''; $('rf').style.display = '';
   render();
   if (S.me.mustChangePassword) openPasswordForm(true);
@@ -1036,14 +1037,21 @@ function js(v) { return esc(JSON.stringify(v)); }
 function pad(n) { return (n < 10 ? '0' : '') + n; }
 /* ----- 지점·시간대: 화면의 날짜·시간은 내 계정 지점 기준 (상해 = 중국 시간, 압구정 = 한국 시간) ----- */
 var BRANCHES = ['상해', '압구정'], BRANCH_TZ = { '상해': 'Asia/Shanghai', '압구정': 'Asia/Seoul' };
-/** 고를 수 있는 시간대 (서버 TZS와 같음). 홍콩·싱가포르는 중국과, 일본은 한국과 같은 시간 · 서머타임은 자동 */
-var TZ_NAME = { 'Asia/Shanghai': '중국', 'Asia/Seoul': '한국', 'America/New_York': '미국 동부', 'America/Los_Angeles': '미국 서부', 'Europe/London': '영국', 'Australia/Sydney': '호주 동부' };
-var TZ_HINT = { 'Asia/Shanghai': '상해·홍콩·싱가포르', 'Asia/Seoul': '서울·도쿄', 'America/New_York': '뉴욕·보스턴·토론토', 'America/Los_Angeles': 'LA·샌프란시스코·밴쿠버', 'Europe/London': '런던', 'Australia/Sydney': '시드니·멜버른' };
+/** 고를 수 있는 시간대 = 목록 관리 › 시간대 (불러올 때 tzFromOptions 로 채움). 서머타임은 자동 */
+var TZ_NAME = { 'Asia/Shanghai': '중국', 'Asia/Seoul': '한국' }, TZ_HINT = { 'Asia/Shanghai': '상해·홍콩·싱가포르', 'Asia/Seoul': '서울·도쿄' };
+function tzFromOptions() {
+  var list = (S.options || []).filter(function (o) { return o.kind === 'tz' && o.category; }).sort(function (a, b) { return (Number(a.sortOrder) || 999) - (Number(b.sortOrder) || 999); });
+  if (!list.length) return;
+  TZ_NAME = {}; TZ_HINT = {};
+  list.forEach(function (o) { TZ_NAME[o.category] = o.value; TZ_HINT[o.category] = o.fullName || ''; });
+  [['Asia/Shanghai', '중국'], ['Asia/Seoul', '한국']].forEach(function (z) { if (!TZ_NAME[z[0]]) TZ_NAME[z[0]] = z[1]; }); // 지점 시간대는 늘
+}
+function tzName(z) { return TZ_NAME[z] || z; } // 목록에서 빠진 시간대로 적힌 예전 기록은 세계 시간대 이름 그대로
 /** 시간대 선택 목록 — “중국 시간 (상해·홍콩·싱가포르, 지금 14:05)” */
 function tzOptions(cur, extra) {
   return (extra || '') + Object.keys(TZ_NAME).map(function (z) {
-    return '<option value="' + esc(z) + '"' + (z === cur ? ' selected' : '') + '>' + esc(TZ_NAME[z] + ' 시간 (' + TZ_HINT[z] + ', 지금 ' + wallNow(z).slice(11, 16) + ')') + '</option>';
-  }).join('');
+    return '<option value="' + esc(z) + '"' + (z === cur ? ' selected' : '') + '>' + esc(TZ_NAME[z] + ' 시간 (' + (TZ_HINT[z] ? TZ_HINT[z] + ', ' : '') + '지금 ' + wallNow(z).slice(11, 16) + ')') + '</option>';
+  }).join('') + (cur && !TZ_NAME[cur] ? '<option value="' + esc(cur) + '" selected>' + esc(cur) + '</option>' : '');
 }
 var SERVER_TZ = 'Asia/Seoul', SCHED_TZ = 'Asia/Shanghai'; // 저장 시각(등록·수정·변경 기록)은 한국 시간, 원장님 스케줄은 중국 시간으로 저장돼 있음
 var ALL_BRANCH = '전체'; // 계정 지점 '전체' = 지점 구분 없음 (원장님처럼 두 지점을 모두 맡는 계정)
@@ -1087,7 +1095,7 @@ function parseTimes(t) {
 function recTime(r) {
   var tz = r.tz || SCHED_TZ, mine = myTZ();
   if (!r.time || tz === mine) return { date: r.date, time: r.time || '', orig: '' };
-  var ts = parseTimes(r.time), on = TZ_NAME[tz] || tz;
+  var ts = parseTimes(r.time), on = tzName(tz);
   if (!ts || !/^\d{4}-\d{2}-\d{2}$/.test(r.date || '')) return { date: r.date, time: r.time, orig: on + ' 시간' };
   var conv = ts.map(function (x) { return shiftWall(r.date + 'T' + pad(x[0]) + ':' + pad(x[1]), tz, mine); });
   return { date: conv[0].slice(0, 10), time: conv.map(function (w) { return w.slice(11, 16); }).join('~'), orig: on + ' ' + (conv[0].slice(0, 10) !== r.date ? fmtD(r.date) + ' ' : '') + r.time };
@@ -1106,7 +1114,7 @@ function applyBranch() {
   S.events = (S.allEvents || []).filter(evInBranch).map(function (e) {
     if (!e.time || !e.tz || e.tz === myTZ()) return e;
     var w = shiftWall(e.date + 'T' + e.time, e.tz, myTZ()), d = w.slice(0, 10), shift = Math.round((Date.parse(d) - Date.parse(e.date)) / 86400000);
-    return Object.assign({}, e, { date: d, endDate: e.endDate && shift ? addDays(e.endDate, shift) : e.endDate, time: w.slice(11, 16), tz: myTZ(), origTime: (TZ_NAME[e.tz] || e.tz) + ' ' + (shift ? fmtD(e.date) + ' ' : '') + e.time });
+    return Object.assign({}, e, { date: d, endDate: e.endDate && shift ? addDays(e.endDate, shift) : e.endDate, time: w.slice(11, 16), tz: myTZ(), origTime: tzName(e.tz) + ' ' + (shift ? fmtD(e.date) + ' ' : '') + e.time });
   });
 }
 function setBranch(b) { UI.br = b; try { sessionStorage.setItem('compass.br@' + S.me.email, b); } catch (e) {} applyBranch(); render(); }
@@ -1364,7 +1372,7 @@ function viewHome() {
   var dl = upcomingDeadlines();
   var soon = dl.filter(function (i) { return dayDiff(i.date) <= 14; });
   var t = today(), tw = new Date(t + 'T00:00:00');
-  var h = '<div class="hello"><h2>' + esc(S.me.name) + '님, 안녕하세요</h2><span class="muted">' + +t.slice(5, 7) + '월 ' + +t.slice(8, 10) + '일 (' + DOW[tw.getDay()] + ') ' + esc(wallNow(myTZ()).slice(11, 16)) + ' · ' + esc(TZ_NAME[myTZ()]) + ' 시간' + (S.me.viewTz ? ' <a href="#/me" title="My Page에서 바꾼 화면 시간 — 누르면 되돌릴 수 있음">(내가 바꿈)</a>' : '') +
+  var h = '<div class="hello"><h2>' + esc(S.me.name) + '님, 안녕하세요</h2><span class="muted">' + +t.slice(5, 7) + '월 ' + +t.slice(8, 10) + '일 (' + DOW[tw.getDay()] + ') ' + esc(wallNow(myTZ()).slice(11, 16)) + ' · ' + esc(tzName(myTZ())) + ' 시간' + (S.me.viewTz ? ' <a href="#/me" title="My Page에서 바꾼 화면 시간 — 누르면 되돌릴 수 있음">(내가 바꿈)</a>' : '') +
     (isMgr() ? ' · 📍 ' + esc(viewBranch() === '전체' ? '전체 지점' : viewBranch() + ' 지점') : '') + '</span><div class="chips">' +
     chip(active.length, isMgr() ? '진행 중 학생' : '담당 학생', "UI.status='active';go('#/students')") +
     chip(soon.length, '14일 내 지원 마감', "go('#/deadlines')", soon.some(function (i) { return dayDiff(i.date) <= 3; }));
@@ -1948,7 +1956,7 @@ function openEvent(id, date) {
       '') + '<div></div>' +
     fld('날짜', inp('date', e.date || '', 'date', ro), false, true) +
     fld('끝나는 날 (여러 날이면)', inp('endDate', e.endDate || '', 'date', ro)) +
-    fld('시간 (' + TZ_NAME[myTZ()] + ' 시간 · 없으면 하루 종일)', inp('time', e.time || '', 'time', ro) + hidden('tz', myTZ()) +
+    fld('시간 (' + tzName(myTZ()) + ' 시간 · 없으면 하루 종일)', inp('time', e.time || '', 'time', ro) + hidden('tz', myTZ()) +
       (e.origTime ? '<div class="muted" style="font-size:.8rem">등록할 때 적은 시간: ' + esc(e.origTime) + '</div>' : '')) + '<div></div>' +
     (!id || can ? '<div class="full"><label style="display:inline-flex;gap:6px;align-items:center;color:#222;white-space:nowrap"><input type="checkbox" name="shared"' + (e.shared === 'TRUE' ? ' checked' : '') + '> <span style="font-weight:600">🌐 전체 지점에 공유</span></label>' +
       '<div class="muted" style="font-size:.8rem">' + (id && e.branch !== ALL_BRANCH && branchOf(e) !== myBranch() ? esc(branchOf(e)) + ' 지점 일정입니다. ' : '') + (e.branch === ALL_BRANCH || (!id && isAllBranch()) ? '전체 지점 계정이 등록한 일정이라 체크하지 않아도 모든 지점 달력에 보입니다.' : '체크하지 않으면 ' + esc(id ? branchOf(e) : myBranch()) + ' 지점 달력에만 보입니다 (원장님 미팅은 늘 모든 지점에 보임).') + '</div></div>' : '') +
@@ -3225,10 +3233,51 @@ function viewLists() {
   if (!isMgr()) return '<div class="card empty">관리자·관리팀만 볼 수 있습니다.</div>';
   UI.listTab = UI.listTab || 'unis';
   var h = '<div class="toolbar"><h2 style="margin:0;margin-right:auto">목록 관리</h2></div>' +
-    '<div class="subtabs">' + [['unis', '대학'], ['school', '학교'], ['curriculum', '커리큘럼'], ['track', '트랙'], ['doccat', '서류 분류'], ['pgcat', '대회·프로그램 분류'], ['site', '사이트'], ['evcat', '일정 분류'], ['stcols', '학생 목록 칸']].map(function (t) {
+    '<div class="subtabs">' + [['unis', '대학'], ['school', '학교'], ['curriculum', '커리큘럼'], ['track', '트랙'], ['doccat', '서류 분류'], ['pgcat', '대회·프로그램 분류'], ['site', '사이트'], ['evcat', '일정 분류'], ['tz', '시간대'], ['stcols', '학생 목록 칸']].map(function (t) {
       return '<a class="' + (UI.listTab === t[0] ? 'on' : '') + '" onclick="UI.listTab=' + js(t[0]) + ';render()">' + t[1] + '</a>';
     }).join('') + '</div>';
-  return h + (UI.listTab === 'unis' ? viewUniList() : UI.listTab === 'site' ? viewSiteList() : UI.listTab === 'evcat' ? viewEvcatList() : UI.listTab === 'stcols' ? viewStudentCols() : viewOptionList(UI.listTab));
+  return h + (UI.listTab === 'unis' ? viewUniList() : UI.listTab === 'site' ? viewSiteList() : UI.listTab === 'evcat' ? viewEvcatList() : UI.listTab === 'stcols' ? viewStudentCols() : UI.listTab === 'tz' ? viewTzList() : viewOptionList(UI.listTab));
+}
+/* ----- 시간대 목록: My Page 화면 시간·회의록 “시간 기준”·계정 화면 시간에서 고를 수 있는 나라 ----- */
+var BRANCH_ZONES = ['Asia/Shanghai', 'Asia/Seoul'];
+function tzUse() {
+  var n = {};
+  S.meetings.concat(S.notes).forEach(function (r) { if (r.tz) n[r.tz] = (n[r.tz] || 0) + 1; });
+  (S.allEvents || []).forEach(function (e) { if (e.tz) n[e.tz] = (n[e.tz] || 0) + 1; });
+  return n;
+}
+function viewTzList() {
+  var list = (S.options || []).filter(function (o) { return o.kind === 'tz'; }).sort(function (a, b) { return (Number(a.sortOrder) || 999) - (Number(b.sortOrder) || 999); }), use = tzUse();
+  var h = '<div class="notice">My Page <b>화면 시간</b>(출장 등), 회의록·상담 <b>시간 기준</b>, 계정의 화면 시간에서 고를 수 있는 나라입니다. 서머타임은 자동으로 맞춰집니다. 상해(중국)·압구정(한국) 지점 시간대는 지울 수 없고, 그 시간으로 적힌 기록이 있는 시간대도 지울 수 없습니다.</div>';
+  h += '<div class="toolbar"><span class="grow"></span><button class="btn" onclick="openTzForm()">+ 시간대 추가</button></div>';
+  h += '<div class="card tbl-wrap"><div class="muted" style="margin-bottom:6px">⋮⋮ 를 끌어서 순서를 바꾸면 고르는 목록도 이 순서로 나옵니다.</div><table><thead><tr><th class="gripc"></th><th>이름</th><th>같은 시간을 쓰는 곳</th><th>세계 시간대</th><th>지금 시각</th><th>쓰는 기록</th><th></th></tr></thead><tbody data-order="tz">' +
+    list.map(function (o) {
+      var fixed = BRANCH_ZONES.indexOf(o.category) >= 0;
+      return '<tr class="drag" draggable="true" data-id="' + esc(o.id) + '" data-grp=""><td class="nw gripc"><span class="grip" title="끌어서 순서 바꾸기">⋮⋮</span></td><td><b>' + esc(o.value) + '</b>' + (fixed ? ' <span class="pill">지점</span>' : '') + '</td>' +
+        '<td>' + esc(o.fullName || '-') + '</td><td class="muted nw">' + esc(o.category) + '</td><td class="nw">' + esc(fmtD(wallNow(o.category).slice(0, 10)) + ' ' + wallNow(o.category).slice(11, 16)) + '</td><td>' + (use[o.category] || 0) + '건</td>' +
+        '<td class="nw"><button class="btn ghost sm" onclick="openTzForm(' + js(o.id) + ')">수정</button> ' + (fixed ? '' : '<button class="btn ghost sm" onclick="removeOption(' + js(o.id) + ')">삭제</button>') + '</td></tr>';
+    }).join('') + '</tbody></table></div>';
+  return h;
+}
+function openTzForm(id) {
+  var o = id ? (S.options || []).filter(function (x) { return x.id === id; })[0] : {};
+  var zones = []; try { zones = Intl.supportedValuesOf('timeZone'); } catch (e) { /* 오래된 브라우저 — 직접 입력 */ }
+  modal(id ? '시간대 수정' : '시간대 추가',
+    fld('이름 (고르는 목록에 보이는 이름)', inp('value', o.value || '', 'text', ' placeholder="예: 프랑스" maxlength="30"'), false, true) +
+    fld('같은 시간을 쓰는 곳 (선택)', inp('fullName', o.fullName || '', 'text', ' placeholder="예: 파리·베를린·로마"')) +
+    (id ? fld('세계 시간대', '<div style="padding:8px 0">' + esc(o.category) + ' <span class="muted">— 이미 이 시간으로 적힌 기록이 있을 수 있어 바꿀 수 없습니다</span></div>', true)
+      : fld('세계 시간대', inp('zone', '', 'text', ' list="dl-tz" placeholder="도시 영어 이름으로 검색 — 예: Paris → Europe/Paris" oninput="tzPreview(this.value)"') + datalist('dl-tz', zones) +
+        '<div class="muted" id="tz-prev" style="font-size:.82rem;margin-top:3px">목록에서 고르면 지금 그곳 시각이 보입니다.</div>', true)),
+    '<button class="btn ghost" onclick="closeModal()">취소</button><button class="btn" onclick="submitTz(' + js(id || '') + ')">저장</button>');
+}
+function tzPreview(z) {
+  var el = $('tz-prev'); if (!el) return;
+  try { el.textContent = '지금 그곳: ' + fmtD(wallNow(z).slice(0, 10)) + ' ' + wallNow(z).slice(11, 16) + ' (내 화면 시간 ' + wallNow(myTZ()).slice(11, 16) + ')'; } catch (e) { el.textContent = '목록에 있는 세계 시간대를 고르세요.'; }
+}
+function submitTz(id) {
+  var f = formData($('mf')); if (!String(f.value || '').trim()) return toast('이름을 입력하세요.', true);
+  var o = id ? (S.options || []).filter(function (x) { return x.id === id; })[0] : null;
+  mutate('saveOption', Object.assign({ kind: 'tz', value: f.value.trim(), fullName: f.fullName || '' }, id ? { id: id, sortOrder: o && o.sortOrder } : { zone: (f.zone || '').trim() }), id ? '저장했습니다.' : '시간대를 추가했습니다.');
 }
 function viewOptionList(kind) {
   var label = OPTION_KINDS[kind];
@@ -3555,9 +3604,9 @@ function viewMe() {
 function myTimeCard() {
   var bz = S.me.branchTz || myTZ(), base = isAllBranch() ? '계정 기본' : myBranch() + ' 지점';
   return '<div class="card"><h3>화면 시간</h3><div class="muted" style="margin-bottom:8px;font-size:.88rem">Compass의 모든 날짜·시간(원장님 미팅, 일정, 회의록 시간, 변경 기록, 오늘 날짜)이 이 시간으로 보입니다. 출장 중에는 그 나라 시간으로 바꾸고, 돌아오면 “' + esc(base) + ' 기준”으로 되돌리세요. 이 계정에만 적용됩니다.</div>' +
-    '<div class="toolbar" style="margin:0"><select id="my-tz">' + tzOptions(S.me.viewTz, '<option value=""' + (S.me.viewTz ? '' : ' selected') + '>' + esc(base + ' 기준 — ' + TZ_NAME[bz] + ' 시간') + '</option>') + '</select>' +
+    '<div class="toolbar" style="margin:0"><select id="my-tz">' + tzOptions(S.me.viewTz, '<option value=""' + (S.me.viewTz ? '' : ' selected') + '>' + esc(base + ' 기준 — ' + tzName(bz) + ' 시간') + '</option>') + '</select>' +
     '<button class="btn" onclick="saveMyTz()">저장</button></div>' +
-    (S.me.viewTz ? '<div class="notice" style="margin:8px 0 0">지금 <b>' + esc(TZ_NAME[S.me.viewTz]) + ' 시간</b>으로 보고 있습니다 (' + esc(base) + ' 기준은 ' + esc(TZ_NAME[bz]) + ' 시간).</div>' : '') + '</div>';
+    (S.me.viewTz ? '<div class="notice" style="margin:8px 0 0">지금 <b>' + esc(tzName(S.me.viewTz)) + ' 시간</b>으로 보고 있습니다 (' + esc(base) + ' 기준은 ' + esc(tzName(bz)) + ' 시간).</div>' : '') + '</div>';
 }
 function saveMyTz() { mutate('updateMe', { viewTz: $('my-tz').value }, '화면 시간을 바꿨습니다.'); }
 function saveMyName() {
