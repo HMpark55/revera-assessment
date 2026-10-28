@@ -153,7 +153,7 @@ function gradeLabel(s) {
   return g >= 1 ? 'G' + g + '=Y' + (g + 1) : 'G' + g;
 }
 function gradeSelect(s, onch) {
-  var ye = yearEnd(), o = '<option value="">-</option>';
+  var ye = yearEnd(), o = '<option value="">N/A</option>';
   for (var g = 1; g <= 12; g++) { var gy = ye + 12 - g; o += '<option value="' + gy + '"' + (String(s.gradYear) === String(gy) ? ' selected' : '') + '>G' + g + '=Y' + (g + 1) + '</option>'; }
   for (var y = ye - 1; y >= ye - 6; y--) o += '<option value="' + y + '"' + (String(s.gradYear) === String(y) ? ' selected' : '') + '>' + String(y).slice(2) + '년 졸업</option>';
   if (s.gradYear && (Number(s.gradYear) > ye + 11 || Number(s.gradYear) < ye - 6)) o += '<option value="' + esc(s.gradYear) + '" selected>' + esc(gradeLabel(s)) + '</option>';
@@ -213,7 +213,7 @@ function viewConsult() {
   for (var g = Math.min(4, Math.max(low, 0)); g <= 12; g++) tabs.push(['g' + g, g >= 1 ? 'G' + g + '=Y' + (g + 1) : 'G' + g]);
   var grads = Object.keys(cnt).filter(function (k) { return /^grad/.test(k); }).sort().reverse();
   grads.forEach(function (k) { tabs.push([k, k.slice(6, 8) + '년 6월 졸업']); });
-  if (cnt.none) tabs.push(['none', '학년 미정']);
+  if (cnt.none) tabs.push(['none', 'N/A']);
   var h = '<h2>상담 Roster</h2><div class="tabs">' + tabs.map(function (t) {
     return '<button class="' + (V.tab === t[0] ? 'on' : '') + '" onclick="V.tab=' + js(t[0]) + ';V.limit=200;keep();render()">' + esc(t[1]) + '<span class="n">' + (cnt[t[0]] || 0) + '</span></button>';
   }).join('') + '<span class="sep"></span>' + D.groups.map(function (gname) {
@@ -510,7 +510,7 @@ function importFile(inp) {
     toast('확인하는 중…');
     api('importData', { data: IMPORT, dryRun: true }).then(function (n) {
       $('ov').innerHTML = '<div class="ov center"><div class="panel"><h3>가져오기 확인</h3>' +
-        '<table class="sheet" style="min-width:0;width:100%"><tbody>' + [['새 학생', n.newStudents], ['이미 있는 학생 (빈 칸만 채움)', n.matched], ['상담·팔로업 기록', n.consults], ['수업', n.classes], ['수강 등록', n.enroll], ['출결 칸', n.attend], ['개인수업 기록 줄', n.lessons]]
+        '<table class="sheet" style="min-width:0;width:100%"><tbody>' + [['새 학생', n.newStudents], ['이미 있는 학생 (빈 칸만 채움)', n.matched], ['상담·팔로업 기록', n.consults], ['행사별 팔로업 체크', n.fu], ['수업', n.classes], ['수강 등록', n.enroll], ['출결 칸', n.attend], ['개인수업 기록 줄', n.lessons]]
           .map(function (r) { return '<tr><td class="ro">' + r[0] + '</td><td class="ro" style="text-align:right"><b>' + r[1] + '</b></td></tr>'; }).join('') + '</tbody></table>' +
         (n.skippedClasses.length ? '<div class="muted" style="margin-top:8px;font-size:.8rem">이미 있어서 건너뛰는 수업: ' + esc(n.skippedClasses.join(', ')) + '</div>' : '') +
         '<div class="muted" style="margin-top:8px;font-size:.8rem">같은 파일을 다시 가져와도 학생·상담 기록·수업이 두 번 생기지 않습니다.</div>' +

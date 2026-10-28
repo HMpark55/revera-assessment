@@ -155,7 +155,7 @@ function attachAtlas(db) {
   function importData(me, arg) {
     const data = arg && arg.data;
     if (!data || data.format !== 'atlas-import-v1' || !Array.isArray(data.students) || !Array.isArray(data.classes)) throw new AtlasError('REVERA A 가져오기 파일이 아닙니다.');
-    const n = { newStudents: 0, matched: 0, consults: 0, classes: 0, skippedClasses: [], enroll: 0, attend: 0, lessons: 0 };
+    const n = { newStudents: 0, matched: 0, consults: 0, fu: 0, classes: 0, skippedClasses: [], enroll: 0, attend: 0, lessons: 0 };
     const norm = (x) => String(x || '').replace(/\s+/g, '').toLowerCase();
     const run = () => {
       const at = ts(), mk = (t, row) => {
@@ -188,6 +188,11 @@ function attachAtlas(db) {
           const content = clean(c.content, 100000).trim(); if (!content || have.has(content)) continue;
           have.add(content); n.consults++;
           mk('atlas_consults', { studentId: cur.id, date: clean(c.date, 20), program: clean(c.program, 200), content });
+        }
+        for (const f of s.fu || []) { // 행사별 팔로업 체크: 이미 있으면 그대로
+          const campaign = clean(f.campaign, 300).trim(); if (!campaign) continue;
+          if (cur.createdAt !== at && db.prepare('SELECT 1 FROM atlas_fu WHERE studentId = ? AND campaign = ?').get(cur.id, campaign)) continue;
+          n.fu++; mk('atlas_fu', { studentId: cur.id, campaign, response: clean(f.response, 20000) });
         }
       }
       for (const c of data.classes) {
