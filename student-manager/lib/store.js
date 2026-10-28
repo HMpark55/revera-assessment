@@ -97,7 +97,8 @@ const TABLES = {
   followups: {
     label: '팔로업',
     fields: ['studentId', 'title', 'detail', 'category', 'assignee', 'due', 'status', 'reply', 'replyDate', 'replyFrom', 'meetingId', 'noteId',
-      'kind', 'fromWho', 'channel', 'receivedDate', 'answer', 'answerDate', 'groupId'],
+      'kind', 'fromWho', 'channel', 'receivedDate', 'answer', 'answerDate', 'groupId',
+      'remindAt', 'remindTo'], // remindAt: 알림 시각(한국 시간 'YYYY-MM-DDTHH:MM'), remindTo: 받는 사람 ('@assignee' = 그때의 담당자, 쉼표로 이메일 추가)
     summary: (r) => [r.title, r.status].filter(Boolean).join(' · '),
   },
   fureplies: { // 팔로업·받은 연락에 이어지는 답변 (학생 → 우리 → 어머님 …)
@@ -389,6 +390,9 @@ function migrate(db) {
   db.exec('CREATE TABLE IF NOT EXISTS unifiles (id TEXT PRIMARY KEY)');
   ensureColumns(db, 'unifiles', ['universityId', 'cycleId', 'programId', 'category', 'name', 'memo', 'mime', 'size', 'storedName', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy']); // programId: 대회·프로그램 첨부
   // v12: 확인 요청 — 이 기록(상담·미팅·연락)을 다른 선생님이 꼭 보도록 (휴무 후 출근해서 확인 등)
+  // 알림함: 팔로업 알림 시각(remind) · 확인 요청(review) · 넘겨받은 팔로업(handover). ukey 로 같은 알림은 한 번만
+  db.exec("CREATE TABLE IF NOT EXISTS notices (id TEXT PRIMARY KEY, ukey TEXT UNIQUE NOT NULL, email TEXT NOT NULL, kind TEXT NOT NULL, refTable TEXT NOT NULL DEFAULT '', refId TEXT NOT NULL DEFAULT '', studentId TEXT NOT NULL DEFAULT '', title TEXT NOT NULL DEFAULT '', body TEXT NOT NULL DEFAULT '', fromEmail TEXT NOT NULL DEFAULT '', at TEXT NOT NULL, readAt TEXT NOT NULL DEFAULT '', closedAt TEXT NOT NULL DEFAULT '', snoozeUntil TEXT NOT NULL DEFAULT '')");
+  db.exec('CREATE INDEX IF NOT EXISTS ix_notices_email ON notices(email, at)');
   db.exec("CREATE TABLE IF NOT EXISTS reviews (id TEXT PRIMARY KEY, studentId TEXT NOT NULL, refTable TEXT NOT NULL, refId TEXT NOT NULL, toEmail TEXT NOT NULL, fromEmail TEXT NOT NULL, note TEXT NOT NULL DEFAULT '', createdAt TEXT NOT NULL, doneAt TEXT NOT NULL DEFAULT '')");
   // v13: 원장님 상담 스케줄(구글 시트)에서 가져온 일정 — Compass 학생과 연결된 것만. schedex = "우리 학생 아님"으로 뺀 일정
   db.exec("CREATE TABLE IF NOT EXISTS sched (key TEXT PRIMARY KEY, tab TEXT NOT NULL, studentId TEXT NOT NULL, startAt TEXT NOT NULL, endAt TEXT NOT NULL, title TEXT NOT NULL, detail TEXT NOT NULL DEFAULT '', zone TEXT NOT NULL DEFAULT '', sheetLabel TEXT NOT NULL DEFAULT '', syncedAt TEXT NOT NULL)");
@@ -1116,6 +1120,10 @@ function openStore(dbPath, opts) {
       if (v('due') && !/^\d{4}-\d{2}-\d{2}$/.test(v('due'))) throw new UserError('기한 형식이 올바르지 않습니다.');
       if (!FOLLOWUP_KINDS.includes(v('kind') || '')) throw new UserError('종류가 올바르지 않습니다.');
       if (v('fromWho') && !CONTACT_FROM.includes(v('fromWho'))) throw new UserError('보낸 사람이 올바르지 않습니다.');
+      if (v('remindAt') && !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(v('remindAt'))) throw new UserError('알림 시각이 올바르지 않습니다.');
+      if (v('remindTo')) for (const x of v('remindTo').split(',').map((y) => y.trim()).filter(Boolean)) {
+        if (x !== '@assignee' && !(getTeacher(x) || {}).active) throw new UserError('알림 받을 선생님을 찾을 수 없습니다: ' + x);
+      }
       if (v('channel') && !CONTACT_CHANNELS.includes(v('channel')) && !CONTACT_CHANNELS_OLD.includes(v('channel'))) throw new UserError('연락 경로가 올바르지 않습니다.');
       for (const k of ['receivedDate', 'answerDate']) if (v(k) && !DATE_RE.test(v(k))) throw new UserError('날짜 형식이 올바르지 않습니다.');
     }
@@ -1873,8 +1881,11 @@ function openStore(dbPath, opts) {
       if (!canSeeStudent(who, st)) throw new UserError(t.name + ' 님은 ' + st.name + ' 학생을 볼 수 없어 확인 요청을 보낼 수 없습니다.');
       if (table === 'notes' && !isManager(who)) throw new UserError('상담기록은 관리자·관리팀만 볼 수 있어 ' + t.name + ' 님에게는 확인 요청을 보낼 수 없습니다.');
       if (db.prepare("SELECT 1 FROM reviews WHERE refTable = ? AND refId = ? AND toEmail = ? AND doneAt = ''").get(table, rec.id, t.email)) continue; // 이미 요청 중
+      const rid = newId();
       db.prepare('INSERT INTO reviews (id, studentId, refTable, refId, toEmail, fromEmail, note, createdAt) VALUES (?,?,?,?,?,?,?,?)')
-        .run(newId(), st.id, table, rec.id, t.email, me.email, note, now());
+        .run(rid, st.id, table, rec.id, t.email, me.email, note, now());
+      addNotice({ ukey: 'review|' + rid, email: t.email, kind: 'review', refTable: table, refId: rec.id, studentId: st.id,
+        title: (TABLES[table].summary(rec) || TABLES[table].label).slice(0, 120), body: note, fromEmail: me.email });
       n++;
     }
     if (n) log(me.email, 'review', table, rec.id, st.name + ' · 확인 요청 → ' + to.map((e) => (getTeacher(e) || {}).name || e).join(', ') + (note ? ' — ' + note : ''));
@@ -1902,6 +1913,47 @@ function openStore(dbPath, opts) {
     return getAll(me);
   }
 
+  /* ----- 알림 (리마인드 팝업 · 알림함) ----- */
+  function addNotice(n) {
+    db.prepare(`INSERT OR IGNORE INTO notices (id, ukey, email, kind, refTable, refId, studentId, title, body, fromEmail, at) VALUES (?,?,?,?,?,?,?,?,?,?,?)`)
+      .run(newId(), n.ukey, lower(n.email), n.kind, n.refTable || '', n.refId || '', n.studentId || '', String(n.title || '').slice(0, 200), String(n.body || '').slice(0, 500), n.fromEmail || '', n.at || now());
+  }
+  /** 알림 시각이 된 팔로업 → 받는 사람마다 알림 (같은 시각 알림은 한 번만) */
+  function syncReminders() {
+    const t = now().slice(0, 16);
+    const due = db.prepare("SELECT * FROM followups WHERE remindAt != '' AND remindAt IS NOT NULL AND remindAt <= ? AND status != '완료' AND (deletedAt = '' OR deletedAt IS NULL)").all(t);
+    for (const f of due) {
+      const to = new Set(String(f.remindTo || '@assignee').split(',').map((x) => x.trim()).filter(Boolean).map((x) => (x === '@assignee' ? lower(f.assignee) : lower(x))).filter(Boolean));
+      if (!to.size && f.updatedBy) to.add(lower(f.updatedBy)); // 담당자가 미정이면 마지막으로 고친 사람에게
+      for (const email of to) addNotice({ ukey: ['remind', f.id, f.remindAt, email].join('|'), email, kind: 'remind', refTable: 'followups', refId: f.id, studentId: f.studentId, title: f.title, body: f.detail, at: f.remindAt });
+    }
+  }
+  /** 내 알림 (최근 30일, 50개) — 완료된 팔로업의 알림 카드는 자동으로 닫힘 */
+  function getNotices(me) {
+    syncReminders();
+    db.prepare(`UPDATE notices SET closedAt = ? WHERE email = ? AND closedAt = '' AND refTable = 'followups'
+      AND refId IN (SELECT id FROM followups WHERE status = '완료' OR (deletedAt != '' AND deletedAt IS NOT NULL))`).run(now(), me.email);
+    const since = new Date(Date.now() + 9 * 3600000 - 30 * 86400000).toISOString().slice(0, 16);
+    const list = db.prepare('SELECT * FROM notices WHERE email = ? AND at >= ? ORDER BY at DESC LIMIT 50').all(me.email, since)
+      .filter((n) => { const st = getRow('students', n.studentId); return !n.studentId || canSeeStudent(me, st); });
+    return { now: now().slice(0, 16), notices: list };
+  }
+  /** read: 읽음 · close: 카드 닫기 · snooze: until(한국 시간)까지 미루기 · readAll: 모두 읽음 */
+  function noticeAct(me, arg) {
+    arg = arg || {};
+    const t = now();
+    if (arg.act === 'readAll') { db.prepare("UPDATE notices SET readAt = ? WHERE email = ? AND readAt = ''").run(t, me.email); return getNotices(me); }
+    const n = db.prepare('SELECT * FROM notices WHERE id = ? AND email = ?').get(String(arg.id || ''), me.email);
+    if (!n) throw new UserError('알림을 찾을 수 없습니다.', 404);
+    if (arg.act === 'read') db.prepare("UPDATE notices SET readAt = ? WHERE id = ? AND readAt = ''").run(t, n.id);
+    else if (arg.act === 'close') db.prepare('UPDATE notices SET closedAt = ?, readAt = CASE WHEN readAt = \'\' THEN ? ELSE readAt END WHERE id = ?').run(t, t, n.id);
+    else if (arg.act === 'snooze') {
+      if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(String(arg.until || ''))) throw new UserError('미룰 시각이 올바르지 않습니다.');
+      db.prepare('UPDATE notices SET snoozeUntil = ?, readAt = CASE WHEN readAt = \'\' THEN ? ELSE readAt END WHERE id = ?').run(arg.until, t, n.id);
+    } else throw new UserError('알 수 없는 동작입니다.');
+    return getNotices(me);
+  }
+
   /** 팔로업을 다른 선생님에게 요청(담당자 변경 + 누가 왜 요청했는지 기록) → 메일은 server.js 에서 */
   function requestFollowup(me, arg) {
     const f = getRow('followups', arg && arg.id);
@@ -1921,6 +1973,7 @@ function openStore(dbPath, opts) {
     db.prepare('UPDATE followups SET assignee = ?, requestedBy = ?, requestedAt = ?, requestNote = ?, updatedAt = ?, updatedBy = ? WHERE id = ?')
       .run(to.email, me.email, t, note, t, me.email, f.id);
     log(me.email, 'update', 'followups', f.id, s.name + ' · ' + f.title + ' — ' + to.name + ' 님에게 요청' + (note ? ' (' + note + ')' : ''));
+    addNotice({ ukey: 'handover|' + f.id + '|' + t, email: to.email, kind: 'handover', refTable: 'followups', refId: f.id, studentId: s.id, title: f.title, body: note, fromEmail: me.email });
     return Object.assign(getAll(me), { request: { to: to.email, toName: to.name, notify: to.notify !== 'off', from: me.name, student: s.name, studentId: s.id,
       title: f.title, due: f.due, note } });
   }
@@ -2697,7 +2750,7 @@ function openStore(dbPath, opts) {
     db, filesDir, dbPath, listFiles, pendingSync, markSync, replaceSchedule, restoreFromDb, countTeachers, upsertAdmin, login, logout, authenticate, addFile, getFile, addUniFile, getUniFile,
     rpc: { getAll: (me) => getAll(me), save, remove, restore, purge, getTrash, getLog, saveTeacher, changePassword, importData, copyCycle, getActivity, saveMany, updateMe,
       saveOption, removeOption, deleteTeacher, getAutomation, saveAutomation, saveEvent, removeEvent,
-      saveWithFollowups, requestFollowup, saveOrder, saveUniFile, removeUniFile, saveProgram, removeProgram, getStorage, retrySync, saveHomeLayout, saveStudentCols, saveBreak, removeBreak, requestReview, doneReview, cancelReview, excludeSched, unexcludeSched, saveAutoCat, removeMany, restoreMany, purgeMany, addFollowupMany, addMajorsMany, renameFaculty },
+      saveWithFollowups, requestFollowup, saveOrder, saveUniFile, removeUniFile, saveProgram, removeProgram, getStorage, retrySync, saveHomeLayout, saveStudentCols, saveBreak, removeBreak, requestReview, doneReview, cancelReview, excludeSched, unexcludeSched, saveAutoCat, getNotices, noticeAct, removeMany, restoreMany, purgeMany, addFollowupMany, addMajorsMany, renameFaculty },
     backup, getConfig, getMeta, recordRun, listTeachers, close: () => db.close(),
   };
 }

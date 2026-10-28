@@ -2413,3 +2413,43 @@ test('REVERA A 결제: 결제 내역 글 → 결제 기록(합계 줄 제외·�
   d = await call('getAll');
   assert.ok(d.payments.some((x) => x.studentId === s.id && x.amount === '1200' && x.currency === 'KRW'));
 });
+
+test('리마인드 알림: 알림 시각이 되면 담당자(+추가로 고른 사람)에게, 미루기·닫기·완료하면 닫힘, 확인 요청·넘겨받기도 알림함에', async () => {
+  const admin = client(); await admin.login('admin@revera.test', 'admin-pass-1');
+  const a = await newUser(admin, 'remind-a@revera.test', 'staff');
+  const b = await newUser(admin, 'remind-b@revera.test', 'staff');
+  let d = await admin.saveOk('students', { name: '알림 학생' });
+  const sid = d.savedId;
+  const past = new Date(Date.now() + 9 * 3600000 - 60000).toISOString().slice(0, 16); // 1분 전 (한국 시간)
+  const future = new Date(Date.now() + 9 * 3600000 + 3600000).toISOString().slice(0, 16);
+  d = await admin.saveOk('followups', { studentId: sid, title: '어머님께 연락', assignee: 'remind-a@revera.test', status: '할 일', remindAt: past, remindTo: '@assignee,remind-b@revera.test' });
+  const fid = d.savedId;
+  await admin.saveOk('followups', { studentId: sid, title: '나중 알림', assignee: 'remind-a@revera.test', status: '할 일', remindAt: future, remindTo: '@assignee' });
+  assert.strictEqual((await admin.save('followups', { studentId: sid, title: 'x', status: '할 일', remindAt: '내일' })).status, 400);
+  assert.strictEqual((await admin.save('followups', { studentId: sid, title: 'x', status: '할 일', remindAt: past, remindTo: 'nobody@x.test' })).status, 400);
+  let na = await a.ok('getNotices');
+  const nb = await b.ok('getNotices');
+  assert.deepStrictEqual(na.notices.map((n) => [n.kind, n.title]), [['remind', '어머님께 연락']], '시각이 된 것만');
+  assert.strictEqual(nb.notices.length, 1, '추가로 고른 사람도');
+  assert.strictEqual((await admin.ok('getNotices')).notices.length, 0, '받는 사람이 아니면 없음');
+  await a.ok('getNotices'); assert.strictEqual((await a.ok('getNotices')).notices.length, 1, '같은 알림은 한 번만');
+  const id = na.notices[0].id;
+  const until = new Date(Date.now() + 9 * 3600000 + 600000).toISOString().slice(0, 16);
+  na = await a.ok('noticeAct', { id, act: 'snooze', until });
+  assert.strictEqual(na.notices[0].snoozeUntil, until); assert.ok(na.notices[0].readAt);
+  assert.strictEqual((await b.rpc('noticeAct', { id, act: 'close' })).status, 404, '남의 알림은 못 건드림');
+  // 팔로업 완료 → 카드 닫힘
+  const f = (await admin.ok('getAll')).followups.find((x) => x.id === fid);
+  await admin.saveOk('followups', { id: fid, updatedAt: f.updatedAt, status: '완료' });
+  assert.ok((await b.ok('getNotices')).notices[0].closedAt, '완료하면 닫힘');
+  // 확인 요청 · 넘겨받기
+  d = await admin.saveOk('followups', { studentId: sid, title: '추천서 요청', assignee: 'admin@revera.test', status: '할 일' });
+  const g = d.followups.find((x) => x.id === d.savedId);
+  await admin.ok('requestReview', { refTable: 'followups', refId: g.id, to: ['remind-b@revera.test'], note: '확인 부탁' });
+  await admin.ok('requestFollowup', { id: g.id, to: 'remind-a@revera.test', updatedAt: g.updatedAt, note: '부탁해요' });
+  assert.ok((await b.ok('getNotices')).notices.some((n) => n.kind === 'review' && n.body === '확인 부탁'));
+  na = await a.ok('getNotices');
+  assert.ok(na.notices.some((n) => n.kind === 'handover' && n.title === '추천서 요청' && n.fromEmail === 'admin@revera.test'));
+  na = await a.ok('noticeAct', { act: 'readAll' });
+  assert.ok(na.notices.every((n) => n.readAt));
+});
