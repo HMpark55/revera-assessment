@@ -323,7 +323,7 @@ function createApp(store, opts) {
   });
 
   /* ---- REVERA A (학원 관리): 허용된 계정만. 그 외에는 '없는 페이지'처럼 보이게 404 ---- */
-  const atlas = attachAtlas(store.db);
+  const atlas = attachAtlas(store.db, store);
   const atlasMe = (req) => { const me = store.authenticate(readCookie(req)); return atlas.allowed(me) ? me : null; };
   app.get('/a', (req, res, next) => {
     if (!atlasMe(req)) return next();
@@ -333,7 +333,7 @@ function createApp(store, opts) {
     const me = atlasMe(req);
     if (!me || !Object.prototype.hasOwnProperty.call(atlas.rpc, req.params.fn)) return res.status(404).json({ error: '없는 기능입니다.' });
     try { res.json(atlas.rpc[req.params.fn](me, (req.body || {}).arg)); } catch (e) {
-      if (e instanceof atlas.AtlasError) return res.status(e.status).json({ error: e.message });
+      if (e instanceof atlas.AtlasError || e instanceof UserError) return res.status(e.status || 400).json({ error: e.message });
       sendError(res, e);
     }
   });

@@ -945,7 +945,7 @@ function load(data) {
 var refreshRetry = 0, refreshTimer = null;
 function refresh(manual) {
   clearTimeout(refreshTimer);
-  return api('getAll').then(function (d) { load(d); refreshRetry = 0; if (manual) toast('최신 데이터로 새로고침했습니다.'); })
+  return api('getAll').then(function (d) { load(d); refreshRetry = 0; if (!checkAtlas.done) { checkAtlas.done = 1; checkAtlas(); } if (manual) toast('최신 데이터로 새로고침했습니다.'); })
     .catch(function (e) {
       if (e.needLogin) return;
       // 연결이 잠깐 끊긴 것: 보던 화면은 그대로 두고 3초·6초·12초 뒤 다시 받아옴
@@ -991,13 +991,21 @@ function doLogin(ev) {
     .then(function () { clearSession(); location.reload(); })
     .catch(function (e) { $('lg-msg').textContent = errMsg(e); $('lg-pw').value = ''; $('lg-pw').focus(); });
 }
+var ATLAS_OK = false; // REVERA A를 쓸 수 있는 계정이면 학생 화면에 “A 상담 이력” 버튼
+function atlasApi(fn, arg) { return fetch('/api/atlas/' + fn, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'revera' }, body: JSON.stringify({ arg: arg }) }); }
+function checkAtlas() { atlasApi('ping').then(function (r) { if (r.ok && !ATLAS_OK) { ATLAS_OK = true; if (/^#\/student\//.test(location.hash)) render(); } }).catch(function () {}); }
+function openAtlasOf(id) {
+  atlasApi('compassOf', { compassId: id }).then(function (r) { return r.json(); }).then(function (l) {
+    if (!l.length) return toast('REVERA A에 연결된 기록이 없습니다. A의 원장님 1:1 상담에서 “Compass로 넘기기”로 연결하세요.');
+    location.href = '/a#s=' + l[0].id;
+  }).catch(function () {});
+}
 var brandTaps = [];
 function brandTap() { // 로고를 빠르게 5번: 허용된 계정만 다른 화면으로 (아니면 아무 일 없음)
   var t = Date.now(); brandTaps = brandTaps.filter(function (x) { return t - x < 2500; }).concat([t]);
   if (brandTaps.length < 5) return;
   brandTaps = [];
-  fetch('/api/atlas/ping', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'revera' }, body: '{}' })
-    .then(function (r) { if (r.ok) location.href = '/a'; }).catch(function () {});
+  atlasApi('ping').then(function (r) { if (r.ok) location.href = '/a'; }).catch(function () {});
 }
 function logout() { var out = function () { clearSession(); location.replace('/#/home'); location.reload(); }; post('/api/logout').then(out, out); } // 다음 사람은 메인에서 깨끗하게 시작
 function openPasswordForm(forced) {
@@ -2428,6 +2436,7 @@ function viewStudent(id) {
     '<div style="margin-top:6px">' + tagHtml(trackTags(s)) + (countrySummary(s.id) ? ' <span class="muted">지원: ' + esc(countrySummary(s.id)) + '</span>' : '') + majorChip(s) + meetingLine(s) + breakChip(s) + '</div>' + hopeLine(s) + '</div>' +
     (resume ? '<a class="btn ghost" href="' + esc(resume) + '" target="_blank" rel="noopener">📄 Resume</a>' : '') +
     (drive ? '<a class="btn ghost" href="' + esc(drive) + '" target="_blank" rel="noopener">📁 Drive 폴더</a>' : '') +
+    (ATLAS_OK ? '<button class="btn ghost" onclick="openAtlasOf(' + js(s.id) + ')" title="REVERA A의 상담·1:1 상담 이력">A 상담 이력</button>' : '') +
     (otherBranch(s) ? '' : '<button class="btn ghost" onclick="openForm(\'students\',' + js(s.id) + ')">정보 수정</button>') + '</div>' +
     '<div class="progress-box"><b>현재 진행 상황</b> ' + (otherBranch(s) ? '' : '<button class="btn ghost sm" onclick="openForm(\'progress\',' + js(s.id) + ')">수정</button>') +
       '<div>' + (s.progress ? esc(s.progress) : '<span class="muted">아직 적힌 진행 상황이 없습니다. 담당이 아니어도 지금 상황을 바로 알 수 있게 짧게 적어주세요.</span>') + '</div>' +

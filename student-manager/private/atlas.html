@@ -103,7 +103,7 @@
 <body>
 <header class="top">
   <div class="brand">REVERA <span>A</span></div>
-  <nav class="nav"><a data-p="consult" onclick="go('consult')">상담 Roster</a><a data-p="class" onclick="go('class')">수업 Roster</a></nav>
+  <nav class="nav"><a data-p="consult" onclick="go('consult')">상담 Roster</a><a data-p="class" onclick="go('class')">수업 Roster</a><a data-p="oneone" onclick="go('oneone')">원장님 1:1 상담</a></nav>
   <label class="back" style="margin-left:auto;cursor:pointer" title="구글 시트에서 바꾼 가져오기 파일(.json)">⬆ 가져오기<input type="file" accept=".json,application/json" style="display:none" onchange="importFile(this)"></label>
   <a class="back" style="margin-left:0" href="/#/home">← Compass로 돌아가기</a>
 </header>
@@ -113,7 +113,7 @@
 <script>
 'use strict';
 var D = null; // 서버 데이터
-var V = { page: 'consult', tab: 'all', school: '', q: '', camp: '', classId: '', classFilter: '진행', limit: 200 };
+var V = { page: 'consult', tab: 'all', school: '', q: '', camp: '', classId: '', classFilter: '진행', limit: 200, ooId: '' };
 try { var sv = JSON.parse(localStorage.getItem('atlas.view') || '{}'); Object.keys(sv).forEach(function (k) { if (k in V) V[k] = sv[k]; }); } catch (e) {}
 var TAGS = ['블랙리스트', '팔로업X', '귀임', '원서완료'];
 
@@ -128,7 +128,12 @@ function api(fn, arg) {
   return fetch('/api/atlas/' + fn, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'revera' }, body: JSON.stringify({ arg: arg }) })
     .then(function (r) { return r.json().catch(function () { return {}; }).then(function (b) { if (!r.ok) throw new Error(b.error || '저장하지 못했습니다.'); return b; }); });
 }
-function load() { return api('getAll').then(function (d) { D = d; render(); }).catch(function (e) { $('main').innerHTML = '<div class="empty">' + esc(e.message) + ' <a href="/">Compass로</a></div>'; }); }
+function load() { return api('getAll').then(function (d) { D = d; render(); fromHash(); }).catch(function (e) { $('main').innerHTML = '<div class="empty">' + esc(e.message) + ' <a href="/">Compass로</a></div>'; }); }
+function fromHash() {
+  var m = location.hash.match(/^#s=([\w-]+)$/); if (!m) return;
+  history.replaceState(null, '', location.pathname);
+  if (byId(D.students, m[1])) { V.page = 'consult'; V.tab = 'all'; V.q = byId(D.students, m[1]).name; keep(); render(); openConsults(m[1]); }
+}
 function byId(list, id) { for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i]; return null; }
 function replaceIn(list, rec) { for (var i = 0; i < list.length; i++) if (list[i].id === rec.id) { list[i] = rec; return; } list.push(rec); }
 function tableList(t) { return { atlas_students: D.students, atlas_consults: D.consults, atlas_fu: D.fu, atlas_classes: D.classes, atlas_enroll: D.enroll }[t]; }
@@ -164,7 +169,7 @@ function go(p) { V.page = p; V.limit = 200; keep(); render(); window.scrollTo(0,
 function render() {
   if (!D) return;
   [].forEach.call(document.querySelectorAll('.nav a'), function (a) { a.className = a.getAttribute('data-p') === V.page ? 'on' : ''; });
-  $('main').innerHTML = V.page === 'class' ? viewClasses() : viewConsult();
+  $('main').innerHTML = V.page === 'class' ? viewClasses() : V.page === 'oneone' ? viewOneOne() : viewConsult();
   [].forEach.call(document.querySelectorAll('.sheet textarea'), grow);
 }
 function grow(el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 160) + 'px'; }
@@ -190,7 +195,7 @@ function openLong(t, id, k) {
 function saveLong(t, id, k) { var v = $('long-v').value; setField(t, id, k, v, true).then(closeOv); }
 function schools() { var m = {}; D.students.forEach(function (s) { if (s.school) m[s.school] = 1; }); return Object.keys(m).sort(); }
 function datalists() {
-  var progs = {}; D.consults.forEach(function (c) { if (c.program) progs[c.program] = 1; });
+  var progs = {}; (D.programs || []).concat(D.consults.map(function (c) { return c.program; })).forEach(function (p) { if (p) progs[p] = 1; });
   return '<datalist id="dl-school">' + schools().map(function (v) { return '<option value="' + esc(v) + '">'; }).join('') + '</datalist>' +
     '<datalist id="dl-tag">' + TAGS.map(function (v) { return '<option value="' + esc(v) + '">'; }).join('') + '</datalist>' +
     '<datalist id="dl-prog">' + Object.keys(progs).sort().map(function (v) { return '<option value="' + esc(v) + '">'; }).join('') + '</datalist>';
@@ -222,7 +227,7 @@ function viewConsult() {
   var camps = campaigns(); if (V.camp && camps.indexOf(V.camp) < 0) V.camp = '';
   if (!V.camp && camps.length) V.camp = camps[0];
   h += '<div class="toolbar"><select onchange="V.school=this.value;keep();render()"><option value="">학교 전체</option>' + schools().map(function (v) { return '<option' + (V.school === v ? ' selected' : '') + '>' + esc(v) + '</option>'; }).join('') + '</select>' +
-    '<input id="q" placeholder="이름·연락처·메모 검색" value="' + esc(V.q) + '" oninput="V.q=this.value;V.limit=200;keep();renderRows()">' +
+    '<input id="q" placeholder="이름·연락처·메모 검색" value="' + esc(V.q) + '" oninput="searchQ(this.value)">' +
     '<span class="grow"></span><span class="muted">팔로업</span><select onchange="pickCamp(this.value)">' + camps.map(function (c) { return '<option' + (V.camp === c ? ' selected' : '') + '>' + esc(c) + '</option>'; }).join('') + (camps.length ? '' : '<option value="">(없음)</option>') + '<option value="__new">+ 새 팔로업 만들기</option>' + (V.camp ? '<option value="__ren">✎ 이 팔로업 이름 바꾸기</option>' : '') + '</select>' +
     '<button class="btn" onclick="addStudent()">+ 학생 추가</button></div>';
   h += datalists() + '<div class="wrap"><table class="sheet"><thead><tr><th>#</th><th>비고</th><th>학생이름</th><th>학생 메모</th><th>직접 컨택 가능한 연락처</th><th>학교</th><th>학교 관련 비고</th><th>올라간 후 현재 학년</th><th>구분</th><th>수강료 결제 내역</th><th>수강 중인 수업</th><th>상담 날짜 · 내용</th><th>선택 과목 G8·G9·G10</th><th>G11·G12</th>' +
@@ -235,10 +240,19 @@ function shownStudents() {
   return sortStudents(D.students.filter(function (s) {
     if (V.tab.indexOf('grp:') === 0 ? s.grp !== V.tab.slice(4) : V.tab !== 'all' && tabOf(s) !== V.tab) return false;
     if (V.school && s.school !== V.school) return false;
-    if (q && [s.name, s.phone, s.school, s.schoolNote, s.payment, s.tag, s.subjMid, s.subjHigh].join(' ').toLowerCase().indexOf(q) < 0 &&
-      !D.consults.some(function (c) { return c.studentId === s.id && (c.content + ' ' + c.program).toLowerCase().indexOf(q) >= 0; })) return false;
+    if (q && [s.name, s.memo, s.phone, s.school, s.schoolNote, s.payment, s.tag, s.subjMid, s.subjHigh].join(' ').toLowerCase().indexOf(q) < 0 &&
+      !(QHITS.q === q && QHITS.ids[s.id])) return false;
     return true;
   }));
+}
+/* 상담 기록 글 검색은 서버에서 (기록이 많아 화면에는 최근 1건만 있음) */
+var QHITS = { q: '', ids: {} }, qTimer = null;
+function searchQ(v) {
+  V.q = v; V.limit = 200; keep(); renderRows();
+  clearTimeout(qTimer); var q = v.trim().toLowerCase(); if (!q) return;
+  qTimer = setTimeout(function () {
+    api('searchConsults', { q: v.trim() }).then(function (ids) { if (V.q.trim().toLowerCase() !== q) return; QHITS = { q: q, ids: {} }; ids.forEach(function (id) { QHITS.ids[id] = 1; }); renderRows(); });
+  }, 350);
 }
 function renderRows() {
   var tb = $('rows'); if (!tb) return;
@@ -246,7 +260,7 @@ function renderRows() {
   var mb = $('more'); mb.style.display = all.length > list.length ? 'block' : 'none'; mb.textContent = '더 보기 (' + list.length + ' / ' + all.length + '명)';
   tb.innerHTML = list.length ? list.map(function (s, i) {
     var cs = D.consults.filter(function (c) { return c.studentId === s.id; }).sort(function (a, b) { return String(b.date).localeCompare(String(a.date)) || String(b.createdAt).localeCompare(String(a.createdAt)); });
-    var last = cs[0], fu = V.camp ? D.fu.filter(function (f) { return f.studentId === s.id && f.campaign === V.camp; })[0] : null;
+    var nC = D.consultCount[s.id] || cs.length, last = cs[0], fu = V.camp ? D.fu.filter(function (f) { return f.studentId === s.id && f.campaign === V.camp; })[0] : null;
     var cls = D.enroll.filter(function (e) { return e.studentId === s.id; }).map(function (e) { return byId(D.classes, e.classId); }).filter(Boolean);
     return '<tr class="' + rowClass(s) + '"><td class="num">' + (i + 1) + '</td>' +
       '<td style="min-width:90px">' + cellIn('atlas_students', s, 'tag', { list: 'dl-tag', rerender: true }) + '</td>' +
@@ -259,7 +273,7 @@ function renderRows() {
       '<td style="min-width:80px"><select onchange="setField(\'atlas_students\',' + js(s.id) + ',\'grp\',this.value,true)"><option value="">-</option>' + D.groups.map(function (g) { return '<option' + (s.grp === g ? ' selected' : '') + '>' + esc(g) + '</option>'; }).join('') + '</select></td>' +
       '<td style="min-width:200px">' + cellIn('atlas_students', s, 'payment', { area: 1 }) + '</td>' +
       '<td class="ro" style="min-width:110px">' + (cls.map(function (c) { return '<span class="chip' + (c.status === '완료' ? ' done' : '') + '" onclick="openClass(' + js(c.id) + ')">' + (c.status === '완료' ? '(완) ' : '') + esc(c.name) + '</span>'; }).join('') || '<span class="muted">-</span>') + '</td>' +
-      '<td class="ro log" onclick="openConsults(' + js(s.id) + ')" title="상담 기록 보기·추가">' + (last ? '<div class="d">' + esc(last.date) + (last.program ? ' · ' + esc(last.program) : '') + (cs.length > 1 ? ' · 총 ' + cs.length + '건' : '') + '</div><div class="c">' + esc(last.content) + '</div>' : '<span class="muted">+ 상담 기록</span>') + '</td>' +
+      '<td class="ro log" onclick="openConsults(' + js(s.id) + ')" title="상담 기록 보기·추가">' + (last ? '<div class="d">' + esc(last.date) + (last.program ? ' · ' + esc(last.program) : '') + (nC > 1 ? ' · 총 ' + nC + '건' : '') + '</div><div class="c">' + esc(last.content) + '</div>' : '<span class="muted">+ 상담 기록</span>') + '</td>' +
       '<td style="min-width:130px">' + cellIn('atlas_students', s, 'subjMid', { area: 1 }) + '</td>' +
       '<td style="min-width:130px">' + cellIn('atlas_students', s, 'subjHigh', { area: 1 }) + '</td>' +
       '<td style="min-width:170px;background:#fffdf4">' + (V.camp && fu && fu._cut ? cellIn('atlas_fu', fu, 'response') : V.camp ? '<textarea rows="1" placeholder="희망X(사유) / 신청OK" onchange="saveFu(' + js(s.id) + ',this.value)">' + esc(fu ? fu.response : '') + '</textarea>' : '<div class="muted" style="padding:5px 6px;font-size:.8rem">위에서 팔로업을 만드세요</div>') + '</td>' +
@@ -307,9 +321,11 @@ function openConsults(sid) {
 function showConsults(sid) {
   var s = byId(D.students, sid); if (!s) return;
   var cs = D.consults.filter(function (c) { return c.studentId === sid; }).sort(function (a, b) { return String(b.date).localeCompare(String(a.date)) || String(b.createdAt).localeCompare(String(a.createdAt)); });
+  D.consultCount[sid] = cs.length;
   var fus = D.fu.filter(function (f) { return f.studentId === sid && f.response; });
   $('ov').innerHTML = '<div class="ov" onclick="if(event.target===this)closeOv()"><div class="panel">' +
     '<h3>' + esc(s.name) + ' <span class="muted" style="font-size:.85rem;font-weight:normal">' + esc([s.school, gradeLabel(s)].filter(Boolean).join(' · ')) + '</span></h3>' +
+    (s.compassId ? '<div style="margin:-4px 0 10px"><a class="chip" style="text-decoration:none" href="/#/student/' + esc(s.compassId) + '" target="_blank">Compass에서 보기 ↗</a> <button class="btn ghost sm" onclick="unlinkCompass(' + js(s.id) + ')">연결 끊기</button></div>' : '') +
     (s.memo ? '<div class="muted" style="white-space:pre-wrap;margin:-6px 0 10px;font-size:.82rem">' + esc(s.memo) + (s._cut && s._cut.indexOf('memo') >= 0 ? '…' : '') + '</div>' : '') +
     '<div class="fields" style="grid-template-columns:140px 1fr"><div class="field"><label>상담 날짜</label><input type="date" id="c-date" value="' + today() + '"></div>' +
     '<div class="field"><label>문의 프로그램 · 수업유형</label><input id="c-prog" list="dl-prog" placeholder="예: 정규반 / 겨울방학 특강 / 컨설팅"></div>' +
@@ -331,14 +347,14 @@ function saveConsult(sid, id) {
   api('save', { table: 'atlas_consults', rec: rec }).then(function (r) { replaceIn(D.consults, r); renderRows(); showConsults(sid); toast('저장했습니다.'); }).catch(function (e) { toast(e.message, true); });
 }
 function editConsult(id) {
-  var c = byId(D.consults, id); $('c-date').value = c.date; $('c-prog').value = c.program; $('c-content').value = c.content; $('c-content').focus();
+  var c = byId(D.consults, id); $('c-date').type = /^\d{4}-\d{2}-\d{2}$/.test(c.date) || !c.date ? 'date' : 'text'; $('c-date').value = c.date; $('c-prog').value = c.program; $('c-content').value = c.content; $('c-content').focus();
   var b = document.querySelector('.panel .btn'); b.textContent = '수정 저장'; b.setAttribute('onclick', 'saveConsult(' + js(c.studentId) + ',' + js(c.id) + ')');
 }
 function delConsult(id) { var c = byId(D.consults, id); del('atlas_consults', id, '이 상담 기록을 지울까요?').then(function (ok) { if (ok) { renderRows(); showConsults(c.studentId); } }); }
 
 /* ======================= 수업 Roster ======================= */
 function viewClasses() {
-  var list = D.classes.filter(function (c) { return V.classFilter === '전체' || (V.classFilter === '완료' ? c.status === '완료' : c.status !== '완료'); })
+  var list = D.classes.filter(function (c) { return c.kind !== '유료 상담'; }).filter(function (c) { return V.classFilter === '전체' || (V.classFilter === '완료' ? c.status === '완료' : c.status !== '완료'); })
     .sort(function (a, b) { return String(b.term).localeCompare(String(a.term)) || String(a.kind).localeCompare(String(b.kind)) || String(a.name).localeCompare(String(b.name)); });
   if (V.classId && !byId(D.classes, V.classId)) V.classId = '';
   if (!V.classId && list.length) V.classId = list[0].id;
@@ -355,13 +371,58 @@ function viewClasses() {
   var c = byId(D.classes, V.classId);
   return '<h2>수업 Roster</h2><div class="cols"><div class="side">' + side + '</div><div>' + (c ? viewClass(c) : '<div class="card empty">왼쪽에서 수업을 고르거나 “+ 수업 추가”로 만드세요.</div>') + '</div></div>';
 }
+/* ======================= 원장님 1:1 상담 (입시 로드맵 유료 상담) ======================= */
+function viewOneOne() {
+  var list = D.classes.filter(function (c) { return c.kind === '유료 상담'; }).sort(function (a, b) { return String(a.createdAt).localeCompare(String(b.createdAt)); });
+  if (!list.some(function (c) { return c.id === V.ooId; })) V.ooId = list.length ? list[0].id : '';
+  var c = byId(D.classes, V.ooId);
+  return '<h2>원장님 1:1 상담</h2><div class="toolbar"><div class="tabs" style="margin:0">' + list.map(function (x) {
+      var n = D.enroll.filter(function (e) { return e.classId === x.id; }).length;
+      return '<button class="' + (x.id === V.ooId ? 'on' : '') + '" onclick="V.ooId=' + js(x.id) + ';keep();render()">' + esc(x.name) + '<span class="n">' + n + '</span></button>';
+    }).join('') + '</div><span class="grow"></span><button class="btn ghost" onclick="addOneOneList()">+ 목록 추가</button></div>' +
+    '<div class="muted" style="margin:-4px 0 10px;font-size:.8rem">“컨설팅 진행”을 체크하면 Compass로 넘길 수 있습니다. 넘기면 Compass에 학생과 이 상담 기록(상담기록 탭)이 생기고, 두 화면이 서로 연결됩니다.</div>' +
+    (c ? viewClass(c) : '<div class="card empty">목록이 없습니다. “+ 목록 추가”로 만드세요.</div>');
+}
+function addOneOneList() {
+  var n = prompt('목록 이름 (예: 상해 외 지역 입시 로드맵 유료 상담)'); if (!n || !n.trim()) return;
+  add('atlas_classes', { name: n.trim(), kind: '유료 상담' }).then(function (r) { V.ooId = r.id; keep(); render(); }).catch(function (e) { toast(e.message, true); });
+}
+function compassCell(s, e, exv) {
+  if (s.compassId) return '<a href="/#/student/' + esc(s.compassId) + '" target="_blank" class="chip" style="text-decoration:none">Compass ↗</a>';
+  if (exv.consulting === 'TRUE') return '<button class="btn sm" onclick="openCompassLink(' + js(s.id) + ',' + js(e.id) + ')">Compass로 넘기기</button>';
+  return '<span class="muted">-</span>';
+}
+function openCompassLink(sid, eid) {
+  var s = byId(D.students, sid);
+  api('compassCandidates', { studentId: sid }).then(function (r) {
+    $('ov').innerHTML = '<div class="ov center" onclick="if(event.target===this)closeOv()"><div class="panel"><h3>' + esc(s.name) + ' → Compass</h3>' +
+      (r.candidates.length ? '<div class="muted" style="margin-bottom:6px">Compass에 같은 이름의 학생이 있습니다. 같은 학생이면 “연결”을 누르세요.</div><div class="results">' + r.candidates.map(function (c) {
+        return '<div style="display:flex;gap:8px;align-items:center;cursor:default"><span style="flex:1"><b>' + esc(c.name) + '</b> <span class="muted">' + esc([c.school, c.grade, c.branch, c.status].filter(Boolean).join(' · ')) + '</span></span>' +
+          '<button class="btn sm" onclick="doCompassLink(' + js(sid) + ',' + js(eid) + ',' + js(c.id) + ')">연결</button></div>';
+      }).join('') + '</div>' : '<div class="muted">Compass에 같은 이름의 학생이 없습니다.</div>') +
+      '<div style="display:flex;gap:6px;margin-top:14px;justify-content:flex-end"><button class="btn ghost" onclick="closeOv()">취소</button><button class="btn" onclick="doCompassLink(' + js(sid) + ',' + js(eid) + ',\'\')">새 Compass 학생으로 만들기</button></div>' +
+      '<div class="muted" style="margin-top:8px;font-size:.8rem">이름·학교·학년·연락처·메모와 이 1:1 상담 기록이 Compass로 넘어갑니다. 담당 컨설턴트는 Compass에서 정해주세요.</div></div></div>';
+  }).catch(function (e) { toast(e.message, true); });
+}
+function doCompassLink(sid, eid, cid) {
+  api('linkCompass', { studentId: sid, enrollId: eid, compassId: cid }).then(function (r) {
+    replaceIn(D.students, r.student); closeOv(); toast('Compass와 연결했습니다.'); load();
+  }).catch(function (e) { toast(e.message, true); });
+}
+function unlinkCompass(sid) {
+  if (!confirm('Compass 연결을 끊을까요? (Compass의 학생·기록은 그대로 남습니다)')) return;
+  api('unlinkCompass', { studentId: sid }).then(function () { closeOv(); load(); }).catch(function (e) { toast(e.message, true); });
+}
 function classIn(c, k, ph) { return '<input value="' + esc(c[k]) + '" onchange="setField(\'atlas_classes\',' + js(c.id) + ',' + js(k) + ',this.value,true)"' + (ph ? ' placeholder="' + esc(ph) + '"' : '') + '>'; }
 function classDates(c) { try { var d = JSON.parse(c.dates || '[]'); return Array.isArray(d) ? d : []; } catch (e) { return []; } }
 function lessonMode(c) { return c.kind === '개인' || c.kind === '그룹'; }
 function viewClass(c) {
   var es = D.enroll.filter(function (e) { return e.classId === c.id; }).map(function (e) { return { e: e, s: byId(D.students, e.studentId) }; }).filter(function (x) { return x.s; })
     .sort(function (a, b) { return String(a.e.createdAt).localeCompare(String(b.e.createdAt)); });
-  var h = '<div class="card"><div class="fields">' +
+  var oo = c.kind === '유료 상담';
+  var h = oo ? '<div class="card"><div class="fields"><div class="field"><label>목록 이름</label>' + classIn(c, 'name') + '</div>' +
+    '<div class="field full"><label>메모</label><textarea rows="2" onchange="setField(\'atlas_classes\',' + js(c.id) + ',\'memo\',this.value)">' + esc(c.memo) + '</textarea></div></div>' +
+    '<div style="text-align:right;margin-top:8px"><button class="btn danger sm" onclick="delClass(' + js(c.id) + ')">목록 삭제</button></div></div>' : '<div class="card"><div class="fields">' +
     '<div class="field"><label>수업 이름</label>' + classIn(c, 'name') + '</div>' +
     '<div class="field"><label>종류</label><select onchange="setField(\'atlas_classes\',' + js(c.id) + ',\'kind\',this.value,true)"><option value="">-</option>' + D.classKinds.map(function (k) { return '<option' + (c.kind === k ? ' selected' : '') + '>' + esc(k) + '</option>'; }).join('') + '</select></div>' +
     '<div class="field"><label>기간 (학기·방학)</label>' + classIn(c, 'term', '예: 2026 Fall 학기중') + '</div>' +
@@ -372,18 +433,18 @@ function viewClass(c) {
     '<div style="text-align:right;margin-top:8px"><button class="btn danger sm" onclick="delClass(' + js(c.id) + ')">수업 삭제</button></div></div>';
   var dates = lessonMode(c) || c.kind === '유료 상담' ? [] : classDates(c);
   var ex = c.kind === '유료 상담' ? EXTRA : [];
-  h += '<div class="toolbar"><b>수강생 ' + es.length + '명</b><span class="grow"></span>' + (dates.length || (!lessonMode(c) && c.kind !== '유료 상담') ? '<button class="btn ghost" onclick="addDate(' + js(c.id) + ')">+ 날짜 칸</button>' : '') +
-    '<button class="btn" onclick="openEnroll(' + js(c.id) + ')">+ 수강생 추가</button></div>';
+  h += '<div class="toolbar"><b>' + (oo ? '학생 ' : '수강생 ') + es.length + '명</b><span class="grow"></span>' + (dates.length || (!lessonMode(c) && c.kind !== '유료 상담') ? '<button class="btn ghost" onclick="addDate(' + js(c.id) + ')">+ 날짜 칸</button>' : '') +
+    '<button class="btn" onclick="openEnroll(' + js(c.id) + ')">' + (oo ? '+ 학생 추가' : '+ 수강생 추가') + '</button></div>';
   var att = {}; D.attend.forEach(function (a) { if (a.classId === c.id) att[a.studentId + '|' + a.col] = a.value; });
   var cnt = dates.map(function (d) { return es.filter(function (x) { return /^1$|^o$|^ok$/i.test(String(att[x.s.id + '|' + d] || '').trim()); }).length; });
   h += datalists() + '<div class="wrap"><table class="sheet"><thead><tr><th>#</th><th>학생이름</th><th>직접 컨택 가능한 연락처</th><th>학교</th><th>학교 관련 비고</th><th>올라간 후 현재 학년</th>' +
-    ex.map(function (x) { return '<th>' + esc(x[1]) + '</th>'; }).join('') +
+    ex.map(function (x) { return '<th>' + esc(x[1]) + '</th>'; }).join('') + (ex.length ? '<th>Compass</th>' : '') +
     (c.kind === '유료 상담' ? '' : '<th>수강료 결제 내역</th><th>Remark</th>') +
     dates.map(function (d, i) { return '<th class="dt" title="눌러서 이름 바꾸기·지우기" onclick="editDate(' + js(c.id) + ',' + i + ')">' + esc(d) + '<span class="c">' + cnt[i] + '명</span></th>'; }).join('') + '<th></th></tr></thead><tbody>' +
     (es.length ? es.map(function (x, i) {
       var s = x.s, e = x.e, exv = parseExtra(e);
       return '<tr><td class="num">' + (i + 1) + '</td>' +
-        '<td class="name" style="min-width:130px">' + cellIn('atlas_students', s, 'name') + '<div class="note">' + cellIn('atlas_enroll', e, 'note', { area: 1, ph: '이 수업 메모 (10회권·할인 등)' }) + '</div></td>' +
+        '<td class="name" style="min-width:130px">' + cellIn('atlas_students', s, 'name') + '<div class="note">' + cellIn('atlas_enroll', e, 'note', { area: 1, ph: oo ? '메모' : '이 수업 메모 (10회권·할인 등)' }) + '</div></td>' +
         '<td style="min-width:120px">' + cellIn('atlas_students', s, 'phone', { area: 1 }) + '</td>' +
         '<td style="min-width:80px">' + cellIn('atlas_students', s, 'school', { list: 'dl-school' }) + '</td>' +
         '<td style="min-width:130px">' + cellIn('atlas_students', s, 'schoolNote', { area: 1 }) + '</td>' +
@@ -392,7 +453,7 @@ function viewClass(c) {
           var on = 'setExtra(' + js(e.id) + ',' + js(f[0]) + ',' + (f[2] === 'check' ? 'this.checked?\'TRUE\':\'\'' : 'this.value') + ')';
           return '<td style="min-width:' + (f[2] === 'check' ? 60 : 110) + 'px' + (f[2] === 'check' ? ';text-align:center' : '') + '">' + (f[2] === 'check' ? '<input type="checkbox" style="width:auto;margin:7px auto"' + (exv[f[0]] === 'TRUE' ? ' checked' : '') + ' onchange="' + on + '">'
             : '<textarea rows="1" onchange="' + on + '">' + esc(exv[f[0]] || '') + '</textarea>') + '</td>';
-        }).join('') +
+        }).join('') + (ex.length ? '<td class="ro" style="min-width:120px">' + compassCell(s, e, exv) + '</td>' : '') +
         (c.kind === '유료 상담' ? '' : '<td style="min-width:200px">' + cellIn('atlas_enroll', e, 'payment', { area: 1, ph: '예: 9/1 위챗페이 8,000' }) + '</td>' +
         '<td style="min-width:220px">' + cellIn('atlas_enroll', e, 'remark', { area: 1 }) + '</td>') +
         dates.map(function (d) {
@@ -411,7 +472,7 @@ var EXTRA = [['paid', '비용 입금', 'check'], ['testDate', '적성검사 일�
 function parseExtra(e) { try { return JSON.parse(e.extra || '{}') || {}; } catch (x) { return {}; } }
 function setExtra(eid, k, v) {
   var e = byId(D.enroll, eid), o = parseExtra(e); o[k] = v; if (!v) delete o[k];
-  setField('atlas_enroll', eid, 'extra', JSON.stringify(o));
+  setField('atlas_enroll', eid, 'extra', JSON.stringify(o), k === 'consulting');
 }
 /* 출결 */
 function setAttend(cid, sid, col, el) {
@@ -472,7 +533,7 @@ function openClass(id) { var c = byId(D.classes, id); if (!c) return; V.page = '
 function openClassForm() {
   $('ov').innerHTML = '<div class="ov center" onclick="if(event.target===this)closeOv()"><div class="panel"><h3>수업 추가</h3><div class="fields">' +
     '<div class="field full"><label>수업 이름 *</label><input id="k-name" placeholder="예: G9 Eng 토요일 / 김OO 개인수업"></div>' +
-    '<div class="field"><label>종류</label><select id="k-kind">' + D.classKinds.map(function (k) { return '<option>' + esc(k) + '</option>'; }).join('') + '</select></div>' +
+    '<div class="field"><label>종류</label><select id="k-kind">' + D.classKinds.filter(function (k) { return k !== '유료 상담'; }).map(function (k) { return '<option>' + esc(k) + '</option>'; }).join('') + '</select></div>' +
     '<div class="field"><label>기간</label><input id="k-term" placeholder="예: 2026 Fall 학기중" value="' + esc((byId(D.classes, V.classId) || {}).term || '') + '"></div>' +
     '<div class="field"><label>강사</label><input id="k-teacher"></div><div class="field"><label>요일·시간</label><input id="k-schedule"></div></div>' +
     '<div style="display:flex;gap:6px;margin-top:12px;justify-content:flex-end"><button class="btn ghost" onclick="closeOv()">취소</button><button class="btn" onclick="saveClass()">추가</button></div></div></div>';
@@ -482,7 +543,7 @@ function saveClass() {
   var rec = { name: $('k-name').value, kind: $('k-kind').value, term: $('k-term').value, teacher: $('k-teacher').value, schedule: $('k-schedule').value };
   add('atlas_classes', rec).then(function (r) { closeOv(); V.classId = r.id; V.classFilter = '진행'; keep(); render(); toast('수업을 추가했습니다.'); }).catch(function (e) { toast(e.message, true); });
 }
-function delClass(id) { var c = byId(D.classes, id); del('atlas_classes', id, '“' + c.name + '” 수업을 지울까요?').then(function (ok) { if (ok) { V.classId = ''; render(); } }); }
+function delClass(id) { var c = byId(D.classes, id); del('atlas_classes', id, '“' + c.name + '” ' + (c.kind === '유료 상담' ? '목록을' : '수업을') + ' 지울까요?').then(function (ok) { if (ok) { V.classId = ''; render(); } }); }
 function unenroll(id) { del('atlas_enroll', id, '이 학생을 수업에서 뺄까요? (학생 정보는 상담 Roster에 그대로 남습니다)').then(function (ok) { if (ok) render(); }); }
 function openEnroll(cid) {
   $('ov').innerHTML = '<div class="ov center" onclick="if(event.target===this)closeOv()"><div class="panel"><h3>수강생 추가</h3>' +

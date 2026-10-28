@@ -2336,3 +2336,29 @@ test('REVERA A 가져오기: 미리 세기, 같은 학생은 빈 칸만, 다시 
   assert.deepStrictEqual(l.map((x) => x.date || x.fee), ['8/31(일)', '9/1 ICBC 1,800元'], '시트 줄 순서 그대로');
   assert.strictEqual((await hm.req('POST', '/api/atlas/importData', { arg: { data: { format: 'x' } } })).status, 400);
 });
+
+test('REVERA A 원장님 1:1 상담 → Compass: 같은 이름 후보, 새 학생 만들기·연결, 상담기록 한 번만, Compass에서 A 찾기', async () => {
+  const hm = client(); await hm.login('hm@revera.test', 'mine-pass-1');
+  const admin = client(); await admin.login('admin@revera.test', 'admin-pass-1');
+  const call = async (fn, arg) => { const r = await hm.req('POST', '/api/atlas/' + fn, { arg }); assert.strictEqual(r.status, 200, fn + ': ' + JSON.stringify(r.data)); return r.data; };
+  const s = await call('save', { table: 'atlas_students', rec: { name: '일대일 학생', school: 'SAS', gradYear: '2028', phone: '139' } });
+  const k = await call('save', { table: 'atlas_classes', rec: { name: '입시 로드맵 유료 상담', kind: '유료 상담' } });
+  const e = await call('save', { table: 'atlas_enroll', rec: { classId: k.id, studentId: s.id, extra: JSON.stringify({ consultDate: '2026-10-20', material: '전공 고민', consulting: 'TRUE' }) } });
+  let c = await call('compassCandidates', { studentId: s.id });
+  assert.deepStrictEqual([c.linked, c.candidates.length], [null, 0]);
+  let r = await call('linkCompass', { studentId: s.id, enrollId: e.id });
+  const d = await admin.ok('getAll');
+  const cs = d.students.find((x) => x.id === r.compassId);
+  assert.deepStrictEqual([cs.name, cs.school, cs.grade, cs.status], ['일대일 학생', 'SAS', 'G11', '상담중']);
+  const notes = d.notes.filter((n) => n.studentId === r.compassId);
+  assert.strictEqual(notes.length, 1); assert.match(notes[0].content, /1:1 입시 로드맵 상담[\s\S]*전공 고민/); assert.strictEqual(notes[0].date, '2026-10-20');
+  // 다시 연결해도 상담기록은 한 번만
+  await call('linkCompass', { studentId: s.id, enrollId: e.id, compassId: r.compassId });
+  assert.strictEqual((await admin.ok('getAll')).notes.filter((n) => n.studentId === r.compassId).length, 1);
+  c = await call('compassCandidates', { studentId: s.id });
+  assert.strictEqual(c.linked.id, r.compassId); assert.strictEqual(c.candidates.length, 1, '같은 이름 후보');
+  assert.deepStrictEqual((await call('compassOf', { compassId: r.compassId })).map((x) => x.id), [s.id]);
+  assert.strictEqual((await admin.req('POST', '/api/atlas/compassOf', { arg: { compassId: r.compassId } })).status, 404, '허용 안 된 계정');
+  await call('unlinkCompass', { studentId: s.id });
+  assert.strictEqual((await call('compassOf', { compassId: r.compassId })).length, 0);
+});

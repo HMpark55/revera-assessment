@@ -27,7 +27,7 @@ const META = ['createdAt', 'createdBy', 'updatedAt', 'updatedBy'];
 
 class AtlasError extends Error { constructor(msg, status) { super(msg); this.status = status || 400; } }
 
-function attachAtlas(db) {
+function attachAtlas(db, store) {
   for (const [t, cols] of Object.entries(TABLES)) {
     db.exec(`CREATE TABLE IF NOT EXISTS ${t} (id TEXT PRIMARY KEY)`);
     const have = new Set(db.prepare(`PRAGMA table_info(${t})`).all().map((c) => c.name));
@@ -35,6 +35,8 @@ function attachAtlas(db) {
       if (!have.has(c)) db.exec(`ALTER TABLE ${t} ADD COLUMN ${c} TEXT DEFAULT ''`);
     });
   }
+
+  if (!new Set(db.prepare('PRAGMA table_info(atlas_students)').all().map((c) => c.name)).has('compassId')) db.exec("ALTER TABLE atlas_students ADD COLUMN compassId TEXT DEFAULT ''"); // Compass 학생과 연결
 
   const extra = String(process.env.ATLAS_EMAILS || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
   const allowed = (me) => !!me && !me.mustChangePassword && (ATLAS_NAMES.includes(String(me.name || '').trim()) || extra.includes(me.email));
@@ -58,7 +60,11 @@ function attachAtlas(db) {
     const all = (t, where) => db.prepare(`SELECT * FROM ${t}${where ? ' WHERE ' + where : ''}`).all();
     return {
       students: preview(all('atlas_students', "deletedAt = ''"), ['payment', 'memo', 'schoolNote', 'phone', 'subjMid', 'subjHigh', 'tag']),
-      consults: preview(all('atlas_consults'), ['content']),
+      // 상담 기록은 학생마다 가장 최근 1건과 건수만 (전체는 학생 창을 열 때 getConsults)
+      consults: preview(db.prepare(`SELECT c.* FROM atlas_consults c WHERE c.id = (SELECT id FROM atlas_consults x WHERE x.studentId = c.studentId
+        ORDER BY x.date DESC, x.createdAt DESC LIMIT 1)`).all(), ['content']),
+      consultCount: Object.fromEntries(db.prepare('SELECT studentId, COUNT(*) n FROM atlas_consults GROUP BY studentId').all().map((r) => [r.studentId, r.n])),
+      programs: db.prepare("SELECT DISTINCT program FROM atlas_consults WHERE program != '' LIMIT 300").all().map((r) => r.program),
       fu: preview(all('atlas_fu'), ['response']),
       classes: all('atlas_classes', "deletedAt = ''"),
       enroll: preview(all('atlas_enroll'), ['payment', 'remark', 'note']),
@@ -72,6 +78,12 @@ function attachAtlas(db) {
     if (!TABLES[t]) throw new AtlasError('없는 표입니다.');
     const r = get(t, arg.id); if (!r || r.deletedAt) throw new AtlasError('이미 삭제되었습니다.', 404);
     return r;
+  }
+  /** 상담 기록 글 검색 → 학생 id 목록 */
+  function searchConsults(me, arg) {
+    const q = String(arg && arg.q || '').trim(); if (!q) return [];
+    return db.prepare("SELECT DISTINCT studentId FROM atlas_consults WHERE content LIKE ? ESCAPE '\\' OR program LIKE ? ESCAPE '\\' LIMIT 2000")
+      .all(...Array(2).fill('%' + q.replace(/[\\%_]/g, (c) => '\\' + c) + '%')).map((r) => r.studentId);
   }
   const getConsults = (me, arg) => db.prepare('SELECT * FROM atlas_consults WHERE studentId = ?').all(String(arg && arg.studentId || ''));
   const getLessons = (me, arg) => db.prepare('SELECT * FROM atlas_lessons WHERE classId = ? ORDER BY CAST(sortOrder AS REAL), createdAt').all(String(arg && arg.classId || ''));
@@ -223,7 +235,52 @@ function attachAtlas(db) {
     return n;
   }
 
-  return { allowed, rpc: { ping: () => ({ ok: true }), getAll, getRow, getConsults, getLessons, save, remove, renameCampaign, importData }, AtlasError };
+  /* ----- 원장님 1:1 상담 → Compass (컨설팅으로 이어진 학생) ----- */
+  const nname = (x) => String(x || '').replace(/\s+/g, '').toLowerCase();
+  const compassRow = (id) => db.prepare("SELECT id, name, school, grade, branch, status FROM students WHERE id = ? AND deletedAt = ''").get(String(id || ''));
+  function compassCandidates(me, arg) {
+    const st = get('atlas_students', arg && arg.studentId);
+    if (!st || st.deletedAt) throw new AtlasError('학생을 찾을 수 없습니다.', 404);
+    const list = db.prepare("SELECT id, name, school, grade, branch, status FROM students WHERE deletedAt = ''").all().filter((x) => nname(x.name) === nname(st.name));
+    return { linked: st.compassId ? compassRow(st.compassId) || null : null, candidates: list };
+  }
+  /** 1:1 상담 기록을 Compass 학생의 상담기록으로 (한 번만) */
+  function copyConsultNote(me, enr, compassId) {
+    const ex = (() => { try { return JSON.parse(enr.extra || '{}') || {}; } catch (e) { return {}; } })();
+    if (ex.compassNoteId) return;
+    const lines = ['원장님 1:1 입시 로드맵 상담 (REVERA A에서 연결)',
+      ex.consultDate && '상담 일자: ' + ex.consultDate, ex.material && '상담 자료·요청사항: ' + ex.material,
+      (ex.testDate || ex.testDone) && '적성검사: ' + [ex.testDate, ex.testDone === 'TRUE' ? '완료' : ''].filter(Boolean).join(' · '),
+      ex.paid === 'TRUE' && '비용 입금 완료', enr.note && '메모: ' + enr.note].filter(Boolean);
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(ex.consultDate || '') ? ex.consultDate : ts().slice(0, 10);
+    const r = store.rpc.save(me, { table: 'notes', obj: { studentId: compassId, date, type: '대면상담', content: lines.join('\n') }, noData: true });
+    ex.compassNoteId = r.savedId;
+    db.prepare('UPDATE atlas_enroll SET extra = ? WHERE id = ?').run(JSON.stringify(ex), enr.id);
+  }
+  /** 연결: compassId 를 주면 그 학생과, 없으면 새 Compass 학생을 만들어서 */
+  function linkCompass(me, arg) {
+    const st = get('atlas_students', arg && arg.studentId);
+    if (!st || st.deletedAt) throw new AtlasError('학생을 찾을 수 없습니다.', 404);
+    const enr = arg.enrollId ? get('atlas_enroll', arg.enrollId) : null;
+    let cid = arg.compassId;
+    if (cid) { if (!compassRow(cid)) throw new AtlasError('Compass 학생을 찾을 수 없습니다.', 404); }
+    else {
+      const g = st.gradYear ? 12 - (Number(st.gradYear) - (new Date().getMonth() + 1 >= 8 ? new Date().getFullYear() + 1 : new Date().getFullYear())) : null;
+      const memo = ['REVERA A 원장님 1:1 상담에서 넘어온 학생', st.phone && '연락처(시트): ' + st.phone, st.memo].filter(Boolean).join('\n');
+      cid = store.rpc.save(me, { table: 'students', obj: { name: st.name, school: st.school, grade: g >= 1 && g <= 12 ? 'G' + g : '', status: '상담중', memo, branch: me.branch && me.branch !== '전체' ? me.branch : '상해' }, noData: true }).savedId;
+    }
+    db.prepare('UPDATE atlas_students SET compassId = ?, updatedAt = ?, updatedBy = ? WHERE id = ?').run(cid, ts(), me.email, st.id);
+    if (enr && enr.studentId === st.id) copyConsultNote(me, enr, cid);
+    return { compassId: cid, student: get('atlas_students', st.id) };
+  }
+  function unlinkCompass(me, arg) {
+    db.prepare("UPDATE atlas_students SET compassId = '', updatedAt = ?, updatedBy = ? WHERE id = ?").run(ts(), me.email, String(arg && arg.studentId || ''));
+    return { ok: true };
+  }
+  /** Compass 학생 화면 → A 학생 */
+  const compassOf = (me, arg) => db.prepare("SELECT id, name FROM atlas_students WHERE compassId = ? AND compassId != '' AND deletedAt = ''").all(String(arg && arg.compassId || ''));
+
+  return { allowed, rpc: { compassCandidates, linkCompass, unlinkCompass, compassOf, ping: () => ({ ok: true }), getAll, getRow, getConsults, searchConsults, getLessons, save, remove, renameCampaign, importData }, AtlasError };
 }
 
 module.exports = { attachAtlas, AtlasError };
