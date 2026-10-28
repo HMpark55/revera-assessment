@@ -20,7 +20,7 @@ class UserError extends Error {
   constructor(message, status) { super(message); this.status = status || 400; }
 }
 
-const ROLES = ['admin', 'staff', 'consultant'];
+const ROLES = ['admin', 'staff', 'consultant', 'developer']; // developer: 관리자 권한 + 다른 계정으로 로그인 (개발·점검용)
 /** 지점: 계정·학생마다 하나. 화면 시간은 계정 지점의 시간대로 보임 (첫 번째 = 예전 자료의 기본값) */
 const BRANCHES = ['상해', '압구정'];
 const BRANCH_TZ = { 상해: 'Asia/Shanghai', 압구정: 'Asia/Seoul' };
@@ -291,7 +291,7 @@ function now() {
 const newId = () => crypto.randomBytes(6).toString('hex');
 const lower = (s) => String(s || '').trim().toLowerCase();
 const isEmail = (s) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s);
-const isManager = (me) => me.role === 'admin' || me.role === 'staff';
+const isManager = (me) => me.role === 'admin' || me.role === 'staff' || me.role === 'developer';
 function clean(v) {
   if (v === null || v === undefined) return '';
   if (typeof v === 'boolean') return v ? 'TRUE' : 'FALSE';
@@ -429,7 +429,12 @@ function migrate(db) {
     db.prepare("INSERT INTO meta VALUES ('v3_paid_to_payments', ?)").run(ts);
   }
   // 이전 버전의 'teacher' 역할은 권한이 가장 좁은 컨설턴트로 전환
-  db.prepare(`UPDATE teachers SET role = 'consultant' WHERE role NOT IN ('admin','staff','consultant')`).run();
+  db.prepare(`UPDATE teachers SET role = 'consultant' WHERE role NOT IN ('admin','staff','consultant','developer')`).run();
+  // v36: 개발자 역할 — 처음 한 번, 박현모 계정 (그 뒤로는 개발자만 개발자를 정함)
+  if (!db.prepare("SELECT 1 FROM meta WHERE key = 'v36_developer'").get()) {
+    if (!db.prepare("SELECT 1 FROM teachers WHERE role = 'developer'").get()) db.prepare("UPDATE teachers SET role = 'developer' WHERE TRIM(name) = '박현모' AND active = 1").run();
+    db.prepare("INSERT INTO meta VALUES ('v36_developer', ?)").run(now());
+  }
   // 이전 버전 데이터의 작성자 정보 보정
   db.prepare(`UPDATE notes SET createdBy = author WHERE createdBy = '' AND author != ''`).run();
   for (const t of ['apps']) db.prepare(`UPDATE ${t} SET createdBy = updatedBy WHERE createdBy = ''`).run();
@@ -1004,6 +1009,17 @@ function openStore(dbPath, opts) {
     log(t.email, 'login', 'teachers', t.email, '');
     return token;
   }
+  /** 개발자: 다른 계정으로 로그인 — 그 계정의 새 세션을 만들어 돌려줌 (기록에 남김) */
+  function loginAs(me, email) {
+    if (!me || !me.dev) throw new UserError('개발자만 다른 계정으로 로그인할 수 있습니다.', 403);
+    const t = getTeacher(email);
+    if (!t || !t.active) throw new UserError('활성 계정이 아닙니다.', 404);
+    if (t.email === me.email) throw new UserError('지금 로그인한 계정입니다.');
+    const token = crypto.randomBytes(32).toString('base64url');
+    db.prepare('INSERT INTO sessions VALUES (?,?,?,?)').run(sha256(token), t.email, now(), Date.now() + 86400000); // 하루만
+    log(me.email, 'login', 'teachers', t.email, '개발자 — ' + t.name + ' 계정으로 로그인');
+    return token;
+  }
   function logout(token) { if (token) db.prepare('DELETE FROM sessions WHERE tokenHash = ?').run(sha256(token)); }
 
   /** 세션 토큰 → 로그인한 사용자 (없거나 비활성이면 null) */
@@ -1012,7 +1028,7 @@ function openStore(dbPath, opts) {
     const row = db.prepare(`SELECT t.*, s.expiresAt FROM sessions s JOIN teachers t ON t.email = s.email
       WHERE s.tokenHash = ?`).get(sha256(token));
     if (!row || !row.active || row.expiresAt < Date.now()) return null;
-    return { email: row.email, name: row.name, role: ROLES.includes(row.role) ? row.role : 'consultant', branch: accountBranch(row), tz: accountTz(row), branchTz: branchTz(row), viewTz: TZS.includes(row.viewTz) ? row.viewTz : '',
+    return { email: row.email, name: row.name, role: row.role === 'developer' ? 'admin' : ROLES.includes(row.role) ? row.role : 'consultant', dev: row.role === 'developer', branch: accountBranch(row), tz: accountTz(row), branchTz: branchTz(row), viewTz: TZS.includes(row.viewTz) ? row.viewTz : '',
       mustChangePassword: !!row.mustChangePassword, token };
   }
 
@@ -1045,7 +1061,7 @@ function openStore(dbPath, opts) {
     const ids = new Set(students.map((s) => s.id));
     const meRow = getTeacher(me.email) || me; // 화면 시간은 저장된 계정 정보로 (방금 바꾼 값 포함)
     const out = {
-      me: { email: me.email, name: me.name, role: me.role, branch: accountBranch(me), tz: accountTz(meRow), branchTz: branchTz(meRow), viewTz: TZS.includes(meRow.viewTz) ? meRow.viewTz : '', mustChangePassword: !!me.mustChangePassword,
+      me: { email: me.email, name: me.name, role: me.role, dev: !!me.dev, branch: accountBranch(me), tz: accountTz(meRow), branchTz: branchTz(meRow), viewTz: TZS.includes(meRow.viewTz) ? meRow.viewTz : '', mustChangePassword: !!me.mustChangePassword,
         homeLayout: parseLayout((db.prepare('SELECT homeLayout FROM teachers WHERE email = ?').get(me.email) || {}).homeLayout) },
       homeDefault: parseLayout(getMeta('homeLayoutDefault')),
       studentCols: parseCols(getMeta('studentCols')),
@@ -1539,7 +1555,7 @@ function openStore(dbPath, opts) {
     try {
       const have = new Set(tables('rs'));
       if (!have.has('students') || !have.has('teachers')) throw new UserError('Compass 백업 파일이 아닙니다 (compass.db 안에 학생·계정 표가 없음).');
-      if (!db.prepare("SELECT 1 FROM rs.teachers WHERE role = 'admin' AND active = 1").get()) throw new UserError('백업 안에 활성 관리자 계정이 없어 복구하면 아무도 관리할 수 없습니다.');
+      if (!db.prepare("SELECT 1 FROM rs.teachers WHERE role IN ('admin', 'developer') AND active = 1").get()) throw new UserError('백업 안에 활성 관리자 계정이 없어 복구하면 아무도 관리할 수 없습니다.');
       tx(() => {
         for (const t of tables('main')) {
           if (t === 'sessions') continue;
@@ -2594,7 +2610,9 @@ function openStore(dbPath, opts) {
     if (!isEmail(email)) throw new UserError('이메일 형식이 올바르지 않습니다.');
     const role = ROLES.includes(obj.role) ? obj.role : 'consultant';
     const active = obj.active === false ? 0 : 1;
-    if (email === me.email && (role !== 'admin' || !active)) throw new UserError('본인의 관리자 권한은 해제할 수 없습니다.');
+    if (email === me.email && (!['admin', 'developer'].includes(role) || !active)) throw new UserError('본인의 관리자 권한은 해제할 수 없습니다.');
+    const before = getTeacher(email);
+    if (!me.dev && (role === 'developer' || (before && before.role === 'developer'))) throw new UserError('개발자 계정은 개발자만 정하거나 바꿀 수 있습니다.', 403);
     const password = obj.password ? String(obj.password) : '';
     if (password) checkPasswordRule(password);
     const color = String(obj.color || '').toLowerCase();
@@ -2621,7 +2639,7 @@ function openStore(dbPath, opts) {
         db.prepare('INSERT INTO teachers (email, name, role, active, passwordHash, mustChangePassword, createdAt, updatedAt, notify, color, branch, tz) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)')
           .run(email, name, role, active, hashPassword(password), 0, t, t, obj.notify === false ? 'off' : '', color, obj.branch || BRANCHES[0], obj.tz || '');
       }
-      const roleLabel = { admin: '관리자', staff: '관리팀', consultant: '컨설턴트' }[role];
+      const roleLabel = { admin: '관리자', staff: '관리팀', consultant: '컨설턴트', developer: '개발자' }[role];
       log(me.email, found ? 'update' : 'create', 'teachers', email,
         [name, email, roleLabel, obj.branch || '', active ? '활성' : '비활성', password ? (found ? '비밀번호 초기화' : '임시 비밀번호 설정') : '']
           .filter(Boolean).join(' · '));
@@ -2789,7 +2807,7 @@ function openStore(dbPath, opts) {
   }
 
   return {
-    db, filesDir, dbPath, listFiles, pendingSync, markSync, replaceSchedule, restoreFromDb, countTeachers, upsertAdmin, login, logout, authenticate, addFile, getFile, addUniFile, getUniFile,
+    db, filesDir, dbPath, listFiles, pendingSync, markSync, replaceSchedule, restoreFromDb, countTeachers, upsertAdmin, login, loginAs, logout, authenticate, addFile, getFile, addUniFile, getUniFile,
     rpc: { getAll: (me) => getAll(me), save, remove, restore, purge, getTrash, getLog, saveTeacher, changePassword, importData, copyCycle, getActivity, saveMany, updateMe,
       saveOption, removeOption, deleteTeacher, getAutomation, saveAutomation, saveEvent, removeEvent,
       saveWithFollowups, requestFollowup, saveOrder, saveUniFile, removeUniFile, saveProgram, removeProgram, getStorage, retrySync, saveHomeLayout, saveStudentCols, saveBreak, removeBreak, requestReview, doneReview, cancelReview, excludeSched, unexcludeSched, saveAutoCat, getNotices, noticeAct, fixSubjects, removeMany, restoreMany, purgeMany, addFollowupMany, addMajorsMany, renameFaculty },

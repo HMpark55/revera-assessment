@@ -637,7 +637,7 @@
 
 <script>
 /* ============================== 설정 ============================== */
-var ROLE_LABEL = { admin: '관리자', staff: '관리팀', consultant: '컨설턴트' };
+var ROLE_LABEL = { admin: '관리자', staff: '관리팀', consultant: '컨설턴트', developer: '개발자' };
 var STUDENT_STATUS = ['상담중', '진행중', '보류', '완료', '종료'];
 var TRACKS = ['3년특례', '12년특례', '홍콩', '싱가폴', '미국', '캐나다', '영국', '일본', '한국 일반', '기타'];
 /** 학생 트랙 목록 (목록 관리 › 트랙, 없으면 처음 목록) */
@@ -956,6 +956,7 @@ function load(data) {
   S.programs = data.programs || [];
   S.homeDefault = data.homeDefault || null;
   S.reviews = data.reviews || [];
+  if ('devAs' in data) { S.devAs = data.devAs; devBanner(); } // 개발자가 다른 계정으로 보는 중 (화면 전체를 불러올 때만 실려 옴)
   // 원장님 스케줄은 중국 시간으로 저장 → 내 시간으로 바꿔 둠 (압구정 계정은 한국 시간으로 보임)
   S.sched = (data.sched || []).map(function (x) { return Object.assign({}, x, { startAt: shiftWall(x.startAt, SCHED_TZ, myTZ()), endAt: shiftWall(x.endAt, SCHED_TZ, myTZ()) }); });
   applyBranch();
@@ -1167,6 +1168,20 @@ function todaySummary(force) {
     '<button class="btn ghost" onclick="sumClose();go(\'#/followups\')">팔로업 화면으로</button><button class="btn" onclick="sumClose()">확인</button>');
 }
 function sumClose() { if ($('sum-off') && $('sum-off').checked) { try { localStorage.setItem(prefKey('sumDay'), today()); } catch (e) {} } closeModal(true); }
+/* ----- 개발자: 다른 계정으로 로그인 · 돌아가기 ----- */
+function devLoginAs(email) {
+  var t = S.teachers.filter(function (x) { return x.email === email; })[0]; if (!t) return;
+  if (!confirm(t.name + ' (' + (ROLE_LABEL[t.role] || t.role) + ') 계정으로 로그인합니다.\n그 계정 화면 그대로 보이고, 고치면 그 계정으로 고친 것이 됩니다(변경 기록에는 그 계정 이름).\n위의 “내 계정으로 돌아가기”로 언제든 돌아올 수 있습니다.')) return;
+  post('/api/dev/loginAs', { email: email }).then(function () { clearSession(); location.replace('/#/home'); location.reload(); }).catch(function (e) { toast(errMsg(e), true); });
+}
+function devBack() { post('/api/dev/back', {}).then(function () { clearSession(); location.replace('/#/teachers'); location.reload(); }).catch(function (e) { toast(errMsg(e), true); }); }
+function devBanner() {
+  var b = $('dev-banner');
+  if (!S.devAs) { if (b) b.remove(); return; }
+  if (!b) { b = document.createElement('div'); b.id = 'dev-banner'; document.body.insertBefore(b, document.body.firstChild); }
+  b.style.cssText = 'position:sticky;top:0;z-index:40;background:#7c2d12;color:#fff;padding:7px 16px;font-size:.85rem;display:flex;gap:10px;align-items:center';
+  b.innerHTML = '🛠 개발자 <b>' + esc(S.devAs.name) + '</b> 님이 <b>' + esc(S.me.name) + '</b> (' + esc(ROLE_LABEL[S.me.role] || S.me.role) + ') 계정으로 보는 중 <span style="flex:1"></span><button class="btn sm" style="background:#fff;color:#7c2d12;border-color:#fff" onclick="devBack()">내 계정으로 돌아가기</button>';
+}
 var ATLAS_OK = false; // REVERA A를 쓸 수 있는 계정이면 학생 화면에 “A 상담 이력” 버튼
 function atlasApi(fn, arg) { return fetch('/api/atlas/' + fn, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'revera' }, body: JSON.stringify({ arg: arg }) }); }
 function checkAtlas() { atlasApi('ping').then(function (r) { if (r.ok && !ATLAS_OK) { ATLAS_OK = true; if (/^#\/student\//.test(location.hash)) render(); } }).catch(function () {}); }
@@ -5079,7 +5094,7 @@ function viewTeachers() {
   var h = '<div class="toolbar"><h2 style="margin:0;margin-right:auto">계정 관리</h2><button class="btn" onclick="openTeacherForm()">+ 계정 추가</button></div>';
   h += '<div class="card muted" style="line-height:1.7"><b>관리자</b>: 모든 기능 + 계정 관리·변경 기록·영구 삭제 · ' +
     '<b>관리팀</b>: 모든 학생, 상담기록, 계약 금액, 삭제·복구 · ' +
-    '<b>컨설턴트</b>: 담당 학생만 (상담기록·계약 금액은 볼 수 없음)<br>' +
+    '<b>컨설턴트</b>: 담당 학생만 (상담기록·계약 금액은 볼 수 없음)' + (S.me.dev || S.teachers.some(function (t) { return t.role === 'developer'; }) ? ' · <b>개발자</b>: 관리자 기능 + 다른 계정으로 로그인 (개발자만 정할 수 있음)' : '') + '<br>' +
     '<b>지점</b>: 관리팀은 모든 지점 학생을 볼 수 있고, 다른 지점 학생에게는 팔로업·상담기록 추가만 (관리자와 지점 “전체” 계정은 모든 지점 전부) · 화면 시간은 계정 지점 기준 (상해 = 중국, 압구정 = 한국, 전체 = 계정에서 고른 시간)<br>' +
     '계정을 추가할 때 <b>임시 비밀번호</b>를 정해서 직접 전달하세요. 처음 로그인하면 본인 비밀번호로 바꾸도록 안내됩니다. 퇴사자는 “비활성”으로 바꾸면 즉시 로그아웃됩니다.</div>';
   h += '<div class="grid g2"><div class="card"><h3>데이터 백업</h3><div class="muted" style="margin-bottom:10px"><b>기록만</b>: 학생·기록·계약·입금 데이터와 파일 목록 (가벼움). <b>전체</b>: 여기에 <b>업로드한 파일 전체</b>까지 ZIP 하나로 — 파일이 많으면 오래 걸리고 큽니다. 구글 드라이브 자동 백업을 켜두었다면 파일은 “Compass 파일” 폴더에 따로 쌓입니다.</div>' +
@@ -5101,7 +5116,8 @@ function viewTeachers() {
       var cnt = S.allStudents.filter(function (s) { return isActive(s) && (String(s.counselor).toLowerCase() === t.email.toLowerCase() || String(s.manager || '').toLowerCase() === t.email.toLowerCase()); }).length;
       return '<tr class="drag" draggable="true" data-id="' + esc(t.email) + '" data-grp=""><td class="nw gripc"><span class="grip" title="끌어서 순서 바꾸기">⋮⋮</span></td><td><b>' + esc(t.name) + '</b></td><td>' + esc(t.email) + '</td><td class="nw">' + esc(t.branch === ALL_BRANCH ? '전체' : branchOf(t)) + '</td><td>' + esc(ROLE_LABEL[t.role] || t.role) + '</td>' +
         '<td>' + (t.color && t.role !== 'consultant' ? '<span class="swatch" title="색은 각자 My Page에서 고릅니다" style="background:' + esc(t.color) + '"></span>' : '') + (t.active ? '<span class="pill s-진행중">활성</span>' : '<span class="pill s-종료">비활성</span>') + '</td><td>' + cnt + '명</td><td>' + (t.notify !== false ? '받음' : '<span class="muted">안 받음</span>') + '</td>' +
-        '<td><button class="btn ghost sm" onclick="openTeacherForm(' + js(t.email) + ')">수정</button></td></tr>';
+        '<td class="nw"><button class="btn ghost sm" onclick="openTeacherForm(' + js(t.email) + ')">수정</button>' +
+        (S.me.dev && t.active && t.email !== S.me.email ? ' <button class="btn ghost sm" title="개발자: 이 계정 화면으로 들어가기" onclick="devLoginAs(' + js(t.email) + ')">이 계정으로 로그인</button>' : '') + '</td></tr>';
     }).join('') + '</tbody></table></div>';
   return h;
 }
@@ -5152,7 +5168,7 @@ function importFile(input) {
 function openTeacherForm(email) {
   var t = email ? S.teachers.filter(function (x) { return x.email === email; })[0] : { role: 'consultant', active: true };
   var body = fld('이메일 (로그인 아이디)', inp('email', t.email, 'email', email ? ' readonly' : ' required'), false, true) + fld('이름', inp('name', t.name)) +
-    fld('역할', '<select name="role">' + ['consultant', 'staff', 'admin'].map(function (r) {
+    fld('역할', '<select name="role"' + (t.role === 'developer' && !S.me.dev ? ' disabled' : '') + '>' + ['consultant', 'staff', 'admin'].concat(S.me.dev || t.role === 'developer' ? ['developer'] : []).map(function (r) {
       return '<option value="' + r + '"' + (t.role === r ? ' selected' : '') + '>' + ROLE_LABEL[r] + '</option>'; }).join('') + '</select>') +
     fld('상태', '<select name="active"><option value="1"' + (t.active ? ' selected' : '') + '>활성</option><option value="0"' + (!t.active ? ' selected' : '') + '>비활성</option></select>') +
     fld('지점', '<select name="branch" onchange="$(\'tc-tz\').disabled=this.value!==\'전체\'">' + BRANCHES.concat([ALL_BRANCH]).map(function (b) { var cur = t.branch || (isAllBranch() ? BRANCHES[0] : myBranch()); return '<option value="' + esc(b) + '"' + (b === cur ? ' selected' : '') + '>' + esc(b === ALL_BRANCH ? '전체 (지점 구분 없음)' : b) + '</option>'; }).join('') + '</select>' +

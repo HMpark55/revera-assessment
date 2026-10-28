@@ -41,8 +41,12 @@ function client() {
       headers: Object.assign({ 'Content-Type': 'application/json', 'X-Requested-With': 'revera', Cookie: cookie }, headers || {}),
       body: raw !== undefined ? raw : body === undefined ? undefined : JSON.stringify(body),
     });
-    const sc = res.headers.get('set-cookie');
-    if (sc) cookie = sc.split(';')[0];
+    const sc = res.headers.getSetCookie ? res.headers.getSetCookie() : [res.headers.get('set-cookie')].filter(Boolean);
+    if (sc.length) { // 쿠키 여러 개 (로그인 + 개발자 돌아가기)
+      const jar = Object.fromEntries(cookie.split('; ').filter(Boolean).map((c) => [c.split('=')[0], c]));
+      sc.forEach((c) => { const kv = c.split(';')[0], k = kv.split('=')[0]; if (/Max-Age=0\b/.test(c) || kv === k + '=') delete jar[k]; else jar[k] = kv; });
+      cookie = Object.values(jar).join('; ');
+    }
     const buf = Buffer.from(await res.arrayBuffer());
     let data; try { data = JSON.parse(buf.toString()); } catch (e) { data = buf; }
     return { status: res.status, data, headers: res.headers };
@@ -2486,4 +2490,32 @@ test('과목 목록: 커리큘럼별 공식 과목, 같은 이름도 커리큘�
   assert.deepStrictEqual([chem.level, chem.score], ['HL', '6']);
   const staff = await newUser(admin, 'subj-c@revera.test', 'consultant');
   assert.strictEqual((await staff.rpc('fixSubjects', { table: 'scores', group: 'AP', from: 'x', to: 'y' })).status, 403);
+});
+
+test('개발자 역할: 관리자 권한 + 다른 계정으로 로그인·돌아가기, 개발자 계정은 개발자만 정함', async () => {
+  const admin = client(); await admin.login('admin@revera.test', 'admin-pass-1');
+  assert.strictEqual((await admin.rpc('saveTeacher', { email: 'dev@revera.test', name: '개발', role: 'developer', password: 'temp-pass-1' })).status, 403, '관리자는 개발자를 못 만듦');
+  // 처음 개발자는 직접 (실제로는 박현모 계정이 v36 마이그레이션으로 개발자)
+  await admin.ok('saveTeacher', { email: 'dev@revera.test', name: '개발', role: 'admin', password: 'temp-pass-1' });
+  store.db.prepare("UPDATE teachers SET role = 'developer' WHERE email = 'dev@revera.test'").run();
+  const dev = client(); await dev.login('dev@revera.test', 'temp-pass-1');
+  let d = await dev.ok('getAll');
+  assert.deepStrictEqual([d.me.role, d.me.dev], ['admin', true], '화면·권한은 관리자');
+  assert.strictEqual(d.teachers.find((t) => t.email === 'dev@revera.test').role, 'developer');
+  assert.strictEqual((await admin.rpc('saveTeacher', { email: 'dev@revera.test', name: '개발', role: 'staff' })).status, 403, '관리자는 개발자 계정을 못 바꿈');
+  assert.strictEqual((await admin.req('POST', '/api/dev/loginAs', { email: 'remind-a@revera.test' })).status, 403, '관리자는 다른 계정으로 로그인 못 함');
+  // 다른 계정으로
+  let r = await dev.req('POST', '/api/dev/loginAs', { email: 'remind-a@revera.test' });
+  assert.strictEqual(r.status, 200);
+  d = await dev.ok('getAll');
+  assert.strictEqual(d.me.email, 'remind-a@revera.test'); assert.deepStrictEqual(d.devAs, { name: '개발', email: 'dev@revera.test' });
+  // 거기서 또 다른 계정으로 → 돌아가면 개발자
+  r = await dev.req('POST', '/api/dev/loginAs', { email: 'admin@revera.test' });
+  assert.strictEqual(r.status, 200);
+  assert.strictEqual((await dev.ok('getAll')).me.email, 'admin@revera.test');
+  r = await dev.req('POST', '/api/dev/back', {});
+  assert.strictEqual(r.status, 200);
+  d = await dev.ok('getAll');
+  assert.strictEqual(d.me.email, 'dev@revera.test'); assert.ok(!d.devAs);
+  assert.ok(store.db.prepare("SELECT 1 FROM log WHERE email = 'dev@revera.test' AND summary LIKE '%계정으로 로그인%'").get());
 });
