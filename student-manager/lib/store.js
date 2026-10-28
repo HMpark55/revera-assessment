@@ -1241,7 +1241,7 @@ function openStore(dbPath, opts) {
         }
         if (table === 'apps' && 'status' in rec && rec.status !== cur.status) { // 제출완료로 바뀌면 날짜·사람, 준비 단계로 되돌리면 지움
           if (rec.status === '제출완료' && !cur.submittedAt) { rec.submittedAt = t.slice(0, 10); rec.submittedBy = me.email; }
-          if (rec.status === '준비중' || rec.status === '작성중') { rec.submittedAt = ''; rec.submittedBy = ''; }
+          if (rec.status === '준비중' || rec.status === '작성중' || rec.status === '보류') { rec.submittedAt = ''; rec.submittedBy = ''; }
         }
         if (table === 'appinfo' && 'sent' in rec && (rec.sent === 'TRUE') !== (cur.sent === 'TRUE')) {
           rec.sentAt = rec.sent === 'TRUE' ? t : '';

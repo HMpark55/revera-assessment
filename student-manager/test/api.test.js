@@ -2239,3 +2239,18 @@ test('시간대 목록(목록 관리): 추가하면 고를 수 있고, 지점 �
   await admin.ok('removeOption', { id: d.savedId });
   assert.strictEqual((await admin.rpc('updateMe', { viewTz: 'Asia/Dubai' })).status, 400);
 });
+
+test('지원대학 진행 상태 "보류": 제출 전이라 제출일 지우고 원서 관리·마감 알림에는 계속', async () => {
+  const admin = client(); await admin.login('admin@revera.test', 'admin-pass-1');
+  let d = await admin.saveOk('students', { name: '보류 학생' });
+  const sid = d.savedId;
+  const hku = d.universities.find((u) => u.name === 'HKU');
+  d = await admin.saveOk('apps', { studentId: sid, universityId: hku.id, university: 'HKU', status: '작성중', deadline: '2026-11-30', deadlineManual: 'TRUE' });
+  let a = d.apps.find((x) => x.id === d.savedId);
+  d = await admin.saveOk('apps', { id: a.id, updatedAt: a.updatedAt, status: '제출완료' });
+  a = d.apps.find((x) => x.id === a.id);
+  assert.ok(a.submittedAt);
+  d = await admin.saveOk('apps', { id: a.id, updatedAt: a.updatedAt, status: '보류' });
+  a = d.apps.find((x) => x.id === a.id);
+  assert.deepStrictEqual([a.status, a.submittedAt], ['보류', '']);
+});

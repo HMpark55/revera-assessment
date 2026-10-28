@@ -96,6 +96,7 @@
   .pill.a-불합격, .pill.a-철회 { background:#eee; color:#666; }
   .pill.a-제출완료 { background:var(--soft); color:var(--navy); font-weight:bold; }
   .pill.a-대기 { background:#fff4e0; color:#a56200; }
+  .pill.a-보류 { background:#f1f1f4; color:#5b5f6b; border:1px dashed #b5b9c4; }
   .dday { font-weight:bold; white-space:nowrap; }
   .dday.over { color:var(--error); }
   .dday.soon { color:var(--warn); }
@@ -626,7 +627,8 @@ var COUNTRIES = ['한국', '홍콩', '싱가폴', '중국', '미국', '캐나다
 var NOTE_TYPES = ['대면상담', '학부모상담', '전화', '위챗·문자', '수업', '기타'];
 var PLACES = ['상담실', '온라인', '전화'];
 var APP_ROUNDS = ['ED', 'ED2', 'EA', 'REA', 'RD', 'Rolling', 'UCAS', '홍콩 얼리', '수시', '정시', '3년특례', '12년특례', '기타'];
-var APP_STATUS = ['준비중', '작성중', '제출완료', '대기', '합격', '불합격', '철회'];
+/** 원서 진행 상태 — 보류: 준비하다가 마음이 바뀌어 안 낼 수도 있음(아직 제출 전이라 마감 알림은 계속), 대기: 제출 후 결과 기다림 */
+var APP_STATUS = ['준비중', '작성중', '보류', '제출완료', '대기', '합격', '불합격', '철회'];
 var APP_FINAL = ['제출완료', '대기', '합격', '불합격', '철회'];
 var ESSAY_STATUS = ['', '미착수', '브레인스토밍', '초안', '수정중', '완료'];
 var GRADES = ['G9', 'G10', 'G11', 'G12', 'Y10', 'Y11', 'Y12', 'Y13'];
@@ -787,6 +789,7 @@ var FORMS = {
     { k: 'majorChoices', t: 'mchoices', full: 1 },
     { k: 'deadline', l: '마감일', t: 'date' }, { k: 'deadlineManual', l: '마감일', t: 'check', cl: '이 학생만 마감일 직접 지정' },
     { k: 'status', l: '진행 상태', t: 'select', o: APP_STATUS }, { k: 'essay', l: '에세이', t: 'select', o: ESSAY_STATUS },
+    { t: 'note', full: 1, html: '<b>보류</b> = 준비하다가 안 낼 수도 있음 (제출 전이라 마감 알림은 계속) · <b>대기</b> = 제출한 뒤 결과를 기다림 · <b>철회</b> = 내지 않기로 확정 또는 제출 후 취소' },
     { k: 'parentConfirmed', l: '부모님', t: 'check', cl: '부모님 확정 (이 대학·전공으로 지원)' },
     { k: 'memo', l: '메모 (추천서·장학금 등)', t: 'textarea', full: 1 }],
     defaults: function () { return { status: '준비중' }; } },
@@ -3823,7 +3826,7 @@ function viewDeadlines() {
         var cls = !op ? 'done' : n < 0 ? 'late' : n <= 7 ? 'soon' : '';
         var memo = String(a.memo || '');
         return '<tr class="' + cls + '"><td class="nw"><b>' + esc(fmtD(a.deadline)) + '</b> ' + (op ? dday(a.deadline) : '') + '</td>' +
-          '<td><b>' + esc(a.university) + '</b>' + (a.round ? ' <span class="muted">· ' + esc(a.round) + '</span>' : '') + (a.major ? '<div class="muted" style="font-size:.8rem">' + esc(a.major) + '</div>' : '') + mcMore(a) + '</td>' +
+          '<td><b>' + esc(a.university) + '</b>' + (a.status === '보류' ? ' <span class="pill a-보류" title="안 낼 수도 있음 — 마감 전에 낼지 정하기">보류</span>' : '') + (a.round ? ' <span class="muted">· ' + esc(a.round) + '</span>' : '') + (a.major ? '<div class="muted" style="font-size:.8rem">' + esc(a.major) + '</div>' : '') + mcMore(a) + '</td>' +
           '<td class="nw">' + (op || portalAccounts(s.id, a.universityId).length ? portalCell(s, a) : '') + '</td>' +
           '<td class="dl-memo">' + (/\n/.test(memo) ? '<div class="longtxt" style="max-height:4.5em" onclick="openForm(\'apps\',' + js(a.id) + ')" title="눌러서 고치기">' + esc(memo) + '</div>'
             : '<input type="text" value="' + esc(memo) + '" title="메모 — 쓰고 다른 곳을 누르면 저장" onchange="saveAppMemo(' + js(a.id) + ',this.value)">') + '</td>' +
@@ -5123,6 +5126,7 @@ function field(f, rec) {
     return '<div class="full" data-showif="' + esc(f.showIf) + '"' + (on ? '' : ' style="display:none"') + '><label>' + esc(f.l) + '</label>' + inp(f.k, rec[f.k] == null ? '' : rec[f.k], 'text', f.ph ? ' placeholder="' + esc(f.ph) + '"' : '') + '</div>';
   }
   if (f.t === 'review') return reviewField(UI.formTable, rec);
+  if (f.t === 'note') return '<div class="full muted" style="font-size:.8rem;margin-top:-4px">' + f.html + '</div>'; // 입력 칸 아래 짧은 안내 (코드에 쓴 고정 문구)
   if (f.t === 'branch') return fld(f.l, sel('branch', BRANCHES, rec.branch || (rec.id || isAllBranch() ? BRANCHES[0] : myBranch())) +
     '<div class="muted" style="font-size:.78rem;margin-top:3px">다른 지점 관리팀은 이 학생을 보기·팔로업·상담기록 추가만 할 수 있습니다.</div>');
   if (f.t === 'tz') { // 시간을 어느 나라 기준으로 적었는지 (처음엔 내 지점 시간) — 보는 사람 화면에는 그 사람 시간으로 바뀌어 보임
