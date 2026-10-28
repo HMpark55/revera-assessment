@@ -2382,3 +2382,34 @@ test('REVERA A 가져오기: 예전에 시트에서 가져온 상담 기록만 �
   assert.strictEqual(r.data.teachers.find((t) => t.email === 'hm@revera.test').color, '#ffe599');
   assert.strictEqual((await hm.rpc('updateMe', { color: 'red' })).status, 400);
 });
+
+test('REVERA A 결제: 결제 내역 글 → 결제 기록(합계 줄 제외·중복 없음·연도 추정), 회차권 채우기, 직접 추가 검사', async () => {
+  const { parsePayments, parsePackage } = require('../lib/atlas-pay');
+  const p = parsePayments('2026년:\n6/17 ICBC KCY 9,720元 결제완료\n(여름방학 특강 Junior)\n11/23 ICBC KCY 3,000元 선등록금 & 12/23 ICBC KCY 1,100元 => 총 4,100元 결제완료');
+  assert.deepStrictEqual(p.map((x) => [x.date, x.amount, x.method, x.pre]), [['2026-06-17', 9720, 'ICBC KCY', false], ['2026-11-23', 3000, 'ICBC KCY', true], ['2026-12-23', 1100, 'ICBC KCY', false]]);
+  assert.strictEqual(p[0].memo, '여름방학 특강 Junior');
+  assert.strictEqual(parsePayments('9/26 토스 김범준 727,668원(한화) 결제완료', { today: new Date('2026-10-28') })[0].currency, 'KRW');
+  assert.deepStrictEqual([parsePayments('12/1 법인 통장 500元 결제완료', { today: new Date('2026-10-28') })[0].date, parsePayments('12/1 법인 500元 결제완료')[0].method], ['2025-12-01', '법인통장']);
+  assert.deepStrictEqual(parsePackage('김건율 (10회 6,000위안)'), { sessions: 10, price: 6000 });
+
+  const hm = client(); await hm.login('hm@revera.test', 'mine-pass-1');
+  const call = async (fn, arg) => { const r = await hm.req('POST', '/api/atlas/' + fn, { arg }); assert.strictEqual(r.status, 200, fn + ': ' + JSON.stringify(r.data)); return r.data; };
+  const s = await call('save', { table: 'atlas_students', rec: { name: '결제 학생', payment: '2026년:\n9/1 CCB KBJ 6,000元 결제완료' } });
+  const k = await call('save', { table: 'atlas_classes', rec: { name: '결제 반', kind: '정규반', dates: '["9/5","9/12"]' } });
+  const e = await call('save', { table: 'atlas_enroll', rec: { classId: k.id, studentId: s.id, note: '(10회 6,000위안)', payment: '2026년:\n9/1 CCB KBJ 6,000元 결제완료' } });
+  let n = await call('extractPayments', { dryRun: true });
+  assert.ok(n.payments >= 1 && n.packages >= 1);
+  await call('extractPayments', {});
+  let d = await call('getAll');
+  const mine = d.payments.filter((x) => x.studentId === s.id);
+  assert.strictEqual(mine.length, 1, '학생 칸·수강 칸에 같은 결제 → 1건');
+  assert.deepStrictEqual([mine[0].classId, mine[0].amount, mine[0].currency, mine[0].date], [k.id, '6000', 'CNY', '2026-09-01'], '수강 칸에서 나온 것은 그 수업에 연결');
+  const en = d.enroll.find((x) => x.id === e.id);
+  assert.deepStrictEqual([en.sessions, en.unitPrice], ['10', '600']);
+  assert.strictEqual((await call('extractPayments', { dryRun: true })).payments, 0, '다시 해도 그대로');
+  const bad = await hm.req('POST', '/api/atlas/save', { arg: { table: 'atlas_payments', rec: { studentId: s.id, amount: '육천' } } });
+  assert.strictEqual(bad.status, 400);
+  await call('save', { table: 'atlas_payments', rec: { studentId: s.id, date: '2026-10-01', amount: '1,200', currency: 'KRW', method: '토스' } });
+  d = await call('getAll');
+  assert.ok(d.payments.some((x) => x.studentId === s.id && x.amount === '1200' && x.currency === 'KRW'));
+});
