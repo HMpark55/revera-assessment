@@ -96,6 +96,9 @@
   .pill.a-불합격, .pill.a-철회 { background:#eee; color:#666; }
   .pill.a-제출완료 { background:var(--soft); color:var(--navy); font-weight:bold; }
   .pill.a-대기 { background:#fff4e0; color:#a56200; }
+  .tz-res { display:grid; gap:2px; margin-top:4px; max-height:260px; overflow:auto; }
+  .tz-hit { text-align:left; background:var(--soft, #f5f7fb); border:1px solid transparent; border-radius:6px; padding:6px 10px; cursor:pointer; font:inherit; }
+  .tz-hit:hover, .tz-hit:focus-visible { border-color:#9fb3d9; } .tz-hit:disabled { opacity:.55; cursor:default; }
   .pill.a-보류 { background:#f1f1f4; color:#5b5f6b; border:1px dashed #b5b9c4; }
   .dday { font-weight:bold; white-space:nowrap; }
   .dday.over { color:var(--error); }
@@ -3262,24 +3265,68 @@ function viewTzList() {
     }).join('') + '</tbody></table></div>';
   return h;
 }
+/** 시간대 추가 창 검색용: 나라(한국어)·도시·세계 시간대 — 브라우저 목록은 영어·옛 이름(예: 베트남 = Asia/Saigon)이라 한국어로 찾게 */
+var TZ_KO = [
+  ['중국', 'Asia/Shanghai', '상해·베이징·광저우·선전'], ['홍콩', 'Asia/Hong_Kong', '홍콩'], ['마카오', 'Asia/Macau', '마카오'], ['대만', 'Asia/Taipei', '타이베이'],
+  ['한국', 'Asia/Seoul', '서울·부산'], ['일본', 'Asia/Tokyo', '도쿄·오사카'], ['싱가포르', 'Asia/Singapore', '싱가포르'], ['말레이시아', 'Asia/Kuala_Lumpur', '쿠알라룸푸르·조호르바루'],
+  ['베트남', 'Asia/Ho_Chi_Minh', '하노이·호치민·다낭'], ['태국', 'Asia/Bangkok', '방콕·치앙마이'], ['인도네시아', 'Asia/Jakarta', '자카르타'], ['필리핀', 'Asia/Manila', '마닐라·세부'],
+  ['캄보디아', 'Asia/Phnom_Penh', '프놈펜'], ['미얀마', 'Asia/Yangon', '양곤'], ['인도', 'Asia/Kolkata', '뉴델리·뭄바이·벵갈루루'], ['네팔', 'Asia/Kathmandu', '카트만두'],
+  ['몽골', 'Asia/Ulaanbaatar', '울란바토르'], ['카자흐스탄', 'Asia/Almaty', '알마티'], ['아랍에미리트', 'Asia/Dubai', '두바이·아부다비'], ['카타르', 'Asia/Qatar', '도하'],
+  ['사우디아라비아', 'Asia/Riyadh', '리야드'], ['이스라엘', 'Asia/Jerusalem', '예루살렘·텔아비브'], ['러시아 극동', 'Asia/Vladivostok', '블라디보스토크'], ['튀르키예', 'Europe/Istanbul', '이스탄불·앙카라'],
+  ['영국', 'Europe/London', '런던·에든버러·옥스퍼드·케임브리지'], ['아일랜드', 'Europe/Dublin', '더블린'], ['프랑스', 'Europe/Paris', '파리·리옹'], ['독일', 'Europe/Berlin', '베를린·뮌헨·프랑크푸르트'],
+  ['스페인', 'Europe/Madrid', '마드리드·바르셀로나'], ['이탈리아', 'Europe/Rome', '로마·밀라노'], ['네덜란드', 'Europe/Amsterdam', '암스테르담'], ['스위스', 'Europe/Zurich', '취리히·제네바'],
+  ['오스트리아', 'Europe/Vienna', '빈'], ['벨기에', 'Europe/Brussels', '브뤼셀'], ['스웨덴', 'Europe/Stockholm', '스톡홀름'], ['노르웨이', 'Europe/Oslo', '오슬로'],
+  ['덴마크', 'Europe/Copenhagen', '코펜하겐'], ['핀란드', 'Europe/Helsinki', '헬싱키'], ['폴란드', 'Europe/Warsaw', '바르샤바'], ['체코', 'Europe/Prague', '프라하'],
+  ['헝가리', 'Europe/Budapest', '부다페스트'], ['그리스', 'Europe/Athens', '아테네'], ['포르투갈', 'Europe/Lisbon', '리스본'], ['러시아', 'Europe/Moscow', '모스크바'],
+  ['미국 동부', 'America/New_York', '뉴욕·보스턴·워싱턴·필라델피아·애틀랜타·마이애미'], ['미국 중부', 'America/Chicago', '시카고·휴스턴·댈러스'], ['미국 산악', 'America/Denver', '덴버·솔트레이크시티'],
+  ['미국 애리조나', 'America/Phoenix', '피닉스'], ['미국 서부', 'America/Los_Angeles', 'LA·샌프란시스코·시애틀·샌디에이고'], ['알래스카', 'America/Anchorage', '앵커리지'], ['하와이', 'Pacific/Honolulu', '호놀룰루'],
+  ['캐나다 동부', 'America/Toronto', '토론토·몬트리올·오타와'], ['캐나다 서부', 'America/Vancouver', '밴쿠버·빅토리아'], ['캐나다 앨버타', 'America/Edmonton', '캘거리·에드먼턴'], ['캐나다 대서양', 'America/Halifax', '핼리팩스'],
+  ['멕시코', 'America/Mexico_City', '멕시코시티'], ['브라질', 'America/Sao_Paulo', '상파울루·리우데자네이루'], ['아르헨티나', 'America/Argentina/Buenos_Aires', '부에노스아이레스'], ['칠레', 'America/Santiago', '산티아고'],
+  ['페루', 'America/Lima', '리마'], ['콜롬비아', 'America/Bogota', '보고타'], ['호주 동부', 'Australia/Sydney', '시드니·멜버른·캔버라'], ['호주 브리즈번', 'Australia/Brisbane', '브리즈번·골드코스트'],
+  ['호주 서부', 'Australia/Perth', '퍼스'], ['호주 애들레이드', 'Australia/Adelaide', '애들레이드'], ['뉴질랜드', 'Pacific/Auckland', '오클랜드·웰링턴'], ['괌', 'Pacific/Guam', '괌'], ['사이판', 'Pacific/Saipan', '사이판'],
+  ['이집트', 'Africa/Cairo', '카이로'], ['남아프리카공화국', 'Africa/Johannesburg', '요하네스버그·케이프타운'], ['케냐', 'Africa/Nairobi', '나이로비'], ['나이지리아', 'Africa/Lagos', '라고스'], ['모로코', 'Africa/Casablanca', '카사블랑카']];
 function openTzForm(id) {
   var o = id ? (S.options || []).filter(function (x) { return x.id === id; })[0] : {};
-  var zones = []; try { zones = Intl.supportedValuesOf('timeZone'); } catch (e) { /* 오래된 브라우저 — 직접 입력 */ }
   modal(id ? '시간대 수정' : '시간대 추가',
-    fld('이름 (고르는 목록에 보이는 이름)', inp('value', o.value || '', 'text', ' placeholder="예: 프랑스" maxlength="30"'), false, true) +
-    fld('같은 시간을 쓰는 곳 (선택)', inp('fullName', o.fullName || '', 'text', ' placeholder="예: 파리·베를린·로마"')) +
-    (id ? fld('세계 시간대', '<div style="padding:8px 0">' + esc(o.category) + ' <span class="muted">— 이미 이 시간으로 적힌 기록이 있을 수 있어 바꿀 수 없습니다</span></div>', true)
-      : fld('세계 시간대', inp('zone', '', 'text', ' list="dl-tz" placeholder="도시 영어 이름으로 검색 — 예: Paris → Europe/Paris" oninput="tzPreview(this.value)"') + datalist('dl-tz', zones) +
-        '<div class="muted" id="tz-prev" style="font-size:.82rem;margin-top:3px">목록에서 고르면 지금 그곳 시각이 보입니다.</div>', true)),
+    (id ? '' : fld('나라·도시 찾기', '<input type="text" id="tz-q" autocomplete="off" placeholder="한국어나 영어로 — 예: 베트남, 하노이, 두바이, Paris" oninput="tzSearch(this.value)">' +
+        '<div id="tz-res" class="tz-res"></div>' + hidden('zone', '') + '<div class="muted" id="tz-prev" style="font-size:.82rem;margin-top:3px">고르면 아래 이름·도시가 채워지고 지금 그곳 시각이 보입니다.</div>', true)) +
+    fld('이름 (고르는 목록에 보이는 이름)', inp('value', o.value || '', 'text', ' placeholder="예: 베트남" maxlength="30"'), false, true) +
+    fld('같은 시간을 쓰는 곳 (선택)', inp('fullName', o.fullName || '', 'text', ' placeholder="예: 하노이·호치민"')) +
+    (id ? fld('세계 시간대', '<div style="padding:8px 0">' + esc(o.category) + ' <span class="muted">— 이미 이 시간으로 적힌 기록이 있을 수 있어 바꿀 수 없습니다</span></div>', true) : ''),
     '<button class="btn ghost" onclick="closeModal()">취소</button><button class="btn" onclick="submitTz(' + js(id || '') + ')">저장</button>');
+  if (!id) setTimeout(function () { var q = $('tz-q'); if (q) q.focus(); }, 0);
+}
+/** 나라·도시·세계 시간대 이름으로 찾기 — 한국어 목록 먼저, 영어로 찾으면 브라우저의 전체 목록도 */
+function tzSearch(q) {
+  var box = $('tz-res'); if (!box) return;
+  q = String(q || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  if (!q) { box.innerHTML = ''; return; }
+  var have = {}; (S.options || []).forEach(function (o) { if (o.kind === 'tz') have[o.category] = o.value; });
+  var hits = TZ_KO.filter(function (t) { return (t[0] + ' ' + t[2] + ' ' + t[1]).toLowerCase().replace(/_/g, ' ').indexOf(q) >= 0; }).map(function (t) { return { z: t[1], name: t[0], hint: t[2] }; });
+  if (/[a-z]/.test(q)) {
+    var all = []; try { all = Intl.supportedValuesOf('timeZone'); } catch (e) { /* 오래된 브라우저 */ }
+    all.forEach(function (z) { if (z.toLowerCase().replace(/_/g, ' ').indexOf(q) >= 0 && !hits.some(function (h) { return h.z === z; })) hits.push({ z: z, name: '', hint: '' }); });
+  }
+  box.innerHTML = hits.slice(0, 10).map(function (h) {
+    var on = have[h.z];
+    return '<button type="button" class="tz-hit"' + (on ? ' disabled title="이미 “' + esc(on) + '”(으)로 들어 있음"' : '') + ' onclick="tzPick(' + js(h.z) + ',' + js(h.name) + ',' + js(h.hint) + ')">' +
+      '<b>' + esc(h.name || h.z) + '</b> <span class="muted">' + esc((h.hint ? h.hint + ' · ' : '') + (h.name ? h.z + ' · ' : '') + '지금 ' + wallNow(h.z).slice(11, 16)) + (on ? ' · 이미 있음' : '') + '</span></button>';
+  }).join('') || '<div class="muted" style="padding:6px">찾는 곳이 없습니다. 영어 도시 이름(예: Hanoi는 Ho Chi Minh, Kolkata 등)으로도 찾아보세요.</div>';
+}
+function tzPick(z, name, hint) {
+  var f = $('mf'); f.elements.zone.value = z;
+  if (name) f.elements.value.value = name; if (hint) f.elements.fullName.value = hint;
+  $('tz-q').value = (name ? name + ' — ' : '') + z; $('tz-res').innerHTML = '';
+  tzPreview(z);
 }
 function tzPreview(z) {
   var el = $('tz-prev'); if (!el) return;
-  try { el.textContent = '지금 그곳: ' + fmtD(wallNow(z).slice(0, 10)) + ' ' + wallNow(z).slice(11, 16) + ' (내 화면 시간 ' + wallNow(myTZ()).slice(11, 16) + ')'; } catch (e) { el.textContent = '목록에 있는 세계 시간대를 고르세요.'; }
+  try { el.textContent = '고른 시간대: ' + z + ' · 지금 그곳 ' + fmtD(wallNow(z).slice(0, 10)) + ' ' + wallNow(z).slice(11, 16) + ' (내 화면 시간 ' + wallNow(myTZ()).slice(11, 16) + ')'; } catch (e) { el.textContent = '목록에서 고르세요.'; }
 }
 function submitTz(id) {
   var f = formData($('mf')); if (!String(f.value || '').trim()) return toast('이름을 입력하세요.', true);
   var o = id ? (S.options || []).filter(function (x) { return x.id === id; })[0] : null;
+  if (!id && !f.zone) return toast('“나라·도시 찾기”에서 시간대를 고르세요.', true);
   mutate('saveOption', Object.assign({ kind: 'tz', value: f.value.trim(), fullName: f.fullName || '' }, id ? { id: id, sortOrder: o && o.sortOrder } : { zone: (f.zone || '').trim() }), id ? '저장했습니다.' : '시간대를 추가했습니다.');
 }
 function viewOptionList(kind) {
