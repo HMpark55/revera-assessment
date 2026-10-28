@@ -71,7 +71,7 @@ const TABLES = {
   },
   scores: {
     label: '성적',
-    fields: ['studentId', 'kind', 'subject', 'score', 'detail', 'date', 'memo'],
+    fields: ['studentId', 'kind', 'subject', 'level', 'score', 'detail', 'date', 'memo'], // level: IB HL·SL
     summary: (r) => [r.kind, r.subject, r.score].filter(Boolean).join(' '),
   },
   activities: {
@@ -157,7 +157,8 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 /** 관리 페이지에서 고르는 목록 (학교·커리큘럼) → 학생 정보의 해당 칸 */
 /** 달력 자동 표시 항목 (키, 처음 색) — 화면 이름은 원장님 미팅·다음 미팅·지원 마감 */
 const AUTO_CATS = [['sched', '#7c5cc4'], ['nextmeet', '#0b1b45'], ['deadline', '#9ca3af']];
-const OPTION_KINDS = { school: '학교', curriculum: '커리큘럼', site: '사이트', evcat: '일정 분류', track: '트랙', doccat: '서류 분류', pgcat: '대회·프로그램 분류', tz: '시간대' }; // tz: value = 화면 이름, category = 세계 시간대(IANA), fullName = 같은 시간을 쓰는 도시
+const { SUBJECTS, KIND_CATS, LEVEL_CATS } = require('./subjects');
+const OPTION_KINDS = { subject: '과목', school: '학교', curriculum: '커리큘럼', site: '사이트', evcat: '일정 분류', track: '트랙', doccat: '서류 분류', pgcat: '대회·프로그램 분류', tz: '시간대' }; // tz: value = 화면 이름, category = 세계 시간대(IANA), fullName = 같은 시간을 쓰는 도시
 const DEFAULT_PGCATS = ['에세이 대회', '수학·과학 대회', '경시·올림피아드', '리서치', '서머 프로그램', '봉사·활동', '기타'];
 /** 서류 분류 초기값 (목록 관리 › 서류 분류) — 성적·학력 탭 파일과 서류 탭 항목에 씀 */
 const DEFAULT_DOCCATS = ['재학증명서', '성적증명서', '졸업증명서', '어학증빙', '표준화학력(SAT·AP·IB)', '지원자격증빙(출입국·여권 등)', '기타(학사일정표·고교 프로파일 등)'];
@@ -499,6 +500,18 @@ function migrate(db) {
         if (cat !== f.category || memo !== f.memo) db.prepare('UPDATE files SET category = ?, memo = ? WHERE id = ?').run(cat, memo, f.id);
       }
       db.prepare("INSERT INTO meta VALUES ('v17_doccats', ?)").run(ts);
+    })();
+  }
+  // v35: 과목 목록 (목록 관리 › 과목) — 커리큘럼(category)별 공식 과목
+  if (!db.prepare("SELECT 1 FROM meta WHERE key = 'v35_subjects'").get()) {
+    const ts = now();
+    db.transaction(() => {
+      for (const [cat, list] of Object.entries(SUBJECTS)) list.forEach((v, i) => {
+        if (db.prepare("SELECT 1 FROM options WHERE kind = 'subject' AND category = ? AND value = ?").get(cat, v)) return;
+        db.prepare('INSERT INTO options (id, kind, value, sortOrder, category, createdAt, createdBy, updatedAt, updatedBy) VALUES (?,?,?,?,?,?,?,?,?)')
+          .run(crypto.randomUUID(), 'subject', v, String(i + 1), cat, ts, 'system', ts, 'system');
+      });
+      db.prepare("INSERT INTO meta VALUES ('v35_subjects', ?)").run(ts);
     })();
   }
   // v32: 시간대 목록 (목록 관리 › 시간대) — 처음 6개
@@ -1563,10 +1576,14 @@ function openStore(dbPath, opts) {
     if (!OPTION_KINDS[kind]) throw new UserError('알 수 없는 목록입니다.');
     const value = clean(arg.value).trim();
     if (!value) throw new UserError(OPTION_KINDS[kind] + ' 이름을 입력하세요.');
-    const dup = db.prepare('SELECT id FROM options WHERE kind = ? AND value = ?').get(kind, value);
+    // 과목은 커리큘럼마다 따로 (AP Biology · IB Biology)
+    const subjCat = kind === 'subject' ? clean(arg.id ? (db.prepare('SELECT category FROM options WHERE id = ?').get(arg.id) || {}).category : arg.category).trim() : '';
+    if (kind === 'subject' && !SUBJECTS[subjCat]) throw new UserError('커리큘럼을 고르세요.');
+    const dup = kind === 'subject' ? db.prepare('SELECT id FROM options WHERE kind = ? AND category = ? AND value = ?').get(kind, subjCat, value)
+      : db.prepare('SELECT id FROM options WHERE kind = ? AND value = ?').get(kind, value);
     if (dup && dup.id !== arg.id) throw new UserError('이미 있는 ' + OPTION_KINDS[kind] + '입니다.');
     const url = kind === 'site' ? clean(arg.url).trim() : '';
-    let category = kind === 'site' ? clean(arg.category).trim() : '';
+    let category = kind === 'site' ? clean(arg.category).trim() : kind === 'subject' ? subjCat : '';
     if (url) checkUrl(url, '사이트 주소');
     if (kind === 'site' && category && !ACCOUNT_CATS.includes(category)) throw new UserError('분류가 올바르지 않습니다.');
     if (kind === 'tz') { // 세계 시간대는 추가할 때만 정함 (이미 그 시간으로 적힌 기록이 있으니 나중에 바꾸지 않음)
@@ -1603,6 +1620,8 @@ function openStore(dbPath, opts) {
             db.prepare('UPDATE contracts SET packages = ? WHERE id = ?').run([...new Set(list)].join(', '), c.id);
             n++;
           }
+        } else if (cur.value !== value && kind === 'subject') { // 그 커리큘럼으로 입력된 점수·수강 과목만 함께
+          n = renameSubject(cur.category, cur.value, value);
         } else if (cur.value !== value && tbl) {
           n = db.prepare(`UPDATE ${tbl} SET ${col} = ? WHERE ${col} = ?`).run(value, cur.value).changes;
           if (kind === 'school') db.prepare('UPDATE schoolbreaks SET school = ? WHERE school = ?').run(value, cur.value); // 방학도 함께
@@ -1632,6 +1651,29 @@ function openStore(dbPath, opts) {
     db.prepare('UPDATE options SET color = ?, category = ?, updatedAt = ?, updatedBy = ? WHERE id = ?').run(color, hidden ? 'off' : '', now(), me.email, cur.id);
     log(me.email, 'update', 'options', cur.id, '달력 자동 표시 ' + cur.value + ' — 색 ' + color + (hidden ? ', 숨김' : ''));
     return getAll(me);
+  }
+  /** 커리큘럼(목록 분류)의 과목 이름 바꾸기 → 점수(종류)·수강 과목(레벨)에서 그 과목 */
+  function renameSubject(cat, from, to) {
+    const kinds = Object.keys(KIND_CATS).filter((k) => KIND_CATS[k].includes(cat)), levels = Object.keys(LEVEL_CATS).filter((k) => LEVEL_CATS[k].includes(cat));
+    const ph = (a) => a.map(() => '?').join(',') || "''";
+    return db.prepare(`UPDATE scores SET subject = ? WHERE subject = ? AND kind IN (${ph(kinds)})`).run(to, from, ...kinds).changes +
+      db.prepare(`UPDATE courses SET subject = ? WHERE subject = ? AND level IN (${ph(levels)})`).run(to, from, ...levels).changes;
+  }
+  /** 과목 정리: 목록에 없는 과목 글(예: Calc BC)을 목록 과목으로 한꺼번에 — table: scores·courses, group: 종류·레벨 */
+  function fixSubjects(me, arg) {
+    requireManager(me, '과목 정리');
+    arg = arg || {};
+    const table = arg.table === 'courses' ? 'courses' : arg.table === 'scores' ? 'scores' : '';
+    if (!table) throw new UserError('알 수 없는 항목입니다.');
+    const col = table === 'scores' ? 'kind' : 'level', group = clean(arg.group).trim(), from = clean(arg.from), to = clean(arg.to).trim();
+    if (!to) throw new UserError('바꿀 과목을 고르세요.');
+    const set = ['subject = ?'], vals = [to];
+    if (table === 'scores' && arg.level !== undefined) { set.push('level = ?'); vals.push(['HL', 'SL'].includes(arg.level) ? arg.level : ''); }
+    const t = now();
+    const n = db.prepare(`UPDATE ${table} SET ${set.join(', ')}, updatedAt = ?, updatedBy = ? WHERE subject = ? AND ${col} = ? AND (deletedAt = '' OR deletedAt IS NULL)`)
+      .run(...vals, t, me.email, from, group).changes;
+    log(me.email, 'update', table, '', '과목 정리: ' + group + ' “' + from + '” → “' + to + '”' + (arg.level ? ' ' + arg.level : '') + ' (' + n + '건)');
+    return Object.assign(getAll(me), { fixed: n });
   }
   function removeOption(me, arg) {
     requireManager(me, '목록 관리');
@@ -2750,7 +2792,7 @@ function openStore(dbPath, opts) {
     db, filesDir, dbPath, listFiles, pendingSync, markSync, replaceSchedule, restoreFromDb, countTeachers, upsertAdmin, login, logout, authenticate, addFile, getFile, addUniFile, getUniFile,
     rpc: { getAll: (me) => getAll(me), save, remove, restore, purge, getTrash, getLog, saveTeacher, changePassword, importData, copyCycle, getActivity, saveMany, updateMe,
       saveOption, removeOption, deleteTeacher, getAutomation, saveAutomation, saveEvent, removeEvent,
-      saveWithFollowups, requestFollowup, saveOrder, saveUniFile, removeUniFile, saveProgram, removeProgram, getStorage, retrySync, saveHomeLayout, saveStudentCols, saveBreak, removeBreak, requestReview, doneReview, cancelReview, excludeSched, unexcludeSched, saveAutoCat, getNotices, noticeAct, removeMany, restoreMany, purgeMany, addFollowupMany, addMajorsMany, renameFaculty },
+      saveWithFollowups, requestFollowup, saveOrder, saveUniFile, removeUniFile, saveProgram, removeProgram, getStorage, retrySync, saveHomeLayout, saveStudentCols, saveBreak, removeBreak, requestReview, doneReview, cancelReview, excludeSched, unexcludeSched, saveAutoCat, getNotices, noticeAct, fixSubjects, removeMany, restoreMany, purgeMany, addFollowupMany, addMajorsMany, renameFaculty },
     backup, getConfig, getMeta, recordRun, listTeachers, close: () => db.close(),
   };
 }

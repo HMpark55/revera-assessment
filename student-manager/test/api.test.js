@@ -2453,3 +2453,37 @@ test('리마인드 알림: 알림 시각이 되면 담당자(+추가로 고른 �
   na = await a.ok('noticeAct', { act: 'readAll' });
   assert.ok(na.notices.every((n) => n.readAt));
 });
+
+test('과목 목록: 커리큘럼별 공식 과목, 같은 이름도 커리큘럼마다 따로, 이름을 바꾸면 그 커리큘럼 기록만, 목록에 없는 과목 정리', async () => {
+  const admin = client(); await admin.login('admin@revera.test', 'admin-pass-1');
+  let d = await admin.ok('getAll');
+  const subj = (cat) => d.options.filter((o) => o.kind === 'subject' && o.category === cat).map((o) => o.value);
+  assert.ok(subj('AP').includes('Calculus BC') && subj('AP').length >= 40);
+  assert.ok(subj('IB').includes('Mathematics: Analysis and Approaches'));
+  assert.ok(subj('IGCSE (Cambridge)').includes('Mathematics - Additional') && subj('IGCSE (Edexcel)').includes('Further Pure Mathematics'));
+  assert.ok(subj('A-Level (Cambridge)').includes('Further Mathematics') && subj('A-Level (Edexcel)').includes('Pure Mathematics'));
+  assert.strictEqual(subj('MYP').length, 10);
+  assert.strictEqual((await admin.rpc('saveOption', { kind: 'subject', value: 'Biology' })).status, 400, '커리큘럼 필수');
+  assert.strictEqual((await admin.rpc('saveOption', { kind: 'subject', category: 'AP', value: 'Biology' })).status, 400, '같은 커리큘럼 중복');
+  d = await admin.saveOk('students', { name: '과목 학생' });
+  const sid = d.savedId;
+  await admin.saveOk('scores', { studentId: sid, kind: 'AP', subject: 'Biology', score: '5' });
+  await admin.saveOk('scores', { studentId: sid, kind: 'IB', subject: 'Biology', level: 'HL', score: '7' });
+  await admin.saveOk('courses', { studentId: sid, grade: 'G11', subject: 'Biology', level: 'AP' });
+  d = await admin.ok('getAll');
+  const apBio = d.options.find((o) => o.kind === 'subject' && o.category === 'AP' && o.value === 'Biology');
+  d = await admin.ok('saveOption', { id: apBio.id, kind: 'subject', value: 'Biology (AP)' });
+  const mine = (t) => d[t].filter((r) => r.studentId === sid).map((r) => r.subject).sort();
+  assert.deepStrictEqual(mine('scores'), ['Biology', 'Biology (AP)'], 'IB 생물은 그대로');
+  assert.deepStrictEqual(mine('courses'), ['Biology (AP)']);
+  // 정리: 자유 입력 "Calc BC" → Calculus BC, IB "Chem HL" → Chemistry + HL
+  await admin.saveOk('scores', { studentId: sid, kind: 'AP', subject: 'Calc BC', score: '5' });
+  await admin.saveOk('scores', { studentId: sid, kind: 'IB', subject: 'Chem HL', score: '6' });
+  d = await admin.ok('fixSubjects', { table: 'scores', group: 'AP', from: 'Calc BC', to: 'Calculus BC' });
+  assert.strictEqual(d.fixed, 1);
+  d = await admin.ok('fixSubjects', { table: 'scores', group: 'IB', from: 'Chem HL', to: 'Chemistry', level: 'HL' });
+  const chem = d.scores.find((r) => r.studentId === sid && r.subject === 'Chemistry');
+  assert.deepStrictEqual([chem.level, chem.score], ['HL', '6']);
+  const staff = await newUser(admin, 'subj-c@revera.test', 'consultant');
+  assert.strictEqual((await staff.rpc('fixSubjects', { table: 'scores', group: 'AP', from: 'x', to: 'y' })).status, 403);
+});
