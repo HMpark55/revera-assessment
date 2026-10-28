@@ -359,6 +359,31 @@
   .lb-nav { position:absolute; top:50%; transform:translateY(-50%); background:rgba(255,255,255,.15); color:#fff; border:0; border-radius:50%; width:44px; height:44px; font-size:1.1rem; cursor:pointer; }
   .lb-nav.prev { left:16px; } .lb-nav.next { right:16px; }
   .swatches { display:flex; gap:6px; flex-wrap:wrap; }
+  /* 알림: 🔔 알림함 · 오른쪽 아래 카드 · 오늘 챙길 일 */
+  .bell { position:relative; margin-right:8px; } .bell .hbtn { position:relative; font-size:.95rem; padding:4px 10px; }
+  .bell .hbtn b { position:absolute; top:-6px; right:-6px; background:#d9534f; color:#fff; border-radius:9px; font-size:.68rem; padding:1px 5px; }
+  .bell-box { display:none; position:absolute; right:0; top:38px; width:380px; max-width:92vw; background:#fff; color:#222; border:1px solid var(--border); border-radius:10px; box-shadow:0 14px 34px rgba(0,0,0,.2); z-index:60; font-size:.85rem; }
+  .bell.open .bell-box { display:block; }
+  .bell-box .hh { display:flex; gap:10px; align-items:center; padding:10px 14px; border-bottom:1px solid #eceef2; font-weight:bold; color:var(--navy); }
+  .bell-box .hh a { font-weight:normal; font-size:.78rem; cursor:pointer; } .bell-box .hh a:first-of-type { margin-left:auto; }
+  .bell-box .lst { max-height:60vh; overflow:auto; }
+  .bell-box .it { padding:9px 14px; border-bottom:1px solid #f1f2f4; display:flex; gap:10px; cursor:pointer; } .bell-box .it:hover { background:#f6f7fa; }
+  .bell-box .it.new { background:#fffbea; } .bell-box .it .ic { font-size:1.05rem; } .bell-box .it .tm { color:#9ca3af; font-size:.75rem; }
+  .bell-box .ft { padding:8px 14px; font-size:.78rem; color:var(--muted); }
+  .rm-stack { position:fixed; right:20px; bottom:20px; z-index:70; display:flex; flex-direction:column; gap:10px; width:360px; max-width:calc(100vw - 32px); }
+  .rm-card { background:#fff; border:1px solid var(--border); border-left:5px solid var(--gold); border-radius:10px; box-shadow:0 10px 30px rgba(11,27,69,.22); padding:12px 14px; font-size:.88rem; }
+  .rm-card.late { border-left-color:#d9534f; } .rm-card.rv { border-left-color:#7c5cc4; }
+  .rm-card .t { display:flex; gap:6px; align-items:center; color:var(--muted); font-size:.78rem; margin-bottom:4px; } .rm-card .t b { color:#b45309; } .rm-card.late .t b { color:#b42318; } .rm-card.rv .t b { color:#6d28d9; }
+  .rm-card .t .x { margin-left:auto; cursor:pointer; color:#9ca3af; border:0; background:none; font-size:.9rem; }
+  .rm-card .m { font-weight:bold; color:var(--navy); margin-bottom:2px; } .rm-card .d { color:#374151; margin-bottom:10px; white-space:pre-wrap; max-height:3.9em; overflow:hidden; }
+  .rm-card .a { display:flex; gap:6px; flex-wrap:wrap; }
+  .rm-sec { margin-bottom:12px; } .rm-sec h4 { margin:0 0 6px; font-size:.86rem; color:var(--navy); }
+  .rm-sec h4 i { font-style:normal; background:#eef0f5; border-radius:10px; padding:0 7px; font-size:.75rem; color:#374151; margin-left:4px; } .rm-sec h4 i.r { background:#fdecea; color:#b42318; }
+  .rm-row { display:flex; gap:8px; align-items:center; padding:6px 8px; border:1px solid #eceef2; border-radius:6px; margin-bottom:4px; font-size:.85rem; cursor:pointer; } .rm-row:hover { background:#f6f7fa; }
+  .rm-row .who { font-weight:bold; color:var(--navy); min-width:80px; } .rm-row .w { flex:1; color:#374151; } .rm-row .due { color:var(--muted); font-size:.78rem; white-space:nowrap; }
+  .rmf { border:1px solid #eadfb8; background:#fffcf0; border-radius:8px; padding:8px 10px; }
+  .rmf .row { display:flex; gap:6px; align-items:center; flex-wrap:wrap; } .rmf input[type=date], .rmf input[type=time] { width:auto; }
+  .rmf details { margin-top:6px; font-size:.82rem; } .rmf details label { display:inline-flex; gap:4px; align-items:center; margin:2px 10px 2px 0; color:#222; font-weight:normal; }
   .swatches label { cursor:pointer; } .swatches input { display:none; }
   .swatches .sw-pick { display:inline-flex; align-items:center; gap:4px; }
   .swatches .sw-pick input[type=color] { display:inline-block; width:30px; height:26px; padding:0; border:1px solid #c8cfdc; border-radius:6px; background:none; cursor:pointer; }
@@ -599,6 +624,7 @@
     <div class="gsearch" id="gs" style="display:none"><input type="search" id="gq" placeholder="🔍" aria-label="검색" autocomplete="off"
       oninput="gsearch()" onfocus="gsearch()" onkeydown="gsKey(event)"><div id="gsr" class="gsr"></div></div>
     <button class="hbtn" id="rf" style="display:none" onclick="location.reload()" title="화면을 새로 불러오기 (새 버전이 배포됐으면 함께 적용)">↻ 새로고침</button>
+    <div class="bell" id="bell" style="display:none"><button type="button" class="hbtn" onclick="toggleBell(event)" title="알림">🔔<b id="bell-n" style="display:none"></b></button><div class="bell-box" id="bell-box"></div></div>
     <div class="um" id="who" style="display:none"><button type="button" class="um-btn" onclick="this.parentNode.classList.toggle('open')"><span class="av" id="um-av"></span><span id="whoami"></span> ▾</button>
       <div class="um-menu"><div class="um-box"><div class="um-h" id="um-h"></div>
         <a href="#/me">MY PAGE</a><a onclick="logout()">LOG OUT</a></div></div></div>
@@ -750,14 +776,14 @@ var FORMS = {
     { k: 'detail', l: '받은 내용', t: 'textarea', full: 1, big: 1, req: 1 },
     { t: 'shots', full: 1 },
     { k: 'need', l: '답이 필요한가요?', t: 'need', full: 1 },
-    { k: 'due', l: '언제까지 답할지 (정해졌으면)', t: 'date' }, { t: 'replies', full: 1 }, { t: 'review', full: 1 }],
+    { k: 'due', l: '언제까지 답할지 (정해졌으면)', t: 'date' }, { t: 'remind', full: 1 }, { t: 'replies', full: 1 }, { t: 'review', full: 1 }],
     defaults: function () { return { kind: 'contact', fromWho: '어머님', channel: '위챗', receivedDate: today(), assignee: S.me.email, status: '할 일' }; } },
   progress: { table: 'students', title: '현재 진행 상황', noDelete: 1, fields: [
     { k: 'progress', l: '지금 이 학생은 무엇을 하고 있나요? (누가 봐도 바로 알 수 있게 짧게)', t: 'textarea', full: 1,
       ph: '예: HKU 심리학 PS 2차 수정 중 / 추천서 3명 확정 / 출입국사실증명서 수합 대기' }] },
   followups: { title: '팔로업', fields: [
     { k: 'title', l: '할 일', req: 1, full: 1, ph: '예: HKU Personal Statement 2차 피드백 전달' },
-    { k: 'assignee', l: '담당자', t: 'teacher' }, { k: 'due', l: '기한', t: 'date' },
+    { k: 'assignee', l: '담당자', t: 'teacher' }, { k: 'due', l: '기한', t: 'date' }, { t: 'remind', full: 1 },
     { k: 'detail', l: '세부 내용 / 학생에게 보낸 메시지', t: 'textarea', full: 1 }, { t: 'replies', full: 1 }],
     defaults: function () { return { status: '할 일', assignee: S.me.email }; } },
   notes: { title: '상담 기록', fields: [
@@ -945,7 +971,7 @@ function load(data) {
 var refreshRetry = 0, refreshTimer = null;
 function refresh(manual) {
   clearTimeout(refreshTimer);
-  return api('getAll').then(function (d) { load(d); refreshRetry = 0; if (!checkAtlas.done) { checkAtlas.done = 1; checkAtlas(); } if (manual) toast('최신 데이터로 새로고침했습니다.'); })
+  return api('getAll').then(function (d) { load(d); refreshRetry = 0; if (!checkAtlas.done) { checkAtlas.done = 1; checkAtlas(); } startNotices(); if (manual) toast('최신 데이터로 새로고침했습니다.'); })
     .catch(function (e) {
       if (e.needLogin) return;
       // 연결이 잠깐 끊긴 것: 보던 화면은 그대로 두고 3초·6초·12초 뒤 다시 받아옴
@@ -991,6 +1017,139 @@ function doLogin(ev) {
     .then(function () { clearSession(); location.reload(); })
     .catch(function (e) { $('lg-msg').textContent = errMsg(e); $('lg-pw').value = ''; $('lg-pw').focus(); });
 }
+/* ============================== 알림 (리마인드) ==============================
+ * ⑤ 팔로업·받은 연락에 알림 시각 + 받는 사람(기본 담당자, 더 추가 가능)
+ * ① 알림 시각이 되면 오른쪽 아래 카드 (✓완료 / 10분 뒤 / 1시간 뒤 / 내일 / 열기)
+ * ⑥ 다른 창을 보고 있으면 대신 PC 알림 (처음 한 번 허용 필요)
+ * ③ 🔔 알림함 (확인 요청·넘겨받은 팔로업 포함)   ② 로그인하면 “오늘 챙길 일” 요약
+ * Compass 탭이 열려 있을 때만 확인함 (1분마다) */
+var NOTI = { notices: [], now: '' }, notiTimer = null;
+function remindField(rec) {
+  var w = rec.remindAt ? shiftWall(rec.remindAt, SERVER_TZ, myTZ()) : '', to = String(rec.remindTo || '@assignee').split(',').filter(Boolean);
+  var others = S.teachers.filter(function (t) { return t.active && t.email !== S.me.email || to.indexOf(t.email) >= 0; });
+  var mine = to.indexOf(S.me.email) >= 0;
+  return '<div class="full"><label>⏰ 알림 <span class="muted" style="font-weight:normal">(비워두면 알림 없음)</span></label><div class="rmf">' +
+    '<div class="row"><input type="date" id="rm-d" value="' + esc(w.slice(0, 10)) + '"><input type="time" id="rm-t" value="' + esc(w.slice(11, 16)) + '">' +
+    '<button type="button" class="btn ghost sm" onclick="rmQuick(60)">1시간 뒤</button><button type="button" class="btn ghost sm" onclick="rmQuick(\'17\')">오늘 오후 5시</button><button type="button" class="btn ghost sm" onclick="rmQuick(\'t9\')">내일 아침 9시</button>' +
+    '<button type="button" class="btn ghost sm" onclick="$(\'rm-d\').value=\'\';$(\'rm-t\').value=\'\'">지우기</button></div>' +
+    '<div style="margin-top:6px;font-size:.82rem;color:#222"><label style="display:inline-flex;gap:4px;align-items:center;font-weight:normal;color:#222;margin:0 10px 0 0"><input type="checkbox" name="rmTo" data-multi="1" value="@assignee"' + (to.indexOf('@assignee') >= 0 ? ' checked' : '') + '> 담당자</label>' +
+    '<label style="display:inline-flex;gap:4px;align-items:center;font-weight:normal;color:#222;margin:0"><input type="checkbox" name="rmTo" data-multi="1" value="' + esc(S.me.email) + '"' + (mine ? ' checked' : '') + '> 나</label></div>' +
+    '<details' + (to.some(function (x) { return x !== '@assignee' && x !== S.me.email; }) ? ' open' : '') + '><summary>다른 선생님도 받기</summary>' + others.filter(function (t) { return t.email !== S.me.email; }).map(function (t) {
+      return '<label><input type="checkbox" name="rmTo" data-multi="1" value="' + esc(t.email) + '"' + (to.indexOf(t.email) >= 0 ? ' checked' : '') + '> ' + esc(t.name) + '</label>';
+    }).join('') + '</details>' +
+    '<div class="muted" style="font-size:.76rem;margin-top:4px">정한 시각에 Compass가 열려 있으면 알림이 뜹니다 (닫혀 있었으면 다음에 열 때). 담당자를 바꾸면 알림도 새 담당자에게 갑니다.</div></div></div>';
+}
+function rmQuick(k) {
+  var w = wallNow(myTZ()), d = w.slice(0, 10), t;
+  if (k === 60) { w = wallNow(myTZ(), Date.now() + 3600000); d = w.slice(0, 10); t = w.slice(11, 16); }
+  else if (k === '17') t = '17:00';
+  else { d = wallNow(myTZ(), Date.now() + 86400000).slice(0, 10); t = '09:00'; }
+  $('rm-d').value = d; $('rm-t').value = t;
+}
+function startNotices() {
+  if (notiTimer || !S.me || S.me.mustChangePassword) return;
+  $('bell').style.display = '';
+  pollNotices(); notiTimer = setInterval(pollNotices, 60000);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) pollNotices(); });
+  setTimeout(function () { todaySummary(false); }, 600);
+}
+function pollNotices() { return api('getNotices').then(function (d) { NOTI = d; renderNotices(); }).catch(function () {}); }
+function noticeAct(id, act, until) { return api('noticeAct', { id: id, act: act, until: until }).then(function (d) { NOTI = d; renderNotices(); }).catch(function (e) { toast(errMsg(e), true); }); }
+function noticeStudent(n) { return n.studentId ? (S.allStudents.filter(function (s) { return s.id === n.studentId; })[0] || {}).name || '' : ''; }
+function noticeActive(n) { return !n.closedAt && (!n.snoozeUntil || n.snoozeUntil <= NOTI.now) && (n.kind === 'remind' || !n.readAt); }
+var NOTI_ICON = { remind: '⏰', review: '👀', handover: '📩' };
+function noticeLabel(n) {
+  var from = n.fromEmail ? teacherName(n.fromEmail) || n.fromEmail : '';
+  return n.kind === 'remind' ? '알림' : n.kind === 'review' ? from + ' 님의 확인 요청' : from + ' 님이 넘겨줌';
+}
+function renderNotices() {
+  var unread = (NOTI.notices || []).filter(function (n) { return !n.readAt; }).length;
+  var nb = $('bell-n'); if (nb) { nb.textContent = unread; nb.style.display = unread ? '' : 'none'; }
+  document.title = (unread ? '(' + unread + ') ' : '') + 'REVERA Compass';
+  if ($('bell').classList.contains('open')) renderBell();
+  var act = (NOTI.notices || []).filter(noticeActive).slice(0, 4);
+  var box = $('rm-stack'); if (!box) { box = document.createElement('div'); box.id = 'rm-stack'; box.className = 'rm-stack'; document.body.appendChild(box); }
+  box.innerHTML = act.map(function (n) {
+    var f = n.refTable === 'followups' ? findRow('followups', n.refId) : null, late = f && f.due && f.due < today();
+    var ft = fmtTime(n.at), when = ft.slice(0, 10) === today() ? ft.slice(11) : fmtD(ft.slice(0, 10)) + ' ' + ft.slice(11);
+    return '<div class="rm-card' + (n.kind === 'remind' ? (late ? ' late' : '') : ' rv') + '"><div class="t">' + NOTI_ICON[n.kind] + ' <b>' + esc(n.kind === 'remind' ? when + ' 알림' + (late ? ' · 기한 지남' : '') : noticeLabel(n)) + '</b>' +
+      (f && f.kind === 'contact' ? '· 받은 연락' : '· 팔로업') + '<button class="x" title="닫기" onclick="noticeAct(' + js(n.id) + ',\'close\')">✕</button></div>' +
+      '<div class="m">' + esc((noticeStudent(n) ? noticeStudent(n) + ' — ' : '') + n.title) + '</div>' +
+      '<div class="d">' + esc(n.kind === 'remind' ? [f && f.due ? '기한 ' + fmtD(f.due) : '', f && f.assignee ? '담당 ' + (teacherName(f.assignee) || '') : ''].filter(Boolean).join(' · ') : n.body || '') + '</div>' +
+      '<div class="a">' + (n.kind === 'remind' && f && f.status !== '완료' ? '<button class="btn sm" onclick="noticeDone(' + js(n.id) + ')">✓ 완료</button>' +
+        '<button class="btn ghost sm" onclick="noticeSnooze(' + js(n.id) + ',10)">10분 뒤</button><button class="btn ghost sm" onclick="noticeSnooze(' + js(n.id) + ',60)">1시간 뒤</button><button class="btn ghost sm" onclick="noticeSnooze(' + js(n.id) + ',\'t9\')">내일</button>' : '') +
+      '<button class="btn ghost sm" onclick="noticeOpen(' + js(n.id) + ')">열기</button></div></div>';
+  }).join('');
+  pcNotify(act);
+}
+/** ⑥ 다른 창을 보고 있을 때만, 같은 알림은 한 번만 */
+function pcNotify(act) {
+  if (!document.hidden || !('Notification' in window) || Notification.permission !== 'granted') return;
+  var seen; try { seen = JSON.parse(localStorage.getItem(prefKey('pcNoti')) || '[]'); } catch (e) { seen = []; }
+  act.forEach(function (n) {
+    var k = n.id + '|' + (n.snoozeUntil || ''); if (seen.indexOf(k) >= 0) return;
+    seen.push(k);
+    try { var x = new Notification(NOTI_ICON[n.kind] + ' ' + (noticeStudent(n) ? noticeStudent(n) + ' — ' : '') + (n.kind === 'remind' ? '팔로업 알림' : noticeLabel(n)), { body: n.title, tag: n.id });
+      x.onclick = function () { window.focus(); x.close(); }; } catch (e) {}
+  });
+  try { localStorage.setItem(prefKey('pcNoti'), JSON.stringify(seen.slice(-200))); } catch (e) {}
+}
+function pcAllow() { if ('Notification' in window) Notification.requestPermission().then(function () { renderBell(); toast(Notification.permission === 'granted' ? 'PC 알림을 켰습니다.' : 'PC 알림이 꺼져 있습니다. 브라우저 주소창 왼쪽 자물쇠에서 알림을 허용하세요.', Notification.permission !== 'granted'); }); }
+function noticeOpen(id) {
+  var n = (NOTI.notices || []).filter(function (x) { return x.id === id; })[0]; if (!n) return;
+  $('bell').classList.remove('open');
+  if (!n.readAt) noticeAct(id, 'read');
+  if (n.kind !== 'remind') noticeAct(id, 'close');
+  if (n.refTable && findRow(n.refTable, n.refId)) openRef(n.refTable, n.refId); else if (n.studentId) openStudent(n.studentId, 'followups');
+}
+function noticeSnooze(id, k) {
+  var ms = k === 't9' ? null : Date.now() + k * 60000, w;
+  if (ms) w = wallNow(SERVER_TZ, ms); else w = shiftWall(wallNow(myTZ(), Date.now() + 86400000).slice(0, 10) + 'T09:00', myTZ(), SERVER_TZ);
+  noticeAct(id, 'snooze', w.slice(0, 16)).then(function () { toast(k === 't9' ? '내일 아침 9시에 다시 알려드립니다.' : k + '분 뒤에 다시 알려드립니다.'); });
+}
+function noticeDone(id) {
+  var n = (NOTI.notices || []).filter(function (x) { return x.id === id; })[0], f = n && findRow('followups', n.refId); if (!f) return;
+  mutate('save', { table: 'followups', obj: { id: f.id, updatedAt: f.updatedAt, status: '완료' } }, '완료로 표시했습니다.').then(function () { pollNotices(); });
+}
+function toggleBell(e) { e.stopPropagation(); var b = $('bell'); b.classList.toggle('open'); if (b.classList.contains('open')) renderBell(); }
+document.addEventListener('click', function (e) { var b = $('bell'); if (b && b.classList.contains('open') && !b.contains(e.target)) b.classList.remove('open'); });
+function renderBell() {
+  var l = NOTI.notices || [], now = wallMs(NOTI.now || wallNow(SERVER_TZ));
+  var ago = function (at) { var m = Math.round((now - wallMs(at)) / 60000); return m < 1 ? '방금' : m < 60 ? m + '분 전' : m < 1440 ? Math.floor(m / 60) + '시간 전' : fmtTime(at).slice(5, 10); };
+  $('bell-box').innerHTML = '<div class="hh">알림<a onclick="todaySummary(true)">오늘 요약</a><a onclick="noticeAct(\'\',\'readAll\')">모두 읽음</a></div><div class="lst">' +
+    (l.length ? l.map(function (n) {
+      return '<div class="it' + (n.readAt ? '' : ' new') + '" onclick="noticeOpen(' + js(n.id) + ')"><span class="ic">' + NOTI_ICON[n.kind] + '</span><div><b>' + esc(noticeStudent(n)) + '</b> ' + esc(n.title) +
+        '<div class="tm">' + esc(ago(n.at) + ' · ' + noticeLabel(n)) + (n.snoozeUntil && n.snoozeUntil > NOTI.now ? ' · ' + esc(fmtTime(n.snoozeUntil).slice(5)) + '까지 미룸' : '') + '</div></div></div>';
+    }).join('') : '<div class="ft">최근 30일 알림이 없습니다.</div>') + '</div>' +
+    ('Notification' in window && Notification.permission !== 'granted' ? '<div class="ft">다른 창을 보고 있을 때도 알림을 받으려면 <a style="cursor:pointer" onclick="pcAllow()">PC 알림 켜기</a></div>' : '');
+}
+/** ② 오늘 챙길 일 — 로그인 후 한 번 (오늘 다시 보지 않기 가능), 🔔 › 오늘 요약 으로 언제든 */
+function todaySummary(force) {
+  if (!force) { try { if (sessionStorage.getItem(prefKey('sumShown')) || localStorage.getItem(prefKey('sumDay')) === today()) return; } catch (e) {} }
+  var td = today(), wk = wallNow(myTZ(), Date.now() + 7 * 86400000).slice(0, 10), me = S.me.email;
+  var fu = S.followups.filter(function (f) { return f.assignee === me && f.status !== '완료' && studentById(f.studentId); });
+  var late = fu.filter(function (f) { return f.due && f.due < td; }).sort(function (a, b) { return a.due < b.due ? -1 : 1; });
+  var todayFu = fu.filter(function (f) { return f.due === td || (f.remindAt && shiftWall(f.remindAt, SERVER_TZ, myTZ()).slice(0, 10) === td && !(f.due && f.due < td)); });
+  var rv = myReviews();
+  var meet = (S.meetings || []).filter(function (m) { return m.date === td && m.status !== '취소' && studentById(m.studentId) && (isMine(studentById(m.studentId)) || m.writer === me); });
+  var dl = (S.apps || []).filter(function (a) { var s = studentById(a.studentId); return s && isMine(s) && a.deadline && a.deadline >= td && a.deadline <= wk && !a.submittedAt && ['보류', '철회', '합격', '불합격'].indexOf(a.status) < 0; })
+    .sort(function (a, b) { return a.deadline < b.deadline ? -1 : 1; });
+  var n = late.length + todayFu.length + rv.length + meet.length + dl.length;
+  try { sessionStorage.setItem(prefKey('sumShown'), '1'); } catch (e) {}
+  if (!n && !force) return;
+  var row = function (sid, what, due, onclick) { var s = studentById(sid) || {}; return '<div class="rm-row" onclick="closeModal(true);' + onclick + '"><span class="who">' + esc(s.name || '') + '</span><span class="w">' + esc(what) + '</span><span class="due">' + esc(due || '') + '</span></div>'; };
+  var fuRow = function (f) { return row(f.studentId, f.title, f.due === td ? (f.remindAt ? '⏰ ' + shiftWall(f.remindAt, SERVER_TZ, myTZ()).slice(11) : '오늘') : fmtD(f.due), 'openRef(\'followups\',' + js(f.id) + ')'); };
+  var sec = function (t, l, red, f) { return l.length ? '<div class="rm-sec"><h4>' + t + '<i' + (red ? ' class="r"' : '') + '>' + l.length + '</i></h4>' + l.slice(0, 8).map(f).join('') + (l.length > 8 ? '<div class="muted" style="font-size:.78rem">외 ' + (l.length - 8) + '건</div>' : '') + '</div>' : ''; };
+  modal('오늘 챙길 일 · ' + fmtD(td),
+    '<div class="full">' + (n ? sec('⚠ 기한 지난 팔로업', late, true, fuRow) + sec('📌 오늘 할 일', todayFu, false, fuRow) +
+      sec('👀 나에게 온 확인 요청', rv, false, function (r) { return row(r.studentId, reviewRef(r).label + (r.note ? ' — ' + r.note : ''), teacherName(r.fromEmail), 'openRef(' + js(r.refTable) + ',' + js(r.refId) + ')'); }) +
+      sec('📅 오늘 미팅', meet, false, function (m) { return row(m.studentId, (m.time ? m.time + ' ' : '') + (m.topic || m.type || '미팅'), m.place || '', 'openStudent(' + js(m.studentId) + ',\'meetings\')'); }) +
+      sec('🗓 원서 마감 7일 이내', dl, false, function (a) { return row(a.studentId, a.university + (a.major ? ' · ' + a.major : ''), 'D-' + Math.round((wallMs(a.deadline + 'T00:00') - wallMs(td + 'T00:00')) / 86400000), 'openStudent(' + js(a.studentId) + ',\'apps\')'); })
+      : '<div class="muted" style="padding:10px 0">오늘 챙길 일이 없습니다. 👍</div>') + '</div>',
+    '<label style="margin-right:auto;font-size:.82rem;color:var(--muted);display:inline-flex;gap:6px;align-items:center"><input type="checkbox" id="sum-off"> 오늘 다시 보지 않기</label>' +
+    '<button class="btn ghost" onclick="sumClose();go(\'#/followups\')">팔로업 화면으로</button><button class="btn" onclick="sumClose()">확인</button>');
+}
+function sumClose() { if ($('sum-off') && $('sum-off').checked) { try { localStorage.setItem(prefKey('sumDay'), today()); } catch (e) {} } closeModal(true); }
 var ATLAS_OK = false; // REVERA A를 쓸 수 있는 계정이면 학생 화면에 “A 상담 이력” 버튼
 function atlasApi(fn, arg) { return fetch('/api/atlas/' + fn, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'revera' }, body: JSON.stringify({ arg: arg }) }); }
 function checkAtlas() { atlasApi('ping').then(function (r) { if (r.ok && !ATLAS_OK) { ATLAS_OK = true; if (/^#\/student\//.test(location.hash)) render(); } }).catch(function () {}); }
@@ -5208,6 +5367,7 @@ function field(f, rec) {
     return '<div class="full" data-showif="' + esc(f.showIf) + '"' + (on ? '' : ' style="display:none"') + '><label>' + esc(f.l) + '</label>' + inp(f.k, rec[f.k] == null ? '' : rec[f.k], 'text', f.ph ? ' placeholder="' + esc(f.ph) + '"' : '') + '</div>';
   }
   if (f.t === 'review') return reviewField(UI.formTable, rec);
+  if (f.t === 'remind') return remindField(rec);
   if (f.t === 'note') return '<div class="full muted" style="font-size:.8rem;margin-top:-4px">' + f.html + '</div>'; // 입력 칸 아래 짧은 안내 (코드에 쓴 고정 문구)
   if (f.t === 'branch') return fld(f.l, sel('branch', BRANCHES, rec.branch || (rec.id || isAllBranch() ? BRANCHES[0] : myBranch())) +
     '<div class="muted" style="font-size:.78rem;margin-top:3px">다른 지점 관리팀은 이 학생을 보기·팔로업·상담기록 추가만 할 수 있습니다.</div>');
@@ -5598,6 +5758,13 @@ function submitForm(key) {
   if (miss) return toast(miss.l + ' 항목을 입력하세요.', true);
   if (table === 'meetings') o.status = '완료';
   if (table === 'docs' && !o.category) o.category = docCatGuess(o.name);
+  if ($('rm-d')) { // 알림 시각(내 시간) → 한국 시간으로 저장, 받는 사람
+    var rd = $('rm-d').value, rt = $('rm-t').value;
+    if (rd && !rt) return toast('알림 시각(시간)을 입력하세요.', true);
+    o.remindAt = rd && rt ? shiftWall(rd + 'T' + rt, myTZ(), SERVER_TZ).slice(0, 16) : '';
+    o.remindTo = (o.rmTo || []).join(',') || (o.remindAt ? '@assignee' : '');
+    delete o.rmTo;
+  }
   if (key === 'contact') {
     if (!o.detail) return toast('받은 내용을 입력하세요.', true);
     o.kind = 'contact';
