@@ -1027,11 +1027,13 @@ var NOTI = { notices: [], now: '' }, notiTimer = null;
 function remindField(rec) {
   var w = rec.remindAt ? shiftWall(rec.remindAt, SERVER_TZ, myTZ()) : '', to = String(rec.remindTo || '@assignee').split(',').filter(Boolean);
   var others = S.teachers.filter(function (t) { return t.active && t.email !== S.me.email || to.indexOf(t.email) >= 0; });
-  var mine = to.indexOf(S.me.email) >= 0;
-  return '<div class="full"><label>⏰ 알림 <span class="muted" style="font-weight:normal">(비워두면 알림 없음)</span></label><div class="rmf">' +
-    '<div class="row"><input type="date" id="rm-d" value="' + esc(w.slice(0, 10)) + '"><input type="time" id="rm-t" value="' + esc(w.slice(11, 16)) + '">' +
+  var mine = to.indexOf(S.me.email) >= 0, on = !!rec.remindAt;
+  if (!w && rec.due) w = rec.due + 'T' + wallNow(myTZ()).slice(11, 16); // 알림이 없으면 기한 날짜 + 지금 시각으로 미리 채워 둠
+  return '<div class="full"><label style="display:inline-flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" id="rm-on"' + (on ? ' checked' : '') + ' onchange="rmToggle()"> ⏰ 알림 받기</label>' +
+    '<div class="rmf" id="rm-box"' + (on ? '' : ' style="display:none"') + '>' +
+    '<div class="row"><input type="date" id="rm-d" value="' + esc(w.slice(0, 10)) + '" onchange="this.dataset.touched=1"><input type="time" id="rm-t" value="' + esc(w.slice(11, 16)) + '">' +
     '<button type="button" class="btn ghost sm" onclick="rmQuick(60)">1시간 뒤</button><button type="button" class="btn ghost sm" onclick="rmQuick(\'17\')">오늘 오후 5시</button><button type="button" class="btn ghost sm" onclick="rmQuick(\'t9\')">내일 아침 9시</button>' +
-    '<button type="button" class="btn ghost sm" onclick="$(\'rm-d\').value=\'\';$(\'rm-t\').value=\'\'">지우기</button></div>' +
+    '</div>' +
     '<div style="margin-top:6px;font-size:.82rem;color:#222"><label style="display:inline-flex;gap:4px;align-items:center;font-weight:normal;color:#222;margin:0 10px 0 0"><input type="checkbox" name="rmTo" data-multi="1" value="@assignee"' + (to.indexOf('@assignee') >= 0 ? ' checked' : '') + '> 담당자</label>' +
     '<label style="display:inline-flex;gap:4px;align-items:center;font-weight:normal;color:#222;margin:0"><input type="checkbox" name="rmTo" data-multi="1" value="' + esc(S.me.email) + '"' + (mine ? ' checked' : '') + '> 나</label></div>' +
     '<details' + (to.some(function (x) { return x !== '@assignee' && x !== S.me.email; }) ? ' open' : '') + '><summary>다른 선생님도 받기</summary>' + others.filter(function (t) { return t.email !== S.me.email; }).map(function (t) {
@@ -1039,12 +1041,23 @@ function remindField(rec) {
     }).join('') + '</details>' +
     '<div class="muted" style="font-size:.76rem;margin-top:4px">정한 시각에 Compass가 열려 있으면 알림이 뜹니다 (닫혀 있었으면 다음에 열 때). 담당자를 바꾸면 알림도 새 담당자에게 갑니다.</div></div></div>';
 }
+/** 알림 받기 체크: 켜면 칸이 보이고, 날짜가 비어 있으면 기한(없으면 오늘) + 지금 시각 */
+function rmToggle() {
+  var on = $('rm-on').checked; $('rm-box').style.display = on ? '' : 'none';
+  if (on && !$('rm-d').value) { var due = document.querySelector('#mf [name=due]'); $('rm-d').value = (due && due.value) || today(); }
+  if (on && !$('rm-t').value) $('rm-t').value = wallNow(myTZ()).slice(11, 16);
+}
+/** 기한을 고르면 알림 날짜도 같은 날로 (알림 날짜를 직접 바꾼 뒤에는 그대로), 시각은 지금 시각 */
+document.addEventListener('change', function (e) {
+  var t = e.target; if (!t || t.name !== 'due' || !$('rm-d') || !t.closest || !t.closest('#mf')) return;
+  if (t.value && !$('rm-d').dataset.touched) { $('rm-d').value = t.value; if (!$('rm-t').value) $('rm-t').value = wallNow(myTZ()).slice(11, 16); }
+});
 function rmQuick(k) {
   var w = wallNow(myTZ()), d = w.slice(0, 10), t;
   if (k === 60) { w = wallNow(myTZ(), Date.now() + 3600000); d = w.slice(0, 10); t = w.slice(11, 16); }
   else if (k === '17') t = '17:00';
   else { d = wallNow(myTZ(), Date.now() + 86400000).slice(0, 10); t = '09:00'; }
-  $('rm-d').value = d; $('rm-t').value = t;
+  $('rm-d').value = d; $('rm-t').value = t; $('rm-d').dataset.touched = 1;
 }
 function startNotices() {
   if (notiTimer || !S.me || S.me.mustChangePassword) return;
@@ -5758,11 +5771,12 @@ function submitForm(key) {
   if (miss) return toast(miss.l + ' 항목을 입력하세요.', true);
   if (table === 'meetings') o.status = '완료';
   if (table === 'docs' && !o.category) o.category = docCatGuess(o.name);
-  if ($('rm-d')) { // 알림 시각(내 시간) → 한국 시간으로 저장, 받는 사람
-    var rd = $('rm-d').value, rt = $('rm-t').value;
+  if ($('rm-d')) { // 알림 시각(내 시간) → 한국 시간으로 저장, 받는 사람 (알림 받기를 끄면 비움)
+    var rOn = $('rm-on').checked, rd = rOn ? $('rm-d').value : '', rt = rOn ? $('rm-t').value : '';
+    if (rOn && !rd) return toast('알림 날짜를 입력하세요.', true);
     if (rd && !rt) return toast('알림 시각(시간)을 입력하세요.', true);
     o.remindAt = rd && rt ? shiftWall(rd + 'T' + rt, myTZ(), SERVER_TZ).slice(0, 16) : '';
-    o.remindTo = (o.rmTo || []).join(',') || (o.remindAt ? '@assignee' : '');
+    o.remindTo = rOn ? (o.rmTo || []).join(',') || '@assignee' : '';
     delete o.rmTo;
   }
   if (key === 'contact') {
