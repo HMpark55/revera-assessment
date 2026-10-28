@@ -5,14 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>REVERA A</title>
 <style>
-  :root { --navy:#0B1B45; --gold:#C9A227; --bg:#f4f5f8; --card:#fff; --border:#d7d9de; --line:#e3e5ea; --muted:#6b7280; --hl:#fff8db; }
+  :root { --navy:#0E4A47; --gold:#E0B84A; --bg:#f4f5f8; --card:#fff; --border:#d7d9de; --line:#e3e5ea; --muted:#6b7280; --hl:#fff8db; }
   * { box-sizing:border-box; }
   body { margin:0; font-family:"Malgun Gothic","Apple SD Gothic Neo","Noto Sans KR",sans-serif; background:var(--bg); color:#1f2937; font-size:14px; }
   a { color:var(--navy); }
-  header.top { background:var(--navy); color:#fff; position:sticky; top:0; z-index:30; display:flex; align-items:center; gap:22px; padding:0 20px; height:52px; }
+  header.top { background:linear-gradient(90deg, #0E4A47, #13625C); color:#fff; position:sticky; top:0; z-index:30; display:flex; align-items:center; gap:22px; padding:0 20px; height:52px; }
   .brand { font-weight:bold; font-size:1.1rem; letter-spacing:.5px; }
   .brand span { color:var(--gold); }
-  .nav a { color:#cfd5e6; text-decoration:none; padding:16px 2px; margin-right:16px; border-bottom:3px solid transparent; cursor:pointer; }
+  .nav a { color:#cde3df; text-decoration:none; padding:16px 2px; margin-right:16px; border-bottom:3px solid transparent; cursor:pointer; }
   .nav a.on { color:#fff; font-weight:bold; border-bottom-color:var(--gold); }
   .back { margin-left:auto; color:#cfd5e6; text-decoration:none; font-size:.85rem; border:1px solid #42507a; border-radius:20px; padding:5px 12px; }
   .back:hover { color:#fff; border-color:#fff; }
@@ -103,7 +103,7 @@
 <body>
 <header class="top">
   <div class="brand">REVERA <span>A</span></div>
-  <nav class="nav"><a data-p="consult" onclick="go('consult')">상담 Roster</a><a data-p="class" onclick="go('class')">수업 Roster</a></nav>
+  <nav class="nav"><a data-p="consult" onclick="go('consult')">상담 Roster</a><a data-p="class" onclick="go('class')">수업 Roster</a><a data-p="oneone" onclick="go('oneone')">원장님 1:1 상담</a><a data-p="pay" onclick="go('pay')">결제</a></nav>
   <label class="back" style="margin-left:auto;cursor:pointer" title="구글 시트에서 바꾼 가져오기 파일(.json)">⬆ 가져오기<input type="file" accept=".json,application/json" style="display:none" onchange="importFile(this)"></label>
   <a class="back" style="margin-left:0" href="/#/home">← Compass로 돌아가기</a>
 </header>
@@ -113,7 +113,7 @@
 <script>
 'use strict';
 var D = null; // 서버 데이터
-var V = { page: 'consult', tab: 'all', school: '', q: '', camp: '', classId: '', classFilter: '진행', limit: 200 };
+var V = { pm: '', pc: '', pmeth: '', pq: '', page: 'consult', tab: 'all', school: '', q: '', camp: '', classId: '', classFilter: '진행', limit: 200, ooId: '' };
 try { var sv = JSON.parse(localStorage.getItem('atlas.view') || '{}'); Object.keys(sv).forEach(function (k) { if (k in V) V[k] = sv[k]; }); } catch (e) {}
 var TAGS = ['블랙리스트', '팔로업X', '귀임', '원서완료'];
 
@@ -128,10 +128,15 @@ function api(fn, arg) {
   return fetch('/api/atlas/' + fn, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'revera' }, body: JSON.stringify({ arg: arg }) })
     .then(function (r) { return r.json().catch(function () { return {}; }).then(function (b) { if (!r.ok) throw new Error(b.error || '저장하지 못했습니다.'); return b; }); });
 }
-function load() { return api('getAll').then(function (d) { D = d; render(); }).catch(function (e) { $('main').innerHTML = '<div class="empty">' + esc(e.message) + ' <a href="/">Compass로</a></div>'; }); }
+function load() { return api('getAll').then(function (d) { D = d; render(); fromHash(); }).catch(function (e) { $('main').innerHTML = '<div class="empty">' + esc(e.message) + ' <a href="/">Compass로</a></div>'; }); }
+function fromHash() {
+  var m = location.hash.match(/^#s=([\w-]+)$/); if (!m) return;
+  history.replaceState(null, '', location.pathname);
+  if (byId(D.students, m[1])) { V.page = 'consult'; V.tab = 'all'; V.q = byId(D.students, m[1]).name; keep(); render(); openConsults(m[1]); }
+}
 function byId(list, id) { for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i]; return null; }
 function replaceIn(list, rec) { for (var i = 0; i < list.length; i++) if (list[i].id === rec.id) { list[i] = rec; return; } list.push(rec); }
-function tableList(t) { return { atlas_students: D.students, atlas_consults: D.consults, atlas_fu: D.fu, atlas_classes: D.classes, atlas_enroll: D.enroll }[t]; }
+function tableList(t) { return { atlas_students: D.students, atlas_consults: D.consults, atlas_fu: D.fu, atlas_classes: D.classes, atlas_enroll: D.enroll, atlas_payments: D.payments }[t]; }
 
 /* 칸 하나 저장 (다른 사람이 같은 줄의 다른 칸을 고쳐도 덮어쓰지 않음) */
 function setField(t, id, k, v, rerender) {
@@ -164,7 +169,7 @@ function go(p) { V.page = p; V.limit = 200; keep(); render(); window.scrollTo(0,
 function render() {
   if (!D) return;
   [].forEach.call(document.querySelectorAll('.nav a'), function (a) { a.className = a.getAttribute('data-p') === V.page ? 'on' : ''; });
-  $('main').innerHTML = V.page === 'class' ? viewClasses() : viewConsult();
+  $('main').innerHTML = V.page === 'class' ? viewClasses() : V.page === 'oneone' ? viewOneOne() : V.page === 'pay' ? viewPay() : viewConsult();
   [].forEach.call(document.querySelectorAll('.sheet textarea'), grow);
 }
 function grow(el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 160) + 'px'; }
@@ -190,7 +195,7 @@ function openLong(t, id, k) {
 function saveLong(t, id, k) { var v = $('long-v').value; setField(t, id, k, v, true).then(closeOv); }
 function schools() { var m = {}; D.students.forEach(function (s) { if (s.school) m[s.school] = 1; }); return Object.keys(m).sort(); }
 function datalists() {
-  var progs = {}; D.consults.forEach(function (c) { if (c.program) progs[c.program] = 1; });
+  var progs = {}; (D.programs || []).concat(D.consults.map(function (c) { return c.program; })).forEach(function (p) { if (p) progs[p] = 1; });
   return '<datalist id="dl-school">' + schools().map(function (v) { return '<option value="' + esc(v) + '">'; }).join('') + '</datalist>' +
     '<datalist id="dl-tag">' + TAGS.map(function (v) { return '<option value="' + esc(v) + '">'; }).join('') + '</datalist>' +
     '<datalist id="dl-prog">' + Object.keys(progs).sort().map(function (v) { return '<option value="' + esc(v) + '">'; }).join('') + '</datalist>';
@@ -222,7 +227,7 @@ function viewConsult() {
   var camps = campaigns(); if (V.camp && camps.indexOf(V.camp) < 0) V.camp = '';
   if (!V.camp && camps.length) V.camp = camps[0];
   h += '<div class="toolbar"><select onchange="V.school=this.value;keep();render()"><option value="">학교 전체</option>' + schools().map(function (v) { return '<option' + (V.school === v ? ' selected' : '') + '>' + esc(v) + '</option>'; }).join('') + '</select>' +
-    '<input id="q" placeholder="이름·연락처·메모 검색" value="' + esc(V.q) + '" oninput="V.q=this.value;V.limit=200;keep();renderRows()">' +
+    '<input id="q" placeholder="이름·연락처·메모 검색" value="' + esc(V.q) + '" oninput="searchQ(this.value)">' +
     '<span class="grow"></span><span class="muted">팔로업</span><select onchange="pickCamp(this.value)">' + camps.map(function (c) { return '<option' + (V.camp === c ? ' selected' : '') + '>' + esc(c) + '</option>'; }).join('') + (camps.length ? '' : '<option value="">(없음)</option>') + '<option value="__new">+ 새 팔로업 만들기</option>' + (V.camp ? '<option value="__ren">✎ 이 팔로업 이름 바꾸기</option>' : '') + '</select>' +
     '<button class="btn" onclick="addStudent()">+ 학생 추가</button></div>';
   h += datalists() + '<div class="wrap"><table class="sheet"><thead><tr><th>#</th><th>비고</th><th>학생이름</th><th>학생 메모</th><th>직접 컨택 가능한 연락처</th><th>학교</th><th>학교 관련 비고</th><th>올라간 후 현재 학년</th><th>구분</th><th>수강료 결제 내역</th><th>수강 중인 수업</th><th>상담 날짜 · 내용</th><th>선택 과목 G8·G9·G10</th><th>G11·G12</th>' +
@@ -235,10 +240,19 @@ function shownStudents() {
   return sortStudents(D.students.filter(function (s) {
     if (V.tab.indexOf('grp:') === 0 ? s.grp !== V.tab.slice(4) : V.tab !== 'all' && tabOf(s) !== V.tab) return false;
     if (V.school && s.school !== V.school) return false;
-    if (q && [s.name, s.phone, s.school, s.schoolNote, s.payment, s.tag, s.subjMid, s.subjHigh].join(' ').toLowerCase().indexOf(q) < 0 &&
-      !D.consults.some(function (c) { return c.studentId === s.id && (c.content + ' ' + c.program).toLowerCase().indexOf(q) >= 0; })) return false;
+    if (q && [s.name, s.memo, s.phone, s.school, s.schoolNote, s.payment, s.tag, s.subjMid, s.subjHigh].join(' ').toLowerCase().indexOf(q) < 0 &&
+      !(QHITS.q === q && QHITS.ids[s.id])) return false;
     return true;
   }));
+}
+/* 상담 기록 글 검색은 서버에서 (기록이 많아 화면에는 최근 1건만 있음) */
+var QHITS = { q: '', ids: {} }, qTimer = null;
+function searchQ(v) {
+  V.q = v; V.limit = 200; keep(); renderRows();
+  clearTimeout(qTimer); var q = v.trim().toLowerCase(); if (!q) return;
+  qTimer = setTimeout(function () {
+    api('searchConsults', { q: v.trim() }).then(function (ids) { if (V.q.trim().toLowerCase() !== q) return; QHITS = { q: q, ids: {} }; ids.forEach(function (id) { QHITS.ids[id] = 1; }); renderRows(); });
+  }, 350);
 }
 function renderRows() {
   var tb = $('rows'); if (!tb) return;
@@ -246,7 +260,7 @@ function renderRows() {
   var mb = $('more'); mb.style.display = all.length > list.length ? 'block' : 'none'; mb.textContent = '더 보기 (' + list.length + ' / ' + all.length + '명)';
   tb.innerHTML = list.length ? list.map(function (s, i) {
     var cs = D.consults.filter(function (c) { return c.studentId === s.id; }).sort(function (a, b) { return String(b.date).localeCompare(String(a.date)) || String(b.createdAt).localeCompare(String(a.createdAt)); });
-    var last = cs[0], fu = V.camp ? D.fu.filter(function (f) { return f.studentId === s.id && f.campaign === V.camp; })[0] : null;
+    var nC = D.consultCount[s.id] || cs.length, last = cs[0], fu = V.camp ? D.fu.filter(function (f) { return f.studentId === s.id && f.campaign === V.camp; })[0] : null;
     var cls = D.enroll.filter(function (e) { return e.studentId === s.id; }).map(function (e) { return byId(D.classes, e.classId); }).filter(Boolean);
     return '<tr class="' + rowClass(s) + '"><td class="num">' + (i + 1) + '</td>' +
       '<td style="min-width:90px">' + cellIn('atlas_students', s, 'tag', { list: 'dl-tag', rerender: true }) + '</td>' +
@@ -259,7 +273,7 @@ function renderRows() {
       '<td style="min-width:80px"><select onchange="setField(\'atlas_students\',' + js(s.id) + ',\'grp\',this.value,true)"><option value="">-</option>' + D.groups.map(function (g) { return '<option' + (s.grp === g ? ' selected' : '') + '>' + esc(g) + '</option>'; }).join('') + '</select></td>' +
       '<td style="min-width:200px">' + cellIn('atlas_students', s, 'payment', { area: 1 }) + '</td>' +
       '<td class="ro" style="min-width:110px">' + (cls.map(function (c) { return '<span class="chip' + (c.status === '완료' ? ' done' : '') + '" onclick="openClass(' + js(c.id) + ')">' + (c.status === '완료' ? '(완) ' : '') + esc(c.name) + '</span>'; }).join('') || '<span class="muted">-</span>') + '</td>' +
-      '<td class="ro log" onclick="openConsults(' + js(s.id) + ')" title="상담 기록 보기·추가">' + (last ? '<div class="d">' + esc(last.date) + (last.program ? ' · ' + esc(last.program) : '') + (cs.length > 1 ? ' · 총 ' + cs.length + '건' : '') + '</div><div class="c">' + esc(last.content) + '</div>' : '<span class="muted">+ 상담 기록</span>') + '</td>' +
+      '<td class="ro log" onclick="openConsults(' + js(s.id) + ')" title="상담 기록 보기·추가">' + (last ? '<div class="d">' + esc(last.date) + (last.program ? ' · ' + esc(last.program) : '') + (nC > 1 ? ' · 총 ' + nC + '건' : '') + '</div><div class="c">' + esc(last.content) + '</div>' : '<span class="muted">+ 상담 기록</span>') + '</td>' +
       '<td style="min-width:130px">' + cellIn('atlas_students', s, 'subjMid', { area: 1 }) + '</td>' +
       '<td style="min-width:130px">' + cellIn('atlas_students', s, 'subjHigh', { area: 1 }) + '</td>' +
       '<td style="min-width:170px;background:#fffdf4">' + (V.camp && fu && fu._cut ? cellIn('atlas_fu', fu, 'response') : V.camp ? '<textarea rows="1" placeholder="희망X(사유) / 신청OK" onchange="saveFu(' + js(s.id) + ',this.value)">' + esc(fu ? fu.response : '') + '</textarea>' : '<div class="muted" style="padding:5px 6px;font-size:.8rem">위에서 팔로업을 만드세요</div>') + '</td>' +
@@ -307,14 +321,16 @@ function openConsults(sid) {
 function showConsults(sid) {
   var s = byId(D.students, sid); if (!s) return;
   var cs = D.consults.filter(function (c) { return c.studentId === sid; }).sort(function (a, b) { return String(b.date).localeCompare(String(a.date)) || String(b.createdAt).localeCompare(String(a.createdAt)); });
+  D.consultCount[sid] = cs.length;
   var fus = D.fu.filter(function (f) { return f.studentId === sid && f.response; });
   $('ov').innerHTML = '<div class="ov" onclick="if(event.target===this)closeOv()"><div class="panel">' +
     '<h3>' + esc(s.name) + ' <span class="muted" style="font-size:.85rem;font-weight:normal">' + esc([s.school, gradeLabel(s)].filter(Boolean).join(' · ')) + '</span></h3>' +
+    (s.compassId ? '<div style="margin:-4px 0 10px"><a class="chip" style="text-decoration:none" href="/#/student/' + esc(s.compassId) + '" target="_blank">Compass에서 보기 ↗</a> <button class="btn ghost sm" onclick="unlinkCompass(' + js(s.id) + ')">연결 끊기</button></div>' : '') +
     (s.memo ? '<div class="muted" style="white-space:pre-wrap;margin:-6px 0 10px;font-size:.82rem">' + esc(s.memo) + (s._cut && s._cut.indexOf('memo') >= 0 ? '…' : '') + '</div>' : '') +
     '<div class="fields" style="grid-template-columns:140px 1fr"><div class="field"><label>상담 날짜</label><input type="date" id="c-date" value="' + today() + '"></div>' +
     '<div class="field"><label>문의 프로그램 · 수업유형</label><input id="c-prog" list="dl-prog" placeholder="예: 정규반 / 겨울방학 특강 / 컨설팅"></div>' +
     '<div class="field full"><label>상담 내용 (우리 학원 수강생 여부 포함)</label><textarea id="c-content" rows="5"></textarea></div></div>' +
-    '<div style="display:flex;gap:6px;margin:8px 0 14px"><button class="btn" onclick="saveConsult(' + js(sid) + ')">기록 추가</button><span style="flex:1"></span><button class="btn ghost" onclick="closeOv()">닫기</button></div>' +
+    '<div style="display:flex;gap:6px;margin:8px 0 14px"><button class="btn" onclick="saveConsult(' + js(sid) + ')">기록 추가</button><span style="flex:1"></span><button class="btn ghost" onclick="openPayments(' + js(sid) + ',\'\')">결제 ' + D.payments.filter(function (p) { return p.studentId === sid; }).length + '건</button><button class="btn ghost" onclick="closeOv()">닫기</button></div>' +
     (cs.length ? cs.map(function (c) {
       return '<div class="hist"><div class="h"><b style="color:#1f2937">' + esc(c.date || '날짜 없음') + '</b>' + (c.program ? '<span class="chip">' + esc(c.program) + '</span>' : '') + '<span style="flex:1"></span>' +
         '<button class="btn ghost sm" onclick="editConsult(' + js(c.id) + ')">수정</button><button class="x" onclick="delConsult(' + js(c.id) + ')">✕</button></div><div class="b">' + esc(c.content) + '</div></div>';
@@ -331,14 +347,14 @@ function saveConsult(sid, id) {
   api('save', { table: 'atlas_consults', rec: rec }).then(function (r) { replaceIn(D.consults, r); renderRows(); showConsults(sid); toast('저장했습니다.'); }).catch(function (e) { toast(e.message, true); });
 }
 function editConsult(id) {
-  var c = byId(D.consults, id); $('c-date').value = c.date; $('c-prog').value = c.program; $('c-content').value = c.content; $('c-content').focus();
+  var c = byId(D.consults, id); $('c-date').type = /^\d{4}-\d{2}-\d{2}$/.test(c.date) || !c.date ? 'date' : 'text'; $('c-date').value = c.date; $('c-prog').value = c.program; $('c-content').value = c.content; $('c-content').focus();
   var b = document.querySelector('.panel .btn'); b.textContent = '수정 저장'; b.setAttribute('onclick', 'saveConsult(' + js(c.studentId) + ',' + js(c.id) + ')');
 }
 function delConsult(id) { var c = byId(D.consults, id); del('atlas_consults', id, '이 상담 기록을 지울까요?').then(function (ok) { if (ok) { renderRows(); showConsults(c.studentId); } }); }
 
 /* ======================= 수업 Roster ======================= */
 function viewClasses() {
-  var list = D.classes.filter(function (c) { return V.classFilter === '전체' || (V.classFilter === '완료' ? c.status === '완료' : c.status !== '완료'); })
+  var list = D.classes.filter(function (c) { return c.kind !== '유료 상담'; }).filter(function (c) { return V.classFilter === '전체' || (V.classFilter === '완료' ? c.status === '완료' : c.status !== '완료'); })
     .sort(function (a, b) { return String(b.term).localeCompare(String(a.term)) || String(a.kind).localeCompare(String(b.kind)) || String(a.name).localeCompare(String(b.name)); });
   if (V.classId && !byId(D.classes, V.classId)) V.classId = '';
   if (!V.classId && list.length) V.classId = list[0].id;
@@ -355,13 +371,154 @@ function viewClasses() {
   var c = byId(D.classes, V.classId);
   return '<h2>수업 Roster</h2><div class="cols"><div class="side">' + side + '</div><div>' + (c ? viewClass(c) : '<div class="card empty">왼쪽에서 수업을 고르거나 “+ 수업 추가”로 만드세요.</div>') + '</div></div>';
 }
+/* ======================= 원장님 1:1 상담 (입시 로드맵 유료 상담) ======================= */
+function viewOneOne() {
+  var list = D.classes.filter(function (c) { return c.kind === '유료 상담'; }).sort(function (a, b) { return String(a.createdAt).localeCompare(String(b.createdAt)); });
+  if (!list.some(function (c) { return c.id === V.ooId; })) V.ooId = list.length ? list[0].id : '';
+  var c = byId(D.classes, V.ooId);
+  return '<h2>원장님 1:1 상담</h2><div class="toolbar"><div class="tabs" style="margin:0">' + list.map(function (x) {
+      var n = D.enroll.filter(function (e) { return e.classId === x.id; }).length;
+      return '<button class="' + (x.id === V.ooId ? 'on' : '') + '" onclick="V.ooId=' + js(x.id) + ';keep();render()">' + esc(x.name) + '<span class="n">' + n + '</span></button>';
+    }).join('') + '</div><span class="grow"></span><button class="btn ghost" onclick="addOneOneList()">+ 목록 추가</button></div>' +
+    '<div class="muted" style="margin:-4px 0 10px;font-size:.8rem">“컨설팅 진행”을 체크하면 Compass로 넘길 수 있습니다. 넘기면 Compass에 학생과 이 상담 기록(상담기록 탭)이 생기고, 두 화면이 서로 연결됩니다.</div>' +
+    (c ? viewClass(c) : '<div class="card empty">목록이 없습니다. “+ 목록 추가”로 만드세요.</div>');
+}
+function addOneOneList() {
+  var n = prompt('목록 이름 (예: 상해 외 지역 입시 로드맵 유료 상담)'); if (!n || !n.trim()) return;
+  add('atlas_classes', { name: n.trim(), kind: '유료 상담' }).then(function (r) { V.ooId = r.id; keep(); render(); }).catch(function (e) { toast(e.message, true); });
+}
+function compassCell(s, e, exv) {
+  if (s.compassId) return '<a href="/#/student/' + esc(s.compassId) + '" target="_blank" class="chip" style="text-decoration:none">Compass ↗</a>';
+  if (exv.consulting === 'TRUE') return '<button class="btn sm" onclick="openCompassLink(' + js(s.id) + ',' + js(e.id) + ')">Compass로 넘기기</button>';
+  return '<span class="muted">-</span>';
+}
+function openCompassLink(sid, eid) {
+  var s = byId(D.students, sid);
+  api('compassCandidates', { studentId: sid }).then(function (r) {
+    $('ov').innerHTML = '<div class="ov center" onclick="if(event.target===this)closeOv()"><div class="panel"><h3>' + esc(s.name) + ' → Compass</h3>' +
+      (r.candidates.length ? '<div class="muted" style="margin-bottom:6px">Compass에 같은 이름의 학생이 있습니다. 같은 학생이면 “연결”을 누르세요.</div><div class="results">' + r.candidates.map(function (c) {
+        return '<div style="display:flex;gap:8px;align-items:center;cursor:default"><span style="flex:1"><b>' + esc(c.name) + '</b> <span class="muted">' + esc([c.school, c.grade, c.branch, c.status].filter(Boolean).join(' · ')) + '</span></span>' +
+          '<button class="btn sm" onclick="doCompassLink(' + js(sid) + ',' + js(eid) + ',' + js(c.id) + ')">연결</button></div>';
+      }).join('') + '</div>' : '<div class="muted">Compass에 같은 이름의 학생이 없습니다.</div>') +
+      '<div style="display:flex;gap:6px;margin-top:14px;justify-content:flex-end"><button class="btn ghost" onclick="closeOv()">취소</button><button class="btn" onclick="doCompassLink(' + js(sid) + ',' + js(eid) + ',\'\')">새 Compass 학생으로 만들기</button></div>' +
+      '<div class="muted" style="margin-top:8px;font-size:.8rem">이름·학교·학년·연락처·메모와 이 1:1 상담 기록이 Compass로 넘어갑니다. 담당 컨설턴트는 Compass에서 정해주세요.</div></div></div>';
+  }).catch(function (e) { toast(e.message, true); });
+}
+function doCompassLink(sid, eid, cid) {
+  api('linkCompass', { studentId: sid, enrollId: eid, compassId: cid }).then(function (r) {
+    replaceIn(D.students, r.student); closeOv(); toast('Compass와 연결했습니다.'); load();
+  }).catch(function (e) { toast(e.message, true); });
+}
+function unlinkCompass(sid) {
+  if (!confirm('Compass 연결을 끊을까요? (Compass의 학생·기록은 그대로 남습니다)')) return;
+  api('unlinkCompass', { studentId: sid }).then(function () { closeOv(); load(); }).catch(function (e) { toast(e.message, true); });
+}
+/* ======================= 결제 ======================= */
+function payFilter() {
+  var q = V.pq.trim().toLowerCase();
+  return D.payments.filter(function (p) {
+    if (V.pm && String(p.date).slice(0, 7) !== V.pm) return false;
+    if (V.pc && p.currency !== V.pc) return false;
+    if (V.pmeth && p.method !== V.pmeth) return false;
+    if (q) { var s = byId(D.students, p.studentId), c = byId(D.classes, p.classId); if ([s && s.name, c && c.name, p.memo, p.method].join(' ').toLowerCase().indexOf(q) < 0) return false; }
+    return true;
+  }).sort(function (a, b) { return String(b.date).localeCompare(String(a.date)); });
+}
+function viewPay() {
+  var months = {}, meths = {}, hasText = D.students.some(function (s) { return s.payment; }) || D.enroll.some(function (e) { return e.payment; });
+  D.payments.forEach(function (p) { if (p.date) months[p.date.slice(0, 7)] = 1; if (p.method) meths[p.method] = (meths[p.method] || 0) + 1; });
+  var list = payFilter(), shown = list.slice(0, V.limit);
+  // 월별 합계 (최근 12개월, 필터의 통화·결제 수단 기준)
+  var by = {}; D.payments.filter(function (p) { return (!V.pc || p.currency === V.pc) && (!V.pmeth || p.method === V.pmeth); }).forEach(function (p) {
+    var m = String(p.date).slice(0, 7); if (!m) return; (by[m] = by[m] || { n: 0, CNY: 0, KRW: 0 }); by[m].n++; by[m][p.currency || 'CNY'] += Number(p.amount) || 0; });
+  var ms = Object.keys(by).sort().reverse().slice(0, 12), max = Math.max.apply(null, ms.map(function (m) { return by[m].CNY; }).concat([1]));
+  var h = '<h2>결제</h2>' +
+    (hasText ? '<div class="card" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span style="flex:1;min-width:260px">학생·수강의 <b>결제 내역 글</b>(시트에서 가져온 원문)에서 날짜·금액·결제 수단을 읽어 결제 기록을 만듭니다. 원문은 그대로 남고, 이미 만든 기록은 다시 만들지 않습니다.</span><button class="btn" onclick="runExtract()">결제 기록 만들기</button></div>' : '') +
+    '<div class="card"><h3 style="margin:0 0 8px;color:var(--navy)">월별 결제 합계</h3>' + (ms.length ? '<table class="sheet" style="min-width:0"><thead><tr><th>월</th><th>건수</th><th>위안(¥)</th><th></th><th>원(₩)</th></tr></thead><tbody>' + ms.map(function (m) {
+      return '<tr style="cursor:pointer" onclick="V.pm=' + js(m) + ';keep();render()"><td class="ro"><b>' + m + '</b></td><td class="ro" style="text-align:right">' + by[m].n + '</td><td class="ro" style="text-align:right">' + by[m].CNY.toLocaleString() + '</td>' +
+        '<td class="ro" style="width:220px"><div style="height:10px;border-radius:5px;background:var(--navy);width:' + Math.round(100 * by[m].CNY / max) + '%"></div></td><td class="ro" style="text-align:right">' + (by[m].KRW ? by[m].KRW.toLocaleString() : '') + '</td></tr>';
+    }).join('') + '</tbody></table>' : '<div class="muted">아직 결제 기록이 없습니다.</div>') + '</div>';
+  h += '<div class="toolbar"><select onchange="V.pm=this.value;V.limit=200;keep();render()"><option value="">전체 기간</option>' + Object.keys(months).sort().reverse().map(function (m) { return '<option' + (V.pm === m ? ' selected' : '') + '>' + m + '</option>'; }).join('') + '</select>' +
+    '<select onchange="V.pc=this.value;keep();render()"><option value="">모든 통화</option><option value="CNY"' + (V.pc === 'CNY' ? ' selected' : '') + '>위안(¥)</option><option value="KRW"' + (V.pc === 'KRW' ? ' selected' : '') + '>원(₩)</option></select>' +
+    '<select onchange="V.pmeth=this.value;keep();render()"><option value="">모든 결제 수단</option>' + Object.keys(meths).sort(function (a, b) { return meths[b] - meths[a]; }).map(function (m) { return '<option' + (V.pmeth === m ? ' selected' : '') + '>' + esc(m) + '</option>'; }).join('') + '</select>' +
+    '<input placeholder="학생·수업·메모 검색" value="' + esc(V.pq) + '" onchange="V.pq=this.value;V.limit=200;keep();render()">' +
+    '<span class="grow"></span><b>' + list.length + '건 · ' + esc(sums(list) || '0') + '</b><button class="btn" onclick="openPayForm()">+ 결제 추가</button></div>';
+  h += '<datalist id="dl-meth">' + Object.keys(meths).map(function (m) { return '<option value="' + esc(m) + '">'; }).join('') + '</datalist>' +
+    '<div class="wrap"><table class="sheet"><thead><tr><th>날짜</th><th>학생</th><th>수업</th><th>금액</th><th>통화</th><th>결제 수단</th><th>메모</th><th></th></tr></thead><tbody>' +
+    (shown.length ? shown.map(payRow).join('') : '<tr><td colspan="8" class="empty">결제 기록이 없습니다.</td></tr>') + '</tbody></table>' +
+    (list.length > shown.length ? '<button class="btn ghost more" onclick="V.limit+=200;render()">더 보기 (' + shown.length + ' / ' + list.length + ')</button>' : '') + '</div>';
+  return h;
+}
+function payRow(p) {
+  var s = byId(D.students, p.studentId), c = byId(D.classes, p.classId);
+  var on = function (k) { return 'setField(\'atlas_payments\',' + js(p.id) + ',' + js(k) + ',this.value' + (k === 'date' || k === 'amount' || k === 'currency' ? ',true' : '') + ')'; };
+  return '<tr><td style="min-width:120px"><input value="' + esc(p.date) + '" placeholder="YYYY-MM-DD" onchange="' + on('date') + '">' + (p.guessed ? '<div class="note" style="padding:0 6px 4px" title="원문에 연도가 없어 오늘 이전의 가장 가까운 날짜로 추정했습니다">연도 추정</div>' : '') + '</td>' +
+    '<td class="ro" style="min-width:90px">' + (s ? '<a href="#" onclick="openPayments(' + js(s.id) + ',\'\');return false"><b>' + esc(s.name) + '</b></a> <span class="muted">' + esc(s.school || '') + '</span>' : '<span class="muted">(삭제된 학생)</span>') + '</td>' +
+    '<td class="ro" style="min-width:120px">' + (c ? '<a href="#" onclick="openClass(' + js(c.id) + ');return false">' + esc(c.name) + '</a>' : '<span class="muted">-</span>') + '</td>' +
+    '<td style="min-width:90px"><input value="' + esc(p.amount) + '" style="text-align:right" onchange="' + on('amount') + '"></td>' +
+    '<td style="min-width:70px"><select onchange="' + on('currency') + '"><option value="CNY"' + (p.currency !== 'KRW' ? ' selected' : '') + '>¥ 위안</option><option value="KRW"' + (p.currency === 'KRW' ? ' selected' : '') + '>₩ 원</option></select></td>' +
+    '<td style="min-width:110px"><input value="' + esc(p.method) + '" list="dl-meth" onchange="' + on('method') + '"></td>' +
+    '<td style="min-width:240px">' + (p.pre === 'Y' ? '<span class="chip">선등록금</span>' : '') + '<textarea rows="1" onchange="' + on('memo') + '">' + esc(p.memo) + '</textarea></td>' +
+    '<td><button class="x" onclick="delPay(' + js(p.id) + ')">✕</button></td></tr>';
+}
+function runExtract() {
+  api('extractPayments', { dryRun: true }).then(function (n) {
+    if (!n.payments && !n.packages) return toast('새로 만들 결제 기록이 없습니다. (이미 ' + n.already + '건)');
+    if (!confirm('결제 내역 글에서 결제 기록 ' + n.payments + '건을 만듭니다' + (n.guessed ? ' (이 중 ' + n.guessed + '건은 원문에 연도가 없어 연도를 추정)' : '') + '.\n' +
+      (n.packages ? '수강 메모에 적힌 회차권(예: 10회 6,000위안) ' + n.packages + '건도 회차권 칸에 채웁니다.\n' : '') + (n.already ? '이미 있는 ' + n.already + '건은 건너뜁니다.\n' : '') + '진행할까요?')) return;
+    return api('extractPayments', {}).then(function (r) { toast('결제 기록 ' + r.payments + '건을 만들었습니다.'); load(); });
+  }).catch(function (e) { toast(e.message, true); });
+}
+function delPay(id) { del('atlas_payments', id, '이 결제 기록을 지울까요?').then(function (ok) { if (ok) render(); }); }
+/* 결제 추가 · 학생별 결제 창 */
+function openPayForm(sid, cid) {
+  var s = sid ? byId(D.students, sid) : null;
+  var cls = s ? D.enroll.filter(function (e) { return e.studentId === s.id; }).map(function (e) { return byId(D.classes, e.classId); }).filter(Boolean) : [];
+  var meths = {}; D.payments.forEach(function (p) { if (p.method) meths[p.method] = 1; });
+  $('ov').innerHTML = '<div class="ov center" onclick="if(event.target===this)closeOv()"><div class="panel"><h3>결제 추가' + (s ? ' — ' + esc(s.name) : '') + '</h3><div class="fields">' +
+    (s ? '<input type="hidden" id="p-sid" value="' + esc(s.id) + '">' : '<div class="field full"><label>학생 *</label><input id="p-sq" placeholder="이름으로 찾기" oninput="paySearch()"><div class="results" id="p-res"></div><input type="hidden" id="p-sid"></div>') +
+    '<div class="field"><label>날짜 *</label><input type="date" id="p-date" value="' + today() + '"></div>' +
+    '<div class="field"><label>금액 *</label><input id="p-amt" inputmode="numeric" placeholder="예: 6000"></div>' +
+    '<div class="field"><label>통화</label><select id="p-cur"><option value="CNY">¥ 위안</option><option value="KRW">₩ 원</option></select></div>' +
+    '<div class="field"><label>결제 수단</label><input id="p-meth" list="dl-meth2" placeholder="예: ICBC KCY"><datalist id="dl-meth2">' + Object.keys(meths).map(function (m) { return '<option value="' + esc(m) + '">'; }).join('') + '</datalist></div>' +
+    (s ? '<div class="field"><label>수업</label><select id="p-cls"><option value="">(수업 없음)</option>' + cls.map(function (c) { return '<option value="' + esc(c.id) + '"' + (c.id === cid ? ' selected' : '') + '>' + esc(c.name) + '</option>'; }).join('') + '</select></div>' : '') +
+    '<div class="field full"><label>메모</label><input id="p-memo" placeholder="예: 학기중 G9 Eng 10회권 지정 10% 할인"></div></div>' +
+    '<div style="display:flex;gap:6px;margin-top:12px;justify-content:flex-end"><button class="btn ghost" onclick="' + (s ? 'openPayments(' + js(s.id) + ',' + js(cid || '') + ')' : 'closeOv()') + '">취소</button><button class="btn" onclick="savePay()">저장</button></div></div></div>';
+  if (!s) paySearch();
+}
+function paySearch() {
+  var q = $('p-sq').value.trim().toLowerCase();
+  $('p-res').innerHTML = D.students.filter(function (s) { return !q || (s.name + ' ' + s.school).toLowerCase().indexOf(q) >= 0; }).slice(0, 20).map(function (s) {
+    return '<div onclick="$(\'p-sid\').value=' + js(s.id) + ';$(\'p-sq\').value=' + js(s.name + (s.school ? ' · ' + s.school : '')) + ';$(\'p-res\').innerHTML=\'\'"><b>' + esc(s.name) + '</b> <span class="muted">' + esc([s.school, gradeLabel(s)].filter(Boolean).join(' · ')) + '</span></div>';
+  }).join('');
+}
+function savePay() {
+  var rec = { studentId: $('p-sid').value, date: $('p-date').value, amount: $('p-amt').value.trim(), currency: $('p-cur').value, method: $('p-meth').value, memo: $('p-memo').value, classId: $('p-cls') ? $('p-cls').value : '' };
+  if (!rec.studentId) return toast('학생을 고르세요.', true);
+  if (!rec.amount) return toast('금액을 입력하세요.', true);
+  add('atlas_payments', rec).then(function () { toast('결제를 저장했습니다.'); if ($('p-cls')) openPayments(rec.studentId, ''); else closeOv(); render(); }).catch(function (e) { toast(e.message, true); });
+}
+function openPayments(sid, cid) {
+  var s = byId(D.students, sid); if (!s) return;
+  var l = D.payments.filter(function (p) { return p.studentId === sid; }).sort(function (a, b) { return String(b.date).localeCompare(String(a.date)); });
+  $('ov').innerHTML = '<div class="ov" onclick="if(event.target===this)closeOv()"><div class="panel"><h3>' + esc(s.name) + ' — 결제 <span class="muted" style="font-size:.85rem;font-weight:normal">' + l.length + '건 · ' + esc(sums(l) || '0') + '</span></h3>' +
+    '<div style="display:flex;gap:6px;margin-bottom:10px"><button class="btn" onclick="openPayForm(' + js(sid) + ',' + js(cid || '') + ')">+ 결제 추가</button><span style="flex:1"></span><button class="btn ghost" onclick="openConsults(' + js(sid) + ')">상담 기록</button><button class="btn ghost" onclick="closeOv()">닫기</button></div>' +
+    (l.length ? l.map(function (p) { var c = byId(D.classes, p.classId);
+      return '<div class="hist"' + (cid && p.classId === cid ? ' style="background:#f2f8f7"' : '') + '><div class="h"><b style="color:#1f2937">' + esc(p.date || '날짜 없음') + '</b>' + (p.guessed ? '<span class="note">연도 추정</span>' : '') + '<b style="color:#1f2937;margin-left:auto">' + esc(money(p.amount, p.currency)) + '</b></div>' +
+        '<div class="b">' + esc([p.method, c && c.name].filter(Boolean).join(' · ')) + (p.memo ? '<div class="muted" style="font-size:.82rem">' + (p.pre === 'Y' ? '[선등록금] ' : '') + esc(p.memo) + '</div>' : '') + '</div></div>';
+    }).join('') : '<div class="muted">결제 기록이 없습니다.</div>') +
+    (s.payment ? '<h3 style="margin-top:18px">결제 내역 (원문)</h3><div class="muted" style="white-space:pre-wrap;font-size:.82rem">' + esc(s.payment) + (s._cut && s._cut.indexOf('payment') >= 0 ? '…' : '') + '</div>' : '') + '</div></div>';
+}
 function classIn(c, k, ph) { return '<input value="' + esc(c[k]) + '" onchange="setField(\'atlas_classes\',' + js(c.id) + ',' + js(k) + ',this.value,true)"' + (ph ? ' placeholder="' + esc(ph) + '"' : '') + '>'; }
 function classDates(c) { try { var d = JSON.parse(c.dates || '[]'); return Array.isArray(d) ? d : []; } catch (e) { return []; } }
 function lessonMode(c) { return c.kind === '개인' || c.kind === '그룹'; }
 function viewClass(c) {
   var es = D.enroll.filter(function (e) { return e.classId === c.id; }).map(function (e) { return { e: e, s: byId(D.students, e.studentId) }; }).filter(function (x) { return x.s; })
     .sort(function (a, b) { return String(a.e.createdAt).localeCompare(String(b.e.createdAt)); });
-  var h = '<div class="card"><div class="fields">' +
+  var oo = c.kind === '유료 상담';
+  var h = oo ? '<div class="card"><div class="fields"><div class="field"><label>목록 이름</label>' + classIn(c, 'name') + '</div>' +
+    '<div class="field full"><label>메모</label><textarea rows="2" onchange="setField(\'atlas_classes\',' + js(c.id) + ',\'memo\',this.value)">' + esc(c.memo) + '</textarea></div></div>' +
+    '<div style="text-align:right;margin-top:8px"><button class="btn danger sm" onclick="delClass(' + js(c.id) + ')">목록 삭제</button></div></div>' : '<div class="card"><div class="fields">' +
     '<div class="field"><label>수업 이름</label>' + classIn(c, 'name') + '</div>' +
     '<div class="field"><label>종류</label><select onchange="setField(\'atlas_classes\',' + js(c.id) + ',\'kind\',this.value,true)"><option value="">-</option>' + D.classKinds.map(function (k) { return '<option' + (c.kind === k ? ' selected' : '') + '>' + esc(k) + '</option>'; }).join('') + '</select></div>' +
     '<div class="field"><label>기간 (학기·방학)</label>' + classIn(c, 'term', '예: 2026 Fall 학기중') + '</div>' +
@@ -372,18 +529,18 @@ function viewClass(c) {
     '<div style="text-align:right;margin-top:8px"><button class="btn danger sm" onclick="delClass(' + js(c.id) + ')">수업 삭제</button></div></div>';
   var dates = lessonMode(c) || c.kind === '유료 상담' ? [] : classDates(c);
   var ex = c.kind === '유료 상담' ? EXTRA : [];
-  h += '<div class="toolbar"><b>수강생 ' + es.length + '명</b><span class="grow"></span>' + (dates.length || (!lessonMode(c) && c.kind !== '유료 상담') ? '<button class="btn ghost" onclick="addDate(' + js(c.id) + ')">+ 날짜 칸</button>' : '') +
-    '<button class="btn" onclick="openEnroll(' + js(c.id) + ')">+ 수강생 추가</button></div>';
+  h += '<div class="toolbar"><b>' + (oo ? '학생 ' : '수강생 ') + es.length + '명</b><span class="grow"></span>' + (dates.length || (!lessonMode(c) && c.kind !== '유료 상담') ? '<button class="btn ghost" onclick="addDate(' + js(c.id) + ')">+ 날짜 칸</button>' : '') +
+    '<button class="btn" onclick="openEnroll(' + js(c.id) + ')">' + (oo ? '+ 학생 추가' : '+ 수강생 추가') + '</button></div>';
   var att = {}; D.attend.forEach(function (a) { if (a.classId === c.id) att[a.studentId + '|' + a.col] = a.value; });
   var cnt = dates.map(function (d) { return es.filter(function (x) { return /^1$|^o$|^ok$/i.test(String(att[x.s.id + '|' + d] || '').trim()); }).length; });
   h += datalists() + '<div class="wrap"><table class="sheet"><thead><tr><th>#</th><th>학생이름</th><th>직접 컨택 가능한 연락처</th><th>학교</th><th>학교 관련 비고</th><th>올라간 후 현재 학년</th>' +
-    ex.map(function (x) { return '<th>' + esc(x[1]) + '</th>'; }).join('') +
-    (c.kind === '유료 상담' ? '' : '<th>수강료 결제 내역</th><th>Remark</th>') +
+    ex.map(function (x) { return '<th>' + esc(x[1]) + '</th>'; }).join('') + (ex.length ? '<th>Compass</th>' : '') +
+    (c.kind === '유료 상담' ? '' : (lessonMode(c) ? '' : '<th title="구매한 회차">회차권</th><th>회당 금액</th><th>출석</th><th>남은 회차</th>') + '<th>결제 기록</th><th>수강료 결제 내역 (원문)</th><th>Remark</th>') +
     dates.map(function (d, i) { return '<th class="dt" title="눌러서 이름 바꾸기·지우기" onclick="editDate(' + js(c.id) + ',' + i + ')">' + esc(d) + '<span class="c">' + cnt[i] + '명</span></th>'; }).join('') + '<th></th></tr></thead><tbody>' +
     (es.length ? es.map(function (x, i) {
       var s = x.s, e = x.e, exv = parseExtra(e);
       return '<tr><td class="num">' + (i + 1) + '</td>' +
-        '<td class="name" style="min-width:130px">' + cellIn('atlas_students', s, 'name') + '<div class="note">' + cellIn('atlas_enroll', e, 'note', { area: 1, ph: '이 수업 메모 (10회권·할인 등)' }) + '</div></td>' +
+        '<td class="name" style="min-width:130px">' + cellIn('atlas_students', s, 'name') + '<div class="note">' + cellIn('atlas_enroll', e, 'note', { area: 1, ph: oo ? '메모' : '이 수업 메모 (10회권·할인 등)' }) + '</div></td>' +
         '<td style="min-width:120px">' + cellIn('atlas_students', s, 'phone', { area: 1 }) + '</td>' +
         '<td style="min-width:80px">' + cellIn('atlas_students', s, 'school', { list: 'dl-school' }) + '</td>' +
         '<td style="min-width:130px">' + cellIn('atlas_students', s, 'schoolNote', { area: 1 }) + '</td>' +
@@ -392,8 +549,9 @@ function viewClass(c) {
           var on = 'setExtra(' + js(e.id) + ',' + js(f[0]) + ',' + (f[2] === 'check' ? 'this.checked?\'TRUE\':\'\'' : 'this.value') + ')';
           return '<td style="min-width:' + (f[2] === 'check' ? 60 : 110) + 'px' + (f[2] === 'check' ? ';text-align:center' : '') + '">' + (f[2] === 'check' ? '<input type="checkbox" style="width:auto;margin:7px auto"' + (exv[f[0]] === 'TRUE' ? ' checked' : '') + ' onchange="' + on + '">'
             : '<textarea rows="1" onchange="' + on + '">' + esc(exv[f[0]] || '') + '</textarea>') + '</td>';
-        }).join('') +
-        (c.kind === '유료 상담' ? '' : '<td style="min-width:200px">' + cellIn('atlas_enroll', e, 'payment', { area: 1, ph: '예: 9/1 위챗페이 8,000' }) + '</td>' +
+        }).join('') + (ex.length ? '<td class="ro" style="min-width:120px">' + compassCell(s, e, exv) + '</td>' : '') +
+        (c.kind === '유료 상담' ? '' : (lessonMode(c) ? '' : sessionCells(c, e, att, dates)) + '<td class="ro" style="min-width:110px">' + payCell(s.id, c.id) + '</td>' +
+        '<td style="min-width:200px">' + cellIn('atlas_enroll', e, 'payment', { area: 1, ph: '예: 9/1 위챗페이 8,000' }) + '</td>' +
         '<td style="min-width:220px">' + cellIn('atlas_enroll', e, 'remark', { area: 1 }) + '</td>') +
         dates.map(function (d) {
           var v = att[s.id + '|' + d] || '';
@@ -406,12 +564,28 @@ function viewClass(c) {
   if (lessonMode(c)) setTimeout(function () { loadLessons(c.id); }, 0);
   return h;
 }
+/* 회차권: 구매 회차 − 출석(1) = 남은 회차 */
+function attendedCount(c, sid, att, dates) { return dates.filter(function (d) { return /^1$|^o$|^ok$/i.test(String(att[sid + '|' + d] || '').trim()); }).length; }
+function sessionCells(c, e, att, dates) {
+  var used = attendedCount(c, e.studentId, att, dates), tot = Number(e.sessions) || 0, left = tot ? tot - used : null;
+  return '<td style="min-width:62px">' + cellIn('atlas_enroll', e, 'sessions', { rerender: true, ph: '-' }) + '</td>' +
+    '<td style="min-width:78px">' + cellIn('atlas_enroll', e, 'unitPrice', { ph: '-' }) + '</td>' +
+    '<td class="ro" style="text-align:center">' + used + '</td>' +
+    '<td class="ro" style="text-align:center;' + (left !== null && left <= 2 ? 'background:#fdecea;color:#b42318;font-weight:bold' : '') + '">' + (left === null ? '<span class="muted">-</span>' : left) + '</td>';
+}
+/* 결제 기록 요약 (학생 · 수업) */
+function money(n, cur) { return (cur === 'KRW' ? '₩' : '¥') + Number(n || 0).toLocaleString(); }
+function sums(list) { var t = {}; list.forEach(function (p) { t[p.currency || 'CNY'] = (t[p.currency || 'CNY'] || 0) + (Number(p.amount) || 0); }); return Object.keys(t).map(function (k) { return money(t[k], k); }).join(' + '); }
+function payCell(sid, cid) {
+  var l = D.payments.filter(function (p) { return p.studentId === sid && (!cid || p.classId === cid); });
+  return '<a href="#" onclick="openPayments(' + js(sid) + ',' + js(cid || '') + ');return false">' + (l.length ? l.length + '건 · ' + esc(sums(l)) : '+ 결제') + '</a>';
+}
 /* 유료 상담 칸 */
 var EXTRA = [['paid', '비용 입금', 'check'], ['testDate', '적성검사 일자'], ['code', '인증코드 (검사 링크 메모)'], ['testDone', '검사 완료', 'check'], ['material', '상담 자료 (상담 전 요청사항)'], ['consultDate', '상담 일자'], ['consulting', '컨설팅 진행', 'check']];
 function parseExtra(e) { try { return JSON.parse(e.extra || '{}') || {}; } catch (x) { return {}; } }
 function setExtra(eid, k, v) {
   var e = byId(D.enroll, eid), o = parseExtra(e); o[k] = v; if (!v) delete o[k];
-  setField('atlas_enroll', eid, 'extra', JSON.stringify(o));
+  setField('atlas_enroll', eid, 'extra', JSON.stringify(o), k === 'consulting');
 }
 /* 출결 */
 function setAttend(cid, sid, col, el) {
@@ -472,7 +646,7 @@ function openClass(id) { var c = byId(D.classes, id); if (!c) return; V.page = '
 function openClassForm() {
   $('ov').innerHTML = '<div class="ov center" onclick="if(event.target===this)closeOv()"><div class="panel"><h3>수업 추가</h3><div class="fields">' +
     '<div class="field full"><label>수업 이름 *</label><input id="k-name" placeholder="예: G9 Eng 토요일 / 김OO 개인수업"></div>' +
-    '<div class="field"><label>종류</label><select id="k-kind">' + D.classKinds.map(function (k) { return '<option>' + esc(k) + '</option>'; }).join('') + '</select></div>' +
+    '<div class="field"><label>종류</label><select id="k-kind">' + D.classKinds.filter(function (k) { return k !== '유료 상담'; }).map(function (k) { return '<option>' + esc(k) + '</option>'; }).join('') + '</select></div>' +
     '<div class="field"><label>기간</label><input id="k-term" placeholder="예: 2026 Fall 학기중" value="' + esc((byId(D.classes, V.classId) || {}).term || '') + '"></div>' +
     '<div class="field"><label>강사</label><input id="k-teacher"></div><div class="field"><label>요일·시간</label><input id="k-schedule"></div></div>' +
     '<div style="display:flex;gap:6px;margin-top:12px;justify-content:flex-end"><button class="btn ghost" onclick="closeOv()">취소</button><button class="btn" onclick="saveClass()">추가</button></div></div></div>';
@@ -482,7 +656,7 @@ function saveClass() {
   var rec = { name: $('k-name').value, kind: $('k-kind').value, term: $('k-term').value, teacher: $('k-teacher').value, schedule: $('k-schedule').value };
   add('atlas_classes', rec).then(function (r) { closeOv(); V.classId = r.id; V.classFilter = '진행'; keep(); render(); toast('수업을 추가했습니다.'); }).catch(function (e) { toast(e.message, true); });
 }
-function delClass(id) { var c = byId(D.classes, id); del('atlas_classes', id, '“' + c.name + '” 수업을 지울까요?').then(function (ok) { if (ok) { V.classId = ''; render(); } }); }
+function delClass(id) { var c = byId(D.classes, id); del('atlas_classes', id, '“' + c.name + '” ' + (c.kind === '유료 상담' ? '목록을' : '수업을') + ' 지울까요?').then(function (ok) { if (ok) { V.classId = ''; render(); } }); }
 function unenroll(id) { del('atlas_enroll', id, '이 학생을 수업에서 뺄까요? (학생 정보는 상담 Roster에 그대로 남습니다)').then(function (ok) { if (ok) render(); }); }
 function openEnroll(cid) {
   $('ov').innerHTML = '<div class="ov center" onclick="if(event.target===this)closeOv()"><div class="panel"><h3>수강생 추가</h3>' +
@@ -508,20 +682,26 @@ function importFile(inp) {
   rd.onload = function () {
     try { IMPORT = JSON.parse(rd.result); } catch (e) { return toast('파일을 읽지 못했습니다.', true); }
     toast('확인하는 중…');
-    api('importData', { data: IMPORT, dryRun: true }).then(function (n) {
-      $('ov').innerHTML = '<div class="ov center"><div class="panel"><h3>가져오기 확인</h3>' +
-        '<table class="sheet" style="min-width:0;width:100%"><tbody>' + [['새 학생', n.newStudents], ['이미 있는 학생 (빈 칸만 채움)', n.matched], ['상담·팔로업 기록', n.consults], ['행사별 팔로업 체크', n.fu], ['수업', n.classes], ['수강 등록', n.enroll], ['출결 칸', n.attend], ['개인수업 기록 줄', n.lessons]]
-          .map(function (r) { return '<tr><td class="ro">' + r[0] + '</td><td class="ro" style="text-align:right"><b>' + r[1] + '</b></td></tr>'; }).join('') + '</tbody></table>' +
-        (n.skippedClasses.length ? '<div class="muted" style="margin-top:8px;font-size:.8rem">이미 있어서 건너뛰는 수업: ' + esc(n.skippedClasses.join(', ')) + '</div>' : '') +
-        '<div class="muted" style="margin-top:8px;font-size:.8rem">같은 파일을 다시 가져와도 학생·상담 기록·수업이 두 번 생기지 않습니다.</div>' +
-        '<div style="display:flex;gap:6px;margin-top:12px;justify-content:flex-end"><button class="btn ghost" onclick="IMPORT=null;closeOv()">취소</button><button class="btn" id="imp-go" onclick="importGo()">가져오기</button></div></div></div>';
-    }).catch(function (e) { toast(e.message, true); });
+    importPreview(false);
   };
   rd.readAsText(f);
 }
+function importPreview(replace) {
+    api('importData', { data: IMPORT, dryRun: true, replaceSheetConsults: replace }).then(function (n) {
+      $('ov').innerHTML = '<div class="ov center"><div class="panel"><h3>가져오기 확인</h3>' +
+        '<table class="sheet" style="min-width:0;width:100%"><tbody>' + [['새 학생', n.newStudents], ['이미 있는 학생 (빈 칸만 채움)', n.matched], ['상담·팔로업 기록', n.consults], ['행사별 팔로업 체크', n.fu], ['수업', n.classes], ['수강 등록', n.enroll], ['출결 칸', n.attend], ['개인수업 기록 줄', n.lessons]]
+          .map(function (r) { return '<tr><td class="ro">' + r[0] + '</td><td class="ro" style="text-align:right"><b>' + r[1] + '</b></td></tr>'; }).join('') + '</tbody></table>' +
+        (n.oldSheetConsults ? '<label style="display:flex;gap:8px;align-items:flex-start;margin-top:10px;padding:8px;background:#fff8db;border-radius:6px;font-size:.85rem"><input type="checkbox" id="imp-rep"' + (replace ? ' checked' : '') + ' onchange="importPreview(this.checked)" style="margin-top:3px"> <span>예전에 시트에서 가져온 상담 기록 <b>' + n.oldSheetConsults + '건</b>을 지우고 이 파일의 기록으로 바꾸기<br><span class="muted">A에서 직접 쓴 상담 기록은 그대로 남습니다.</span></span></label>' : '') +
+        (n.skippedClasses.length ? '<div class="muted" style="margin-top:8px;font-size:.8rem">이미 있어서 건너뛰는 수업 ' + n.skippedClasses.length + '개: ' + esc(n.skippedClasses.slice(0, 6).join(', ')) + (n.skippedClasses.length > 6 ? ' …' : '') + '</div>' : '') +
+        '<div class="muted" style="margin-top:8px;font-size:.8rem">같은 파일을 다시 가져와도 학생·상담 기록·수업이 두 번 생기지 않습니다.</div>' +
+        '<div style="display:flex;gap:6px;margin-top:12px;justify-content:flex-end"><button class="btn ghost" onclick="IMPORT=null;closeOv()">취소</button><button class="btn" id="imp-go" onclick="importGo()">가져오기</button></div></div></div>';
+    }).catch(function (e) { toast(e.message, true); });
+}
 function importGo() {
+  var rep = !!($('imp-rep') && $('imp-rep').checked);
+  if (rep && !confirm('예전에 시트에서 가져온 상담 기록을 지우고 새 파일로 바꿉니다. 진행할까요?')) return;
   $('imp-go').disabled = true; $('imp-go').textContent = '가져오는 중…';
-  api('importData', { data: IMPORT }).then(function (n) { IMPORT = null; closeOv(); toast('가져왔습니다: 학생 ' + n.newStudents + '명, 수업 ' + n.classes + '개'); load(); })
+  api('importData', { data: IMPORT, replaceSheetConsults: rep }).then(function (n) { IMPORT = null; closeOv(); toast('가져왔습니다: 학생 ' + n.newStudents + '명, 수업 ' + n.classes + '개'); load(); })
     .catch(function (e) { toast(e.message, true); $('imp-go').disabled = false; $('imp-go').textContent = '가져오기'; });
 }
 

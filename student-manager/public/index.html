@@ -945,7 +945,7 @@ function load(data) {
 var refreshRetry = 0, refreshTimer = null;
 function refresh(manual) {
   clearTimeout(refreshTimer);
-  return api('getAll').then(function (d) { load(d); refreshRetry = 0; if (manual) toast('최신 데이터로 새로고침했습니다.'); })
+  return api('getAll').then(function (d) { load(d); refreshRetry = 0; if (!checkAtlas.done) { checkAtlas.done = 1; checkAtlas(); } if (manual) toast('최신 데이터로 새로고침했습니다.'); })
     .catch(function (e) {
       if (e.needLogin) return;
       // 연결이 잠깐 끊긴 것: 보던 화면은 그대로 두고 3초·6초·12초 뒤 다시 받아옴
@@ -991,13 +991,21 @@ function doLogin(ev) {
     .then(function () { clearSession(); location.reload(); })
     .catch(function (e) { $('lg-msg').textContent = errMsg(e); $('lg-pw').value = ''; $('lg-pw').focus(); });
 }
+var ATLAS_OK = false; // REVERA A를 쓸 수 있는 계정이면 학생 화면에 “A 상담 이력” 버튼
+function atlasApi(fn, arg) { return fetch('/api/atlas/' + fn, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'revera' }, body: JSON.stringify({ arg: arg }) }); }
+function checkAtlas() { atlasApi('ping').then(function (r) { if (r.ok && !ATLAS_OK) { ATLAS_OK = true; if (/^#\/student\//.test(location.hash)) render(); } }).catch(function () {}); }
+function openAtlasOf(id) {
+  atlasApi('compassOf', { compassId: id }).then(function (r) { return r.json(); }).then(function (l) {
+    if (!l.length) return toast('REVERA A에 연결된 기록이 없습니다. A의 원장님 1:1 상담에서 “Compass로 넘기기”로 연결하세요.');
+    location.href = '/a#s=' + l[0].id;
+  }).catch(function () {});
+}
 var brandTaps = [];
 function brandTap() { // 로고를 빠르게 5번: 허용된 계정만 다른 화면으로 (아니면 아무 일 없음)
   var t = Date.now(); brandTaps = brandTaps.filter(function (x) { return t - x < 2500; }).concat([t]);
   if (brandTaps.length < 5) return;
   brandTaps = [];
-  fetch('/api/atlas/ping', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'revera' }, body: '{}' })
-    .then(function (r) { if (r.ok) location.href = '/a'; }).catch(function () {});
+  atlasApi('ping').then(function (r) { if (r.ok) location.href = '/a'; }).catch(function () {});
 }
 function logout() { var out = function () { clearSession(); location.replace('/#/home'); location.reload(); }; post('/api/logout').then(out, out); } // 다음 사람은 메인에서 깨끗하게 시작
 function openPasswordForm(forced) {
@@ -2428,6 +2436,7 @@ function viewStudent(id) {
     '<div style="margin-top:6px">' + tagHtml(trackTags(s)) + (countrySummary(s.id) ? ' <span class="muted">지원: ' + esc(countrySummary(s.id)) + '</span>' : '') + majorChip(s) + meetingLine(s) + breakChip(s) + '</div>' + hopeLine(s) + '</div>' +
     (resume ? '<a class="btn ghost" href="' + esc(resume) + '" target="_blank" rel="noopener">📄 Resume</a>' : '') +
     (drive ? '<a class="btn ghost" href="' + esc(drive) + '" target="_blank" rel="noopener">📁 Drive 폴더</a>' : '') +
+    (ATLAS_OK ? '<button class="btn ghost" onclick="openAtlasOf(' + js(s.id) + ')" title="REVERA A의 상담·1:1 상담 이력">A 상담 이력</button>' : '') +
     (otherBranch(s) ? '' : '<button class="btn ghost" onclick="openForm(\'students\',' + js(s.id) + ')">정보 수정</button>') + '</div>' +
     '<div class="progress-box"><b>현재 진행 상황</b> ' + (otherBranch(s) ? '' : '<button class="btn ghost sm" onclick="openForm(\'progress\',' + js(s.id) + ')">수정</button>') +
       '<div>' + (s.progress ? esc(s.progress) : '<span class="muted">아직 적힌 진행 상황이 없습니다. 담당이 아니어도 지금 상황을 바로 알 수 있게 짧게 적어주세요.</span>') + '</div>' +
@@ -3667,7 +3676,23 @@ function viewMe() {
     '<div class="full toolbar" style="margin:0"><button class="btn" type="submit">이름 저장</button><button class="btn ghost" type="button" onclick="openPasswordForm()">비밀번호 변경</button>' +
     '<button class="btn ghost" type="button" style="margin-left:auto" onclick="logout()">로그아웃</button></div></form></div>' +
     '<div class="card"><h3>내 업무</h3><div style="line-height:1.9">담당 학생 <b>' + mine.length + '명</b>: ' + (mine.map(function (s) { return '<a href="#/student/' + esc(s.id) + '">' + esc(s.name) + '</a>'; }).join(', ') || '<span class="muted">없음</span>') +
-    '<br>나에게 배정된 팔로업 <b>' + myFu.length + '건</b> <a href="#/followups" onclick="UI.fuWho=\'me\';UI.fuStatus=\'open\'">팔로업 보기 →</a></div></div>' + myTimeCard() + '</div>';
+    '<br>나에게 배정된 팔로업 <b>' + myFu.length + '건</b> <a href="#/followups" onclick="UI.fuWho=\'me\';UI.fuStatus=\'open\'">팔로업 보기 →</a></div></div>' + myTimeCard() + myColorCard() + '</div>';
+}
+/** My Page 내 색: 학생 목록에서 내가 관리하는 학생 줄의 배경색 (관리팀·관리자만 표시됨) */
+function myColorCard() {
+  if (S.me.role === 'consultant') return '';
+  var me = S.teachers.filter(function (t) { return t.email === S.me.email; })[0] || {}, cur = me.color || '';
+  var own = cur && !TEACHER_COLORS.some(function (c) { return c[0] === cur; });
+  return '<div class="card"><h3>내 색</h3><div class="muted" style="margin-bottom:8px;font-size:.88rem">학생 목록에서 내가 관리하는 학생 줄의 배경색입니다. 글자가 잘 보이게 옅은 색을 권장합니다.</div><form id="my-color" onsubmit="return false"><div class="swatches">' +
+    [['', '없음']].concat(TEACHER_COLORS).map(function (c) {
+      return '<label title="' + esc(c[1]) + '"><input type="radio" name="color" value="' + c[0] + '"' + (cur === c[0] ? ' checked' : '') + ' onchange="saveMyColor()"><span style="background:' + (c[0] || '#fff') + '">' + (c[0] ? '' : '없음') + '</span></label>';
+    }).join('') +
+    '<label title="직접 고르기" class="sw-pick"><input type="radio" name="color" value="custom" id="tc-custom"' + (own ? ' checked' : '') + '><span style="background:' + (own ? esc(cur) : '#fff') + '" id="tc-sw">🎨</span>' +
+    '<input type="color" id="tc-pick" value="' + esc(own ? cur : '#ffd966') + '" oninput="$(\'tc-custom\').checked=true;$(\'tc-sw\').style.background=this.value" onchange="saveMyColor()" aria-label="색 직접 고르기"></label></div></form></div>';
+}
+function saveMyColor() {
+  var r = document.querySelector('#my-color input[name=color]:checked'); if (!r) return;
+  mutate('updateMe', { color: r.value === 'custom' ? ($('tc-pick').value || '').toLowerCase() : r.value }, '색을 저장했습니다.');
 }
 /** My Page 화면 시간: 출장 등으로 잠깐 다른 나라 시간으로 보고 싶을 때 (비우면 지점 기준) */
 function myTimeCard() {
@@ -4795,7 +4820,7 @@ function viewTeachers() {
     S.teachers.map(function (t) {
       var cnt = S.allStudents.filter(function (s) { return isActive(s) && (String(s.counselor).toLowerCase() === t.email.toLowerCase() || String(s.manager || '').toLowerCase() === t.email.toLowerCase()); }).length;
       return '<tr class="drag" draggable="true" data-id="' + esc(t.email) + '" data-grp=""><td class="nw gripc"><span class="grip" title="끌어서 순서 바꾸기">⋮⋮</span></td><td><b>' + esc(t.name) + '</b></td><td>' + esc(t.email) + '</td><td class="nw">' + esc(t.branch === ALL_BRANCH ? '전체' : branchOf(t)) + '</td><td>' + esc(ROLE_LABEL[t.role] || t.role) + '</td>' +
-        '<td>' + (t.color && t.role !== 'consultant' ? '<span class="swatch" style="background:' + esc(t.color) + '"></span>' : '') + (t.active ? '<span class="pill s-진행중">활성</span>' : '<span class="pill s-종료">비활성</span>') + '</td><td>' + cnt + '명</td><td>' + (t.notify !== false ? '받음' : '<span class="muted">안 받음</span>') + '</td>' +
+        '<td>' + (t.color && t.role !== 'consultant' ? '<span class="swatch" title="색은 각자 My Page에서 고릅니다" style="background:' + esc(t.color) + '"></span>' : '') + (t.active ? '<span class="pill s-진행중">활성</span>' : '<span class="pill s-종료">비활성</span>') + '</td><td>' + cnt + '명</td><td>' + (t.notify !== false ? '받음' : '<span class="muted">안 받음</span>') + '</td>' +
         '<td><button class="btn ghost sm" onclick="openTeacherForm(' + js(t.email) + ')">수정</button></td></tr>';
     }).join('') + '</tbody></table></div>';
   return h;
@@ -4854,14 +4879,6 @@ function openTeacherForm(email) {
       '<div class="muted" style="font-size:.78rem;margin-top:3px">상해 = 중국 시간, 압구정 = 한국 시간 · 전체 = 두 지점을 모두 맡는 계정(원장님 등), 처음부터 전체 지점이 보임</div>') +
     fld('화면 시간 (지점이 “전체”일 때)', '<select name="tz" id="tc-tz"' + (t.branch === ALL_BRANCH ? '' : ' disabled') + '>' + tzOptions(t.tz || SCHED_TZ) + '</select>') +
     fld('이메일 알림', '<div><label style="display:inline-flex;gap:6px;align-items:center;color:#222"><input type="checkbox" name="notify"' + (t.notify !== false ? ' checked' : '') + '> 매일 아침 “오늘 챙길 일” 메일 받기</label></div>', true) +
-    '<div class="full"><label>색 (관리팀·관리자 — 학생 목록에서 이 선생님이 관리하는 학생 줄의 배경색)</label><div class="swatches">' +
-      [['', '없음']].concat(TEACHER_COLORS).map(function (c) {
-        return '<label title="' + esc(c[1]) + '"><input type="radio" name="color" value="' + c[0] + '"' + ((t.color || '') === c[0] ? ' checked' : '') + '><span style="background:' + (c[0] || '#fff') + '">' + (c[0] ? '' : '없음') + '</span></label>';
-      }).join('') + (function () { // 목록에 없는 색: 직접 고르기
-        var own = t.color && !TEACHER_COLORS.some(function (c) { return c[0] === t.color; });
-        return '<label title="직접 고르기" class="sw-pick"><input type="radio" name="color" value="custom" id="tc-custom"' + (own ? ' checked' : '') + '><span style="background:' + (own ? esc(t.color) : '#fff') + '" id="tc-sw">🎨</span>' +
-          '<input type="color" id="tc-pick" value="' + esc(own ? t.color : '#ffd966') + '" oninput="$(\'tc-custom\').checked=true;$(\'tc-sw\').style.background=this.value" aria-label="색 직접 고르기"></label>';
-      })() + '</div><div class="muted" style="font-size:.8rem">🎨 을 누르면 원하는 색을 직접 고를 수 있습니다 (글자가 잘 보이게 옅은 색 권장). 컨설턴트는 색을 정해도 표시되지 않습니다.</div></div>' +
     fld(email ? '비밀번호 초기화 (바꿀 때만 입력)' : '비밀번호 (6자 이상)', inp('password', '', 'text', ' autocomplete="off"' + (email ? ' placeholder="비워두면 그대로"' : ' required')), true, !email);
   modal(email ? '계정 수정' : '계정 추가', body,
     (email && email !== S.me.email ? '<button class="btn danger left" onclick="deleteTeacher(' + js(email) + ')">계정 삭제</button>' : '') +
@@ -5033,7 +5050,6 @@ function copyScript() {
 }
 function submitTeacher() {
   var o = formData($('mf'));
-  if (o.color === 'custom') o.color = ($('tc-pick').value || '').toLowerCase();
   o.active = o.active === '1';
   if (o.password && o.password.length < 6) return toast('비밀번호는 6자 이상이어야 합니다.', true);
   mutate('saveTeacher', o, o.password ? '저장했습니다. 임시 비밀번호를 전달하세요.' : '저장했습니다.');
