@@ -595,7 +595,7 @@
 <div id="loading"></div>
 <header class="top">
   <div class="top-in">
-    <a class="brand" href="#/home" title="메인 화면으로">REVERA <span>Compass</span></a>
+    <a class="brand" href="#/home" title="메인 화면으로" onclick="brandTap()">REVERA <span>Compass</span></a>
     <div class="gsearch" id="gs" style="display:none"><input type="search" id="gq" placeholder="🔍" aria-label="검색" autocomplete="off"
       oninput="gsearch()" onfocus="gsearch()" onkeydown="gsKey(event)"><div id="gsr" class="gsr"></div></div>
     <button class="hbtn" id="rf" style="display:none" onclick="location.reload()" title="화면을 새로 불러오기 (새 버전이 배포됐으면 함께 적용)">↻ 새로고침</button>
@@ -657,7 +657,7 @@ var MEETING_TYPES = ['대면', 'ZOOM', '전화', '위챗'];
 /** 답변한 사람 — 우리 쪽은 담당 선생님·관리팀 */
 var REPLY_FROM = ['학생', '어머님', '아버님', '담당 선생님', '관리팀', '기타'];
 var CONTACT_FROM = ['학생', '어머님', '아버님', '학부모', '학교', '기타'];
-var CONTACT_CHANNELS = ['위챗', '문자', '이메일', '전화', '대면', '기타'];
+var CONTACT_CHANNELS = ['위챗', '카톡', '왓츠앱', '전화', '대면', '기타'];
 var ACCOUNT_CATS = ['원서 포털', '시험', '학교 LMS', '기타'];
 /** 원서 정보 항목 이름 예시 (직접 입력도 가능) */
 var APPINFO_ITEMS = ['추천인 1', '추천인 2', '추천인 3', '카운슬러', '학교 정보 (주소·코드)', '졸업 예정일', '수상 내역 (영문)', '활동 내역 (영문)', '원서 질문 답변', '기타'];
@@ -990,6 +990,14 @@ function doLogin(ev) {
     // 화면을 새로 불러와 시작 — 같은 창에서 앞사람이 쓰던 필터·지점·화면 상태가 남지 않게 (보던 화면 주소는 유지)
     .then(function () { clearSession(); location.reload(); })
     .catch(function (e) { $('lg-msg').textContent = errMsg(e); $('lg-pw').value = ''; $('lg-pw').focus(); });
+}
+var brandTaps = [];
+function brandTap() { // 로고를 빠르게 5번: 허용된 계정만 다른 화면으로 (아니면 아무 일 없음)
+  var t = Date.now(); brandTaps = brandTaps.filter(function (x) { return t - x < 2500; }).concat([t]);
+  if (brandTaps.length < 5) return;
+  brandTaps = [];
+  fetch('/api/atlas/ping', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'revera' }, body: '{}' })
+    .then(function (r) { if (r.ok) location.href = '/a'; }).catch(function () {});
 }
 function logout() { var out = function () { clearSession(); location.replace('/#/home'); location.reload(); }; post('/api/logout').then(out, out); } // 다음 사람은 메인에서 깨끗하게 시작
 function openPasswordForm(forced) {
@@ -3341,7 +3349,7 @@ function viewOptionList(kind) {
   h += '<div class="card"><form class="toolbar" style="margin:0" onsubmit="addOption(' + js(kind) + ');return false"><input type="text" id="opt-new" class="grow" placeholder="새 ' + label + ' 이름"><button class="btn" type="submit">+ 추가</button></form></div>';
   h += '<div class="card tbl-wrap"><div class="muted" style="margin-bottom:6px">⋮⋮ 를 끌어서 순서를 바꾸면 바로 저장되고, ' + (dc || pg ? '분류 선택과 묶음' : '학생 정보의 선택 목록') + '도 이 순서로 나옵니다.</div><table><thead><tr><th class="gripc"></th><th>' + label + '</th>' + (kind === 'school' ? '<th>정식 이름 · 나라·도시</th>' : '') + '<th>' + (dc ? '파일·서류 수' : pg ? '대회·프로그램 수' : '학생 수') + '</th>' + (kind === 'school' ? '<th>방학</th>' : '') + '<th></th></tr></thead><tbody data-order="' + esc(kind) + '">' +
     (list.length ? list.map(function (o) {
-      return '<tr class="drag" draggable="true" data-id="' + esc(o.id) + '" data-grp="">' + '<td class="nw gripc"><span class="grip" title="끌어서 순서 바꾸기">⋮⋮</span></td>' + '<td><b>' + esc(o.value) + '</b></td>' + (kind === 'school' ? '<td>' + (o.fullName ? esc(o.fullName) : '<span class="muted">-</span>') + ([o.country, o.city].filter(Boolean).length ? '<div class="muted" style="font-size:.8rem">' + esc([o.country, o.city].filter(Boolean).join(' · ')) + '</div>' : '') + '</td>' : '') + '<td>' + (used[o.value] || 0) + unit + '</td>' +
+      return '<tr class="drag" draggable="true" data-id="' + esc(o.id) + '" data-grp="">' + '<td class="nw gripc"><span class="grip" title="끌어서 순서 바꾸기">⋮⋮</span></td>' + '<td><b>' + esc(o.value) + '</b></td>' + (kind === 'school' ? '<td>' + (o.fullName ? esc(o.fullName) : '<span class="muted">-</span>') + ([o.country, o.city].filter(Boolean).length ? '<div class="muted" style="font-size:.8rem">' + esc([o.country, o.city].filter(Boolean).join(' · ')) + '</div>' : '') + '</td>' : '') + '<td>' + (dc && used[o.value] ? '<a href="#" onclick="openDocCat(' + js(o.value) + ');return false" title="어떤 서류인지 보기">' + used[o.value] + unit + '</a>' : (used[o.value] || 0) + unit) + '</td>' +
         (kind === 'school' ? '<td>' + (breaksOf(o.value).filter(function (b) { return b.endDate >= today(); }).slice(0, 2).map(function (b) { return '<div class="nw">' + esc(b.name) + ' ' + esc(fmtD(b.startDate)) + '~' + esc(fmtD(b.endDate)) + '</div>'; }).join('') || '<span class="muted">-</span>') +
           ' <button class="btn ghost sm" onclick="openBreaks(' + js(o.value) + ')">🏫 방학 관리</button></td>' : '') +
         '<td class="nw"><button class="btn ghost sm" onclick="' + (kind === 'school' ? 'openSchoolForm(' + js(o.id) + ')">수정' : 'renameOption(' + js(o.id) + ')">이름 변경') + '</button> ' +
@@ -3350,9 +3358,20 @@ function viewOptionList(kind) {
   var have = {}; list.forEach(function (o) { have[o.value] = 1; });
   var loose = Object.keys(used).filter(function (v) { return !have[v]; }).sort();
   if (loose.length) h += '<div class="card"><h3>' + (dc ? '파일·서류' : pg ? '대회·프로그램' : '학생 정보') + '에만 있고 목록에 없는 ' + label + '</h3><div class="tbl-wrap"><table class="compact"><tbody>' + loose.map(function (v) {
-    return '<tr><td><b>' + esc(v) + '</b></td><td>' + used[v] + unit + '</td><td class="nw"><button class="btn ghost sm" onclick="addOption(' + js(kind) + ',' + js(v) + ')">목록에 추가</button></td></tr>';
+    return '<tr><td><b>' + esc(v) + '</b></td><td>' + (dc ? '<a href="#" onclick="openDocCat(' + js(v) + ');return false">' + used[v] + unit + '</a>' : used[v] + unit) + '</td><td class="nw"><button class="btn ghost sm" onclick="addOption(' + js(kind) + ',' + js(v) + ')">목록에 추가</button></td></tr>';
   }).join('') + '</tbody></table></div></div>';
   return h;
+}
+/* 서류 분류의 건수를 누르면: 어느 학생의 어떤 파일·서류인지 */
+function openDocCat(cat) {
+  var rows = S.files.filter(function (f) { return !f.meetingId && !f.followupId && !f.docId && f.category === cat; }).map(function (f) { return { s: anyStudent(f.studentId), name: f.name, kind: '파일', tab: 'scores', at: f.createdAt }; })
+    .concat(S.docs.filter(function (d) { return d.category === cat; }).map(function (d) { return { s: anyStudent(d.studentId), name: d.name, kind: '서류', tab: 'docs', st: d.status, at: d.createdAt }; }))
+    .filter(function (r) { return r.s; }).sort(function (a, b) { return a.s.name.localeCompare(b.s.name) || String(a.name).localeCompare(String(b.name)); });
+  modal(cat + ' — ' + rows.length + '건', '<div class="full tbl-wrap"><table class="compact"><thead><tr><th>학생</th><th>이름</th><th>구분</th><th>상태</th></tr></thead><tbody>' +
+    (rows.length ? rows.map(function (r) {
+      return '<tr><td class="nw"><a href="#" onclick="closeModal(true);openStudent(' + js(r.s.id) + ',' + js(r.tab) + ');return false">' + esc(r.s.name) + '</a>' + (r.s.school ? ' <span class="muted">' + esc(r.s.school) + '</span>' : '') + '</td>' +
+        '<td>' + esc(r.name || '') + '</td><td class="nw muted">' + r.kind + '</td><td class="nw">' + esc(r.st || '') + '</td></tr>';
+    }).join('') : '<tr><td colspan="4" class="empty">없습니다.</td></tr>') + '</tbody></table></div>', '<button class="btn" onclick="closeModal(true)">닫기</button>');
 }
 function viewSiteList() {
   var list = siteList(), used = {};

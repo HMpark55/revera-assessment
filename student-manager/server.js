@@ -11,6 +11,7 @@ const path = require('path');
 const zlib = require('zlib');
 const { openStore, UserError, MAX_UPLOAD } = require('./lib/store');
 const automation = require('./lib/automation');
+const { attachAtlas } = require('./lib/atlas');
 
 const COOKIE = 'revera_sid';
 
@@ -317,6 +318,22 @@ function createApp(store, opts) {
     } catch (e) {
       if (e instanceof UserError) return sendError(res, e);
       res.status(502).json({ error: e.message || '실패했습니다.' });
+    }
+  });
+
+  /* ---- REVERA A (학원 관리): 허용된 계정만. 그 외에는 '없는 페이지'처럼 보이게 404 ---- */
+  const atlas = attachAtlas(store.db);
+  const atlasMe = (req) => { const me = store.authenticate(readCookie(req)); return atlas.allowed(me) ? me : null; };
+  app.get('/a', (req, res, next) => {
+    if (!atlasMe(req)) return next();
+    res.sendFile(path.join(__dirname, 'private', 'atlas.html'));
+  });
+  app.post('/api/atlas/:fn', (req, res) => {
+    const me = atlasMe(req);
+    if (!me || !Object.prototype.hasOwnProperty.call(atlas.rpc, req.params.fn)) return res.status(404).json({ error: '없는 기능입니다.' });
+    try { res.json(atlas.rpc[req.params.fn](me, (req.body || {}).arg)); } catch (e) {
+      if (e instanceof atlas.AtlasError) return res.status(e.status).json({ error: e.message });
+      sendError(res, e);
     }
   });
 

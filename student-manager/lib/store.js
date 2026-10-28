@@ -146,7 +146,9 @@ const FOLLOWUP_STATUS = ['할 일', '진행 중', '대기', '완료'];
 /** 팔로업 종류: '' = 우리가 챙길 할 일, 'contact' = 학생·학부모에게 받은 연락(질문·확인 요청) */
 const FOLLOWUP_KINDS = ['', 'contact'];
 const CONTACT_FROM = ['학생', '어머님', '아버님', '학부모', '학교', '기타'];
-const CONTACT_CHANNELS = ['위챗', '문자', '이메일', '전화', '대면', '기타'];
+const CONTACT_CHANNELS = ['위챗', '카톡', '왓츠앱', '전화', '대면', '기타'];
+// 예전에 쓰던 경로 — 이미 저장된 기록은 그대로 수정할 수 있게 받아준다
+const CONTACT_CHANNELS_OLD = ['문자', '이메일'];
 const MAJOR_STATUS = ['후보', '유력', '최종', '제외'];
 const MEETING_STATUS = ['예정', '완료', '취소'];
 const COURSE_TERMS = ['1년(2학기)', '1학기만', '2학기만', 'Trimester'];
@@ -1114,7 +1116,7 @@ function openStore(dbPath, opts) {
       if (v('due') && !/^\d{4}-\d{2}-\d{2}$/.test(v('due'))) throw new UserError('기한 형식이 올바르지 않습니다.');
       if (!FOLLOWUP_KINDS.includes(v('kind') || '')) throw new UserError('종류가 올바르지 않습니다.');
       if (v('fromWho') && !CONTACT_FROM.includes(v('fromWho'))) throw new UserError('보낸 사람이 올바르지 않습니다.');
-      if (v('channel') && !CONTACT_CHANNELS.includes(v('channel'))) throw new UserError('연락 경로가 올바르지 않습니다.');
+      if (v('channel') && !CONTACT_CHANNELS.includes(v('channel')) && !CONTACT_CHANNELS_OLD.includes(v('channel'))) throw new UserError('연락 경로가 올바르지 않습니다.');
       for (const k of ['receivedDate', 'answerDate']) if (v(k) && !DATE_RE.test(v(k))) throw new UserError('날짜 형식이 올바르지 않습니다.');
     }
     if (table === 'meetings') {

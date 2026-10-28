@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>REVERA A</title>
+<style>
+  :root { --navy:#0B1B45; --gold:#C9A227; --bg:#f4f5f8; --card:#fff; --border:#d7d9de; --line:#e3e5ea; --muted:#6b7280; --hl:#fff8db; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:"Malgun Gothic","Apple SD Gothic Neo","Noto Sans KR",sans-serif; background:var(--bg); color:#1f2937; font-size:14px; }
+  a { color:var(--navy); }
+  header.top { background:var(--navy); color:#fff; position:sticky; top:0; z-index:30; display:flex; align-items:center; gap:22px; padding:0 20px; height:52px; }
+  .brand { font-weight:bold; font-size:1.1rem; letter-spacing:.5px; }
+  .brand span { color:var(--gold); }
+  .nav a { color:#cfd5e6; text-decoration:none; padding:16px 2px; margin-right:16px; border-bottom:3px solid transparent; cursor:pointer; }
+  .nav a.on { color:#fff; font-weight:bold; border-bottom-color:var(--gold); }
+  .back { margin-left:auto; color:#cfd5e6; text-decoration:none; font-size:.85rem; border:1px solid #42507a; border-radius:20px; padding:5px 12px; }
+  .back:hover { color:#fff; border-color:#fff; }
+  main { padding:16px 20px 60px; }
+  h2 { font-size:1.1rem; color:var(--navy); margin:0 0 10px; }
+  .tabs { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:10px; }
+  .tabs button { border:1px solid var(--border); background:#fff; border-radius:16px; padding:5px 11px; cursor:pointer; font:inherit; font-size:.85rem; color:#374151; }
+  .tabs button.on { background:var(--navy); border-color:var(--navy); color:#fff; font-weight:bold; }
+  .tabs button .n { color:var(--muted); font-size:.75rem; margin-left:3px; }
+  .tabs button.on .n { color:#cfd5e6; }
+  .tabs .sep { width:1px; background:var(--border); margin:0 6px; }
+  .toolbar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:10px; }
+  .toolbar .grow { flex:1; }
+  input, select, textarea, button { font:inherit; }
+  .toolbar input, .toolbar select, .field input, .field select, .field textarea { border:1px solid var(--border); border-radius:6px; padding:6px 8px; background:#fff; }
+  .btn { border:1px solid var(--navy); background:var(--navy); color:#fff; border-radius:6px; padding:6px 12px; cursor:pointer; white-space:nowrap; }
+  .btn.ghost { background:#fff; color:var(--navy); }
+  .btn.sm { padding:3px 8px; font-size:.8rem; }
+  .btn.danger { border-color:#b42318; background:#fff; color:#b42318; }
+  .muted { color:var(--muted); }
+  .wrap { overflow:auto; background:#fff; border:1px solid var(--border); border-radius:8px; max-height:calc(100vh - 210px); }
+  table.sheet { border-collapse:collapse; min-width:100%; }
+  .sheet th { position:sticky; top:0; z-index:5; background:#eef0f5; color:#374151; font-size:.78rem; font-weight:bold; text-align:left; padding:6px 6px; border:1px solid var(--line); white-space:nowrap; }
+  .sheet th.fu { background:#fdf3d3; }
+  .sheet td { border:1px solid var(--line); padding:0; vertical-align:top; background:#fff; }
+  .sheet td.num { color:var(--muted); font-size:.75rem; text-align:center; padding:6px 4px; background:#fafbfc; }
+  .sheet td.ro { padding:5px 6px; font-size:.82rem; }
+  .sheet input, .sheet select, .sheet textarea { width:100%; border:0; padding:5px 6px; background:transparent; font-size:.85rem; color:inherit; resize:none; display:block; }
+  .sheet textarea { min-height:28px; overflow:hidden; line-height:1.35; }
+  .sheet input:focus, .sheet select:focus, .sheet textarea:focus { outline:2px solid var(--gold); outline-offset:-2px; background:var(--hl); }
+  .sheet .name input { font-weight:bold; }
+  .sheet tr.t-black td { background:#fdecea; }
+  .sheet tr.t-off td { background:#f1f2f4; color:#6b7280; }
+  .sheet tr.t-done td { background:#eef7f1; }
+  .chip { display:inline-block; background:#e8ecf7; color:var(--navy); border-radius:10px; padding:1px 7px; margin:1px 2px 1px 0; font-size:.75rem; white-space:nowrap; cursor:pointer; }
+  .chip.done { background:#eceef1; color:#6b7280; }
+  .log { cursor:pointer; min-width:240px; max-width:340px; }
+  .log:hover { background:var(--hl); }
+  .log .d { color:var(--muted); font-size:.75rem; }
+  .log .c { white-space:pre-wrap; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+  .x { border:0; background:none; color:#9ca3af; cursor:pointer; padding:5px 6px; font-size:.9rem; }
+  .x:hover { color:#b42318; }
+  .empty { text-align:center; color:var(--muted); padding:28px; }
+  /* 수업 Roster */
+  .cols { display:grid; grid-template-columns:270px 1fr; gap:14px; align-items:start; }
+  .side { background:#fff; border:1px solid var(--border); border-radius:8px; max-height:calc(100vh - 130px); overflow:auto; }
+  .side .grp { font-size:.75rem; color:var(--muted); padding:10px 12px 4px; font-weight:bold; }
+  .side .it { padding:7px 12px; cursor:pointer; border-left:3px solid transparent; }
+  .side .it:hover { background:#f6f7fa; }
+  .side .it.on { background:#eef1f8; border-left-color:var(--gold); }
+  .side .it .s { font-size:.75rem; color:var(--muted); }
+  .side .it.done { color:#9ca3af; }
+  .card { background:#fff; border:1px solid var(--border); border-radius:8px; padding:12px 14px; margin-bottom:12px; }
+  .fields { display:grid; grid-template-columns:repeat(auto-fill, minmax(180px, 1fr)); gap:8px 12px; }
+  .field label { display:block; font-size:.75rem; color:var(--muted); margin-bottom:2px; }
+  .field input, .field select, .field textarea { width:100%; }
+  .field.full { grid-column:1 / -1; }
+  /* 창 */
+  .ov { position:fixed; inset:0; background:rgba(11,27,69,.35); z-index:50; display:flex; justify-content:flex-end; }
+  .ov.center { justify-content:center; align-items:flex-start; padding-top:8vh; }
+  .panel { background:#fff; width:min(520px, 100%); height:100%; overflow:auto; padding:18px; box-shadow:-6px 0 24px rgba(0,0,0,.15); }
+  .ov.center .panel { height:auto; max-height:84vh; border-radius:10px; }
+  .panel h3 { margin:0 0 12px; color:var(--navy); }
+  .hist { border-top:1px solid var(--line); padding:9px 0; }
+  .hist .h { display:flex; gap:8px; align-items:center; font-size:.8rem; color:var(--muted); }
+  .hist .b { white-space:pre-wrap; margin-top:3px; }
+  .results { border:1px solid var(--line); border-radius:6px; max-height:280px; overflow:auto; margin-top:6px; }
+  .results div { padding:7px 10px; cursor:pointer; border-bottom:1px solid var(--line); }
+  .results div:hover { background:var(--hl); }
+  #toast { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:#111827; color:#fff; padding:9px 16px; border-radius:8px; z-index:80; display:none; font-size:.9rem; }
+  #toast.err { background:#b42318; }
+  @media (max-width: 800px) { .cols { grid-template-columns:1fr; } header.top { gap:10px; padding:0 10px; } main { padding:12px 10px 40px; } }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand">REVERA <span>A</span></div>
+  <nav class="nav"><a data-p="consult" onclick="go('consult')">상담 Roster</a><a data-p="class" onclick="go('class')">수업 Roster</a></nav>
+  <a class="back" href="/#/home">← Compass로 돌아가기</a>
+</header>
+<main id="main"><div class="empty">불러오는 중…</div></main>
+<div id="ov"></div>
+<div id="toast"></div>
+<script>
+'use strict';
+var D = null; // 서버 데이터
+var V = { page: 'consult', tab: 'all', school: '', q: '', camp: '', classId: '', classFilter: '진행' };
+try { var sv = JSON.parse(localStorage.getItem('atlas.view') || '{}'); Object.keys(sv).forEach(function (k) { if (k in V) V[k] = sv[k]; }); } catch (e) {}
+var TAGS = ['블랙리스트', '팔로업X', '귀임', '원서완료'];
+
+function $(id) { return document.getElementById(id); }
+function esc(v) { return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+function js(v) { return esc(JSON.stringify(v == null ? '' : v)); }
+function toast(msg, err) { var t = $('toast'); t.textContent = msg; t.className = err ? 'err' : ''; t.style.display = 'block'; clearTimeout(toast.t); toast.t = setTimeout(function () { t.style.display = 'none'; }, err ? 4000 : 1800); }
+function keep() { try { localStorage.setItem('atlas.view', JSON.stringify(V)); } catch (e) {} }
+function today() { var d = new Date(); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+
+function api(fn, arg) {
+  return fetch('/api/atlas/' + fn, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'revera' }, body: JSON.stringify({ arg: arg }) })
+    .then(function (r) { return r.json().catch(function () { return {}; }).then(function (b) { if (!r.ok) throw new Error(b.error || '저장하지 못했습니다.'); return b; }); });
+}
+function load() { return api('getAll').then(function (d) { D = d; render(); }).catch(function (e) { $('main').innerHTML = '<div class="empty">' + esc(e.message) + ' <a href="/">Compass로</a></div>'; }); }
+function byId(list, id) { for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i]; return null; }
+function replaceIn(list, rec) { for (var i = 0; i < list.length; i++) if (list[i].id === rec.id) { list[i] = rec; return; } list.push(rec); }
+function tableList(t) { return { atlas_students: D.students, atlas_consults: D.consults, atlas_fu: D.fu, atlas_classes: D.classes, atlas_enroll: D.enroll }[t]; }
+
+/* 칸 하나 저장 (다른 사람이 같은 줄의 다른 칸을 고쳐도 덮어쓰지 않음) */
+function setField(t, id, k, v, rerender) {
+  var rec = {}; rec.id = id; rec[k] = v;
+  return api('save', { table: t, rec: rec }).then(function (r) { replaceIn(tableList(t), r); if (rerender) render(); }).catch(function (e) { toast(e.message, true); load(); });
+}
+function add(t, rec) { return api('save', { table: t, rec: rec }).then(function (r) { tableList(t).push(r); return r; }); }
+function del(t, id, msg) {
+  if (msg && !confirm(msg)) return Promise.resolve(false);
+  return api('remove', { table: t, id: id }).then(function () { var l = tableList(t); for (var i = l.length - 1; i >= 0; i--) if (l[i].id === id) l.splice(i, 1); return true; }).catch(function (e) { toast(e.message, true); });
+}
+
+/* ----- 학년: 졸업 연도(6월)로 저장 → 매년 8월에 자동으로 한 학년씩 올라감 ----- */
+function yearEnd() { var d = new Date(); return d.getMonth() + 1 >= 8 ? d.getFullYear() + 1 : d.getFullYear(); }
+function gradeOf(s) { return s.gradYear ? 12 - (Number(s.gradYear) - yearEnd()) : null; }
+function gradeLabel(s) {
+  var g = gradeOf(s); if (g == null) return '';
+  if (g > 12) return String(s.gradYear).slice(2) + '년 6월 졸업';
+  return g >= 1 ? 'G' + g + '=Y' + (g + 1) : 'G' + g;
+}
+function gradeSelect(s, onch) {
+  var ye = yearEnd(), o = '<option value="">-</option>';
+  for (var g = 1; g <= 12; g++) { var gy = ye + 12 - g; o += '<option value="' + gy + '"' + (String(s.gradYear) === String(gy) ? ' selected' : '') + '>G' + g + '=Y' + (g + 1) + '</option>'; }
+  for (var y = ye - 1; y >= ye - 6; y--) o += '<option value="' + y + '"' + (String(s.gradYear) === String(y) ? ' selected' : '') + '>' + String(y).slice(2) + '년 졸업</option>';
+  if (s.gradYear && (Number(s.gradYear) > ye + 11 || Number(s.gradYear) < ye - 6)) o += '<option value="' + esc(s.gradYear) + '" selected>' + esc(gradeLabel(s)) + '</option>';
+  return '<select onchange="' + onch + '">' + o + '</select>';
+}
+
+function go(p) { V.page = p; keep(); render(); window.scrollTo(0, 0); }
+function render() {
+  if (!D) return;
+  [].forEach.call(document.querySelectorAll('.nav a'), function (a) { a.className = a.getAttribute('data-p') === V.page ? 'on' : ''; });
+  $('main').innerHTML = V.page === 'class' ? viewClasses() : viewConsult();
+  [].forEach.call(document.querySelectorAll('.sheet textarea'), grow);
+}
+function grow(el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 160) + 'px'; }
+document.addEventListener('input', function (e) { if (e.target.matches && e.target.matches('.sheet textarea')) grow(e.target); });
+
+function cellIn(t, rec, k, opts) {
+  opts = opts || {};
+  var on = 'setField(' + js(t) + ',' + js(rec.id) + ',' + js(k) + ',this.value' + (opts.rerender ? ',true' : '') + ')';
+  if (opts.area) return '<textarea rows="1" onchange="' + on + '"' + (opts.ph ? ' placeholder="' + esc(opts.ph) + '"' : '') + '>' + esc(rec[k]) + '</textarea>';
+  return '<input value="' + esc(rec[k]) + '" onchange="' + on + '"' + (opts.list ? ' list="' + opts.list + '"' : '') + (opts.ph ? ' placeholder="' + esc(opts.ph) + '"' : '') + '>';
+}
+function schools() { var m = {}; D.students.forEach(function (s) { if (s.school) m[s.school] = 1; }); return Object.keys(m).sort(); }
+function datalists() {
+  var progs = {}; D.consults.forEach(function (c) { if (c.program) progs[c.program] = 1; });
+  return '<datalist id="dl-school">' + schools().map(function (v) { return '<option value="' + esc(v) + '">'; }).join('') + '</datalist>' +
+    '<datalist id="dl-tag">' + TAGS.map(function (v) { return '<option value="' + esc(v) + '">'; }).join('') + '</datalist>' +
+    '<datalist id="dl-prog">' + Object.keys(progs).sort().map(function (v) { return '<option value="' + esc(v) + '">'; }).join('') + '</datalist>';
+}
+function rowClass(s) { var t = String(s.tag || ''); return /블랙/.test(t) ? 't-black' : /팔로업\s*x|팔로업X/i.test(t) ? 't-off' : /귀임|원서완료/.test(t) ? 't-done' : ''; }
+function sortStudents(list) { return list.sort(function (a, b) { return (gradeOf(b) || -99) - (gradeOf(a) || -99) || String(a.school).localeCompare(String(b.school)) || String(a.name).localeCompare(String(b.name)); }); }
+
+/* ======================= 상담 Roster ======================= */
+function tabOf(s) { var g = gradeOf(s); return g == null ? 'none' : g > 12 ? 'grad' + s.gradYear : 'g' + Math.max(g, 0); }
+function campaigns() {
+  var m = {}; D.fu.forEach(function (f) { m[f.campaign] = m[f.campaign] || f.createdAt; });
+  if (V.camp && !m[V.camp]) m[V.camp] = '9';
+  return Object.keys(m).sort(function (a, b) { return String(m[b]).localeCompare(String(m[a])); });
+}
+function viewConsult() {
+  var cnt = { all: D.students.length }, ye = yearEnd();
+  D.students.forEach(function (s) { var t = tabOf(s); cnt[t] = (cnt[t] || 0) + 1; if (s.grp) cnt['grp:' + s.grp] = (cnt['grp:' + s.grp] || 0) + 1; });
+  var tabs = [['all', '전체']];
+  var low = 99; D.students.forEach(function (s) { var g = gradeOf(s); if (g != null && g <= 12) low = Math.min(low, g); });
+  for (var g = Math.min(4, Math.max(low, 0)); g <= 12; g++) tabs.push(['g' + g, g >= 1 ? 'G' + g + '=Y' + (g + 1) : 'G' + g]);
+  var grads = Object.keys(cnt).filter(function (k) { return /^grad/.test(k); }).sort().reverse();
+  grads.forEach(function (k) { tabs.push([k, k.slice(6, 8) + '년 6월 졸업']); });
+  if (cnt.none) tabs.push(['none', '학년 미정']);
+  var h = '<h2>상담 Roster</h2><div class="tabs">' + tabs.map(function (t) {
+    return '<button class="' + (V.tab === t[0] ? 'on' : '') + '" onclick="V.tab=' + js(t[0]) + ';keep();render()">' + esc(t[1]) + '<span class="n">' + (cnt[t[0]] || 0) + '</span></button>';
+  }).join('') + '<span class="sep"></span>' + D.groups.map(function (gname) {
+    var k = 'grp:' + gname; return '<button class="' + (V.tab === k ? 'on' : '') + '" onclick="V.tab=' + js(k) + ';keep();render()">' + esc(gname) + '<span class="n">' + (cnt[k] || 0) + '</span></button>';
+  }).join('') + '</div>';
+  var camps = campaigns(); if (V.camp && camps.indexOf(V.camp) < 0) V.camp = '';
+  if (!V.camp && camps.length) V.camp = camps[0];
+  h += '<div class="toolbar"><select onchange="V.school=this.value;keep();render()"><option value="">학교 전체</option>' + schools().map(function (v) { return '<option' + (V.school === v ? ' selected' : '') + '>' + esc(v) + '</option>'; }).join('') + '</select>' +
+    '<input id="q" placeholder="이름·연락처·메모 검색" value="' + esc(V.q) + '" oninput="V.q=this.value;keep();renderRows()">' +
+    '<span class="grow"></span><span class="muted">팔로업</span><select onchange="pickCamp(this.value)">' + camps.map(function (c) { return '<option' + (V.camp === c ? ' selected' : '') + '>' + esc(c) + '</option>'; }).join('') + (camps.length ? '' : '<option value="">(없음)</option>') + '<option value="__new">+ 새 팔로업 만들기</option>' + (V.camp ? '<option value="__ren">✎ 이 팔로업 이름 바꾸기</option>' : '') + '</select>' +
+    '<button class="btn" onclick="addStudent()">+ 학생 추가</button></div>';
+  h += datalists() + '<div class="wrap"><table class="sheet"><thead><tr><th>#</th><th>비고</th><th>학생이름</th><th>직접 컨택 가능한 연락처</th><th>학교</th><th>학교 관련 비고</th><th>올라간 후 현재 학년</th><th>구분</th><th>수강료 결제 내역</th><th>수강 중인 수업</th><th>상담 날짜 · 내용</th><th>선택 과목 G8·G9·G10</th><th>G11·G12</th>' +
+    '<th class="fu">팔로업 답변' + (V.camp ? ' — ' + esc(V.camp) : '') + '</th><th></th></tr></thead><tbody id="rows"></tbody></table></div>';
+  setTimeout(renderRows, 0);
+  return h;
+}
+function shownStudents() {
+  var q = V.q.trim().toLowerCase();
+  return sortStudents(D.students.filter(function (s) {
+    if (V.tab.indexOf('grp:') === 0 ? s.grp !== V.tab.slice(4) : V.tab !== 'all' && tabOf(s) !== V.tab) return false;
+    if (V.school && s.school !== V.school) return false;
+    if (q && [s.name, s.phone, s.school, s.schoolNote, s.payment, s.tag, s.subjMid, s.subjHigh].join(' ').toLowerCase().indexOf(q) < 0 &&
+      !D.consults.some(function (c) { return c.studentId === s.id && (c.content + ' ' + c.program).toLowerCase().indexOf(q) >= 0; })) return false;
+    return true;
+  }));
+}
+function renderRows() {
+  var tb = $('rows'); if (!tb) return;
+  var list = shownStudents();
+  tb.innerHTML = list.length ? list.map(function (s, i) {
+    var cs = D.consults.filter(function (c) { return c.studentId === s.id; }).sort(function (a, b) { return String(b.date).localeCompare(String(a.date)) || String(b.createdAt).localeCompare(String(a.createdAt)); });
+    var last = cs[0], fu = V.camp ? D.fu.filter(function (f) { return f.studentId === s.id && f.campaign === V.camp; })[0] : null;
+    var cls = D.enroll.filter(function (e) { return e.studentId === s.id; }).map(function (e) { return byId(D.classes, e.classId); }).filter(Boolean);
+    return '<tr class="' + rowClass(s) + '"><td class="num">' + (i + 1) + '</td>' +
+      '<td style="min-width:90px">' + cellIn('atlas_students', s, 'tag', { list: 'dl-tag', rerender: true }) + '</td>' +
+      '<td class="name" style="min-width:110px">' + cellIn('atlas_students', s, 'name') + '</td>' +
+      '<td style="min-width:130px">' + cellIn('atlas_students', s, 'phone', { area: 1 }) + '</td>' +
+      '<td style="min-width:90px">' + cellIn('atlas_students', s, 'school', { list: 'dl-school' }) + '</td>' +
+      '<td style="min-width:130px">' + cellIn('atlas_students', s, 'schoolNote', { area: 1 }) + '</td>' +
+      '<td style="min-width:110px">' + gradeSelect(s, 'setField(\'atlas_students\',' + js(s.id) + ',\'gradYear\',this.value,true)') + '</td>' +
+      '<td style="min-width:80px"><select onchange="setField(\'atlas_students\',' + js(s.id) + ',\'grp\',this.value,true)"><option value="">-</option>' + D.groups.map(function (g) { return '<option' + (s.grp === g ? ' selected' : '') + '>' + esc(g) + '</option>'; }).join('') + '</select></td>' +
+      '<td style="min-width:140px">' + cellIn('atlas_students', s, 'payment', { area: 1 }) + '</td>' +
+      '<td class="ro" style="min-width:110px">' + (cls.map(function (c) { return '<span class="chip' + (c.status === '완료' ? ' done' : '') + '" onclick="openClass(' + js(c.id) + ')">' + (c.status === '완료' ? '(완) ' : '') + esc(c.name) + '</span>'; }).join('') || '<span class="muted">-</span>') + '</td>' +
+      '<td class="ro log" onclick="openConsults(' + js(s.id) + ')" title="상담 기록 보기·추가">' + (last ? '<div class="d">' + esc(last.date) + (last.program ? ' · ' + esc(last.program) : '') + (cs.length > 1 ? ' · 총 ' + cs.length + '건' : '') + '</div><div class="c">' + esc(last.content) + '</div>' : '<span class="muted">+ 상담 기록</span>') + '</td>' +
+      '<td style="min-width:130px">' + cellIn('atlas_students', s, 'subjMid', { area: 1 }) + '</td>' +
+      '<td style="min-width:130px">' + cellIn('atlas_students', s, 'subjHigh', { area: 1 }) + '</td>' +
+      '<td style="min-width:170px;background:#fffdf4">' + (V.camp ? '<textarea rows="1" placeholder="희망X(사유) / 신청OK" onchange="saveFu(' + js(s.id) + ',this.value)">' + esc(fu ? fu.response : '') + '</textarea>' : '<div class="muted" style="padding:5px 6px;font-size:.8rem">위에서 팔로업을 만드세요</div>') + '</td>' +
+      '<td><button class="x" title="학생 삭제" onclick="delStudent(' + js(s.id) + ')">✕</button></td></tr>';
+  }).join('') : '<tr><td colspan="15" class="empty">학생이 없습니다. “+ 학생 추가”로 넣으세요.</td></tr>';
+  [].forEach.call(tb.querySelectorAll('textarea'), grow);
+}
+function addStudent() {
+  var name = prompt('학생 이름'); if (!name || !name.trim()) return;
+  var rec = { name: name.trim() };
+  if (/^g\d+$/.test(V.tab)) rec.gradYear = String(yearEnd() + 12 - Number(V.tab.slice(1)));
+  if (/^grad/.test(V.tab)) rec.gradYear = V.tab.slice(4);
+  if (V.tab.indexOf('grp:') === 0) rec.grp = V.tab.slice(4);
+  if (V.school) rec.school = V.school;
+  add('atlas_students', rec).then(function () { V.q = ''; render(); toast(rec.name + ' 학생을 추가했습니다.'); }).catch(function (e) { toast(e.message, true); });
+}
+function delStudent(id) {
+  var s = byId(D.students, id);
+  del('atlas_students', id, s.name + ' 학생을 지울까요? (상담 기록·수강 등록도 화면에서 사라집니다)').then(function (ok) {
+    if (!ok) return; D.enroll = D.enroll.filter(function (e) { return e.studentId !== id; }); render();
+  });
+}
+function saveFu(sid, v) {
+  api('save', { table: 'atlas_fu', rec: { studentId: sid, campaign: V.camp, response: v } }).then(function (r) { replaceIn(D.fu, r); }).catch(function (e) { toast(e.message, true); });
+}
+function pickCamp(v) {
+  if (v === '__new') {
+    var n = prompt('팔로업 이름 (예: 26/11/14 겨울방학 설명회)');
+    if (n && n.trim()) V.camp = n.trim();
+  } else if (v === '__ren') {
+    var to = prompt('새 이름', V.camp);
+    if (to && to.trim() && to.trim() !== V.camp) {
+      return api('renameCampaign', { from: V.camp, to: to.trim() }).then(function () { V.camp = to.trim(); keep(); load(); }).catch(function (e) { toast(e.message, true); render(); });
+    }
+  } else V.camp = v;
+  keep(); render();
+}
+
+/* 상담 기록: 옆 창 */
+function openConsults(sid) {
+  var s = byId(D.students, sid); if (!s) return;
+  var cs = D.consults.filter(function (c) { return c.studentId === sid; }).sort(function (a, b) { return String(b.date).localeCompare(String(a.date)) || String(b.createdAt).localeCompare(String(a.createdAt)); });
+  var fus = D.fu.filter(function (f) { return f.studentId === sid && f.response; });
+  $('ov').innerHTML = '<div class="ov" onclick="if(event.target===this)closeOv()"><div class="panel">' +
+    '<h3>' + esc(s.name) + ' <span class="muted" style="font-size:.85rem;font-weight:normal">' + esc([s.school, gradeLabel(s)].filter(Boolean).join(' · ')) + '</span></h3>' +
+    '<div class="fields" style="grid-template-columns:140px 1fr"><div class="field"><label>상담 날짜</label><input type="date" id="c-date" value="' + today() + '"></div>' +
+    '<div class="field"><label>문의 프로그램 · 수업유형</label><input id="c-prog" list="dl-prog" placeholder="예: 정규반 / 겨울방학 특강 / 컨설팅"></div>' +
+    '<div class="field full"><label>상담 내용 (우리 학원 수강생 여부 포함)</label><textarea id="c-content" rows="5"></textarea></div></div>' +
+    '<div style="display:flex;gap:6px;margin:8px 0 14px"><button class="btn" onclick="saveConsult(' + js(sid) + ')">기록 추가</button><span style="flex:1"></span><button class="btn ghost" onclick="closeOv()">닫기</button></div>' +
+    (cs.length ? cs.map(function (c) {
+      return '<div class="hist"><div class="h"><b style="color:#1f2937">' + esc(c.date) + '</b>' + (c.program ? '<span class="chip">' + esc(c.program) + '</span>' : '') + '<span style="flex:1"></span>' +
+        '<button class="btn ghost sm" onclick="editConsult(' + js(c.id) + ')">수정</button><button class="x" onclick="delConsult(' + js(c.id) + ')">✕</button></div><div class="b">' + esc(c.content) + '</div></div>';
+    }).join('') : '<div class="muted">아직 상담 기록이 없습니다.</div>') +
+    (fus.length ? '<h3 style="margin-top:18px">팔로업 답변</h3>' + fus.map(function (f) { return '<div class="hist"><div class="h">' + esc(f.campaign) + '</div><div class="b">' + esc(f.response) + '</div></div>'; }).join('') : '') +
+    '</div></div>';
+  $('c-content').focus();
+}
+function closeOv() { $('ov').innerHTML = ''; }
+function saveConsult(sid, id) {
+  var rec = { studentId: sid, date: $('c-date').value, program: $('c-prog').value, content: $('c-content').value };
+  if (!rec.content.trim()) return toast('상담 내용을 입력하세요.', true);
+  if (id) rec.id = id;
+  api('save', { table: 'atlas_consults', rec: rec }).then(function (r) { replaceIn(D.consults, r); renderRows(); openConsults(sid); toast('저장했습니다.'); }).catch(function (e) { toast(e.message, true); });
+}
+function editConsult(id) {
+  var c = byId(D.consults, id); $('c-date').value = c.date; $('c-prog').value = c.program; $('c-content').value = c.content; $('c-content').focus();
+  var b = document.querySelector('.panel .btn'); b.textContent = '수정 저장'; b.setAttribute('onclick', 'saveConsult(' + js(c.studentId) + ',' + js(c.id) + ')');
+}
+function delConsult(id) { var c = byId(D.consults, id); del('atlas_consults', id, '이 상담 기록을 지울까요?').then(function (ok) { if (ok) { renderRows(); openConsults(c.studentId); } }); }
+
+/* ======================= 수업 Roster ======================= */
+function viewClasses() {
+  var list = D.classes.filter(function (c) { return V.classFilter === '전체' || (V.classFilter === '완료' ? c.status === '완료' : c.status !== '완료'); })
+    .sort(function (a, b) { return String(b.term).localeCompare(String(a.term)) || String(a.kind).localeCompare(String(b.kind)) || String(a.name).localeCompare(String(b.name)); });
+  if (V.classId && !byId(D.classes, V.classId)) V.classId = '';
+  if (!V.classId && list.length) V.classId = list[0].id;
+  var terms = {}; list.forEach(function (c) { (terms[c.term || '기간 미정'] = terms[c.term || '기간 미정'] || []).push(c); });
+  var side = '<div class="tabs" style="padding:10px 10px 0">' + ['진행', '완료', '전체'].map(function (f) { return '<button class="' + (V.classFilter === f ? 'on' : '') + '" onclick="V.classFilter=' + js(f) + ';V.classId=\'\';keep();render()">' + (f === '진행' ? '진행 중' : f) + '</button>'; }).join('') + '</div>' +
+    '<div style="padding:4px 10px 8px"><button class="btn" style="width:100%" onclick="openClassForm()">+ 수업 추가</button></div>' +
+    (list.length ? Object.keys(terms).map(function (t) {
+      return '<div class="grp">' + esc(t) + '</div>' + terms[t].map(function (c) {
+        var n = D.enroll.filter(function (e) { return e.classId === c.id; }).length;
+        return '<div class="it' + (c.id === V.classId ? ' on' : '') + (c.status === '완료' ? ' done' : '') + '" onclick="V.classId=' + js(c.id) + ';keep();render()">' + (c.status === '완료' ? '(완) ' : '') + esc(c.name) +
+          '<div class="s">' + esc([c.kind, c.teacher, n + '명'].filter(Boolean).join(' · ')) + '</div></div>';
+      }).join('');
+    }).join('') : '<div class="empty">수업이 없습니다.</div>');
+  var c = byId(D.classes, V.classId);
+  return '<h2>수업 Roster</h2><div class="cols"><div class="side">' + side + '</div><div>' + (c ? viewClass(c) : '<div class="card empty">왼쪽에서 수업을 고르거나 “+ 수업 추가”로 만드세요.</div>') + '</div></div>';
+}
+function classIn(c, k, ph) { return '<input value="' + esc(c[k]) + '" onchange="setField(\'atlas_classes\',' + js(c.id) + ',' + js(k) + ',this.value,true)"' + (ph ? ' placeholder="' + esc(ph) + '"' : '') + '>'; }
+function viewClass(c) {
+  var es = D.enroll.filter(function (e) { return e.classId === c.id; }).map(function (e) { return { e: e, s: byId(D.students, e.studentId) }; }).filter(function (x) { return x.s; })
+    .sort(function (a, b) { return String(a.e.createdAt).localeCompare(String(b.e.createdAt)); });
+  var h = '<div class="card"><div class="fields">' +
+    '<div class="field"><label>수업 이름</label>' + classIn(c, 'name') + '</div>' +
+    '<div class="field"><label>종류</label><select onchange="setField(\'atlas_classes\',' + js(c.id) + ',\'kind\',this.value,true)"><option value="">-</option>' + D.classKinds.map(function (k) { return '<option' + (c.kind === k ? ' selected' : '') + '>' + esc(k) + '</option>'; }).join('') + '</select></div>' +
+    '<div class="field"><label>기간 (학기·방학)</label>' + classIn(c, 'term', '예: 2026 Fall 학기중') + '</div>' +
+    '<div class="field"><label>강사</label>' + classIn(c, 'teacher') + '</div>' +
+    '<div class="field"><label>요일·시간</label>' + classIn(c, 'schedule', '예: 목·일 AM 9:00-12:00') + '</div>' +
+    '<div class="field"><label>상태</label><select onchange="setField(\'atlas_classes\',' + js(c.id) + ',\'status\',this.value,true)"><option value=""' + (c.status !== '완료' ? ' selected' : '') + '>진행 중</option><option' + (c.status === '완료' ? ' selected' : '') + '>완료</option></select></div>' +
+    '<div class="field full"><label>메모 (공유자료 링크 등)</label><textarea rows="2" onchange="setField(\'atlas_classes\',' + js(c.id) + ',\'memo\',this.value)">' + esc(c.memo) + '</textarea></div></div>' +
+    '<div style="text-align:right;margin-top:8px"><button class="btn danger sm" onclick="delClass(' + js(c.id) + ')">수업 삭제</button></div></div>';
+  h += '<div class="toolbar"><b>수강생 ' + es.length + '명</b><span class="grow"></span><button class="btn" onclick="openEnroll(' + js(c.id) + ')">+ 수강생 추가</button></div>';
+  h += datalists() + '<div class="wrap"><table class="sheet"><thead><tr><th>#</th><th>학생이름</th><th>직접 컨택 가능한 연락처</th><th>학교</th><th>학교 관련 비고</th><th>올라간 후 현재 학년</th><th>수강료 결제 내역</th><th>Remark</th><th></th></tr></thead><tbody>' +
+    (es.length ? es.map(function (x, i) {
+      var s = x.s, e = x.e;
+      return '<tr><td class="num">' + (i + 1) + '</td>' +
+        '<td class="name" style="min-width:110px">' + cellIn('atlas_students', s, 'name') + '</td>' +
+        '<td style="min-width:130px">' + cellIn('atlas_students', s, 'phone', { area: 1 }) + '</td>' +
+        '<td style="min-width:90px">' + cellIn('atlas_students', s, 'school', { list: 'dl-school' }) + '</td>' +
+        '<td style="min-width:140px">' + cellIn('atlas_students', s, 'schoolNote', { area: 1 }) + '</td>' +
+        '<td style="min-width:110px">' + gradeSelect(s, 'setField(\'atlas_students\',' + js(s.id) + ',\'gradYear\',this.value)') + '</td>' +
+        '<td style="min-width:180px">' + cellIn('atlas_enroll', e, 'payment', { area: 1, ph: '예: 9/1 위챗페이 8,000' }) + '</td>' +
+        '<td style="min-width:220px">' + cellIn('atlas_enroll', e, 'remark', { area: 1 }) + '</td>' +
+        '<td><button class="x" title="이 수업에서 빼기" onclick="unenroll(' + js(e.id) + ')">✕</button></td></tr>';
+    }).join('') : '<tr><td colspan="9" class="empty">수강생이 없습니다.</td></tr>') + '</tbody></table></div>' +
+    '<div class="muted" style="margin-top:6px;font-size:.8rem">이름·연락처·학교·학년은 상담 Roster와 같은 학생 정보입니다. 여기서 고치면 상담 Roster에도 바로 반영됩니다.</div>';
+  return h;
+}
+function openClass(id) { var c = byId(D.classes, id); if (!c) return; V.page = 'class'; V.classId = id; V.classFilter = c.status === '완료' ? '완료' : '진행'; keep(); render(); }
+function openClassForm() {
+  $('ov').innerHTML = '<div class="ov center" onclick="if(event.target===this)closeOv()"><div class="panel"><h3>수업 추가</h3><div class="fields">' +
+    '<div class="field full"><label>수업 이름 *</label><input id="k-name" placeholder="예: G9 Eng 토요일 / 김OO 개인수업"></div>' +
+    '<div class="field"><label>종류</label><select id="k-kind">' + D.classKinds.map(function (k) { return '<option>' + esc(k) + '</option>'; }).join('') + '</select></div>' +
+    '<div class="field"><label>기간</label><input id="k-term" placeholder="예: 2026 Fall 학기중" value="' + esc((byId(D.classes, V.classId) || {}).term || '') + '"></div>' +
+    '<div class="field"><label>강사</label><input id="k-teacher"></div><div class="field"><label>요일·시간</label><input id="k-schedule"></div></div>' +
+    '<div style="display:flex;gap:6px;margin-top:12px;justify-content:flex-end"><button class="btn ghost" onclick="closeOv()">취소</button><button class="btn" onclick="saveClass()">추가</button></div></div></div>';
+  $('k-name').focus();
+}
+function saveClass() {
+  var rec = { name: $('k-name').value, kind: $('k-kind').value, term: $('k-term').value, teacher: $('k-teacher').value, schedule: $('k-schedule').value };
+  add('atlas_classes', rec).then(function (r) { closeOv(); V.classId = r.id; V.classFilter = '진행'; keep(); render(); toast('수업을 추가했습니다.'); }).catch(function (e) { toast(e.message, true); });
+}
+function delClass(id) { var c = byId(D.classes, id); del('atlas_classes', id, '“' + c.name + '” 수업을 지울까요?').then(function (ok) { if (ok) { V.classId = ''; render(); } }); }
+function unenroll(id) { del('atlas_enroll', id, '이 학생을 수업에서 뺄까요? (학생 정보는 상담 Roster에 그대로 남습니다)').then(function (ok) { if (ok) render(); }); }
+function openEnroll(cid) {
+  $('ov').innerHTML = '<div class="ov center" onclick="if(event.target===this)closeOv()"><div class="panel"><h3>수강생 추가</h3>' +
+    '<div class="field"><input id="e-q" placeholder="이름·학교로 찾기 (상담 Roster의 학생)" oninput="enrollSearch(' + js(cid) + ')" style="width:100%"></div><div class="results" id="e-res"></div>' +
+    '<div style="text-align:right;margin-top:12px"><button class="btn ghost" onclick="closeOv()">닫기</button></div></div></div>';
+  enrollSearch(cid); $('e-q').focus();
+}
+function enrollSearch(cid) {
+  var q = $('e-q').value.trim().toLowerCase(), have = {};
+  D.enroll.forEach(function (e) { if (e.classId === cid) have[e.studentId] = 1; });
+  var list = D.students.filter(function (s) { return !have[s.id] && (!q || (s.name + ' ' + s.school).toLowerCase().indexOf(q) >= 0); }).sort(function (a, b) { return a.name.localeCompare(b.name); }).slice(0, 40);
+  $('e-res').innerHTML = list.map(function (s) { return '<div onclick="enroll(' + js(cid) + ',' + js(s.id) + ')"><b>' + esc(s.name) + '</b> <span class="muted">' + esc([s.school, gradeLabel(s)].filter(Boolean).join(' · ')) + '</span></div>'; }).join('') +
+    (q ? '<div onclick="enrollNew(' + js(cid) + ')" style="color:var(--navy)">+ 새 학생 “' + esc($('e-q').value.trim()) + '” 만들고 추가</div>' : '') || '<div class="muted">학생이 없습니다. 이름을 입력해 새로 만드세요.</div>';
+}
+function enroll(cid, sid) { add('atlas_enroll', { classId: cid, studentId: sid }).then(function () { render(); $('e-q').value = ''; enrollSearch(cid); toast('추가했습니다.'); }).catch(function (e) { toast(e.message, true); }); }
+function enrollNew(cid) { add('atlas_students', { name: $('e-q').value.trim() }).then(function (s) { enroll(cid, s.id); }).catch(function (e) { toast(e.message, true); }); }
+
+/* 다른 사람이 고친 내용: 창으로 돌아올 때 다시 불러오기 (입력 중이면 건너뜀) */
+window.addEventListener('focus', function () { var a = document.activeElement; if (D && !$('ov').innerHTML && !(a && /INPUT|TEXTAREA|SELECT/.test(a.tagName))) load(); });
+document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeOv(); });
+load();
+</script>
+</body>
+</html>
