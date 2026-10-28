@@ -96,6 +96,7 @@
   .pill.a-불합격, .pill.a-철회 { background:#eee; color:#666; }
   .pill.a-제출완료 { background:var(--soft); color:var(--navy); font-weight:bold; }
   .pill.a-대기 { background:#fff4e0; color:#a56200; }
+  .pill.a-보류 { background:#f1f1f4; color:#5b5f6b; border:1px dashed #b5b9c4; }
   .dday { font-weight:bold; white-space:nowrap; }
   .dday.over { color:var(--error); }
   .dday.soon { color:var(--warn); }
@@ -626,7 +627,8 @@ var COUNTRIES = ['한국', '홍콩', '싱가폴', '중국', '미국', '캐나다
 var NOTE_TYPES = ['대면상담', '학부모상담', '전화', '위챗·문자', '수업', '기타'];
 var PLACES = ['상담실', '온라인', '전화'];
 var APP_ROUNDS = ['ED', 'ED2', 'EA', 'REA', 'RD', 'Rolling', 'UCAS', '홍콩 얼리', '수시', '정시', '3년특례', '12년특례', '기타'];
-var APP_STATUS = ['준비중', '작성중', '제출완료', '대기', '합격', '불합격', '철회'];
+/** 원서 진행 상태 — 보류: 준비하다가 마음이 바뀌어 안 낼 수도 있음(아직 제출 전이라 마감 알림은 계속), 대기: 제출 후 결과 기다림 */
+var APP_STATUS = ['준비중', '작성중', '보류', '제출완료', '대기', '합격', '불합격', '철회'];
 var APP_FINAL = ['제출완료', '대기', '합격', '불합격', '철회'];
 var ESSAY_STATUS = ['', '미착수', '브레인스토밍', '초안', '수정중', '완료'];
 var GRADES = ['G9', 'G10', 'G11', 'G12', 'Y10', 'Y11', 'Y12', 'Y13'];
@@ -787,6 +789,7 @@ var FORMS = {
     { k: 'majorChoices', t: 'mchoices', full: 1 },
     { k: 'deadline', l: '마감일', t: 'date' }, { k: 'deadlineManual', l: '마감일', t: 'check', cl: '이 학생만 마감일 직접 지정' },
     { k: 'status', l: '진행 상태', t: 'select', o: APP_STATUS }, { k: 'essay', l: '에세이', t: 'select', o: ESSAY_STATUS },
+    { t: 'note', full: 1, html: '<b>보류</b> = 준비하다가 안 낼 수도 있음 (제출 전이라 마감 알림은 계속) · <b>대기</b> = 제출한 뒤 결과를 기다림 · <b>철회</b> = 내지 않기로 확정 또는 제출 후 취소' },
     { k: 'parentConfirmed', l: '부모님', t: 'check', cl: '부모님 확정 (이 대학·전공으로 지원)' },
     { k: 'memo', l: '메모 (추천서·장학금 등)', t: 'textarea', full: 1 }],
     defaults: function () { return { status: '준비중' }; } },
@@ -914,6 +917,7 @@ function load(data) {
   S.me = data.me; S.teachers = data.teachers; S.allStudents = data.students; S.loadedAt = Date.now();
   CHILD.forEach(function (t) { S[t] = data[t] || []; });
   S.options = data.options || [];
+  tzFromOptions();
   S.allEvents = data.events || [];
   S.unifiles = data.unifiles || [];
   S.programs = data.programs || [];
@@ -930,7 +934,7 @@ function load(data) {
   UI.activity = {}; // 최근 활동은 저장할 때마다 새로 불러옴
   $('whoami').textContent = S.me.name + ' · ' + myBranch();
   $('um-av').textContent = String(S.me.name || '?').trim().slice(0, 1);
-  $('um-h').innerHTML = '<b>' + esc(S.me.name) + '</b> · ' + esc(ROLE_LABEL[S.me.role] || S.me.role) + '<br>' + esc(S.me.email) + '<br><span class="muted">' + esc(isAllBranch() ? '전체 지점(지점 구분 없음)' : myBranch() + ' 지점') + ' · 화면 시간은 ' + esc(TZ_NAME[myTZ()]) + ' 시간 기준</span>';
+  $('um-h').innerHTML = '<b>' + esc(S.me.name) + '</b> · ' + esc(ROLE_LABEL[S.me.role] || S.me.role) + '<br>' + esc(S.me.email) + '<br><span class="muted">' + esc(isAllBranch() ? '전체 지점(지점 구분 없음)' : myBranch() + ' 지점') + ' · 화면 시간은 ' + esc(tzName(myTZ())) + ' 시간 기준</span>';
   $('who').style.display = ''; $('gs').style.display = ''; $('rf').style.display = '';
   render();
   if (S.me.mustChangePassword) openPasswordForm(true);
@@ -980,10 +984,11 @@ function doLogin(ev) {
   ev.preventDefault();
   $('lg-msg').textContent = '';
   post('/api/login', { email: $('lg-email').value.trim(), password: $('lg-pw').value })
-    .then(function () { return refresh(); })
+    // 화면을 새로 불러와 시작 — 같은 창에서 앞사람이 쓰던 필터·지점·화면 상태가 남지 않게 (보던 화면 주소는 유지)
+    .then(function () { clearSession(); location.reload(); })
     .catch(function (e) { $('lg-msg').textContent = errMsg(e); $('lg-pw').value = ''; $('lg-pw').focus(); });
 }
-function logout() { post('/api/logout').then(showLogin, showLogin); }
+function logout() { var out = function () { clearSession(); location.replace('/#/home'); location.reload(); }; post('/api/logout').then(out, out); } // 다음 사람은 메인에서 깨끗하게 시작
 function openPasswordForm(forced) {
   modal(forced ? '처음 로그인 — 비밀번호를 변경해주세요' : '비밀번호 변경',
     (forced ? '<div class="full muted">관리자가 정한 임시 비밀번호를 본인만 아는 비밀번호로 바꿔야 사용할 수 있습니다.</div>' : '') +
@@ -1035,7 +1040,22 @@ function js(v) { return esc(JSON.stringify(v)); }
 function pad(n) { return (n < 10 ? '0' : '') + n; }
 /* ----- 지점·시간대: 화면의 날짜·시간은 내 계정 지점 기준 (상해 = 중국 시간, 압구정 = 한국 시간) ----- */
 var BRANCHES = ['상해', '압구정'], BRANCH_TZ = { '상해': 'Asia/Shanghai', '압구정': 'Asia/Seoul' };
-var TZ_NAME = { 'Asia/Shanghai': '중국', 'Asia/Seoul': '한국' };
+/** 고를 수 있는 시간대 = 목록 관리 › 시간대 (불러올 때 tzFromOptions 로 채움). 서머타임은 자동 */
+var TZ_NAME = { 'Asia/Shanghai': '중국', 'Asia/Seoul': '한국' }, TZ_HINT = { 'Asia/Shanghai': '상해·홍콩·싱가포르', 'Asia/Seoul': '서울·도쿄' };
+function tzFromOptions() {
+  var list = (S.options || []).filter(function (o) { return o.kind === 'tz' && o.category; }).sort(function (a, b) { return (Number(a.sortOrder) || 999) - (Number(b.sortOrder) || 999); });
+  if (!list.length) return;
+  TZ_NAME = {}; TZ_HINT = {};
+  list.forEach(function (o) { TZ_NAME[o.category] = o.value; TZ_HINT[o.category] = o.fullName || ''; });
+  [['Asia/Shanghai', '중국'], ['Asia/Seoul', '한국']].forEach(function (z) { if (!TZ_NAME[z[0]]) TZ_NAME[z[0]] = z[1]; }); // 지점 시간대는 늘
+}
+function tzName(z) { return TZ_NAME[z] || z; } // 목록에서 빠진 시간대로 적힌 예전 기록은 세계 시간대 이름 그대로
+/** 시간대 선택 목록 — “중국 시간 (상해·홍콩·싱가포르, 지금 14:05)” */
+function tzOptions(cur, extra) {
+  return (extra || '') + Object.keys(TZ_NAME).map(function (z) {
+    return '<option value="' + esc(z) + '"' + (z === cur ? ' selected' : '') + '>' + esc(TZ_NAME[z] + ' 시간 (' + (TZ_HINT[z] ? TZ_HINT[z] + ', ' : '') + '지금 ' + wallNow(z).slice(11, 16) + ')') + '</option>';
+  }).join('') + (cur && !TZ_NAME[cur] ? '<option value="' + esc(cur) + '" selected>' + esc(cur) + '</option>' : '');
+}
 var SERVER_TZ = 'Asia/Seoul', SCHED_TZ = 'Asia/Shanghai'; // 저장 시각(등록·수정·변경 기록)은 한국 시간, 원장님 스케줄은 중국 시간으로 저장돼 있음
 var ALL_BRANCH = '전체'; // 계정 지점 '전체' = 지점 구분 없음 (원장님처럼 두 지점을 모두 맡는 계정)
 function myBranch() { return (S.me && S.me.branch) || BRANCHES[0]; }
@@ -1078,13 +1098,17 @@ function parseTimes(t) {
 function recTime(r) {
   var tz = r.tz || SCHED_TZ, mine = myTZ();
   if (!r.time || tz === mine) return { date: r.date, time: r.time || '', orig: '' };
-  var ts = parseTimes(r.time), on = TZ_NAME[tz] || tz;
+  var ts = parseTimes(r.time), on = tzName(tz);
   if (!ts || !/^\d{4}-\d{2}-\d{2}$/.test(r.date || '')) return { date: r.date, time: r.time, orig: on + ' 시간' };
   var conv = ts.map(function (x) { return shiftWall(r.date + 'T' + pad(x[0]) + ':' + pad(x[1]), tz, mine); });
   return { date: conv[0].slice(0, 10), time: conv.map(function (w) { return w.slice(11, 16); }).join('~'), orig: on + ' ' + (conv[0].slice(0, 10) !== r.date ? fmtD(r.date) + ' ' : '') + r.time };
 }
 /** 메인·목록 화면에 보이는 지점: 관리자·관리팀은 고를 수 있음 (처음엔 내 지점), 컨설턴트는 담당 학생만이라 지점 구분 없음 */
-function viewBranch() { if (!isMgr()) return isAllBranch() ? ALL_BRANCH : myBranch(); if (!UI.br) { try { UI.br = localStorage.getItem('compass.br') || ''; } catch (e) {} } return BRANCHES.concat(['전체']).indexOf(UI.br) >= 0 ? UI.br : myBranch(); } // 전체 계정은 처음부터 전체 지점
+/** 보고 있는 지점: 로그인할 때마다 내 계정 지점에서 시작. 📍로 바꾼 것은 로그아웃할 때까지(이 창에서 새로고침해도) 유지 */
+function viewBranch() {
+  if (!isMgr()) return isAllBranch() ? ALL_BRANCH : myBranch();
+  if (!UI.br) { try { UI.br = sessionStorage.getItem('compass.br@' + S.me.email) || ''; } catch (e) {} }
+  return BRANCHES.concat(['전체']).indexOf(UI.br) >= 0 ? UI.br : myBranch(); } // 전체 계정은 처음부터 전체 지점
 function inBranch(s) { return !isMgr() || viewBranch() === '전체' || branchOf(s) === viewBranch(); }
 function evInBranch(e) { return e.private === 'TRUE' || e.shared === 'TRUE' || e.branch === ALL_BRANCH || viewBranch() === '전체' || branchOf(e) === viewBranch(); } // 전체 계정이 등록한 일정은 모든 지점에
 /** 받은 자료를 지금 고른 지점에 맞게: 학생·일정 목록 + 시간 있는 일정은 내 시간으로 */
@@ -1093,10 +1117,11 @@ function applyBranch() {
   S.events = (S.allEvents || []).filter(evInBranch).map(function (e) {
     if (!e.time || !e.tz || e.tz === myTZ()) return e;
     var w = shiftWall(e.date + 'T' + e.time, e.tz, myTZ()), d = w.slice(0, 10), shift = Math.round((Date.parse(d) - Date.parse(e.date)) / 86400000);
-    return Object.assign({}, e, { date: d, endDate: e.endDate && shift ? addDays(e.endDate, shift) : e.endDate, time: w.slice(11, 16), tz: myTZ(), origTime: (TZ_NAME[e.tz] || e.tz) + ' ' + (shift ? fmtD(e.date) + ' ' : '') + e.time });
+    return Object.assign({}, e, { date: d, endDate: e.endDate && shift ? addDays(e.endDate, shift) : e.endDate, time: w.slice(11, 16), tz: myTZ(), origTime: tzName(e.tz) + ' ' + (shift ? fmtD(e.date) + ' ' : '') + e.time });
   });
 }
-function setBranch(b) { UI.br = b; try { localStorage.setItem('compass.br', b); } catch (e) {} applyBranch(); render(); }
+function setBranch(b) { UI.br = b; try { sessionStorage.setItem('compass.br@' + S.me.email, b); } catch (e) {} applyBranch(); render(); }
+function clearSession() { try { sessionStorage.clear(); } catch (e) {} } // 로그인·로그아웃 때 이번 접속 동안의 선택(지점 등)을 비움
 function branchPill(s) { return (isMgr() || isAllBranch()) && (viewBranch() === '전체' || branchOf(s) !== myBranch()) ? '<span class="pill br br-' + (BRANCHES.indexOf(branchOf(s)) + 1) + '" title="' + esc(branchOf(s)) + ' 지점 학생">' + esc(branchOf(s)) + '</span>' : ''; }
 /** 관리팀이 다른 지점 학생을 볼 때: 보기와 팔로업·상담기록 추가만 */
 function otherBranch(s) { return !!s && S.me.role === 'staff' && !isAllBranch() && branchOf(s) !== myBranch(); }
@@ -1350,7 +1375,7 @@ function viewHome() {
   var dl = upcomingDeadlines();
   var soon = dl.filter(function (i) { return dayDiff(i.date) <= 14; });
   var t = today(), tw = new Date(t + 'T00:00:00');
-  var h = '<div class="hello"><h2>' + esc(S.me.name) + '님, 안녕하세요</h2><span class="muted">' + +t.slice(5, 7) + '월 ' + +t.slice(8, 10) + '일 (' + DOW[tw.getDay()] + ') ' + esc(wallNow(myTZ()).slice(11, 16)) + ' · ' + esc(TZ_NAME[myTZ()]) + ' 시간' +
+  var h = '<div class="hello"><h2>' + esc(S.me.name) + '님, 안녕하세요</h2><span class="muted">' + +t.slice(5, 7) + '월 ' + +t.slice(8, 10) + '일 (' + DOW[tw.getDay()] + ') ' + esc(wallNow(myTZ()).slice(11, 16)) + ' · ' + esc(tzName(myTZ())) + ' 시간' + (S.me.viewTz ? ' <a href="#/me" title="My Page에서 바꾼 화면 시간 — 누르면 되돌릴 수 있음">(내가 바꿈)</a>' : '') +
     (isMgr() ? ' · 📍 ' + esc(viewBranch() === '전체' ? '전체 지점' : viewBranch() + ' 지점') : '') + '</span><div class="chips">' +
     chip(active.length, isMgr() ? '진행 중 학생' : '담당 학생', "UI.status='active';go('#/students')") +
     chip(soon.length, '14일 내 지원 마감', "go('#/deadlines')", soon.some(function (i) { return dayDiff(i.date) <= 3; }));
@@ -1628,10 +1653,14 @@ function alertKey(kind, x) {
   if (kind === 'storage') return 'st:' + (x.lowDisk ? Math.floor((x.free || 0) / 104857600) : '-') + ':' + Math.floor(x.pct / 5);
   return 'bk:' + x.kind + ':' + String(x.result || '').replace(/\s*\(\d+개는 보냄\)/, '');
 }
-function dismissedAlerts() { try { return JSON.parse(localStorage.getItem('compass.alertsOff') || '[]') || []; } catch (e) { return []; } }
+/* ----- 이 브라우저에 저장하는 화면 설정 (접기·칸 너비·공유 항목 등) — 계정마다 따로 ----- */
+function prefKey(k) { return k + '@' + ((S.me && S.me.email) || ''); }
+function prefGet(k, def) { try { var v = localStorage.getItem(prefKey(k)); return v == null ? def : JSON.parse(v); } catch (e) { return def; } }
+function prefSet(k, v) { try { if (v == null) localStorage.removeItem(prefKey(k)); else localStorage.setItem(prefKey(k), JSON.stringify(v)); } catch (e) { /* 저장 안 되는 브라우저는 이번 화면에만 */ } }
+function dismissedAlerts() { return prefGet('compass.alertsOff', null) || UI.alertsOff || []; }
 function dismissAlert(key) {
   var list = dismissedAlerts().filter(function (k) { return k !== key; }).concat([key]).slice(-30);
-  try { localStorage.setItem('compass.alertsOff', JSON.stringify(list)); } catch (e) { UI.alertsOff = list; }
+  UI.alertsOff = list; prefSet('compass.alertsOff', list);
   UI.alertsOff = list; render();
 }
 function systemAlerts(all) {
@@ -1930,7 +1959,7 @@ function openEvent(id, date) {
       '') + '<div></div>' +
     fld('날짜', inp('date', e.date || '', 'date', ro), false, true) +
     fld('끝나는 날 (여러 날이면)', inp('endDate', e.endDate || '', 'date', ro)) +
-    fld('시간 (' + TZ_NAME[myTZ()] + ' 시간 · 없으면 하루 종일)', inp('time', e.time || '', 'time', ro) + hidden('tz', myTZ()) +
+    fld('시간 (' + tzName(myTZ()) + ' 시간 · 없으면 하루 종일)', inp('time', e.time || '', 'time', ro) + hidden('tz', myTZ()) +
       (e.origTime ? '<div class="muted" style="font-size:.8rem">등록할 때 적은 시간: ' + esc(e.origTime) + '</div>' : '')) + '<div></div>' +
     (!id || can ? '<div class="full"><label style="display:inline-flex;gap:6px;align-items:center;color:#222;white-space:nowrap"><input type="checkbox" name="shared"' + (e.shared === 'TRUE' ? ' checked' : '') + '> <span style="font-weight:600">🌐 전체 지점에 공유</span></label>' +
       '<div class="muted" style="font-size:.8rem">' + (id && e.branch !== ALL_BRANCH && branchOf(e) !== myBranch() ? esc(branchOf(e)) + ' 지점 일정입니다. ' : '') + (e.branch === ALL_BRANCH || (!id && isAllBranch()) ? '전체 지점 계정이 등록한 일정이라 체크하지 않아도 모든 지점 달력에 보입니다.' : '체크하지 않으면 ' + esc(id ? branchOf(e) : myBranch()) + ' 지점 달력에만 보입니다 (원장님 미팅은 늘 모든 지점에 보임).') + '</div></div>' : '') +
@@ -2274,7 +2303,7 @@ var EXPORT_FIELDS = [
 ];
 function exApps(s) { return childOf('apps', s.id).slice().sort(function (a, b) { return (a.deadline || '9999').localeCompare(b.deadline || '9999'); }); }
 function exportFieldsOn() {
-  var on; try { on = JSON.parse(localStorage.getItem('exportFields2') || 'null'); } catch (e) { on = null; }
+  var on = prefGet('exportFields2', null);
   return on || EXPORT_FIELDS.filter(function (f) { return f.def; }).map(function (f) { return f.k; });
 }
 function openExport(sids) {
@@ -2302,7 +2331,7 @@ function renderExport() {
 function exPickAll(on) { UI.exSids.forEach(function (id) { UI.exPick[id] = on ? 1 : 0; }); renderExport(); }
 function exField(k, on) {
   var l = exportFieldsOn().filter(function (x) { return x !== k; }); if (on) l.push(k);
-  try { localStorage.setItem('exportFields2', JSON.stringify(l)); } catch (e) { /* 저장 안 되는 브라우저 */ }
+  prefSet('exportFields2', l);
   exRefresh();
 }
 /** 고른 학생 × 항목 → [[머리줄], [학생별 칸…]] */
@@ -2785,7 +2814,7 @@ function tabNotes(s) {
   var items = timelineOf(s.id);
   UI.tlOpen = UI.tlOpen || {};
   return '<div class="card">' + head + '<div class="toolbar" style="margin:0 0 8px"><span class="muted grow" style="font-size:.85rem">상담기록·미팅 회의록·받은 연락(우리 답변 포함)을 날짜순으로 모아 봅니다. 줄을 누르면 펼쳐지고, 👀 로 다른 선생님에게 확인을 요청할 수 있습니다.</span>' +
-    (items.length ? '<button class="btn ghost sm" onclick="tlAll(true)">모두 펼치기</button><button class="btn ghost sm" onclick="tlAll(false)">모두 접기</button>' : '') + '</div>' +
+    (items.length ? '<button class="btn ghost sm" id="tl-all" onclick="tlAll(!tlAnyOpen())">' + (tlAnyOpen() ? '모두 접기' : '모두 펼치기') + '</button>' : '') + '</div>' +
     (items.length ? items.map(timelineRow).join('') : '<div class="empty">아직 기록이 없습니다.</div>') + '</div>';
 }
 /** 전체 기록 한 줄(접힘) — 누르면 내용 펼침 */
@@ -2803,7 +2832,10 @@ function timelineRow(x) {
 function tlToggle(id) {
   UI.tlOpen = UI.tlOpen || {}; UI.tlOpen[id] = !UI.tlOpen[id];
   var el = $('ref-' + id); if (el) { el.classList.toggle('open', UI.tlOpen[id]); el.querySelector('.tg').textContent = UI.tlOpen[id] ? '▲' : '▼'; }
+  var b = $('tl-all'); if (b) b.textContent = tlAnyOpen() ? '모두 접기' : '모두 펼치기';
 }
+/** 하나라도 펼쳐져 있으면 버튼은 “모두 접기”, 모두 접혀 있으면 “모두 펼치기” */
+function tlAnyOpen() { var o = UI.tlOpen || {}; return timelineOf(route().id).some(function (x) { return o[x.r.id]; }); }
 function tlAll(on) {
   var sid = route().id; UI.tlOpen = UI.tlOpen || {};
   timelineOf(sid).forEach(function (x) { UI.tlOpen[x.r.id] = on; });
@@ -2978,8 +3010,8 @@ function tabContracts(s) {
 var SCORE_ORDER = SCORE_KINDS;
 /** 성적·학력 탭: 자주 쓰는 점수가 위(증명서는 서류 탭), 학력·수강 과목은 아래에 접어 둠 (펼침 상태는 이 브라우저에 기억) */
 function tabScores(s) { return tabScoresOnly(s) + foldSection('schools', s) + foldSection('courses', s); }
-function scFold() { if (!UI.scFold) { try { UI.scFold = JSON.parse(localStorage.getItem('scFold') || '{}'); } catch (e) { UI.scFold = {}; } } return UI.scFold; }
-function scFoldToggle(k) { var f = scFold(); f[k] = !f[k]; try { localStorage.setItem('scFold', JSON.stringify(f)); } catch (e) { /* 이번 화면에만 */ } render(); }
+function scFold() { if (!UI.scFold) UI.scFold = prefGet('scFold', null) || {}; return UI.scFold; }
+function scFoldToggle(k) { var f = scFold(); f[k] = !f[k]; prefSet('scFold', f); render(); }
 function foldSection(k, s) {
   var open = !!scFold()[k];
   if (k === 'schools') {
@@ -3204,10 +3236,51 @@ function viewLists() {
   if (!isMgr()) return '<div class="card empty">관리자·관리팀만 볼 수 있습니다.</div>';
   UI.listTab = UI.listTab || 'unis';
   var h = '<div class="toolbar"><h2 style="margin:0;margin-right:auto">목록 관리</h2></div>' +
-    '<div class="subtabs">' + [['unis', '대학'], ['school', '학교'], ['curriculum', '커리큘럼'], ['track', '트랙'], ['doccat', '서류 분류'], ['pgcat', '대회·프로그램 분류'], ['site', '사이트'], ['evcat', '일정 분류'], ['stcols', '학생 목록 칸']].map(function (t) {
+    '<div class="subtabs">' + [['unis', '대학'], ['school', '학교'], ['curriculum', '커리큘럼'], ['track', '트랙'], ['doccat', '서류 분류'], ['pgcat', '대회·프로그램 분류'], ['site', '사이트'], ['evcat', '일정 분류'], ['tz', '시간대'], ['stcols', '학생 목록 칸']].map(function (t) {
       return '<a class="' + (UI.listTab === t[0] ? 'on' : '') + '" onclick="UI.listTab=' + js(t[0]) + ';render()">' + t[1] + '</a>';
     }).join('') + '</div>';
-  return h + (UI.listTab === 'unis' ? viewUniList() : UI.listTab === 'site' ? viewSiteList() : UI.listTab === 'evcat' ? viewEvcatList() : UI.listTab === 'stcols' ? viewStudentCols() : viewOptionList(UI.listTab));
+  return h + (UI.listTab === 'unis' ? viewUniList() : UI.listTab === 'site' ? viewSiteList() : UI.listTab === 'evcat' ? viewEvcatList() : UI.listTab === 'stcols' ? viewStudentCols() : UI.listTab === 'tz' ? viewTzList() : viewOptionList(UI.listTab));
+}
+/* ----- 시간대 목록: My Page 화면 시간·회의록 “시간 기준”·계정 화면 시간에서 고를 수 있는 나라 ----- */
+var BRANCH_ZONES = ['Asia/Shanghai', 'Asia/Seoul'];
+function tzUse() {
+  var n = {};
+  S.meetings.concat(S.notes).forEach(function (r) { if (r.tz) n[r.tz] = (n[r.tz] || 0) + 1; });
+  (S.allEvents || []).forEach(function (e) { if (e.tz) n[e.tz] = (n[e.tz] || 0) + 1; });
+  return n;
+}
+function viewTzList() {
+  var list = (S.options || []).filter(function (o) { return o.kind === 'tz'; }).sort(function (a, b) { return (Number(a.sortOrder) || 999) - (Number(b.sortOrder) || 999); }), use = tzUse();
+  var h = '<div class="notice">My Page <b>화면 시간</b>(출장 등), 회의록·상담 <b>시간 기준</b>, 계정의 화면 시간에서 고를 수 있는 나라입니다. 서머타임은 자동으로 맞춰집니다. 상해(중국)·압구정(한국) 지점 시간대는 지울 수 없고, 그 시간으로 적힌 기록이 있는 시간대도 지울 수 없습니다.</div>';
+  h += '<div class="toolbar"><span class="grow"></span><button class="btn" onclick="openTzForm()">+ 시간대 추가</button></div>';
+  h += '<div class="card tbl-wrap"><div class="muted" style="margin-bottom:6px">⋮⋮ 를 끌어서 순서를 바꾸면 고르는 목록도 이 순서로 나옵니다.</div><table><thead><tr><th class="gripc"></th><th>이름</th><th>같은 시간을 쓰는 곳</th><th>세계 시간대</th><th>지금 시각</th><th>쓰는 기록</th><th></th></tr></thead><tbody data-order="tz">' +
+    list.map(function (o) {
+      var fixed = BRANCH_ZONES.indexOf(o.category) >= 0;
+      return '<tr class="drag" draggable="true" data-id="' + esc(o.id) + '" data-grp=""><td class="nw gripc"><span class="grip" title="끌어서 순서 바꾸기">⋮⋮</span></td><td><b>' + esc(o.value) + '</b>' + (fixed ? ' <span class="pill">지점</span>' : '') + '</td>' +
+        '<td>' + esc(o.fullName || '-') + '</td><td class="muted nw">' + esc(o.category) + '</td><td class="nw">' + esc(fmtD(wallNow(o.category).slice(0, 10)) + ' ' + wallNow(o.category).slice(11, 16)) + '</td><td>' + (use[o.category] || 0) + '건</td>' +
+        '<td class="nw"><button class="btn ghost sm" onclick="openTzForm(' + js(o.id) + ')">수정</button> ' + (fixed ? '' : '<button class="btn ghost sm" onclick="removeOption(' + js(o.id) + ')">삭제</button>') + '</td></tr>';
+    }).join('') + '</tbody></table></div>';
+  return h;
+}
+function openTzForm(id) {
+  var o = id ? (S.options || []).filter(function (x) { return x.id === id; })[0] : {};
+  var zones = []; try { zones = Intl.supportedValuesOf('timeZone'); } catch (e) { /* 오래된 브라우저 — 직접 입력 */ }
+  modal(id ? '시간대 수정' : '시간대 추가',
+    fld('이름 (고르는 목록에 보이는 이름)', inp('value', o.value || '', 'text', ' placeholder="예: 프랑스" maxlength="30"'), false, true) +
+    fld('같은 시간을 쓰는 곳 (선택)', inp('fullName', o.fullName || '', 'text', ' placeholder="예: 파리·베를린·로마"')) +
+    (id ? fld('세계 시간대', '<div style="padding:8px 0">' + esc(o.category) + ' <span class="muted">— 이미 이 시간으로 적힌 기록이 있을 수 있어 바꿀 수 없습니다</span></div>', true)
+      : fld('세계 시간대', inp('zone', '', 'text', ' list="dl-tz" placeholder="도시 영어 이름으로 검색 — 예: Paris → Europe/Paris" oninput="tzPreview(this.value)"') + datalist('dl-tz', zones) +
+        '<div class="muted" id="tz-prev" style="font-size:.82rem;margin-top:3px">목록에서 고르면 지금 그곳 시각이 보입니다.</div>', true)),
+    '<button class="btn ghost" onclick="closeModal()">취소</button><button class="btn" onclick="submitTz(' + js(id || '') + ')">저장</button>');
+}
+function tzPreview(z) {
+  var el = $('tz-prev'); if (!el) return;
+  try { el.textContent = '지금 그곳: ' + fmtD(wallNow(z).slice(0, 10)) + ' ' + wallNow(z).slice(11, 16) + ' (내 화면 시간 ' + wallNow(myTZ()).slice(11, 16) + ')'; } catch (e) { el.textContent = '목록에 있는 세계 시간대를 고르세요.'; }
+}
+function submitTz(id) {
+  var f = formData($('mf')); if (!String(f.value || '').trim()) return toast('이름을 입력하세요.', true);
+  var o = id ? (S.options || []).filter(function (x) { return x.id === id; })[0] : null;
+  mutate('saveOption', Object.assign({ kind: 'tz', value: f.value.trim(), fullName: f.fullName || '' }, id ? { id: id, sortOrder: o && o.sortOrder } : { zone: (f.zone || '').trim() }), id ? '저장했습니다.' : '시간대를 추가했습니다.');
 }
 function viewOptionList(kind) {
   var label = OPTION_KINDS[kind];
@@ -3219,12 +3292,12 @@ function viewOptionList(kind) {
   var h = '<div class="notice">' + (pg ? '대회·프로그램 메뉴의 분류입니다. 이 순서대로 묶여 보이고, 이름을 바꾸면 그 분류의 대회·프로그램도 함께 바뀝니다.' : dc ? '학생 화면 <b>성적·학력</b> 탭의 파일 분류와 <b>서류</b> 탭의 서류 분류입니다. 두 탭 모두 이 분류·순서대로 묶여 보입니다. 이름을 바꾸면 그 분류로 저장된 파일·서류도 함께 바뀝니다. 점수에 붙인 파일은 TOEFL·IELTS 등은 어학증빙, SAT·AP·IB 등은 표준화학력으로 자동 분류됩니다.'
     : '여기 있는 ' + label + '만 학생 정보에서 고를 수 있습니다. 이름을 바꾸면 그 ' + label + '로 입력된 학생 정보도 함께 바뀝니다.') + '</div>';
   h += '<div class="card"><form class="toolbar" style="margin:0" onsubmit="addOption(' + js(kind) + ');return false"><input type="text" id="opt-new" class="grow" placeholder="새 ' + label + ' 이름"><button class="btn" type="submit">+ 추가</button></form></div>';
-  h += '<div class="card tbl-wrap"><div class="muted" style="margin-bottom:6px">⋮⋮ 를 끌어서 순서를 바꾸면 바로 저장되고, ' + (dc || pg ? '분류 선택과 묶음' : '학생 정보의 선택 목록') + '도 이 순서로 나옵니다.</div><table><thead><tr><th class="gripc"></th><th>' + label + '</th><th>' + (dc ? '파일·서류 수' : pg ? '대회·프로그램 수' : '학생 수') + '</th>' + (kind === 'school' ? '<th>방학</th>' : '') + '<th></th></tr></thead><tbody data-order="' + esc(kind) + '">' +
+  h += '<div class="card tbl-wrap"><div class="muted" style="margin-bottom:6px">⋮⋮ 를 끌어서 순서를 바꾸면 바로 저장되고, ' + (dc || pg ? '분류 선택과 묶음' : '학생 정보의 선택 목록') + '도 이 순서로 나옵니다.</div><table><thead><tr><th class="gripc"></th><th>' + label + '</th>' + (kind === 'school' ? '<th>정식 이름 · 나라·도시</th>' : '') + '<th>' + (dc ? '파일·서류 수' : pg ? '대회·프로그램 수' : '학생 수') + '</th>' + (kind === 'school' ? '<th>방학</th>' : '') + '<th></th></tr></thead><tbody data-order="' + esc(kind) + '">' +
     (list.length ? list.map(function (o) {
-      return '<tr class="drag" draggable="true" data-id="' + esc(o.id) + '" data-grp="">' + '<td class="nw gripc"><span class="grip" title="끌어서 순서 바꾸기">⋮⋮</span></td>' + '<td><b>' + esc(o.value) + '</b></td><td>' + (used[o.value] || 0) + unit + '</td>' +
+      return '<tr class="drag" draggable="true" data-id="' + esc(o.id) + '" data-grp="">' + '<td class="nw gripc"><span class="grip" title="끌어서 순서 바꾸기">⋮⋮</span></td>' + '<td><b>' + esc(o.value) + '</b></td>' + (kind === 'school' ? '<td>' + (o.fullName ? esc(o.fullName) : '<span class="muted">-</span>') + ([o.country, o.city].filter(Boolean).length ? '<div class="muted" style="font-size:.8rem">' + esc([o.country, o.city].filter(Boolean).join(' · ')) + '</div>' : '') + '</td>' : '') + '<td>' + (used[o.value] || 0) + unit + '</td>' +
         (kind === 'school' ? '<td>' + (breaksOf(o.value).filter(function (b) { return b.endDate >= today(); }).slice(0, 2).map(function (b) { return '<div class="nw">' + esc(b.name) + ' ' + esc(fmtD(b.startDate)) + '~' + esc(fmtD(b.endDate)) + '</div>'; }).join('') || '<span class="muted">-</span>') +
           ' <button class="btn ghost sm" onclick="openBreaks(' + js(o.value) + ')">🏫 방학 관리</button></td>' : '') +
-        '<td class="nw"><button class="btn ghost sm" onclick="renameOption(' + js(o.id) + ')">이름 변경</button> ' +
+        '<td class="nw"><button class="btn ghost sm" onclick="' + (kind === 'school' ? 'openSchoolForm(' + js(o.id) + ')">수정' : 'renameOption(' + js(o.id) + ')">이름 변경') + '</button> ' +
         '<button class="btn ghost sm" onclick="removeOption(' + js(o.id) + ')">삭제</button></td></tr>';
     }).join('') : '<tr><td colspan="5" class="empty">아직 없습니다.</td></tr>') + '</tbody></table></div>';
   var have = {}; list.forEach(function (o) { have[o.value] = 1; });
@@ -3311,8 +3384,27 @@ function submitSite(id) {
 }
 function addOption(kind, value) {
   var v = value != null ? value : ($('opt-new') || {}).value || '';
+  if (kind === 'school') return openSchoolForm(null, v.trim());
   if (!v.trim()) return toast('이름을 입력하세요.', true);
   mutate('saveOption', { kind: kind, value: v.trim() }, '추가했습니다.');
+}
+/** 학교 정보: 짧은 이름(화면 곳곳에 보이는 이름, 예: SAS) + 정식 이름·나라·도시 */
+var SCHOOL_COUNTRIES = ['중국', '한국', '홍콩', '싱가폴', '말레이시아', '베트남', '태국', '일본', '미국', '캐나다', '기타'];
+function openSchoolForm(id, name) {
+  var o = id ? (S.options || []).filter(function (x) { return x.id === id; })[0] : { value: name || '' };
+  if (!o) return;
+  modal(id ? '학교 정보 수정' : '학교 추가',
+    fld('짧은 이름 (화면에 보이는 이름)', inp('value', o.value, 'text', ' placeholder="예: SAS" maxlength="40"'), false, true) + '<div></div>' +
+    fld('정식 이름', inp('fullName', o.fullName || '', 'text', ' placeholder="예: Shanghai American School"'), true) +
+    fld('나라', inp('country', o.country || '', 'text', ' list="dl-sch-country" placeholder="예: 중국"') + datalist('dl-sch-country', SCHOOL_COUNTRIES)) +
+    fld('도시', inp('city', o.city || '', 'text', ' placeholder="예: 상해"')) +
+    (id ? '<div class="full muted" style="font-size:.82rem">짧은 이름을 바꾸면 그 학교로 입력된 학생 정보와 방학도 함께 바뀝니다.</div>' : ''),
+    '<button class="btn ghost" onclick="closeModal()">취소</button><button class="btn" onclick="submitSchool(' + js(id || '') + ')">저장</button>');
+}
+function submitSchool(id) {
+  var f = formData($('mf')); if (!String(f.value || '').trim()) return toast('짧은 이름을 입력하세요.', true);
+  var o = id ? (S.options || []).filter(function (x) { return x.id === id; })[0] : null;
+  mutate('saveOption', Object.assign({ kind: 'school', value: f.value.trim(), fullName: f.fullName, country: f.country, city: f.city }, id ? { id: id, sortOrder: o && o.sortOrder } : {}), id ? '학교 정보를 저장했습니다.' : '학교를 추가했습니다.');
 }
 function renameOption(id) {
   var o = (S.options || []).filter(function (x) { return x.id === id; })[0]; if (!o) return;
@@ -3509,8 +3601,17 @@ function viewMe() {
     '<div class="full toolbar" style="margin:0"><button class="btn" type="submit">이름 저장</button><button class="btn ghost" type="button" onclick="openPasswordForm()">비밀번호 변경</button>' +
     '<button class="btn ghost" type="button" style="margin-left:auto" onclick="logout()">로그아웃</button></div></form></div>' +
     '<div class="card"><h3>내 업무</h3><div style="line-height:1.9">담당 학생 <b>' + mine.length + '명</b>: ' + (mine.map(function (s) { return '<a href="#/student/' + esc(s.id) + '">' + esc(s.name) + '</a>'; }).join(', ') || '<span class="muted">없음</span>') +
-    '<br>나에게 배정된 팔로업 <b>' + myFu.length + '건</b> <a href="#/followups" onclick="UI.fuWho=\'me\';UI.fuStatus=\'open\'">팔로업 보기 →</a></div></div></div>';
+    '<br>나에게 배정된 팔로업 <b>' + myFu.length + '건</b> <a href="#/followups" onclick="UI.fuWho=\'me\';UI.fuStatus=\'open\'">팔로업 보기 →</a></div></div>' + myTimeCard() + '</div>';
 }
+/** My Page 화면 시간: 출장 등으로 잠깐 다른 나라 시간으로 보고 싶을 때 (비우면 지점 기준) */
+function myTimeCard() {
+  var bz = S.me.branchTz || myTZ(), base = isAllBranch() ? '계정 기본' : myBranch() + ' 지점';
+  return '<div class="card"><h3>화면 시간</h3><div class="muted" style="margin-bottom:8px;font-size:.88rem">Compass의 모든 날짜·시간(원장님 미팅, 일정, 회의록 시간, 변경 기록, 오늘 날짜)이 이 시간으로 보입니다. 출장 중에는 그 나라 시간으로 바꾸고, 돌아오면 “' + esc(base) + ' 기준”으로 되돌리세요. 이 계정에만 적용됩니다.</div>' +
+    '<div class="toolbar" style="margin:0"><select id="my-tz">' + tzOptions(S.me.viewTz, '<option value=""' + (S.me.viewTz ? '' : ' selected') + '>' + esc(base + ' 기준 — ' + tzName(bz) + ' 시간') + '</option>') + '</select>' +
+    '<button class="btn" onclick="saveMyTz()">저장</button></div>' +
+    (S.me.viewTz ? '<div class="notice" style="margin:8px 0 0">지금 <b>' + esc(tzName(S.me.viewTz)) + ' 시간</b>으로 보고 있습니다 (' + esc(base) + ' 기준은 ' + esc(tzName(bz)) + ' 시간).</div>' : '') + '</div>';
+}
+function saveMyTz() { mutate('updateMe', { viewTz: $('my-tz').value }, '화면 시간을 바꿨습니다.'); }
 function saveMyName() {
   var n = $('myname').value.trim(); if (!n) return toast('이름을 입력하세요.', true);
   mutate('updateMe', { name: n }, '이름을 저장했습니다.');
@@ -3725,7 +3826,7 @@ function viewDeadlines() {
         var cls = !op ? 'done' : n < 0 ? 'late' : n <= 7 ? 'soon' : '';
         var memo = String(a.memo || '');
         return '<tr class="' + cls + '"><td class="nw"><b>' + esc(fmtD(a.deadline)) + '</b> ' + (op ? dday(a.deadline) : '') + '</td>' +
-          '<td><b>' + esc(a.university) + '</b>' + (a.round ? ' <span class="muted">· ' + esc(a.round) + '</span>' : '') + (a.major ? '<div class="muted" style="font-size:.8rem">' + esc(a.major) + '</div>' : '') + mcMore(a) + '</td>' +
+          '<td><b>' + esc(a.university) + '</b>' + (a.status === '보류' ? ' <span class="pill a-보류" title="안 낼 수도 있음 — 마감 전에 낼지 정하기">보류</span>' : '') + (a.round ? ' <span class="muted">· ' + esc(a.round) + '</span>' : '') + (a.major ? '<div class="muted" style="font-size:.8rem">' + esc(a.major) + '</div>' : '') + mcMore(a) + '</td>' +
           '<td class="nw">' + (op || portalAccounts(s.id, a.universityId).length ? portalCell(s, a) : '') + '</td>' +
           '<td class="dl-memo">' + (/\n/.test(memo) ? '<div class="longtxt" style="max-height:4.5em" onclick="openForm(\'apps\',' + js(a.id) + ')" title="눌러서 고치기">' + esc(memo) + '</div>'
             : '<input type="text" value="' + esc(memo) + '" title="메모 — 쓰고 다른 곳을 누르면 저장" onchange="saveAppMemo(' + js(a.id) + ',this.value)">') + '</td>' +
@@ -3735,8 +3836,8 @@ function viewDeadlines() {
       }).join(''));
     }).join('') + '</tbody></table></div>';
 }
-function dlFold() { if (!UI.dlFold) { try { UI.dlFold = JSON.parse(localStorage.getItem('dlFold') || '{}'); } catch (e) { UI.dlFold = {}; } } return UI.dlFold; }
-function dlFoldSave() { try { localStorage.setItem('dlFold', JSON.stringify(UI.dlFold)); } catch (e) { /* 이번 화면에만 */ } }
+function dlFold() { if (!UI.dlFold) UI.dlFold = prefGet('dlFold', null) || {}; return UI.dlFold; }
+function dlFoldSave() { prefSet('dlFold', UI.dlFold); }
 function dlToggle(sid) { var f = dlFold(); if (f[sid]) delete f[sid]; else f[sid] = 1; dlFoldSave(); render(); }
 function dlFoldAll(close, sids) { var f = dlFold(); sids.forEach(function (sid) { if (close) f[sid] = 1; else delete f[sid]; }); dlFoldSave(); render(); }
 function saveAppMemo(id, v) {
@@ -3929,7 +4030,8 @@ function viewUnis() {
   var groups = {};
   unis.forEach(function (u) { (groups[u.country] = groups[u.country] || []).push(u); });
   var fold = uniFold();
-  h = h.replace('</h2>', '</h2><button class="btn ghost sm" onclick="setUniFold(' + js(Object.keys(groups)) + ', false)">모두 펼치기</button><button class="btn ghost sm" onclick="setUniFold(' + js(Object.keys(groups)) + ', true)">모두 접기</button>');
+  var anyOpen = Object.keys(groups).some(function (c) { return !fold[c]; });
+  h = h.replace('</h2>', '</h2><button class="btn ghost sm" onclick="setUniFold(' + js(Object.keys(groups)) + ', ' + anyOpen + ')">' + (anyOpen ? '모두 접기' : '모두 펼치기') + '</button>');
   Object.keys(groups).forEach(function (c) {
     var closed = !!fold[c];
     h += '<div class="card fold' + (closed ? ' closed' : '') + '"><h3 class="fold-h" role="button" tabindex="0" onclick="setUniFold([' + esc(JSON.stringify(c)) + '], ' + !closed + ')" onkeydown="if(event.key===\'Enter\')this.click()">' +
@@ -4060,12 +4162,12 @@ function removeProgram(id) {
 /** 대학 정보 나라별 접기 상태 (이 브라우저에만 기억) */
 /* ----- 대학 전공: 학부별로 접어서, 검색, 여러 개 붙여넣기 ----- */
 function majFold() {
-  if (!UI.majFold) { try { UI.majFold = JSON.parse(localStorage.getItem('compass.majFold') || '{}') || {}; } catch (e) { UI.majFold = {}; } }
+  if (!UI.majFold) UI.majFold = prefGet('compass.majFold', null) || {};
   return UI.majFold;
 }
 function setMajFold(key, open) {
   var f = majFold(); f[key] = open ? 1 : 0;
-  try { localStorage.setItem('compass.majFold', JSON.stringify(f)); } catch (e) { /* 저장 못 해도 화면은 동작 */ }
+  prefSet('compass.majFold', f);
 }
 /** 학부별 묶음 [{ fac, list }] — 학부 이름순, 학부 미지정은 맨 뒤 */
 function majorGroups(majors) {
@@ -4084,7 +4186,7 @@ function majorList(uid, majors) {
   var h = '<div class="toolbar majtools" style="margin:0 0 8px"><input type="text" class="grow" placeholder="전공·학부 검색" value="' + esc(UI.majQ[uid] || '') + '" oninput="UI.majQ[' + js(uid) + ']=this.value;majRefresh(' + js(uid) + ')">' +
     (groups.length > 1 ? '<select onchange="UI.majFac[' + js(uid) + ']=this.value;render()"><option value="*">모든 학부 (' + groups.length + ')</option>' + groups.map(function (g) {
       return '<option value="' + esc(g.fac) + '"' + (facSel === g.fac ? ' selected' : '') + '>' + esc(g.fac || '학부 미지정') + ' (' + g.list.length + ')</option>'; }).join('') + '</select>' +
-      '<button class="btn ghost sm" onclick="majAll(' + js(uid) + ',true)">모두 펼치기</button><button class="btn ghost sm" onclick="majAll(' + js(uid) + ',false)">모두 접기</button>' : '') + '</div>';
+      (function () { var anyOpen = groups.some(function (g) { return !!fold[uid + '|' + g.fac]; }); return '<button class="btn ghost sm" onclick="majAll(' + js(uid) + ',' + !anyOpen + ')">' + (anyOpen ? '모두 접기' : '모두 펼치기') + '</button>'; })() : '') + '</div>';
   h += '<div class="majbox" id="majbox-' + esc(uid) + '">' + (shown.length ? shown.map(function (g) {
     var key = uid + '|' + g.fac, open = q ? true : groups.length === 1 ? true : !!fold[key];
     return '<details class="facgrp"' + (open ? ' open' : '') + ' ontoggle="' + (q ? '' : 'setMajFold(' + js(key) + ',this.open)') + '"><summary><b>' + esc(g.fac || '학부 미지정') + '</b> <span class="muted">' + g.list.length + (q && g.list.length !== g.all.length ? ' / ' + g.all.length : '') + '개</span>' +
@@ -4172,13 +4274,13 @@ function submitMajorPaste() {
   }).catch(function (e) { toast(errMsg(e), true); });
 }
 function uniFold() {
-  if (!UI.uniFold) { try { UI.uniFold = JSON.parse(localStorage.getItem('compass.uniFold') || '{}') || {}; } catch (e) { UI.uniFold = {}; } }
+  if (!UI.uniFold) UI.uniFold = prefGet('compass.uniFold', null) || {};
   return UI.uniFold;
 }
 function setUniFold(countries, closed) {
   var f = uniFold();
   countries.forEach(function (c) { if (closed) f[c] = 1; else delete f[c]; });
-  try { localStorage.setItem('compass.uniFold', JSON.stringify(f)); } catch (e) { /* 저장 못 해도 화면은 동작 */ }
+  prefSet('compass.uniFold', f);
   render();
 }
 function viewUni(id) {
@@ -4684,7 +4786,7 @@ function openTeacherForm(email) {
     fld('상태', '<select name="active"><option value="1"' + (t.active ? ' selected' : '') + '>활성</option><option value="0"' + (!t.active ? ' selected' : '') + '>비활성</option></select>') +
     fld('지점', '<select name="branch" onchange="$(\'tc-tz\').disabled=this.value!==\'전체\'">' + BRANCHES.concat([ALL_BRANCH]).map(function (b) { var cur = t.branch || (isAllBranch() ? BRANCHES[0] : myBranch()); return '<option value="' + esc(b) + '"' + (b === cur ? ' selected' : '') + '>' + esc(b === ALL_BRANCH ? '전체 (지점 구분 없음)' : b) + '</option>'; }).join('') + '</select>' +
       '<div class="muted" style="font-size:.78rem;margin-top:3px">상해 = 중국 시간, 압구정 = 한국 시간 · 전체 = 두 지점을 모두 맡는 계정(원장님 등), 처음부터 전체 지점이 보임</div>') +
-    fld('화면 시간 (지점이 “전체”일 때)', '<select name="tz" id="tc-tz"' + (t.branch === ALL_BRANCH ? '' : ' disabled') + '>' + Object.keys(TZ_NAME).map(function (z) { return '<option value="' + esc(z) + '"' + (z === (t.tz || SCHED_TZ) ? ' selected' : '') + '>' + esc(TZ_NAME[z]) + ' 시간</option>'; }).join('') + '</select>') +
+    fld('화면 시간 (지점이 “전체”일 때)', '<select name="tz" id="tc-tz"' + (t.branch === ALL_BRANCH ? '' : ' disabled') + '>' + tzOptions(t.tz || SCHED_TZ) + '</select>') +
     fld('이메일 알림', '<div><label style="display:inline-flex;gap:6px;align-items:center;color:#222"><input type="checkbox" name="notify"' + (t.notify !== false ? ' checked' : '') + '> 매일 아침 “오늘 챙길 일” 메일 받기</label></div>', true) +
     '<div class="full"><label>색 (관리팀·관리자 — 학생 목록에서 이 선생님이 관리하는 학생 줄의 배경색)</label><div class="swatches">' +
       [['', '없음']].concat(TEACHER_COLORS).map(function (c) {
@@ -5024,11 +5126,12 @@ function field(f, rec) {
     return '<div class="full" data-showif="' + esc(f.showIf) + '"' + (on ? '' : ' style="display:none"') + '><label>' + esc(f.l) + '</label>' + inp(f.k, rec[f.k] == null ? '' : rec[f.k], 'text', f.ph ? ' placeholder="' + esc(f.ph) + '"' : '') + '</div>';
   }
   if (f.t === 'review') return reviewField(UI.formTable, rec);
+  if (f.t === 'note') return '<div class="full muted" style="font-size:.8rem;margin-top:-4px">' + f.html + '</div>'; // 입력 칸 아래 짧은 안내 (코드에 쓴 고정 문구)
   if (f.t === 'branch') return fld(f.l, sel('branch', BRANCHES, rec.branch || (rec.id || isAllBranch() ? BRANCHES[0] : myBranch())) +
     '<div class="muted" style="font-size:.78rem;margin-top:3px">다른 지점 관리팀은 이 학생을 보기·팔로업·상담기록 추가만 할 수 있습니다.</div>');
   if (f.t === 'tz') { // 시간을 어느 나라 기준으로 적었는지 (처음엔 내 지점 시간) — 보는 사람 화면에는 그 사람 시간으로 바뀌어 보임
     var tzv = rec.tz || (rec.id ? SCHED_TZ : myTZ());
-    return fld(f.l, '<select name="tz">' + Object.keys(TZ_NAME).map(function (z) { return '<option value="' + esc(z) + '"' + (z === tzv ? ' selected' : '') + '>' + esc(TZ_NAME[z]) + ' 시간</option>'; }).join('') + '</select>' +
+    return fld(f.l, '<select name="tz">' + tzOptions(tzv) + '</select>' +
       '<div class="muted" style="font-size:.78rem;margin-top:3px">다른 지점 선생님 화면에는 그 지점 시간으로 바뀌어 보입니다.</div>');
   }
   if (f.t === 'need') return fld(f.l, '<div class="multi"><label><input type="radio" name="need" value="yes"' + (rec.status !== '완료' ? ' checked' : '') + '> 답변 필요 (팔로업에 남김)</label>' +
@@ -5184,8 +5287,8 @@ function colKey(t) {
   var view = (location.hash || '#/home').replace(/\/[0-9a-f-]{8,}/gi, '/:id');
   return 'colw:' + view + ':' + Array.prototype.map.call(t.tHead.rows[0].cells, function (c) { return c.textContent.trim(); }).join('|');
 }
-function colLoad(k) { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return null; } }
-function colSave(k, v) { try { if (v) localStorage.setItem(k, JSON.stringify(v)); else localStorage.removeItem(k); } catch (e) { /* 저장 안 되는 브라우저는 이번 화면에만 */ } }
+function colLoad(k) { return prefGet(k, null); }
+function colSave(k, v) { prefSet(k, v || null); }
 function colApply(t, w) {
   var cells = t.tHead.rows[0].cells;
   if (!w || w.length !== cells.length) { t.classList.remove('colfix'); t.style.width = ''; Array.prototype.forEach.call(cells, function (c) { c.style.width = ''; }); return; }
@@ -5510,6 +5613,9 @@ document.addEventListener('keydown', function (e) {
 document.addEventListener('click', function (e) {
   ['adm', 'who'].forEach(function (id) { var el = $(id); if (el && el.classList.contains('open') && !el.contains(e.target)) el.classList.remove('open'); });
 });
+// 예전 버전이 계정 구분 없이 저장하던 화면 설정 정리 (지금은 계정마다 따로 저장)
+try { ['compass.br', 'compass.alertsOff', 'exportFields2', 'scFold', 'dlFold', 'compass.majFold', 'compass.uniFold'].forEach(function (k) { localStorage.removeItem(k); });
+  Object.keys(localStorage).forEach(function (k) { if (/^colw:/.test(k)) localStorage.removeItem(k); }); } catch (e) { /* 저장소를 못 쓰는 브라우저 */ }
 refresh();
 // 다른 선생님의 변경사항 반영: 창이 보이고 입력 중이 아닐 때 2분마다 자동 새로고침
 setInterval(function () {
