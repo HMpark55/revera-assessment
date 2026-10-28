@@ -2517,5 +2517,5 @@ test('개발자 역할: 관리자 권한 + 다른 계정으로 로그인·돌아
   assert.strictEqual(r.status, 200);
   d = await dev.ok('getAll');
   assert.strictEqual(d.me.email, 'dev@revera.test'); assert.ok(!d.devAs);
-  assert.ok(store.db.prepare("SELECT 1 FROM log WHERE email = 'dev@revera.test' AND summary LIKE '%계정으로 로그인%'").get());
+  assert.ok(!store.db.prepare("SELECT 1 FROM log WHERE email = 'dev@revera.test' AND summary LIKE '%계정으로 로그인%'").get(), '다른 계정 로그인은 기록하지 않음');
 });

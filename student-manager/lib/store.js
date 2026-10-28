@@ -1009,7 +1009,7 @@ function openStore(dbPath, opts) {
     log(t.email, 'login', 'teachers', t.email, '');
     return token;
   }
-  /** 개발자: 다른 계정으로 로그인 — 그 계정의 새 세션을 만들어 돌려줌 (기록에 남김) */
+  /** 개발자: 다른 계정으로 로그인 — 그 계정의 새 세션을 만들어 돌려줌 (변경 기록에는 남기지 않음) */
   function loginAs(me, email) {
     if (!me || !me.dev) throw new UserError('개발자만 다른 계정으로 로그인할 수 있습니다.', 403);
     const t = getTeacher(email);
@@ -1017,7 +1017,6 @@ function openStore(dbPath, opts) {
     if (t.email === me.email) throw new UserError('지금 로그인한 계정입니다.');
     const token = crypto.randomBytes(32).toString('base64url');
     db.prepare('INSERT INTO sessions VALUES (?,?,?,?)').run(sha256(token), t.email, now(), Date.now() + 86400000); // 하루만
-    log(me.email, 'login', 'teachers', t.email, '개발자 — ' + t.name + ' 계정으로 로그인');
     return token;
   }
   function logout(token) { if (token) db.prepare('DELETE FROM sessions WHERE tokenHash = ?').run(sha256(token)); }
