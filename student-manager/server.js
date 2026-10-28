@@ -14,6 +14,7 @@ const automation = require('./lib/automation');
 const { attachAtlas } = require('./lib/atlas');
 
 const COOKIE = 'revera_sid';
+const DEV_COOKIE = 'revera_dev'; // 개발자가 다른 계정으로 로그인했을 때, 돌아갈 개발자 세션
 
 function createApp(store, opts) {
   opts = opts || {};
@@ -55,14 +56,13 @@ function createApp(store, opts) {
     try { store.countTeachers(); res.json({ ok: true }); } catch (e) { res.status(503).json({ ok: false }); }
   });
 
-  const readCookie = (req) => {
-    const m = String(req.headers.cookie || '').match(new RegExp('(?:^|;\\s*)' + COOKIE + '=([^;]+)'));
+  const readCookie = (req, name) => {
+    const m = String(req.headers.cookie || '').match(new RegExp('(?:^|;\\s*)' + (name || COOKIE) + '=([^;]+)'));
     return m ? decodeURIComponent(m[1]) : '';
   };
+  const cookieStr = (req, name, value, maxAgeSec) => `${name}=${encodeURIComponent(value)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAgeSec}` + (opts.cookieSecure || req.secure ? '; Secure' : '');
   const setCookie = (req, res, value, maxAgeSec) => {
-    const secure = opts.cookieSecure || req.secure;
-    res.set('Set-Cookie', `${COOKIE}=${encodeURIComponent(value)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAgeSec}` +
-      (secure ? '; Secure' : ''));
+    res.set('Set-Cookie', cookieStr(req, COOKIE, value, maxAgeSec));
   };
 
   // 다른 사이트에서 몰래 보내는 요청(CSRF) 차단: 이 사이트의 화면만 이 헤더를 붙임
@@ -99,7 +99,28 @@ function createApp(store, opts) {
 
   app.post('/api/logout', (req, res) => {
     store.logout(readCookie(req));
-    setCookie(req, res, '', 0);
+    store.logout(readCookie(req, DEV_COOKIE));
+    res.set('Set-Cookie', [cookieStr(req, COOKIE, '', 0), cookieStr(req, DEV_COOKIE, '', 0)]);
+    res.json({ ok: true });
+  });
+
+  /* ---- 개발자: 계정 관리에서 다른 계정으로 로그인 → 상단 띠의 “내 계정으로 돌아가기” ---- */
+  app.post('/api/dev/loginAs', (req, res) => {
+    const me = store.authenticate(readCookie(req));
+    const dev = readCookie(req, DEV_COOKIE) || readCookie(req);
+    const devMe = store.authenticate(dev);
+    try {
+      const token = store.loginAs(devMe && devMe.dev ? devMe : me, (req.body || {}).email);
+      if (readCookie(req, DEV_COOKIE)) store.logout(readCookie(req)); // 다른 계정으로 보던 세션은 정리
+      res.set('Set-Cookie', [cookieStr(req, COOKIE, token, 86400), cookieStr(req, DEV_COOKIE, dev, 14 * 86400)]);
+      res.json({ ok: true });
+    } catch (e) { sendError(res, e); }
+  });
+  app.post('/api/dev/back', (req, res) => {
+    const dev = readCookie(req, DEV_COOKIE), devMe = store.authenticate(dev);
+    if (!devMe || !devMe.dev) return res.status(401).json({ error: '개발자 로그인이 끝났습니다. 다시 로그인하세요.', needLogin: true });
+    store.logout(readCookie(req));
+    res.set('Set-Cookie', [cookieStr(req, COOKIE, dev, 14 * 86400), cookieStr(req, DEV_COOKIE, '', 0)]);
     res.json({ ok: true });
   });
 
@@ -135,7 +156,12 @@ function createApp(store, opts) {
       return res.status(403).json({ error: '먼저 비밀번호를 변경해주세요.' });
     }
     try {
-      res.json(fn(req.me, (req.body || {}).arg));
+      const out = fn(req.me, (req.body || {}).arg);
+      if (req.params.fn === 'getAll' && readCookie(req, DEV_COOKIE)) { // 개발자가 다른 계정으로 보는 중
+        const devMe = store.authenticate(readCookie(req, DEV_COOKIE));
+        if (devMe && devMe.dev) out.devAs = { name: devMe.name, email: devMe.email };
+      }
+      res.json(out);
     } catch (e) {
       sendError(res, e);
     }

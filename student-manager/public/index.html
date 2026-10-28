@@ -243,8 +243,8 @@
   .cgrade { border-top:1px solid var(--soft); padding-top:10px; margin-top:10px; }
   .cgrade:first-of-type { border-top:0; margin-top:0; }
   .cgrade h4 { margin:0; color:var(--navy); font-size:.95rem; }
-  .crow { display:grid; grid-template-columns:1fr 150px 130px auto; gap:6px; margin-bottom:6px; }
-  @media (max-width:560px) { .crow { grid-template-columns:1fr 1fr; } .crow input[data-c=subject] { grid-column:1 / -1; } }
+  .crow { display:grid; grid-template-columns:130px 1fr 130px auto; gap:6px; margin-bottom:6px; }
+  @media (max-width:560px) { .crow { grid-template-columns:1fr 1fr; } .crow .csubj { grid-column:1 / -1; } }
   .gentry td input { width:70px; padding:5px 6px; }
   tr.gap td { background:#fff6f5; color:var(--error); font-size:.82rem; }
   tr.ex td { color:#999; } tr.ex td b { text-decoration:line-through; }
@@ -637,7 +637,7 @@
 
 <script>
 /* ============================== 설정 ============================== */
-var ROLE_LABEL = { admin: '관리자', staff: '관리팀', consultant: '컨설턴트' };
+var ROLE_LABEL = { admin: '관리자', staff: '관리팀', consultant: '컨설턴트', developer: '개발자' };
 var STUDENT_STATUS = ['상담중', '진행중', '보류', '완료', '종료'];
 var TRACKS = ['3년특례', '12년특례', '홍콩', '싱가폴', '미국', '캐나다', '영국', '일본', '한국 일반', '기타'];
 /** 학생 트랙 목록 (목록 관리 › 트랙, 없으면 처음 목록) */
@@ -662,7 +662,11 @@ var APP_FINAL = ['제출완료', '대기', '합격', '불합격', '철회'];
 var ESSAY_STATUS = ['', '미착수', '브레인스토밍', '초안', '수정중', '완료'];
 var GRADES = ['G9', 'G10', 'G11', 'G12', 'Y10', 'Y11', 'Y12', 'Y13'];
 var CURRICULA = ['IB', 'AP', 'A-Level', 'IGCSE', '국내 일반고', '국내 특목고', '기타'];
-var SCORE_KINDS = ['SAT', 'ACT', 'TOEFL', 'IELTS', 'AP', 'IB', 'IB Predicted', 'A-Level', 'GPA', 'TOPIK', 'HSK', '기타'];
+var SCORE_KINDS = ['SAT', 'ACT', 'TOEFL', 'IELTS', 'AP', 'IB', 'IB Predicted', 'MYP', 'IGCSE', 'A-Level', 'GPA', 'TOPIK', 'HSK', '기타'];
+/* 과목 목록 (목록 관리 › 과목): 성적 종류·수강 과목 레벨 → 고를 커리큘럼 목록 (lib/subjects.js 와 같게) */
+var SUBJ_KIND_CATS = { AP: ['AP'], IB: ['IB'], 'IB Predicted': ['IB'], MYP: ['MYP'], IGCSE: ['IGCSE (Cambridge)', 'IGCSE (Edexcel)'], 'A-Level': ['A-Level (Cambridge)', 'A-Level (Edexcel)'] };
+var SUBJ_LEVEL_CATS = { AP: ['AP'], 'IB HL': ['IB'], 'IB SL': ['IB'], MYP: ['MYP'], IGCSE: ['IGCSE (Cambridge)', 'IGCSE (Edexcel)'], 'A-Level': ['A-Level (Cambridge)', 'A-Level (Edexcel)'], 'AS-Level': ['A-Level (Cambridge)', 'A-Level (Edexcel)'] };
+var SUBJ_CATS = ['AP', 'IB', 'MYP', 'IGCSE (Cambridge)', 'IGCSE (Edexcel)', 'A-Level (Cambridge)', 'A-Level (Edexcel)'];
 var ACT_CATS = ['리서치', '서머 프로그램', '인턴십', '대회', '에세이 대회', '클럽', '봉사', '기타'];
 var ACT_STATUS = ['계획', '지원 예정', '지원 완료', '진행 중', '완료', '불합격/취소'];
 var ACT_DONE = ['지원 완료', '진행 중', '완료', '불합격/취소'];
@@ -714,7 +718,7 @@ function groupByDocCat(list, guess) {
 var MAJOR_FIELDS = ['공학', '컴퓨터·데이터', '자연과학', '의약·보건', '경영·경제', '사회과학', '인문', '법', '교육', '예술·디자인', '건축', '기타'];
 var MAJOR_SOURCES = ['학생 희망', '학부모 의견', '컨설턴트 제안', '원장님 의견', '성적·시험 결과', '활동·적성', '기타'];
 var COURSE_TERMS = ['1년(2학기)', '1학기만', '2학기만', 'Trimester'];
-var COURSE_LEVELS = ['Regular', 'Honors', 'AP', 'IB HL', 'IB SL', 'A-Level', 'AS-Level', 'IGCSE', '기타'];
+var COURSE_LEVELS = ['Regular', 'Honors', 'AP', 'IB HL', 'IB SL', 'MYP', 'IGCSE', 'A-Level', 'AS-Level', '기타'];
 /** 학기 구분별 성적 칸 */
 function termCols(t) {
   return { '1학기만': [['g1', '1학기']], '2학기만': [['g2', '2학기']], 'Trimester': [['g1', 'T1'], ['g2', 'T2'], ['g3', 'T3'], ['final', '최종']] }[t] ||
@@ -849,7 +853,7 @@ var FORMS = {
     { k: 'sourceUrl', l: '출처 링크', t: 'url', full: 1 }] },
   scores: { title: '어학·표준화 점수', fields: [
     { k: 'kind', l: '시험·성적 종류', t: 'select', o: SCORE_KINDS, req: 1 },
-    { k: 'subject', l: '과목 / 구분', ph: '예: Calculus BC, Biology HL, 누적 GPA' },
+    { t: 'subj', full: 1 },
     { k: 'score', l: '점수', ph: '예: 1450 / 5 / 7 / 3.85' },
     { k: 'detail', l: '세부 점수', ph: '예: RW 700 · Math 750' },
     { k: 'date', l: '응시일 / 기준일', t: 'date' }, { k: 'memo', l: '메모', ph: '예: 목표 1500, 재응시 예정' }, { t: 'scorefiles', full: 1 }],
@@ -870,7 +874,7 @@ var FORMS = {
     { k: 'memo', l: '메모 (전학 사유, 학기제, 증명서 기준 날짜 등)', t: 'textarea', full: 1 }] },
   courses: { title: '수강 과목', fields: [
     { k: 'grade', l: '학년', t: 'list', o: GRADE_ALL, req: 1 }, { k: 'schoolYear', l: '학년도', ph: '예: 2025-2026' },
-    { k: 'subject', l: '과목', req: 1, full: 1 }, { k: 'level', l: '레벨', t: 'list', o: COURSE_LEVELS },
+    { k: 'level', l: '레벨', t: 'select', o: [''].concat(COURSE_LEVELS) }, { t: 'subj', full: 1 },
     { k: 'termType', l: '학기 구분', t: 'select', o: COURSE_TERMS },
     { k: 'g1', l: '1학기 / T1 성적' }, { k: 'g2', l: '2학기 / T2 성적' }, { k: 'g3', l: 'T3 성적 (Trimester)' }, { k: 'final', l: '최종 성적' },
     { k: 'memo', l: '메모', full: 1 }],
@@ -952,6 +956,7 @@ function load(data) {
   S.programs = data.programs || [];
   S.homeDefault = data.homeDefault || null;
   S.reviews = data.reviews || [];
+  if ('devAs' in data) { S.devAs = data.devAs; devBanner(); } // 개발자가 다른 계정으로 보는 중 (화면 전체를 불러올 때만 실려 옴)
   // 원장님 스케줄은 중국 시간으로 저장 → 내 시간으로 바꿔 둠 (압구정 계정은 한국 시간으로 보임)
   S.sched = (data.sched || []).map(function (x) { return Object.assign({}, x, { startAt: shiftWall(x.startAt, SCHED_TZ, myTZ()), endAt: shiftWall(x.endAt, SCHED_TZ, myTZ()) }); });
   applyBranch();
@@ -1027,11 +1032,13 @@ var NOTI = { notices: [], now: '' }, notiTimer = null;
 function remindField(rec) {
   var w = rec.remindAt ? shiftWall(rec.remindAt, SERVER_TZ, myTZ()) : '', to = String(rec.remindTo || '@assignee').split(',').filter(Boolean);
   var others = S.teachers.filter(function (t) { return t.active && t.email !== S.me.email || to.indexOf(t.email) >= 0; });
-  var mine = to.indexOf(S.me.email) >= 0;
-  return '<div class="full"><label>⏰ 알림 <span class="muted" style="font-weight:normal">(비워두면 알림 없음)</span></label><div class="rmf">' +
-    '<div class="row"><input type="date" id="rm-d" value="' + esc(w.slice(0, 10)) + '"><input type="time" id="rm-t" value="' + esc(w.slice(11, 16)) + '">' +
+  var mine = to.indexOf(S.me.email) >= 0, on = !!rec.remindAt;
+  if (!w && rec.due) w = rec.due + 'T' + wallNow(myTZ()).slice(11, 16); // 알림이 없으면 기한 날짜 + 지금 시각으로 미리 채워 둠
+  return '<div class="full"><label style="display:inline-flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" id="rm-on"' + (on ? ' checked' : '') + ' onchange="rmToggle()"> ⏰ 알림 받기</label>' +
+    '<div class="rmf" id="rm-box"' + (on ? '' : ' style="display:none"') + '>' +
+    '<div class="row"><input type="date" id="rm-d" value="' + esc(w.slice(0, 10)) + '" onchange="this.dataset.touched=1"><input type="time" id="rm-t" value="' + esc(w.slice(11, 16)) + '">' +
     '<button type="button" class="btn ghost sm" onclick="rmQuick(60)">1시간 뒤</button><button type="button" class="btn ghost sm" onclick="rmQuick(\'17\')">오늘 오후 5시</button><button type="button" class="btn ghost sm" onclick="rmQuick(\'t9\')">내일 아침 9시</button>' +
-    '<button type="button" class="btn ghost sm" onclick="$(\'rm-d\').value=\'\';$(\'rm-t\').value=\'\'">지우기</button></div>' +
+    '</div>' +
     '<div style="margin-top:6px;font-size:.82rem;color:#222"><label style="display:inline-flex;gap:4px;align-items:center;font-weight:normal;color:#222;margin:0 10px 0 0"><input type="checkbox" name="rmTo" data-multi="1" value="@assignee"' + (to.indexOf('@assignee') >= 0 ? ' checked' : '') + '> 담당자</label>' +
     '<label style="display:inline-flex;gap:4px;align-items:center;font-weight:normal;color:#222;margin:0"><input type="checkbox" name="rmTo" data-multi="1" value="' + esc(S.me.email) + '"' + (mine ? ' checked' : '') + '> 나</label></div>' +
     '<details' + (to.some(function (x) { return x !== '@assignee' && x !== S.me.email; }) ? ' open' : '') + '><summary>다른 선생님도 받기</summary>' + others.filter(function (t) { return t.email !== S.me.email; }).map(function (t) {
@@ -1039,12 +1046,23 @@ function remindField(rec) {
     }).join('') + '</details>' +
     '<div class="muted" style="font-size:.76rem;margin-top:4px">정한 시각에 Compass가 열려 있으면 알림이 뜹니다 (닫혀 있었으면 다음에 열 때). 담당자를 바꾸면 알림도 새 담당자에게 갑니다.</div></div></div>';
 }
+/** 알림 받기 체크: 켜면 칸이 보이고, 날짜가 비어 있으면 기한(없으면 오늘) + 지금 시각 */
+function rmToggle() {
+  var on = $('rm-on').checked; $('rm-box').style.display = on ? '' : 'none';
+  if (on && !$('rm-d').value) { var due = document.querySelector('#mf [name=due]'); $('rm-d').value = (due && due.value) || today(); }
+  if (on && !$('rm-t').value) $('rm-t').value = wallNow(myTZ()).slice(11, 16);
+}
+/** 기한을 고르면 알림 날짜도 같은 날로 (알림 날짜를 직접 바꾼 뒤에는 그대로), 시각은 지금 시각 */
+document.addEventListener('change', function (e) {
+  var t = e.target; if (!t || t.name !== 'due' || !$('rm-d') || !t.closest || !t.closest('#mf')) return;
+  if (t.value && !$('rm-d').dataset.touched) { $('rm-d').value = t.value; if (!$('rm-t').value) $('rm-t').value = wallNow(myTZ()).slice(11, 16); }
+});
 function rmQuick(k) {
   var w = wallNow(myTZ()), d = w.slice(0, 10), t;
   if (k === 60) { w = wallNow(myTZ(), Date.now() + 3600000); d = w.slice(0, 10); t = w.slice(11, 16); }
   else if (k === '17') t = '17:00';
   else { d = wallNow(myTZ(), Date.now() + 86400000).slice(0, 10); t = '09:00'; }
-  $('rm-d').value = d; $('rm-t').value = t;
+  $('rm-d').value = d; $('rm-t').value = t; $('rm-d').dataset.touched = 1;
 }
 function startNotices() {
   if (notiTimer || !S.me || S.me.mustChangePassword) return;
@@ -1150,6 +1168,20 @@ function todaySummary(force) {
     '<button class="btn ghost" onclick="sumClose();go(\'#/followups\')">팔로업 화면으로</button><button class="btn" onclick="sumClose()">확인</button>');
 }
 function sumClose() { if ($('sum-off') && $('sum-off').checked) { try { localStorage.setItem(prefKey('sumDay'), today()); } catch (e) {} } closeModal(true); }
+/* ----- 개발자: 다른 계정으로 로그인 · 돌아가기 ----- */
+function devLoginAs(email) {
+  var t = S.teachers.filter(function (x) { return x.email === email; })[0]; if (!t) return;
+  if (!confirm(t.name + ' (' + (ROLE_LABEL[t.role] || t.role) + ') 계정으로 로그인합니다.\n그 계정 화면 그대로 보이고, 고치면 그 계정으로 고친 것이 됩니다(변경 기록에는 그 계정 이름).\n위의 “내 계정으로 돌아가기”로 언제든 돌아올 수 있습니다.')) return;
+  post('/api/dev/loginAs', { email: email }).then(function () { clearSession(); location.replace('/#/home'); location.reload(); }).catch(function (e) { toast(errMsg(e), true); });
+}
+function devBack() { post('/api/dev/back', {}).then(function () { clearSession(); location.replace('/#/teachers'); location.reload(); }).catch(function (e) { toast(errMsg(e), true); }); }
+function devBanner() {
+  var b = $('dev-banner');
+  if (!S.devAs) { if (b) b.remove(); return; }
+  if (!b) { b = document.createElement('div'); b.id = 'dev-banner'; document.body.insertBefore(b, document.body.firstChild); }
+  b.style.cssText = 'position:sticky;top:0;z-index:40;background:#7c2d12;color:#fff;padding:7px 16px;font-size:.85rem;display:flex;gap:10px;align-items:center';
+  b.innerHTML = '🛠 개발자 <b>' + esc(S.devAs.name) + '</b> 님이 <b>' + esc(S.me.name) + '</b> (' + esc(ROLE_LABEL[S.me.role] || S.me.role) + ') 계정으로 보는 중 <span style="flex:1"></span><button class="btn sm" style="background:#fff;color:#7c2d12;border-color:#fff" onclick="devBack()">내 계정으로 돌아가기</button>';
+}
 var ATLAS_OK = false; // REVERA A를 쓸 수 있는 계정이면 학생 화면에 “A 상담 이력” 버튼
 function atlasApi(fn, arg) { return fetch('/api/atlas/' + fn, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'revera' }, body: JSON.stringify({ arg: arg }) }); }
 function checkAtlas() { atlasApi('ping').then(function (r) { if (r.ok && !ATLAS_OK) { ATLAS_OK = true; if (/^#\/student\//.test(location.hash)) render(); } }).catch(function () {}); }
@@ -2476,7 +2508,7 @@ var EXPORT_FIELDS = [
   { k: 'recs', g: '원서', l: '추천인·카운슬러', list: 1, v: function (s) { return recommenders(s.id).map(function (r) { return r.item + ': ' + String(r.content || '').replace(/\s*\n\s*/g, ' / ') + (r.sent === 'TRUE' ? ' (질문지 메일 보냄)' : ''); }); } },
   { k: 'appinfo', g: '원서', l: '원서 정보 (그 밖의 항목)', list: 1, v: function (s) { return childOf('appinfo', s.id).filter(function (r) { return !REC_ITEM.test(r.item || ''); }).map(function (r) { return (r.universityId ? uniLabel(r.universityId) + ' ' : '') + r.item + ': ' + String(r.content || '').replace(/\s*\n\s*/g, ' / '); }); } },
   { k: 'scores', g: '성적', l: '어학·표준화 점수 (최근)', def: 1, list: 1, v: function (s) { var seen = {}; return childOf('scores', s.id).sort(function (a, b) { return (b.date || '').localeCompare(a.date || ''); }).filter(function (r) { var k = r.kind + '|' + (r.subject || ''); if (seen[k]) return false; seen[k] = 1; return true; })
-    .map(function (r) { return [r.kind, r.subject, r.score, r.detail && '(' + r.detail + ')', r.date].filter(Boolean).join(' '); }); } },
+    .map(function (r) { return [r.kind, scoreSubj(r), r.score, r.detail && '(' + r.detail + ')', r.date].filter(Boolean).join(' '); }); } },
   { k: 'contract', g: '계약', l: '계약·금액', mgr: 1, list: 1, v: function (s) { return currentContracts(s.id).map(function (c) { var p = contractPay(c); return contractLabel(c) + (p.total ? ' ' + c.currency + ' ' + Math.round(p.total).toLocaleString('ko-KR') + (p.due ? ' (미수 ' + Math.round(p.due).toLocaleString('ko-KR') + ')' : '') : ''); }); } },
 ];
 function exApps(s) { return childOf('apps', s.id).slice().sort(function (a, b) { return (a.deadline || '9999').localeCompare(b.deadline || '9999'); }); }
@@ -2671,7 +2703,7 @@ function tabSummary(s) {
     (am.length ? am.slice(0, 3).map(function (a) { return '<div class="row"><span class="muted" style="width:44px">전공</span><span class="grow">' + esc(a.university) + ' <b>' + esc(a.major) + '</b>' + parentPill(a.parentConfirmed === 'TRUE') + '</span></div>'; }).join('')
       : '<div class="row"><span class="muted" style="width:44px">전공</span><span class="grow"><span class="muted">지원대학에 적힌 전공이 없습니다</span></span></div>') +
     (scores.length ? scores.slice(0, 5).map(function (r) {
-      return '<div class="row"><span class="muted" style="width:44px">' + esc(r.kind) + '</span><span class="grow">' + (r.subject ? esc(r.subject) + ' ' : '') + '<b>' + esc(r.score) + '</b> <span class="muted">' + esc(r.detail || '') + '</span></span><span class="muted nw">' + esc(fmtD(r.date)) + '</span></div>';
+      return '<div class="row"><span class="muted" style="width:44px">' + esc(r.kind) + '</span><span class="grow">' + (r.subject ? esc(scoreSubj(r)) + ' ' : '') + '<b>' + esc(r.score) + '</b> <span class="muted">' + esc(r.detail || '') + '</span></span><span class="muted nw">' + esc(fmtD(r.date)) + '</span></div>';
     }).join('') : '<div class="row"><span class="muted">입력된 어학·표준화 점수가 없습니다.</span></div>') + '</div></div>';
   h += '</div></div>';
   return h + activityCard(s, 8);
@@ -3221,7 +3253,7 @@ function tabScoresOnly(s) {
   h += list.length ? '<div class="tbl-wrap"><table><thead><tr><th>종류</th><th>과목 / 구분</th><th>점수</th><th>세부</th><th>응시일</th><th>메모</th><th>업데이트</th></tr></thead><tbody>' +
     list.map(function (r) {
       var k = r.kind + '|' + (r.subject || ''), first = !seen[k]; seen[k] = 1;
-      return '<tr class="click" onclick="openForm(\'scores\',' + js(r.id) + ')"><td class="nw"><b>' + esc(r.kind) + '</b></td><td>' + esc(r.subject) + '</td>' +
+      return '<tr class="click" onclick="openForm(\'scores\',' + js(r.id) + ')"><td class="nw"><b>' + esc(r.kind) + '</b></td><td>' + esc(scoreSubj(r)) + '</td>' +
         '<td class="nw"><b>' + esc(r.score) + '</b>' + (cnt[k] > 1 && first ? '<span class="latest">최근</span>' : '') + '</td><td>' + esc(r.detail) +
           scoreFiles(r) + '</td><td class="nw">' + esc(r.date) + '</td><td class="muted">' + esc(r.memo) + '</td>' +
         '<td class="nw muted" style="font-size:.78rem">' + esc(fmtTime(r.updatedAt).slice(2)) + '<br>' + esc(teacherName(r.updatedBy)) + (r.updatedAt !== r.createdAt ? ' 수정' : ' 등록') + '</td></tr>';
@@ -3410,15 +3442,15 @@ function copyText(t) {
 }
 
 /* ----- 목록 관리: 대학 / 학교 / 커리큘럼 ----- */
-var OPTION_KINDS = { school: '학교', curriculum: '커리큘럼', site: '사이트', track: '트랙', doccat: '서류 분류', pgcat: '대회·프로그램 분류' };
+var OPTION_KINDS = { subject: '과목', school: '학교', curriculum: '커리큘럼', site: '사이트', track: '트랙', doccat: '서류 분류', pgcat: '대회·프로그램 분류' };
 function viewLists() {
   if (!isMgr()) return '<div class="card empty">관리자·관리팀만 볼 수 있습니다.</div>';
   UI.listTab = UI.listTab || 'unis';
   var h = '<div class="toolbar"><h2 style="margin:0;margin-right:auto">목록 관리</h2></div>' +
-    '<div class="subtabs">' + [['unis', '대학'], ['school', '학교'], ['curriculum', '커리큘럼'], ['track', '트랙'], ['doccat', '서류 분류'], ['pgcat', '대회·프로그램 분류'], ['site', '사이트'], ['evcat', '일정 분류'], ['tz', '시간대'], ['stcols', '학생 목록 칸']].map(function (t) {
+    '<div class="subtabs">' + [['unis', '대학'], ['subject', '과목'], ['school', '학교'], ['curriculum', '커리큘럼'], ['track', '트랙'], ['doccat', '서류 분류'], ['pgcat', '대회·프로그램 분류'], ['site', '사이트'], ['evcat', '일정 분류'], ['tz', '시간대'], ['stcols', '학생 목록 칸']].map(function (t) {
       return '<a class="' + (UI.listTab === t[0] ? 'on' : '') + '" onclick="UI.listTab=' + js(t[0]) + ';render()">' + t[1] + '</a>';
     }).join('') + '</div>';
-  return h + (UI.listTab === 'unis' ? viewUniList() : UI.listTab === 'site' ? viewSiteList() : UI.listTab === 'evcat' ? viewEvcatList() : UI.listTab === 'stcols' ? viewStudentCols() : UI.listTab === 'tz' ? viewTzList() : viewOptionList(UI.listTab));
+  return h + (UI.listTab === 'unis' ? viewUniList() : UI.listTab === 'site' ? viewSiteList() : UI.listTab === 'evcat' ? viewEvcatList() : UI.listTab === 'stcols' ? viewStudentCols() : UI.listTab === 'tz' ? viewTzList() : UI.listTab === 'subject' ? viewSubjectList() : viewOptionList(UI.listTab));
 }
 /* ----- 시간대 목록: My Page 화면 시간·회의록 “시간 기준”·계정 화면 시간에서 고를 수 있는 나라 ----- */
 var BRANCH_ZONES = ['Asia/Shanghai', 'Asia/Seoul'];
@@ -3540,6 +3572,69 @@ function openDocCat(cat) {
       return '<tr><td class="nw"><a href="#" onclick="closeModal(true);openStudent(' + js(r.s.id) + ',' + js(r.tab) + ');return false">' + esc(r.s.name) + '</a>' + (r.s.school ? ' <span class="muted">' + esc(r.s.school) + '</span>' : '') + '</td>' +
         '<td>' + esc(r.name || '') + '</td><td class="nw muted">' + r.kind + '</td><td class="nw">' + esc(r.st || '') + '</td></tr>';
     }).join('') : '<tr><td colspan="4" class="empty">없습니다.</td></tr>') + '</tbody></table></div>', '<button class="btn" onclick="closeModal(true)">닫기</button>');
+}
+/* ----- 과목 목록 (커리큘럼별) + 목록에 없는 과목 정리 ----- */
+var SUBJ_ABBR = { calc: 'calculus', chem: 'chemistry', bio: 'biology', phys: 'physics', econ: 'economics', eng: 'english', lit: 'literature', lang: 'language',
+  cs: 'computer science', compsci: 'computer science', stats: 'statistics', stat: 'statistics', apush: 'united states history', ush: 'united states history', us: 'united states',
+  euro: 'european', hug: 'human geography', gov: 'government', govt: 'government', psych: 'psychology', macro: 'macroeconomics', micro: 'microeconomics',
+  aa: 'analysis and approaches', ai: 'applications and interpretation', math: 'mathematics', maths: 'mathematics', env: 'environmental', sci: 'science',
+  whap: 'world history modern', apwh: 'world history modern', bm: 'business management', ess: 'environmental systems and societies', tok: 'theory of knowledge', ee: 'extended essay' };
+function subjNorm(x) {
+  return String(x || '').toLowerCase().replace(/&/g, ' and ').replace(/[^a-z0-9가-힣 ]+/g, ' ').split(/\s+/).filter(Boolean)
+    .map(function (w) { return SUBJ_ABBR[w] || w; }).join(' ').split(' ').filter(function (w) { return ['ap', 'ib', 'hl', 'sl', 'igcse', 'the', 'of'].indexOf(w) < 0; });
+}
+/** 목록에서 가장 비슷한 과목 (단어가 절반 이상 겹칠 때만) */
+function subjGuess(cats, v) {
+  var a = subjNorm(v), best = '', bs = 0;
+  cats.forEach(function (c) { subjList(c).forEach(function (x) {
+    var b = subjNorm(x), hit = a.filter(function (w) { return b.indexOf(w) >= 0; }).length, sc = hit / Math.max(a.length, b.length);
+    if (sc > bs) { bs = sc; best = x; }
+  }); });
+  return bs >= 0.5 ? best : '';
+}
+function subjLoose() { // 목록에 없는 과목 글 (점수: 종류별, 수강 과목: 레벨별)
+  var m = {};
+  var add = function (table, group, subj) {
+    var cats = subjCats(table, group); if (!cats.length || !subj || subjKnown(cats, subj)) return;
+    var k = table + '|' + group + '|' + subj; (m[k] = m[k] || { table: table, group: group, subj: subj, n: 0 }).n++;
+  };
+  (S.scores || []).forEach(function (r) { if (studentById(r.studentId) || anyStudent(r.studentId)) add('scores', r.kind, r.subject); });
+  (S.courses || []).forEach(function (r) { if (anyStudent(r.studentId)) add('courses', r.level, r.subject); });
+  return Object.keys(m).map(function (k) { return m[k]; }).sort(function (a, b) { return b.n - a.n || a.subj.localeCompare(b.subj); });
+}
+function viewSubjectList() {
+  var cat = UI.subjCat || 'AP', list = (S.options || []).filter(function (o) { return o.kind === 'subject' && o.category === cat; }).sort(function (a, b) { return (Number(a.sortOrder) || 999) - (Number(b.sortOrder) || 999); });
+  var kinds = Object.keys(SUBJ_KIND_CATS).filter(function (k) { return SUBJ_KIND_CATS[k].indexOf(cat) >= 0; }), levels = Object.keys(SUBJ_LEVEL_CATS).filter(function (k) { return SUBJ_LEVEL_CATS[k].indexOf(cat) >= 0; });
+  var used = {}; (S.scores || []).forEach(function (r) { if (kinds.indexOf(r.kind) >= 0) used[r.subject] = (used[r.subject] || 0) + 1; });
+  (S.courses || []).forEach(function (r) { if (levels.indexOf(r.level) >= 0) used[r.subject] = (used[r.subject] || 0) + 1; });
+  var loose = subjLoose();
+  var h = '<div class="notice">학생 화면 <b>성적·학력</b>에서 시험 종류(AP·IB·MYP·IGCSE·A-Level)나 수강 과목 레벨을 고르면 여기 목록에서 과목을 고릅니다. 목록에 없으면 “기타 (직접 입력)”으로 넣을 수 있고, 그런 과목은 아래 <b>정리 필요</b>에 모입니다. 이름을 바꾸면 그 과목으로 입력된 점수·수강 과목도 함께 바뀝니다.</div>';
+  if (loose.length) h += '<div class="card"><h3>정리 필요 <span class="muted">목록에 없는 과목 ' + loose.length + '가지</span></h3><div class="muted" style="margin-bottom:6px;font-size:.85rem">목록의 과목을 고르고 “바꾸기”를 누르면 그 글로 입력된 기록이 모두 바뀝니다. 비슷한 과목을 미리 골라 두었으니 확인만 하세요. 정말 목록에 없는 과목이면 위에서 목록에 추가하세요.</div>' +
+    '<div class="tbl-wrap"><table class="compact"><thead><tr><th>어디</th><th>입력된 글</th><th>건수</th><th>목록 과목으로</th><th></th></tr></thead><tbody>' + loose.slice(0, 200).map(function (x, i) {
+      var cats = subjCats(x.table, x.group), g = subjGuess(cats, x.subj), lv = x.table === 'scores' && /IB/.test(x.group) ? (/\bHL\b/i.test(x.subj) ? 'HL' : /\bSL\b/i.test(x.subj) ? 'SL' : '') : null;
+      return '<tr><td class="nw">' + (x.table === 'scores' ? '점수' : '수강 과목') + ' · ' + esc(x.group) + '</td><td><b>' + esc(x.subj) + '</b></td><td class="nw">' + x.n + '건</td>' +
+        '<td><select id="fx-' + i + '"><option value="">— 고르기 —</option>' + cats.map(function (c) { return '<optgroup label="' + esc(c) + '">' + subjList(c).map(function (v) { return '<option' + (v === g ? ' selected' : '') + '>' + esc(v) + '</option>'; }).join('') + '</optgroup>'; }).join('') + '</select>' +
+        (lv !== null ? ' <select id="fxl-' + i + '" style="width:auto">' + opts(['', 'HL', 'SL'], lv) + '</select>' : '') + '</td>' +
+        '<td class="nw"><button class="btn sm" onclick="fixSubject(' + js(x.table) + ',' + js(x.group) + ',' + js(x.subj) + ',' + i + ')">바꾸기</button></td></tr>';
+    }).join('') + '</tbody></table></div></div>';
+  h += '<div class="subtabs">' + SUBJ_CATS.map(function (c) {
+    var n = (S.options || []).filter(function (o) { return o.kind === 'subject' && o.category === c; }).length;
+    return '<button class="' + (c === cat ? 'on' : '') + '" onclick="UI.subjCat=' + js(c) + ';render()">' + esc(c) + ' <span class="muted">' + n + '</span></button>';
+  }).join('') + '</div>';
+  h += '<div class="card"><form class="toolbar" style="margin:0" onsubmit="addSubject();return false"><input type="text" id="subj-new" class="grow" placeholder="' + esc(cat) + '에 과목 추가"><button class="btn" type="submit">+ 추가</button></form></div>';
+  h += '<div class="card tbl-wrap"><div class="muted" style="margin-bottom:6px">⋮⋮ 를 끌어서 순서를 바꾸면 과목 선택 목록도 이 순서로 나옵니다. 쓰는 곳: ' + esc(kinds.map(function (k) { return '점수 ' + k; }).concat(levels.map(function (l) { return '수강 과목 ' + l; })).join(' · ')) + '</div>' +
+    '<table><thead><tr><th class="gripc"></th><th>과목</th><th>입력된 기록</th><th></th></tr></thead><tbody data-order="subject">' +
+    (list.length ? list.map(function (o) {
+      return '<tr class="drag" draggable="true" data-id="' + esc(o.id) + '" data-grp=""><td class="nw gripc"><span class="grip" title="끌어서 순서 바꾸기">⋮⋮</span></td><td><b>' + esc(o.value) + '</b></td><td class="nw">' + (used[o.value] || 0) + '건</td>' +
+        '<td class="nw"><button class="btn ghost sm" onclick="renameOption(' + js(o.id) + ')">이름 변경</button> <button class="btn ghost sm" onclick="removeOption(' + js(o.id) + ')">삭제</button></td></tr>';
+    }).join('') : '<tr><td colspan="4" class="empty">아직 없습니다.</td></tr>') + '</tbody></table></div>';
+  return h;
+}
+function addSubject() { var v = $('subj-new').value.trim(); if (!v) return; mutate('saveOption', { kind: 'subject', category: UI.subjCat || 'AP', value: v }, '과목을 추가했습니다.'); }
+function fixSubject(table, group, from, i) {
+  var to = $('fx-' + i).value; if (!to) return toast('목록의 과목을 고르세요.', true);
+  var arg = { table: table, group: group, from: from, to: to }; if ($('fxl-' + i)) arg.level = $('fxl-' + i).value;
+  mutate('fixSubjects', arg).then(function (d) { if (d) toast('“' + from + '” → “' + to + '” ' + d.fixed + '건 바꿨습니다.'); });
 }
 function viewSiteList() {
   var list = siteList(), used = {};
@@ -3679,10 +3774,50 @@ function courseCard(s) {
       }).join('') + '</tbody></table></div></div>';
   }).join('') + '</div>';
 }
+/* ----- 과목 고르기: AP·IB·MYP·IGCSE·A-Level 은 목록에서, 없으면 “기타 (직접 입력)” ----- */
+function scoreSubj(r) { return [r.subject, r.level].filter(Boolean).join(' '); }
+function subjList(cat) { return (S.options || []).filter(function (o) { return o.kind === 'subject' && o.category === cat; }).sort(function (a, b) { return (Number(a.sortOrder) || 999) - (Number(b.sortOrder) || 999); }).map(function (o) { return o.value; }); }
+function subjCats(table, group) { return (table === 'courses' ? SUBJ_LEVEL_CATS : SUBJ_KIND_CATS)[group] || []; }
+function subjKnown(cats, v) { return cats.some(function (c) { return subjList(c).indexOf(v) >= 0; }); }
+/** attr: 'name="subject"' 또는 'data-c="subject"', 직접 입력 칸은 같은 이름 + Other */
+function subjPick(cats, cur, attr, otherAttr, ph) {
+  cur = cur || '';
+  if (!cats.length) return '<input type="text" ' + attr + ' value="' + esc(cur) + '" placeholder="' + esc(ph || '예: Algebra 2, English 10, 누적 GPA') + '">';
+  var other = cur && !subjKnown(cats, cur);
+  return '<div style="display:flex;gap:6px;flex-wrap:wrap"><select ' + attr + ' style="flex:1;min-width:200px" onchange="var o=this.parentNode.querySelector(\'.subj-other\');o.style.display=this.value===\'__other\'?\'\':\'none\';if(this.value===\'__other\')o.focus()">' +
+    '<option value="">— 과목 선택 —</option>' + cats.map(function (c) {
+      return '<optgroup label="' + esc(c) + '">' + subjList(c).map(function (v) { return '<option value="' + esc(v) + '"' + (v === cur ? ' selected' : '') + '>' + esc(v) + '</option>'; }).join('') + '</optgroup>';
+    }).join('') + '<option value="__other"' + (other ? ' selected' : '') + '>기타 (직접 입력)</option></select>' +
+    '<input type="text" class="subj-other" ' + otherAttr + ' value="' + esc(other ? cur : '') + '" placeholder="목록에 없는 과목 이름" style="flex:1;min-width:160px' + (other ? '' : ';display:none') + '"></div>';
+}
+function subjBox(table, group, cur, level) {
+  var cats = subjCats(table, group);
+  var h = subjPick(cats, cur, 'name="subject"', 'name="subjectOther"', table === 'courses' ? '예: Algebra 2, English 10' : '예: Calculus BC, 누적 GPA');
+  if (table === 'scores' && (group === 'IB' || group === 'IB Predicted')) h += '<div style="margin-top:6px"><label style="display:inline-flex;gap:8px;align-items:center;font-weight:normal">레벨 <select name="level" style="width:auto">' + opts(['', 'HL', 'SL'], level || '') + '</select></label></div>';
+  if (cats.length) h += '<div class="muted" style="font-size:.76rem;margin-top:3px">목록: 목록 관리 › 과목 (' + esc(cats.join(' · ')) + ')</div>';
+  return h;
+}
+/** 종류·레벨을 바꾸면 과목 칸도 그 목록으로 */
+document.addEventListener('change', function (e) {
+  var t = e.target; if (!t || !$('subj-box') || !t.closest || !t.closest('#mf')) return;
+  var tbl = UI.formTable;
+  if ((tbl === 'scores' && t.name === 'kind') || (tbl === 'courses' && t.name === 'level')) {
+    var f = $('mf'), cur = f.elements.subject ? (f.elements.subject.value === '__other' ? (f.elements.subjectOther || {}).value : f.elements.subject.value) : '';
+    $('subj-box').innerHTML = subjBox(tbl, t.value, cur, tbl === 'scores' && f.elements.level ? f.elements.level.value : '');
+  }
+});
+/** 점수 형식 확인 (AP 1~5, IB·MYP 1~7, IGCSE A*~G·9~1, A-Level A*~E) — 다르면 한 번 물어봄 */
+function scoreFormatOk(o) {
+  var v = String(o.score || '').trim().toUpperCase(), k = o.kind; if (!v) return true;
+  var ok = k === 'AP' ? /^[1-5]$/.test(v)
+    : (k === 'IB' || k === 'IB Predicted') ? (/TOTAL/i.test(o.subject) ? /^\d{1,2}$/.test(v) && Number(v) <= 45 : /THEORY|EXTENDED/i.test(o.subject) ? /^[A-E]$/.test(v) : /^[1-7]$/.test(v))
+    : k === 'MYP' ? /^[1-7]$/.test(v) : k === 'IGCSE' ? /^(A\*|[A-G]|[1-9]|U)$/.test(v) : k === 'A-Level' ? /^(A\*|[A-E]|U)$/.test(v) : true;
+  return ok || confirm(k + ' 점수 형식이 보통과 다릅니다 (' + ({ AP: '1~5', IB: '1~7 · 총점 45 · TOK/EE A~E', 'IB Predicted': '1~7 · 총점 45', MYP: '1~7', IGCSE: 'A*~G 또는 9~1', 'A-Level': 'A*~E' }[k]) + '). 그래도 저장할까요?');
+}
 function courseRow(r) {
   r = r || {};
-  return '<div class="crow"><input type="text" data-c="subject" placeholder="과목 (예: AP Calculus BC)" value="' + esc(r.subject || '') + '">' +
-    '<input type="text" data-c="level" list="dl-clevel" placeholder="레벨" value="' + esc(r.level || '') + '">' +
+  return '<div class="crow"><select data-c="level" onchange="var b=this.parentNode.querySelector(\'.csubj\');b.innerHTML=subjPick(subjCats(\'courses\',this.value),\'\',\'data-c=&quot;subject&quot;\',\'data-c=&quot;subjectOther&quot;\',\'과목 (예: Algebra 2)\')">' + opts([''].concat(COURSE_LEVELS), r.level || '').replace('>—</option>', '>레벨</option>') + '</select>' +
+    '<div class="csubj">' + subjPick(subjCats('courses', r.level), r.subject, 'data-c="subject"', 'data-c="subjectOther"', '과목 (예: Algebra 2)') + '</div>' +
     '<select data-c="termType">' + opts(COURSE_TERMS, r.termType || COURSE_TERMS[0]) + '</select>' +
     '<button type="button" class="btn ghost sm" onclick="this.parentNode.remove()">삭제</button></div>';
 }
@@ -3704,8 +3839,9 @@ function submitCourseBulk(sid) {
   var f = $('mf'), grade = f.elements.grade.value.trim(), yr = f.elements.schoolYear.value.trim();
   if (!grade) return toast('학년을 입력하세요.', true);
   var objs = Array.prototype.map.call(document.querySelectorAll('#crows .crow'), function (row) {
-    var g = function (k) { return row.querySelector('[data-c=' + k + ']').value.trim(); };
-    return { studentId: sid, grade: grade, schoolYear: yr, subject: g('subject'), level: g('level'), termType: g('termType') };
+    var g = function (k) { var el = row.querySelector('[data-c=' + k + ']'); return el ? el.value.trim() : ''; };
+    var sub = g('subject') === '__other' ? g('subjectOther') : g('subject');
+    return { studentId: sid, grade: grade, schoolYear: yr, subject: sub, level: g('level'), termType: g('termType') };
   }).filter(function (o) { return o.subject; });
   if (!objs.length) return toast('과목을 하나 이상 입력하세요.', true);
   mutate('saveMany', { table: 'courses', objs: objs }, objs.length + '과목을 저장했습니다.');
@@ -4958,7 +5094,7 @@ function viewTeachers() {
   var h = '<div class="toolbar"><h2 style="margin:0;margin-right:auto">계정 관리</h2><button class="btn" onclick="openTeacherForm()">+ 계정 추가</button></div>';
   h += '<div class="card muted" style="line-height:1.7"><b>관리자</b>: 모든 기능 + 계정 관리·변경 기록·영구 삭제 · ' +
     '<b>관리팀</b>: 모든 학생, 상담기록, 계약 금액, 삭제·복구 · ' +
-    '<b>컨설턴트</b>: 담당 학생만 (상담기록·계약 금액은 볼 수 없음)<br>' +
+    '<b>컨설턴트</b>: 담당 학생만 (상담기록·계약 금액은 볼 수 없음)' + (S.me.dev || S.teachers.some(function (t) { return t.role === 'developer'; }) ? ' · <b>개발자</b>: 관리자 기능 + 다른 계정으로 로그인 (개발자만 정할 수 있음)' : '') + '<br>' +
     '<b>지점</b>: 관리팀은 모든 지점 학생을 볼 수 있고, 다른 지점 학생에게는 팔로업·상담기록 추가만 (관리자와 지점 “전체” 계정은 모든 지점 전부) · 화면 시간은 계정 지점 기준 (상해 = 중국, 압구정 = 한국, 전체 = 계정에서 고른 시간)<br>' +
     '계정을 추가할 때 <b>임시 비밀번호</b>를 정해서 직접 전달하세요. 처음 로그인하면 본인 비밀번호로 바꾸도록 안내됩니다. 퇴사자는 “비활성”으로 바꾸면 즉시 로그아웃됩니다.</div>';
   h += '<div class="grid g2"><div class="card"><h3>데이터 백업</h3><div class="muted" style="margin-bottom:10px"><b>기록만</b>: 학생·기록·계약·입금 데이터와 파일 목록 (가벼움). <b>전체</b>: 여기에 <b>업로드한 파일 전체</b>까지 ZIP 하나로 — 파일이 많으면 오래 걸리고 큽니다. 구글 드라이브 자동 백업을 켜두었다면 파일은 “Compass 파일” 폴더에 따로 쌓입니다.</div>' +
@@ -4980,7 +5116,8 @@ function viewTeachers() {
       var cnt = S.allStudents.filter(function (s) { return isActive(s) && (String(s.counselor).toLowerCase() === t.email.toLowerCase() || String(s.manager || '').toLowerCase() === t.email.toLowerCase()); }).length;
       return '<tr class="drag" draggable="true" data-id="' + esc(t.email) + '" data-grp=""><td class="nw gripc"><span class="grip" title="끌어서 순서 바꾸기">⋮⋮</span></td><td><b>' + esc(t.name) + '</b></td><td>' + esc(t.email) + '</td><td class="nw">' + esc(t.branch === ALL_BRANCH ? '전체' : branchOf(t)) + '</td><td>' + esc(ROLE_LABEL[t.role] || t.role) + '</td>' +
         '<td>' + (t.color && t.role !== 'consultant' ? '<span class="swatch" title="색은 각자 My Page에서 고릅니다" style="background:' + esc(t.color) + '"></span>' : '') + (t.active ? '<span class="pill s-진행중">활성</span>' : '<span class="pill s-종료">비활성</span>') + '</td><td>' + cnt + '명</td><td>' + (t.notify !== false ? '받음' : '<span class="muted">안 받음</span>') + '</td>' +
-        '<td><button class="btn ghost sm" onclick="openTeacherForm(' + js(t.email) + ')">수정</button></td></tr>';
+        '<td class="nw"><button class="btn ghost sm" onclick="openTeacherForm(' + js(t.email) + ')">수정</button>' +
+        (S.me.dev && t.active && t.email !== S.me.email ? ' <button class="btn ghost sm" title="개발자: 이 계정 화면으로 들어가기" onclick="devLoginAs(' + js(t.email) + ')">이 계정으로 로그인</button>' : '') + '</td></tr>';
     }).join('') + '</tbody></table></div>';
   return h;
 }
@@ -5031,7 +5168,7 @@ function importFile(input) {
 function openTeacherForm(email) {
   var t = email ? S.teachers.filter(function (x) { return x.email === email; })[0] : { role: 'consultant', active: true };
   var body = fld('이메일 (로그인 아이디)', inp('email', t.email, 'email', email ? ' readonly' : ' required'), false, true) + fld('이름', inp('name', t.name)) +
-    fld('역할', '<select name="role">' + ['consultant', 'staff', 'admin'].map(function (r) {
+    fld('역할', '<select name="role"' + (t.role === 'developer' && !S.me.dev ? ' disabled' : '') + '>' + ['consultant', 'staff', 'admin'].concat(S.me.dev || t.role === 'developer' ? ['developer'] : []).map(function (r) {
       return '<option value="' + r + '"' + (t.role === r ? ' selected' : '') + '>' + ROLE_LABEL[r] + '</option>'; }).join('') + '</select>') +
     fld('상태', '<select name="active"><option value="1"' + (t.active ? ' selected' : '') + '>활성</option><option value="0"' + (!t.active ? ' selected' : '') + '>비활성</option></select>') +
     fld('지점', '<select name="branch" onchange="$(\'tc-tz\').disabled=this.value!==\'전체\'">' + BRANCHES.concat([ALL_BRANCH]).map(function (b) { var cur = t.branch || (isAllBranch() ? BRANCHES[0] : myBranch()); return '<option value="' + esc(b) + '"' + (b === cur ? ' selected' : '') + '>' + esc(b === ALL_BRANCH ? '전체 (지점 구분 없음)' : b) + '</option>'; }).join('') + '</select>' +
@@ -5368,6 +5505,7 @@ function field(f, rec) {
   }
   if (f.t === 'review') return reviewField(UI.formTable, rec);
   if (f.t === 'remind') return remindField(rec);
+  if (f.t === 'subj') return '<div class="full"><label>' + (UI.formTable === 'courses' ? '과목 *' : '과목 / 구분') + '</label><div id="subj-box">' + subjBox(UI.formTable, UI.formTable === 'courses' ? rec.level : rec.kind, rec.subject, rec.level) + '</div></div>';
   if (f.t === 'note') return '<div class="full muted" style="font-size:.8rem;margin-top:-4px">' + f.html + '</div>'; // 입력 칸 아래 짧은 안내 (코드에 쓴 고정 문구)
   if (f.t === 'branch') return fld(f.l, sel('branch', BRANCHES, rec.branch || (rec.id || isAllBranch() ? BRANCHES[0] : myBranch())) +
     '<div class="muted" style="font-size:.78rem;margin-top:3px">다른 지점 관리팀은 이 학생을 보기·팔로업·상담기록 추가만 할 수 있습니다.</div>');
@@ -5758,11 +5896,16 @@ function submitForm(key) {
   if (miss) return toast(miss.l + ' 항목을 입력하세요.', true);
   if (table === 'meetings') o.status = '완료';
   if (table === 'docs' && !o.category) o.category = docCatGuess(o.name);
-  if ($('rm-d')) { // 알림 시각(내 시간) → 한국 시간으로 저장, 받는 사람
-    var rd = $('rm-d').value, rt = $('rm-t').value;
+  if ('subject' in o && o.subject === '__other') o.subject = (o.subjectOther || '').trim();
+  delete o.subjectOther;
+  if (table === 'courses' && !o.subject) return toast('과목을 입력하세요.', true);
+  if (table === 'scores' && !scoreFormatOk(o)) return;
+  if ($('rm-d')) { // 알림 시각(내 시간) → 한국 시간으로 저장, 받는 사람 (알림 받기를 끄면 비움)
+    var rOn = $('rm-on').checked, rd = rOn ? $('rm-d').value : '', rt = rOn ? $('rm-t').value : '';
+    if (rOn && !rd) return toast('알림 날짜를 입력하세요.', true);
     if (rd && !rt) return toast('알림 시각(시간)을 입력하세요.', true);
     o.remindAt = rd && rt ? shiftWall(rd + 'T' + rt, myTZ(), SERVER_TZ).slice(0, 16) : '';
-    o.remindTo = (o.rmTo || []).join(',') || (o.remindAt ? '@assignee' : '');
+    o.remindTo = rOn ? (o.rmTo || []).join(',') || '@assignee' : '';
     delete o.rmTo;
   }
   if (key === 'contact') {
