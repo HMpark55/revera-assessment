@@ -2104,7 +2104,7 @@ test('v30 지점: 예전 자료는 상해, 다른 지점 관리팀은 보기·�
   assert.strictEqual(d.meetings.find((m) => m.id === d.savedId).tz, 'Asia/Seoul');
   d = await ap.saveOk('meetings', { studentId: ap2, date: '2026-10-22', time: 'PM 4:00', tz: 'Asia/Shanghai' });
   assert.strictEqual(d.meetings.find((m) => m.id === d.savedId).tz, 'Asia/Shanghai');
-  assert.strictEqual((await ap.save('meetings', { studentId: ap2, date: '2026-10-22', tz: 'Europe/London' })).status, 400);
+  assert.strictEqual((await ap.save('meetings', { studentId: ap2, date: '2026-10-22', tz: 'Europe/Paris' })).status, 400);
 
   // 일정: 등록한 지점·시간 기준 저장, 공유 표시, 다른 지점 관리팀도 고칠 수 있음
   d = await ap.ok('saveEvent', { title: '압구정 설명회', date: '2026-11-03', time: '19:00', tz: 'Asia/Seoul', shared: 'on' });
@@ -2153,4 +2153,55 @@ test('계정 지점 "전체": 지점 구분 없이 모든 학생 수정, 화면 
   assert.strictEqual(d.meetings.find((m) => m.id === d.savedId).tz, 'Asia/Seoul', '시간 기준 = 계정에서 고른 시간');
   d = await boss.ok('saveEvent', { title: '원장님 일정', date: '2026-11-05' });
   assert.strictEqual(d.events.find((e) => e.id === d.savedId).branch, '전체');
+});
+
+test('My Page 화면 시간: 출장 등으로 직접 고르면 그 시간, 비우면 지점 기준', async () => {
+  const admin = client(); await admin.login('admin@revera.test', 'admin-pass-1');
+  await admin.ok('saveTeacher', { email: 'trip@revera.test', name: '출장', role: 'staff', password: 'pass-3200', branch: '압구정' });
+  const t = client(); await t.login('trip@revera.test', 'pass-3200');
+  let d = await t.ok('getAll');
+  assert.deepStrictEqual([d.me.tz, d.me.branchTz, d.me.viewTz], ['Asia/Seoul', 'Asia/Seoul', '']);
+  d = await t.ok('updateMe', { viewTz: 'America/Los_Angeles' });
+  assert.deepStrictEqual([d.me.tz, d.me.viewTz], ['America/Los_Angeles', 'America/Los_Angeles']);
+  d = await t.ok('getAll');
+  assert.strictEqual(d.me.tz, 'America/Los_Angeles', '다시 불러와도 유지');
+  d = await t.saveOk('students', { name: '출장 학생' });
+  d = await t.saveOk('meetings', { studentId: d.savedId, date: '2026-10-28', time: '09:00' });
+  assert.strictEqual(d.meetings.find((m) => m.id === d.savedId).tz, 'America/Los_Angeles', '적는 시간 기준도 지금 화면 시간');
+  assert.strictEqual((await t.rpc('updateMe', { viewTz: 'Mars/Base' })).status, 400);
+  d = await t.ok('updateMe', { viewTz: '' });
+  assert.deepStrictEqual([d.me.tz, d.me.viewTz], ['Asia/Seoul', '']);
+});
+
+test('v31 서류 분류 정리(빠진 분류 되살림·순서), 쓰고 있는 분류 삭제 막기, 학교 정식 이름·나라·도시', async () => {
+  const p = path.join(dir, 'v31.db');
+  let st = openStore(p);
+  st.db.prepare("INSERT INTO students (id, name, createdAt, updatedAt) VALUES ('s31','학생31','x','x')").run();
+  st.db.prepare("INSERT INTO docs (id, studentId, name, category, createdAt, updatedAt) VALUES ('d31','s31','성적표','성적증명서','x','x')").run();
+  st.db.prepare("INSERT INTO docs (id, studentId, name, category, createdAt, updatedAt) VALUES ('d32','s31','생기부','생활기록부','x','x')").run();
+  st.db.exec("DELETE FROM options WHERE kind = 'doccat' AND value IN ('성적증명서', '재학증명서'); DELETE FROM meta WHERE key = 'v31_doccat_tidy'");
+  st.db.prepare("INSERT INTO options (id, kind, value, sortOrder, createdAt, updatedAt) VALUES ('o31','doccat','여권사본','1','x','x')").run();
+  st.close();
+  st = openStore(p);
+  const order = st.db.prepare("SELECT value FROM options WHERE kind = 'doccat' ORDER BY CAST(sortOrder AS INTEGER)").all().map((r) => r.value);
+  assert.strictEqual(order[0], '성적증명서', '쓰고 있던 기본 분류가 돌아옴');
+  assert.ok(!order.includes('재학증명서'), '안 쓰는 지운 기본 분류는 되살리지 않음');
+  assert.ok(order.indexOf('여권사본') > order.indexOf('졸업증명서') && order.indexOf('생활기록부') > order.indexOf('여권사본'), '직접 추가한 분류는 기본 분류 뒤');
+  assert.ok(/^기타/.test(order[order.length - 1]), '기타는 맨 뒤');
+  st.close();
+
+  const admin = client(); await admin.login('admin@revera.test', 'admin-pass-1');
+  let d = await admin.ok('saveOption', { kind: 'doccat', value: 'v31 분류' });
+  const cat = d.options.find((o) => o.id === d.savedId);
+  d = await admin.saveOk('students', { name: '학생31 본' });
+  await admin.saveOk('docs', { studentId: d.savedId, name: '여권 사본', category: 'v31 분류' });
+  const r = await admin.rpc('removeOption', { id: cat.id });
+  assert.strictEqual(r.status, 400); assert.match(r.data.error, /쓰고 있어/);
+  // 학교: 짧은 이름 + 정식 이름·나라·도시, 이름만 바꿔도 상세는 그대로
+  d = await admin.ok('saveOption', { kind: 'school', value: 'v31 SAS', fullName: 'Shanghai American School', country: '중국', city: '상해' });
+  let sch = d.options.find((o) => o.id === d.savedId);
+  assert.deepStrictEqual([sch.fullName, sch.country, sch.city], ['Shanghai American School', '중국', '상해']);
+  d = await admin.ok('saveOption', { id: sch.id, kind: 'school', value: 'v31 SAS2' });
+  sch = d.options.find((o) => o.id === sch.id);
+  assert.deepStrictEqual([sch.value, sch.fullName, sch.city], ['v31 SAS2', 'Shanghai American School', '상해']);
 });

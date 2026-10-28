@@ -24,13 +24,16 @@ const ROLES = ['admin', 'staff', 'consultant'];
 /** 지점: 계정·학생마다 하나. 화면 시간은 계정 지점의 시간대로 보임 (첫 번째 = 예전 자료의 기본값) */
 const BRANCHES = ['상해', '압구정'];
 const BRANCH_TZ = { 상해: 'Asia/Shanghai', 압구정: 'Asia/Seoul' };
-const TZS = Object.values(BRANCH_TZ);
+/** 고를 수 있는 시간대: 중국(상해·홍콩·싱가포르)·한국(일본)·미국 동부(토론토)·미국 서부(밴쿠버)·영국·호주 동부 — 서머타임은 자동 */
+const TZS = ['Asia/Shanghai', 'Asia/Seoul', 'America/New_York', 'America/Los_Angeles', 'Europe/London', 'Australia/Sydney'];
 const branchOf = (x) => (x && BRANCHES.includes(x.branch) ? x.branch : BRANCHES[0]);
 /** 계정 지점: 상해·압구정 + 전체(지점 구분 없음 — 원장님처럼 두 지점을 모두 맡는 계정). 전체 계정의 화면 시간은 계정에서 고른 나라 */
 const ALL_BRANCH = '전체';
 const ACCOUNT_BRANCHES = BRANCHES.concat([ALL_BRANCH]);
 const accountBranch = (t) => (t && ACCOUNT_BRANCHES.includes(t.branch) ? t.branch : BRANCHES[0]);
-const accountTz = (t) => (accountBranch(t) === ALL_BRANCH ? (TZS.includes(t.tz) ? t.tz : BRANCH_TZ[BRANCHES[0]]) : BRANCH_TZ[accountBranch(t)]);
+const branchTz = (t) => (accountBranch(t) === ALL_BRANCH ? (TZS.includes(t.tz) ? t.tz : BRANCH_TZ[BRANCHES[0]]) : BRANCH_TZ[accountBranch(t)]);
+/** 화면 시간: My Page에서 직접 고른 시간(출장 등)이 있으면 그것, 없으면 지점 기준 */
+const accountTz = (t) => (t && TZS.includes(t.viewTz) ? t.viewTz : branchTz(t));
 /** 다른 지점 학생에게 관리팀이 할 수 있는 것: 팔로업·답변·상담기록 추가 (학생 정보 수정은 그 지점 관리팀·관리자) */
 const CROSS_BRANCH_TABLES = ['followups', 'fureplies', 'notes'];
 
@@ -421,6 +424,7 @@ function migrate(db) {
   for (const t of ['apps']) db.prepare(`UPDATE ${t} SET createdBy = updatedBy WHERE createdBy = ''`).run();
   db.exec('CREATE TABLE IF NOT EXISTS options (id TEXT PRIMARY KEY)');
   ensureColumns(db, 'options', ['kind', 'value', 'sortOrder', 'url', 'category', 'color', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy']);
+  ensureColumns(db, 'options', ['fullName', 'country', 'city']); // 학교: 정식 이름·나라·도시 (화면에는 짧은 이름 value)
   // v11: 달력 일정 분류·색을 목록으로 / 대회·프로그램 정보 (모두가 함께 쓰는 자료)
   if (!db.prepare("SELECT 1 FROM meta WHERE key = 'v11_evcats'").get()) {
     const ts = now();
@@ -485,6 +489,25 @@ function migrate(db) {
         if (cat !== f.category || memo !== f.memo) db.prepare('UPDATE files SET category = ?, memo = ? WHERE id = ?').run(cat, memo, f.id);
       }
       db.prepare("INSERT INTO meta VALUES ('v17_doccats', ?)").run(ts);
+    })();
+  }
+  // v31: 서류 분류 목록 정리 — 파일·서류가 쓰고 있는데 목록에서 빠진 분류를 되살리고, 순서를 기본 분류 → 직접 추가한 분류 → 기타(맨 뒤)로
+  if (!db.prepare("SELECT 1 FROM meta WHERE key = 'v31_doccat_tidy'").get() && db.prepare("SELECT 1 FROM meta WHERE key = 'v17_doccats'").get()) {
+    const ts = now();
+    db.transaction(() => {
+      const list = db.prepare("SELECT id, value FROM options WHERE kind = 'doccat' ORDER BY CAST(sortOrder AS INTEGER), value").all();
+      const used = new Set(db.prepare("SELECT DISTINCT category c FROM docs WHERE deletedAt = '' AND category != '' UNION SELECT DISTINCT category FROM files WHERE deletedAt = '' AND category != '' AND meetingId = '' AND followupId = '' AND docId = ''").all().map((r) => r.c));
+      const have = new Set(list.map((o) => o.value));
+      const etc = DEFAULT_DOCCATS[DEFAULT_DOCCATS.length - 1];
+      const order = DEFAULT_DOCCATS.filter((v) => v !== etc && (have.has(v) || used.has(v)))
+        .concat(list.map((o) => o.value).filter((v) => !DEFAULT_DOCCATS.includes(v)))
+        .concat([...used].filter((v) => !have.has(v) && !DEFAULT_DOCCATS.includes(v)).sort())
+        .concat(have.has(etc) || used.has(etc) ? [etc] : []);
+      order.forEach((v, i) => {
+        if (have.has(v)) db.prepare("UPDATE options SET sortOrder = ? WHERE kind = 'doccat' AND value = ?").run(String(i + 1), v);
+        else db.prepare('INSERT INTO options (id, kind, value, sortOrder, createdAt, createdBy, updatedAt, updatedBy) VALUES (?,?,?,?,?,?,?,?)').run(crypto.randomUUID(), 'doccat', v, String(i + 1), ts, 'system', ts, 'system');
+      });
+      db.prepare("INSERT INTO meta VALUES ('v31_doccat_tidy', ?)").run(ts);
     })();
   }
   // v18: 부모님 확정은 지원대학에서 — 전공 탭의 확정 기록을 같은 대학·같은 전공 지원대학으로 옮김 (전공 탭 기록은 그대로 남김)
@@ -767,7 +790,7 @@ function migrate(db) {
     })();
   }
   // v30: 지점(상해·압구정) — 지금까지 자료는 모두 상해. 미팅·상담 시간은 중국 시간으로 적은 것
-  ensureColumns(db, 'teachers', ['branch', 'tz']); // tz: 지점이 '전체'인 계정의 화면 시간
+  ensureColumns(db, 'teachers', ['branch', 'tz', 'viewTz']); // tz: 지점이 '전체'인 계정의 화면 시간, viewTz: My Page에서 직접 고른 화면 시간('' = 지점 기준)
   db.exec('CREATE TABLE IF NOT EXISTS events (id TEXT PRIMARY KEY)');
   ensureColumns(db, 'events', ['branch', 'shared', 'time', 'tz']); // shared: 'TRUE' = 전체 지점에 보임, time: 'HH:MM' (없으면 하루 종일)
   if (!db.prepare("SELECT 1 FROM meta WHERE key = 'v30_branches'").get()) {
@@ -948,7 +971,7 @@ function openStore(dbPath, opts) {
     const row = db.prepare(`SELECT t.*, s.expiresAt FROM sessions s JOIN teachers t ON t.email = s.email
       WHERE s.tokenHash = ?`).get(sha256(token));
     if (!row || !row.active || row.expiresAt < Date.now()) return null;
-    return { email: row.email, name: row.name, role: ROLES.includes(row.role) ? row.role : 'consultant', branch: accountBranch(row), tz: accountTz(row),
+    return { email: row.email, name: row.name, role: ROLES.includes(row.role) ? row.role : 'consultant', branch: accountBranch(row), tz: accountTz(row), branchTz: branchTz(row), viewTz: TZS.includes(row.viewTz) ? row.viewTz : '',
       mustChangePassword: !!row.mustChangePassword, token };
   }
 
@@ -979,8 +1002,9 @@ function openStore(dbPath, opts) {
   function getAll(me) {
     const students = db.prepare("SELECT * FROM students WHERE deletedAt = ''").all().filter((s) => canSeeStudent(me, s));
     const ids = new Set(students.map((s) => s.id));
+    const meRow = getTeacher(me.email) || me; // 화면 시간은 저장된 계정 정보로 (방금 바꾼 값 포함)
     const out = {
-      me: { email: me.email, name: me.name, role: me.role, branch: accountBranch(me), tz: accountTz(me), mustChangePassword: !!me.mustChangePassword,
+      me: { email: me.email, name: me.name, role: me.role, branch: accountBranch(me), tz: accountTz(meRow), branchTz: branchTz(meRow), viewTz: TZS.includes(meRow.viewTz) ? meRow.viewTz : '', mustChangePassword: !!me.mustChangePassword,
         homeLayout: parseLayout((db.prepare('SELECT homeLayout FROM teachers WHERE email = ?').get(me.email) || {}).homeLayout) },
       homeDefault: parseLayout(getMeta('homeLayoutDefault')),
       studentCols: parseCols(getMeta('studentCols')),
@@ -1004,7 +1028,7 @@ function openStore(dbPath, opts) {
       out[t] = db.prepare(`SELECT * FROM ${t} WHERE deletedAt = ''`).all()
         .filter((r) => ids.has(r.studentId)).map((r) => publicRow(t, r, me));
     }
-    out.options = db.prepare('SELECT id, kind, value, sortOrder, url, category, color FROM options').all();
+    out.options = db.prepare('SELECT id, kind, value, sortOrder, url, category, color, fullName, country, city FROM options').all();
     out.programs = db.prepare('SELECT * FROM programs ORDER BY name').all();
     out.breaks = db.prepare('SELECT id, school, name, startDate, endDate FROM schoolbreaks ORDER BY startDate').all();
     out.events = db.prepare("SELECT * FROM events WHERE private != 'TRUE' OR createdBy = ? ORDER BY date, title").all(me.email); // 나만 보기 일정은 등록한 사람에게만
@@ -1516,12 +1540,14 @@ function openStore(dbPath, opts) {
     if (color && !HEX_COLOR.test(color)) throw new UserError('색을 다시 골라주세요.');
     const t = now();
     let id = arg.id;
+    // 학교 상세: 정식 이름·나라·도시 (보내지 않은 칸은 그대로)
+    const detail = (cur) => ['fullName', 'country', 'city'].map((k) => (kind !== 'school' ? '' : k in arg ? clean(arg[k]).trim().slice(0, k === 'fullName' ? 200 : 60) : cur ? cur[k] || '' : ''));
     tx(() => {
       if (id) {
         const cur = db.prepare('SELECT * FROM options WHERE id = ?').get(id);
         if (!cur || cur.kind !== kind) throw new UserError('항목을 찾을 수 없습니다. 새로고침 해주세요.', 404);
-        db.prepare('UPDATE options SET value = ?, sortOrder = ?, url = ?, category = ?, color = ?, updatedAt = ?, updatedBy = ? WHERE id = ?')
-          .run(value, clean(arg.sortOrder !== undefined ? arg.sortOrder : cur.sortOrder), url, category, kind === 'evcat' ? (arg.color === undefined ? cur.color : color) : '', t, me.email, id);
+        db.prepare('UPDATE options SET value = ?, sortOrder = ?, url = ?, category = ?, color = ?, fullName = ?, country = ?, city = ?, updatedAt = ?, updatedBy = ? WHERE id = ?')
+          .run(value, clean(arg.sortOrder !== undefined ? arg.sortOrder : cur.sortOrder), url, category, kind === 'evcat' ? (arg.color === undefined ? cur.color : color) : '', ...detail(cur), t, me.email, id);
         let n = 0;
         const [tbl, col] = OPTION_TARGET[kind];
         if (cur.value !== value && kind === 'track') {
@@ -1547,8 +1573,8 @@ function openStore(dbPath, opts) {
         id = newId();
         const so = arg.sortOrder !== undefined ? clean(arg.sortOrder)
           : String((db.prepare('SELECT MAX(CAST(sortOrder AS INTEGER)) n FROM options WHERE kind = ?').get(kind).n || 0) + 1);
-        db.prepare('INSERT INTO options (id, kind, value, sortOrder, url, category, color, createdAt, createdBy, updatedAt, updatedBy) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
-          .run(id, kind, value, so, url, category, color, t, me.email, t, me.email);
+        db.prepare('INSERT INTO options (id, kind, value, sortOrder, url, category, color, fullName, country, city, createdAt, createdBy, updatedAt, updatedBy) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+          .run(id, kind, value, so, url, category, color, ...detail(null), t, me.email, t, me.email);
         log(me.email, 'create', 'options', id, OPTION_KINDS[kind] + ' ' + value);
       }
     });
@@ -1571,6 +1597,10 @@ function openStore(dbPath, opts) {
     const cur = db.prepare('SELECT * FROM options WHERE id = ?').get(arg && arg.id);
     if (!cur) throw new UserError('이미 삭제된 항목입니다.', 404);
     if (cur.kind === 'evauto') throw new UserError('자동 표시 항목은 지울 수 없습니다. 숨기려면 “달력에 보이기”를 끄세요.');
+    if (cur.kind === 'doccat') { // 쓰고 있는 서류 분류를 지우면 목록 밖으로 흩어지므로 막음
+      const n = db.prepare("SELECT COUNT(*) n FROM docs WHERE deletedAt = '' AND category = ?").get(cur.value).n + db.prepare("SELECT COUNT(*) n FROM files WHERE deletedAt = '' AND category = ? AND meetingId = '' AND followupId = '' AND docId = ''").get(cur.value).n;
+      if (n) throw new UserError('“' + cur.value + '” 분류를 파일·서류 ' + n + '건이 쓰고 있어 지울 수 없습니다. 이름을 바꾸거나, 그 파일·서류의 분류를 먼저 옮겨주세요.');
+    }
     db.prepare('DELETE FROM options WHERE id = ?').run(cur.id);
     log(me.email, 'delete', 'options', cur.id, (OPTION_KINDS[cur.kind] || cur.kind) + ' ' + cur.value + (cur.kind === 'evcat' ? ' (이 분류의 기존 일정은 회색으로 표시)' : ' (학생 정보의 기존 값은 그대로)'));
     return getAll(me);
@@ -1977,6 +2007,14 @@ function openStore(dbPath, opts) {
 
   /** 내 정보: 이름 변경 */
   function updateMe(me, arg) {
+    arg = arg || {};
+    if ('viewTz' in arg) { // 화면 시간 (출장 등) — '' = 지점 기준으로 되돌림
+      const z = clean(arg.viewTz).trim();
+      if (z && !TZS.includes(z)) throw new UserError('화면 시간이 올바르지 않습니다.');
+      db.prepare('UPDATE teachers SET viewTz = ? WHERE email = ?').run(z, me.email);
+      log(me.email, 'update', 'teachers', me.email, '내 화면 시간 변경: ' + (z || '지점 기준'));
+      return getAll(Object.assign({}, me, { viewTz: z }));
+    }
     const name = clean(arg && arg.name).trim();
     if (!name) throw new UserError('이름을 입력하세요.');
     if (name.length > 40) throw new UserError('이름이 너무 깁니다.');
