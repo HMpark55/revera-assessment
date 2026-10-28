@@ -2254,3 +2254,48 @@ test('지원대학 진행 상태 "보류": 제출 전이라 제출일 지우고 
   a = d.apps.find((x) => x.id === a.id);
   assert.deepStrictEqual([a.status, a.submittedAt], ['보류', '']);
 });
+
+test('받은 연락 경로: 위챗·카톡·왓츠앱 등, 예전 값(문자·이메일)도 그대로 수정 가능', async () => {
+  const admin = client(); await admin.login('admin@revera.test', 'admin-pass-1');
+  let d = await admin.saveOk('students', { name: '연락 경로 학생' });
+  const sid = d.savedId;
+  for (const ch of ['카톡', '왓츠앱', '문자']) await admin.saveOk('followups', { studentId: sid, kind: 'contact', title: '연락', channel: ch, status: '할 일' });
+  assert.strictEqual((await admin.save('followups', { studentId: sid, kind: 'contact', title: '연락', channel: '팩스', status: '할 일' })).status, 400);
+});
+
+test('REVERA A: 허용된 계정(박현모)만 페이지·기능이 보이고, 나머지는 없는 페이지(404)', async () => {
+  const admin = client(); await admin.login('admin@revera.test', 'admin-pass-1');
+  assert.strictEqual((await admin.req('GET', '/a')).status, 404, '관리자라도 허용 목록에 없으면 404');
+  assert.strictEqual((await admin.req('POST', '/api/atlas/ping', {})).status, 404);
+  assert.strictEqual((await client().req('POST', '/api/atlas/ping', {})).status, 404, '로그인 안 함');
+  assert.strictEqual((await client().req('GET', '/atlas.html')).status, 404, '공개 폴더에 없음');
+  await admin.ok('saveTeacher', { email: 'hm@revera.test', name: '박현모', role: 'staff', password: 'temp-pass-1' });
+  const hm = client(); await hm.login('hm@revera.test', 'temp-pass-1');
+  await hm.ok('changePassword', { current: 'temp-pass-1', next: 'mine-pass-1' });
+  const page = await hm.req('GET', '/a');
+  assert.strictEqual(page.status, 200); assert.match(page.data.toString(), /상담 Roster/);
+  const call = async (fn, arg) => { const r = await hm.req('POST', '/api/atlas/' + fn, { arg }); assert.strictEqual(r.status, 200, fn + ': ' + JSON.stringify(r.data)); return r.data; };
+  // 학생 → 상담 기록 → 팔로업 답변(학생·팔로업당 1칸) → 수업·수강 등록
+  const s = await call('save', { table: 'atlas_students', rec: { name: '상담 학생', school: 'SAS', gradYear: '2029' } });
+  await call('save', { table: 'atlas_students', rec: { id: s.id, phone: '010' } });
+  await call('save', { table: 'atlas_consults', rec: { studentId: s.id, date: '2026-10-28', program: '정규반', content: '첫 상담' } });
+  await call('save', { table: 'atlas_fu', rec: { studentId: s.id, campaign: '국경절 특강', response: '희망X' } });
+  await call('save', { table: 'atlas_fu', rec: { studentId: s.id, campaign: '국경절 특강', response: '신청OK' } });
+  const k = await call('save', { table: 'atlas_classes', rec: { name: 'G9 Eng', kind: '정규반', term: '2026 Fall 학기중' } });
+  await call('save', { table: 'atlas_enroll', rec: { classId: k.id, studentId: s.id, payment: '9/1 입금' } });
+  let r = await hm.req('POST', '/api/atlas/save', { arg: { table: 'atlas_enroll', rec: { classId: k.id, studentId: s.id } } });
+  assert.strictEqual(r.status, 400, '같은 수업 중복 등록 막기');
+  await call('renameCampaign', { from: '국경절 특강', to: '26/10 국경절 특강' });
+  let d = await call('getAll');
+  const st = d.students.find((x) => x.id === s.id);
+  assert.deepStrictEqual([st.name, st.school, st.phone, st.gradYear], ['상담 학생', 'SAS', '010', '2029'], '칸 하나만 고쳐도 나머지는 그대로');
+  assert.strictEqual(d.fu.length, 1); assert.deepStrictEqual([d.fu[0].campaign, d.fu[0].response], ['26/10 국경절 특강', '신청OK']);
+  assert.strictEqual(d.enroll.length, 1); assert.strictEqual(d.consults.length, 1);
+  r = await hm.req('POST', '/api/atlas/save', { arg: { table: 'teachers', rec: { name: 'x' } } });
+  assert.strictEqual(r.status, 400, '정해진 표만');
+  r = await hm.req('POST', '/api/atlas/save', { arg: { table: 'atlas_students', rec: { name: 'x', gradYear: '9학년' } } });
+  assert.strictEqual(r.status, 400);
+  await call('remove', { table: 'atlas_students', id: s.id });
+  d = await call('getAll');
+  assert.ok(!d.students.some((x) => x.id === s.id), '삭제한 학생은 안 보임');
+});
