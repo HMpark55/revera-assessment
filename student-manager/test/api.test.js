@@ -2299,3 +2299,40 @@ test('REVERA A: 허용된 계정(박현모)만 페이지·기능이 보이고, �
   d = await call('getAll');
   assert.ok(!d.students.some((x) => x.id === s.id), '삭제한 학생은 안 보임');
 });
+
+test('REVERA A 가져오기: 미리 세기, 같은 학생은 빈 칸만, 다시 가져와도 두 번 안 생김 · 출결·개인수업 기록 · 긴 글은 앞부분만', async () => {
+  const hm = client(); await hm.login('hm@revera.test', 'mine-pass-1');
+  const call = async (fn, arg) => { const r = await hm.req('POST', '/api/atlas/' + fn, { arg }); assert.strictEqual(r.status, 200, fn + ': ' + JSON.stringify(r.data)); return r.data; };
+  await call('save', { table: 'atlas_students', rec: { name: '가져올 학생', school: 'SAS', phone: '' } });
+  const long = '상담 '.repeat(400);
+  const data = { format: 'atlas-import-v1', students: [
+    { key: 'a', name: '가져올 학생', school: 'SAS', phone: '139', gradYear: '2030', consults: [{ program: '정규반', content: long }] },
+    { key: 'b', name: '새 학생', school: 'CISS', gradYear: '2031', consults: [] }],
+  classes: [
+    { name: 'G9 Eng', term: '2026 Fall', kind: '정규반', dates: ['8/29', '9/5'], enroll: [{ studentKey: 'a', payment: '9/1', attend: { '8/29': '1', '9/5': '이월', '1/1': '1' } }, { studentKey: 'b' }] },
+    { name: '새 학생 — Physics', term: '', kind: '개인', rate: '시간당 900元', enroll: [{ studentKey: 'b' }], lessons: [{ date: '8/31(일)', mode: 'ZOOM', status: '출결ok', fee: '1800' }, { fee: '9/1 ICBC 1,800元' }] }] };
+  let n = await call('importData', { data, dryRun: true });
+  assert.deepStrictEqual([n.newStudents, n.matched, n.consults, n.classes, n.enroll, n.attend, n.lessons], [1, 1, 1, 2, 3, 2, 2]);
+  let d = await call('getAll');
+  assert.ok(!d.students.some((s) => s.name === '새 학생'), '미리 세기는 저장 안 함');
+  await call('importData', { data });
+  n = await call('importData', { data, dryRun: true });
+  assert.deepStrictEqual([n.newStudents, n.matched, n.consults, n.classes], [0, 2, 0, 0], '다시 가져와도 그대로');
+  d = await call('getAll');
+  const a = d.students.find((s) => s.name === '가져올 학생');
+  assert.strictEqual(a.phone, '139', '빈 칸 채움');
+  const c = d.consults.find((x) => x.studentId === a.id);
+  assert.ok(c._cut && c.content.length === 300, '화면 전체에는 앞부분만');
+  assert.strictEqual((await call('getConsults', { studentId: a.id }))[0].content, long.trim());
+  const k = d.classes.find((x) => x.name === 'G9 Eng' && x.term === '2026 Fall');
+  assert.deepStrictEqual(JSON.parse(k.dates), ['8/29', '9/5']);
+  assert.strictEqual(d.attend.filter((x) => x.classId === k.id).length, 2, '날짜 칸에 없는 출결은 버림');
+  await call('save', { table: 'atlas_attend', rec: { classId: k.id, studentId: a.id, col: '9/5', value: '1' } });
+  await call('save', { table: 'atlas_attend', rec: { classId: k.id, studentId: a.id, col: '8/29', value: '' } });
+  d = await call('getAll');
+  assert.deepStrictEqual(d.attend.filter((x) => x.classId === k.id).map((x) => x.col + '=' + x.value), ['9/5=1'], '고치면 같은 칸, 비우면 지움');
+  const p = d.classes.find((x) => x.name === '새 학생 — Physics');
+  const l = await call('getLessons', { classId: p.id });
+  assert.deepStrictEqual(l.map((x) => x.date || x.fee), ['8/31(일)', '9/1 ICBC 1,800元'], '시트 줄 순서 그대로');
+  assert.strictEqual((await hm.req('POST', '/api/atlas/importData', { arg: { data: { format: 'x' } } })).status, 400);
+});
