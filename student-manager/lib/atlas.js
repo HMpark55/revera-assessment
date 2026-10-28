@@ -15,7 +15,7 @@ const CLASS_KINDS = ['정규반', '특강', '개인', '그룹', '유료 상담']
 /* 표 → 저장할 수 있는 칸 (id·만든/고친 시각은 자동) */
 const TABLES = {
   atlas_students: ['name', 'phone', 'school', 'schoolNote', 'gradYear', 'grp', 'tag', 'payment', 'subjMid', 'subjHigh', 'memo'],
-  atlas_consults: ['studentId', 'date', 'program', 'content'],
+  atlas_consults: ['studentId', 'date', 'program', 'content'], // + src: 'sheet' = 시트에서 가져온 기록
   atlas_fu: ['studentId', 'campaign', 'response'],
   atlas_classes: ['name', 'kind', 'term', 'teacher', 'schedule', 'status', 'memo', 'dates', 'rate'], // dates: 출결 날짜 칸 이름(JSON 배열), rate: 시간당 수강료
   atlas_enroll: ['classId', 'studentId', 'payment', 'remark', 'note', 'extra'], // note: 이름 칸 메모(10회권 등), extra: 유료 상담 칸들(JSON)
@@ -36,6 +36,7 @@ function attachAtlas(db, store) {
     });
   }
 
+  if (!new Set(db.prepare('PRAGMA table_info(atlas_consults)').all().map((c) => c.name)).has('src')) db.exec("ALTER TABLE atlas_consults ADD COLUMN src TEXT DEFAULT ''");
   if (!new Set(db.prepare('PRAGMA table_info(atlas_students)').all().map((c) => c.name)).has('compassId')) db.exec("ALTER TABLE atlas_students ADD COLUMN compassId TEXT DEFAULT ''"); // Compass 학생과 연결
 
   const extra = String(process.env.ATLAS_EMAILS || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
@@ -167,9 +168,16 @@ function attachAtlas(db, store) {
   function importData(me, arg) {
     const data = arg && arg.data;
     if (!data || data.format !== 'atlas-import-v1' || !Array.isArray(data.students) || !Array.isArray(data.classes)) throw new AtlasError('REVERA A 가져오기 파일이 아닙니다.');
-    const n = { newStudents: 0, matched: 0, consults: 0, fu: 0, classes: 0, skippedClasses: [], enroll: 0, attend: 0, lessons: 0 };
+    // 예전에 시트에서 가져온 상담 기록: src = 'sheet', 또는 (표시 전 버전) 한꺼번에 같은 시각에 들어간 기록
+    const oldWhere = "src = 'sheet' OR (src = '' AND createdAt IN (SELECT createdAt FROM atlas_consults WHERE src = '' GROUP BY createdAt HAVING COUNT(*) >= 20))";
+    const oldSheet = db.prepare(`SELECT COUNT(*) n FROM atlas_consults WHERE ${oldWhere}`).get().n;
+    const n = { oldSheetConsults: oldSheet, replaced: 0, newStudents: 0, matched: 0, consults: 0, fu: 0, classes: 0, skippedClasses: [], enroll: 0, attend: 0, lessons: 0 };
     const norm = (x) => String(x || '').replace(/\s+/g, '').toLowerCase();
     const run = () => {
+      if (arg.replaceSheetConsults) { // 시트에서 가져왔던 상담 기록만 지우고 새 파일 것으로 (A에서 직접 쓴 기록은 그대로)
+        n.replaced = oldSheet;
+        if (!arg.dryRun) db.prepare(`DELETE FROM atlas_consults WHERE ${oldWhere}`).run();
+      }
       const at = ts(), mk = (t, row) => {
         const r = Object.assign({}, row, { id: crypto.randomUUID(), createdAt: at, createdBy: me.email, updatedAt: at, updatedBy: me.email });
         if (!arg.dryRun) { const k = Object.keys(r); db.prepare(`INSERT INTO ${t} (${k.join(', ')}) VALUES (${k.map((x) => '@' + x).join(', ')})`).run(r); }
@@ -195,11 +203,11 @@ function attachAtlas(db, store) {
           cur = mk('atlas_students', row); existing.push(cur);
         }
         idOf[s.key] = cur.id;
-        const have = new Set(cur.createdAt === at ? [] : db.prepare('SELECT content FROM atlas_consults WHERE studentId = ?').all(cur.id).map((c) => c.content));
+        const have = new Set(cur.createdAt === at ? [] : db.prepare(`SELECT content FROM atlas_consults WHERE studentId = ?${arg.dryRun && arg.replaceSheetConsults ? ' AND NOT (' + oldWhere + ')' : ''}`).all(cur.id).map((c) => c.content));
         for (const c of s.consults || []) {
           const content = clean(c.content, 100000).trim(); if (!content || have.has(content)) continue;
           have.add(content); n.consults++;
-          mk('atlas_consults', { studentId: cur.id, date: clean(c.date, 20), program: clean(c.program, 200), content });
+          mk('atlas_consults', { studentId: cur.id, date: clean(c.date, 20), program: clean(c.program, 200), content, src: 'sheet' });
         }
         for (const f of s.fu || []) { // 행사별 팔로업 체크: 이미 있으면 그대로
           const campaign = clean(f.campaign, 300).trim(); if (!campaign) continue;

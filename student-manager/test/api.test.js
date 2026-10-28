@@ -2362,3 +2362,23 @@ test('REVERA A 원장님 1:1 상담 → Compass: 같은 이름 후보, 새 학�
   await call('unlinkCompass', { studentId: s.id });
   assert.strictEqual((await call('compassOf', { compassId: r.compassId })).length, 0);
 });
+
+test('REVERA A 가져오기: 예전에 시트에서 가져온 상담 기록만 새 파일로 바꾸기 (직접 쓴 기록은 그대로) · My Page 내 색', async () => {
+  const hm = client(); await hm.login('hm@revera.test', 'mine-pass-1');
+  const call = async (fn, arg) => { const r = await hm.req('POST', '/api/atlas/' + fn, { arg }); assert.strictEqual(r.status, 200, fn + ': ' + JSON.stringify(r.data)); return r.data; };
+  const one = (content) => ({ format: 'atlas-import-v1', classes: [], students: [{ key: 'z', name: '바꿀 학생', school: 'BISS', consults: content.map((c) => ({ date: '', program: '', content: c })) }] });
+  await call('importData', { data: one(['한 덩어리 기록']) });
+  let d = await call('getAll');
+  const sid = d.students.find((s) => s.name === '바꿀 학생').id;
+  await call('save', { table: 'atlas_consults', rec: { studentId: sid, date: '2026-10-28', content: '직접 쓴 기록' } });
+  const n = await call('importData', { data: one(['1/2 나뉜 기록', '3/4 나뉜 기록']), dryRun: true, replaceSheetConsults: true });
+  assert.ok(n.oldSheetConsults >= 1); assert.strictEqual(n.consults, 2);
+  await call('importData', { data: one(['1/2 나뉜 기록', '3/4 나뉜 기록']), replaceSheetConsults: true });
+  const mine = (await call('getConsults', { studentId: sid })).map((c) => c.content).sort();
+  assert.deepStrictEqual(mine, ['1/2 나뉜 기록', '3/4 나뉜 기록', '직접 쓴 기록']);
+  // 색은 각자 My Page에서
+  const r = await hm.rpc('updateMe', { color: '#ffe599' });
+  assert.strictEqual(r.status, 200);
+  assert.strictEqual(r.data.teachers.find((t) => t.email === 'hm@revera.test').color, '#ffe599');
+  assert.strictEqual((await hm.rpc('updateMe', { color: 'red' })).status, 400);
+});

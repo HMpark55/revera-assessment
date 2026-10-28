@@ -2056,6 +2056,13 @@ function openStore(dbPath, opts) {
       log(me.email, 'update', 'teachers', me.email, '내 화면 시간 변경: ' + (z || '지점 기준'));
       return getAll(Object.assign({}, me, { viewTz: z }));
     }
+    if ('color' in arg) { // 내 색 (학생 목록에서 내가 관리하는 학생 줄의 배경색)
+      const color = String(arg.color || '').toLowerCase();
+      if (color && !/^#[0-9a-f]{6}$/.test(color)) throw new UserError('색상 형식이 올바르지 않습니다.');
+      db.prepare('UPDATE teachers SET color = ? WHERE email = ?').run(color, me.email);
+      log(me.email, 'update', 'teachers', me.email, '내 색 변경: ' + (color || '없음'));
+      return getAll(me);
+    }
     const name = clean(arg && arg.name).trim();
     if (!name) throw new UserError('이름을 입력하세요.');
     if (name.length > 40) throw new UserError('이름이 너무 깁니다.');
