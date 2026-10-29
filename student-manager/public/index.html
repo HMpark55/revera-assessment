@@ -480,6 +480,9 @@
   .fu .l1 .meta { margin-left:auto; padding-left:8px; font-size:.8rem; color:var(--muted); white-space:nowrap; flex-shrink:0; }
   .fu .l2 { font-size:.8rem; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:1px; }
   .fu .l2.rp { color:#2f6b45; }
+  .fu.cpt { padding-top:5px; padding-bottom:5px; align-items:center; }
+  .sum-list .row.dlw-g { background:#eef2f9; margin-top:4px; padding:5px 6px; }
+  .sum-list .row.dlw-r { padding-left:18px; }
   .fu-acts { display:flex; flex-shrink:0; align-items:flex-start; }
   /* 좁은 위젯: 버튼은 글 아래 줄로 */
   .wg > .wbody { container-type:inline-size; }
@@ -1763,23 +1766,42 @@ function wFollowups() {
   var myFu = openFollowups().filter(function (f) { return f.assignee === S.me.email; });
   var fuList = UI.dashFu === 'me' ? myFu : openFollowups();
   return '<div class="card"><div class="sec-h"><h3>팔로업 <span class="muted">' + fuList.length + '건</span></h3><span class="toolbar" style="margin:0">' +
-    seg([['all', '모든 선생님'], ['me', '내 것만']], UI.dashFu, 'dashFu') +
+    segP([['s', '간단히'], ['d', '자세히']], 'dashFuView', 's') + seg([['all', '모든 선생님'], ['me', '내 것만']], UI.dashFu, 'dashFu') +
     '<a class="more-link" href="#/followups" onclick="UI.fuWho=' + js(UI.dashFu === 'me' ? 'me' : 'all') + '">트래커 →</a></span></div>' +
-    (fuList.length ? '<div class="scroll-box">' + fuRows(fuList) + '</div>' : '<div class="empty">남은 팔로업이 없습니다.</div>') + '</div>';
+    (fuList.length ? '<div class="scroll-box">' + fuRows(fuList, UI.dashFuView !== 'd') + '</div>' : '<div class="empty">남은 팔로업이 없습니다.</div>') + '</div>';
 }
 /** 메인 "원서 관리": 제출 전인 지원 중 마감 지남·30일 안 — 줄을 누르면 원서 관리, 포털 열기·제출 완료는 원서 관리에서 */
 function wDeadlines() {
   var list = S.apps.filter(function (a) { var n = dayDiff(a.deadline); return studentById(a.studentId) && APP_FINAL.indexOf(a.status) < 0 && n !== null && n <= 30; })
     .sort(function (a, b) { return a.deadline.localeCompare(b.deadline); });
   var late = list.filter(function (a) { return dayDiff(a.deadline) < 0; }).length, soon = list.filter(function (a) { var n = dayDiff(a.deadline); return n >= 0 && n <= 7; }).length;
-  return '<div class="card"><div class="sec-h"><h3>원서 관리 <span class="muted">제출 전 · 30일</span></h3><a class="more-link" href="#/deadlines">원서 관리 →</a></div>' +
+  var mode = segP([['list', '마감순'], ['date', '마감일별'], ['uni', '대학별']], 'dashDlView', 'list'), v = UI.dashDlView;
+  var goDl = 'UI.dlRange=\'30\';UI.dlView=' + js(v === 'list' ? 'student' : v) + ';prefSet(\'dlView\',UI.dlView);go(\'#/deadlines\')';
+  var noP = function (a) { return a.universityId && !portalAccounts(a.studentId, a.universityId).length ? '<span class="dday soon nw" title="원서 포털 계정 없음">포털 없음</span>' : ''; };
+  var body;
+  if (v === 'list') body = list.map(function (a) {
+    var st = studentById(a.studentId), n = dayDiff(a.deadline);
+    return '<div class="row" style="cursor:pointer' + (n < 0 ? ';background:#fff1f0' : '') + '" onclick="' + goDl + '"><span class="nw" style="width:92px"><b>' + esc(fmtD(a.deadline)) + '</b> ' + dday(a.deadline) + '</span>' +
+      '<span class="nw"><b>' + esc(st.name) + '</b></span><span class="grow" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(a.university) + (a.round ? ' <span class="muted">· ' + esc(a.round) + '</span>' : '') + '</span>' + noP(a) + '</div>';
+  }).join('');
+  else {
+    var groups = [], byK = {};
+    list.forEach(function (a) { var k = v === 'date' ? a.deadline : String(a.university || '').trim().toLowerCase(); if (!byK[k]) { byK[k] = []; groups.push(k); } byK[k].push(a); });
+    body = groups.map(function (k) {
+      var rows = byK[k], d = rows[0].deadline, late = dayDiff(d) < 0;
+      var head = v === 'date' ? '<b>' + esc(fmtD(d)) + '</b> ' + dday(d) + ' <span class="muted">· ' + rows.length + '건</span>'
+        : '<b>' + esc(rows[0].university) + '</b> <span class="muted">· ' + rows.length + '건 · 다음 마감 ' + esc(fmtD(d)) + '</span> ' + dday(d);
+      return '<div class="row dlw-g" style="cursor:pointer' + (late ? ';background:#fff1f0' : '') + '" onclick="' + goDl + '"><span class="grow">' + head + '</span></div>' +
+        rows.map(function (a) {
+          var st = studentById(a.studentId);
+          return '<div class="row dlw-r" style="cursor:pointer" onclick="' + goDl + '"><span class="nw"><b>' + esc(st.name) + '</b></span>' +
+            '<span class="grow" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + (v === 'date' ? esc(a.university) : '<span class="muted">' + esc(fmtD(a.deadline)) + '</span>') + (a.round ? ' <span class="muted">· ' + esc(a.round) + '</span>' : '') + '</span>' + noP(a) + '</div>';
+        }).join('');
+    }).join('');
+  }
+  return '<div class="card"><div class="sec-h"><h3>원서 관리 <span class="muted">제출 전 · 30일</span></h3><span class="toolbar" style="margin:0">' + mode + '<a class="more-link" href="#/deadlines">원서 관리 →</a></span></div>' +
     '<div class="dl-sum" style="margin-bottom:6px">' + (late ? '<span class="dday over">마감 지남 ' + late + '</span>' : '') + '<span class="' + (soon ? 'dday soon' : 'muted') + '">7일 안 ' + soon + '</span><span class="muted">30일 안 ' + list.length + '건</span></div>' +
-    '<div class="scroll-box sm">' + (list.length ? '<div class="sum-list">' + list.map(function (a) {
-      var st = studentById(a.studentId), n = dayDiff(a.deadline), noP = a.universityId && !portalAccounts(a.studentId, a.universityId).length;
-      return '<div class="row" style="cursor:pointer' + (n < 0 ? ';background:#fff1f0' : '') + '" onclick="UI.dlRange=\'30\';go(\'#/deadlines\')"><span class="nw" style="width:92px"><b>' + esc(fmtD(a.deadline)) + '</b> ' + dday(a.deadline) + '</span>' +
-        '<span class="nw"><b>' + esc(st.name) + '</b></span><span class="grow" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(a.university) + (a.round ? ' <span class="muted">· ' + esc(a.round) + '</span>' : '') + '</span>' +
-        (noP ? '<span class="dday soon nw" title="원서 포털 계정 없음">포털 없음</span>' : '') + '</div>';
-    }).join('') + '</div>' : '<div class="empty">30일 안에 제출할 원서가 없습니다.</div>') + '</div></div>';
+    '<div class="scroll-box sm">' + (list.length ? '<div class="sum-list">' + body + '</div>' : '<div class="empty">30일 안에 제출할 원서가 없습니다.</div>') + '</div></div>';
 }
 function wMoney() {
   var un = unpaidContracts(), rn = renewals();
@@ -1888,6 +1910,13 @@ function systemAlerts(all) {
 }
 function chip(n, label, onclick, alert) {
   return '<span class="chip' + (alert ? ' alert' : '') + '" onclick="' + onclick + '">' + esc(label) + ' <b>' + n + '</b></span>';
+}
+/** 고른 값을 계정별로 기억하는 seg — 처음엔 prefGet(key), 없으면 def */
+function segP(list, key, def) {
+  if (UI[key] === undefined) UI[key] = prefGet(key, def);
+  return '<span class="seg">' + list.map(function (o) {
+    return '<a class="' + (UI[key] === o[0] ? 'on' : '') + '" onclick="UI.' + key + '=' + js(o[0]) + ';prefSet(' + js(key) + ',UI.' + key + ');render()">' + esc(o[1]) + '</a>';
+  }).join('') + '</span>';
 }
 /** 작은 선택 버튼 묶음 — UI[key] 값을 바꾸고 다시 그림 */
 function seg(list, cur, key) {
@@ -2751,47 +2780,48 @@ function fuStatusPill(f) {
   var cls = f.status === '완료' ? 'd-수합' : f.status === '진행 중' ? 's-진행중' : f.status === '대기' ? 'd-요청함' : '';
   return '<span class="pill ' + cls + '">' + esc(f.status) + '</span>';
 }
-function fuRow(f, showStudent, inSource) {
+/** compact: 메인 위젯 「간단히」 — 학생·제목·답변 필요·기한과 완료 버튼만 (누르면 창에서 전체) */
+function fuRow(f, showStudent, inSource, compact) {
   var s = studentById(f.studentId), done = f.status === '완료';
-  var src = inSource ? null : f.meetingId ? findRow('meetings', f.meetingId) : f.noteId ? findRow('notes', f.noteId) : null;
-  var reqTag = f.requestedBy && !done ? '<span class="req" title="' + esc(fmtTime(f.requestedAt) + (f.requestNote ? ' · ' + f.requestNote : '')) + '">↪ ' + esc(teacherName(f.requestedBy)) + ' 님이 넘김</span>' : '';
+  var src = inSource || compact ? null : f.meetingId ? findRow('meetings', f.meetingId) : f.noteId ? findRow('notes', f.noteId) : null;
+  var reqTag = f.requestedBy && !done && !compact ? '<span class="req" title="' + esc(fmtTime(f.requestedAt) + (f.requestNote ? ' · ' + f.requestNote : '')) + '">↪ ' + esc(teacherName(f.requestedBy)) + ' 님이 넘김</span>' : '';
   var contact = f.kind === 'contact';
   var reps = repliesOf(f.id), last = reps[reps.length - 1];
   var reply = last ? '💬 ' + replyWho(last) + (last.date ? ' ' + fmtD(last.date) : '') + ': ' + last.content : '';
   var shots = contact ? S.files.filter(function (x) { return x.followupId === f.id && /^image\//.test(x.mime); }) : [];
-  return '<div class="fu' + (done ? ' done' : fuProg(f) ? ' prog' : '') + (!done && f.due && dayDiff(f.due) < 0 ? ' over' : '') + '" id="ref-' + esc(f.id) + '">' +
+  return '<div class="fu' + (compact ? ' cpt' : '') + (done ? ' done' : fuProg(f) ? ' prog' : '') + (!done && f.due && dayDiff(f.due) < 0 ? ' over' : '') + '" id="ref-' + esc(f.id) + '">' +
     (done ? '<span class="fu-ok" title="완료">✓</span>' : fuCheck(f)) +
     '<div class="t" onclick="openForm(' + js(contact ? 'contact' : 'followups') + ',' + js(f.id) + ')" title="' + esc([f.detail, reply].filter(Boolean).join('\n')) + '">' +
       '<div class="l1"><span class="who1">' + (showStudent ? '<a href="#/student/' + esc(s.id) + '" onclick="event.stopPropagation();UI.tab=\'followups\'"><b>' + esc(s.name) + '</b></a> ' + branchPill(s) + ' · ' : '') +
-        esc(teacherName(f.assignee) || '담당 미정') + '</span>' + (contact ? '<span class="ctag">📩 ' + esc([f.fromWho, f.channel].filter(Boolean).join(' · ')) + (f.receivedDate ? ' ' + esc(fmtD(f.receivedDate)) : '') + '</span>' : '') +
-        '<span class="tt">' + esc(f.title) + '</span>' + (f.category ? '<span class="tag">' + esc(f.category) + '</span>' : '') +
+        esc(teacherName(f.assignee) || '담당 미정') + '</span>' + (contact ? '<span class="ctag">📩' + (compact ? '' : ' ' + esc([f.fromWho, f.channel].filter(Boolean).join(' · ')) + (f.receivedDate ? ' ' + esc(fmtD(f.receivedDate)) : '')) + '</span>' : '') +
+        '<span class="tt">' + esc(f.title) + '</span>' + (f.category && !compact ? '<span class="tag">' + esc(f.category) + '</span>' : '') +
         (contact && !done ? (f.status === '할 일' ? '<span class="pill d-요청함">답변 필요</span>' : fuStatusPill(f)) : !done && f.status !== '할 일' ? fuStatusPill(f) : '') + reqTag +
         (src ? '<span class="linked">' + (f.meetingId ? '미팅 ' : '상담 ') + esc(fmtD(src.date)) + '</span>' : '') +
         '<span class="meta">' + (done ? esc(fmtTime(f.doneAt).slice(5, 10).replace('-', '/')) + ' 완료' : f.due ? esc(fmtD(f.due)) + ' ' + dday(f.due) : '기한 없음') + '</span></div>' +
-      (contact && f.detail && f.detail.trim() !== f.title ? '<div class="l2">' + esc(f.detail.replace(/\s+/g, ' ')) + '</div>' : '') +
+      (compact ? '' : (contact && f.detail && f.detail.trim() !== f.title ? '<div class="l2">' + esc(f.detail.replace(/\s+/g, ' ')) + '</div>' : '') +
       (reply ? '<div class="l2 rp">' + esc(reply) + '</div>' : !contact && f.detail ? '<div class="l2">' + esc(f.detail) + '</div>' : '') +
       (shots.length ? '<div class="fu-shots">' + shots.slice(0, 4).map(function (x) { return '<a href="/api/files/' + esc(x.id) + '" class="lbimg" data-g="fu-' + esc(f.id) + '" title="' + esc(x.name) + '" target="_blank" rel="noopener" onclick="event.stopPropagation()"><img src="/api/files/' + esc(x.id) + '" alt=""></a>'; }).join('') + (shots.length > 4 ? '<span class="muted">+' + (shots.length - 4) + '</span>' : '') + '</div>' : '') +
       (f.requestNote && !done && f.assignee === S.me.email ? '<div class="l2" style="color:#7a4d00">↪ ' + esc(f.requestNote) + '</div>' : '') +
-      (reviewsOf('followups', f.id).some(function (r) { return !r.doneAt; }) ? '<div onclick="event.stopPropagation()">' + reviewBox('followups', f.id, true) + '</div>' : '') +
-    '</div>' + '<span class="fu-acts"><button type="button" class="ibtn rv-b" title="담당은 그대로 — 이 기록을 다른 선생님이 꼭 보도록 알림" onclick="openReview(\'followups\',' + js(f.id) + ')">👀 확인 요청</button>' + (done ? '' : '<button type="button" class="ibtn ho-b" title="이 일을 다른 선생님에게 넘김 — 담당이 그 선생님으로 바뀜 (휴무 등)" onclick="openRequest(' + js(f.id) + ')">↪ 넘기기</button>') +
-    '<button type="button" class="ibtn" title="답변 주고받은 기록 (학생·어머님·아버님·우리 쪽) onclick="openThread(' + js(f.id) + ')">💬' + (reps.length ? ' ' + reps.length : '') + '</button>' +
-    (done ? '<button type="button" class="ibtn" title="다시 할 일로" onclick="doneFollowup(' + js(f.id) + ', true)">되돌리기</button>' : fuDoneBtn(f.id)) + '</span></div>';
+      (reviewsOf('followups', f.id).some(function (r) { return !r.doneAt; }) ? '<div onclick="event.stopPropagation()">' + reviewBox('followups', f.id, true) + '</div>' : '')) +
+    '</div>' + (compact ? '<span class="fu-acts">' + (done ? '' : fuDoneBtn(f.id)) + '</span></div>' : '<span class="fu-acts"><button type="button" class="ibtn rv-b" title="담당은 그대로 — 이 기록을 다른 선생님이 꼭 보도록 알림" onclick="openReview(\'followups\',' + js(f.id) + ')">👀 확인 요청</button>' + (done ? '' : '<button type="button" class="ibtn ho-b" title="이 일을 다른 선생님에게 넘김 — 담당이 그 선생님으로 바뀜 (휴무 등)" onclick="openRequest(' + js(f.id) + ')">↪ 넘기기</button>') +
+    '<button type="button" class="ibtn" title="답변 주고받은 기록 (학생·어머님·아버님·우리 쪽)" onclick="openThread(' + js(f.id) + ')">💬' + (reps.length ? ' ' + reps.length : '') + '</button>' +
+    (done ? '<button type="button" class="ibtn" title="다시 할 일로" onclick="doneFollowup(' + js(f.id) + ', true)">되돌리기</button>' : fuDoneBtn(f.id)) + '</span></div>');
 }
 /** 팔로업 줄 여러 개 — 공통 팔로업(groupId)은 한 줄로 묶고 펼치면 학생별 */
-function fuRows(list) {
+function fuRows(list, compact) {
   var out = [], byG = {};
   list.forEach(function (f) {
     if (f.groupId) { if (byG[f.groupId]) { byG[f.groupId].push(f); return; } byG[f.groupId] = [f]; out.push(byG[f.groupId]); }
     else out.push(f);
   });
-  return out.map(function (x) { return Array.isArray(x) ? (x.length > 1 ? fuGroupRow(x) : fuRow(x[0], true)) : fuRow(x, true); }).join('');
+  return out.map(function (x) { return Array.isArray(x) ? (x.length > 1 ? fuGroupRow(x, compact) : fuRow(x[0], true, false, compact)) : fuRow(x, true, false, compact); }).join('');
 }
-function fuGroupRow(items) {
+function fuGroupRow(items, compact) {
   var f = items[0], all = S.followups.filter(function (x) { return x.groupId === f.groupId; }), done = all.filter(function (x) { return x.status === '완료'; }).length;
   var open = UI.fuOpenGroup === f.groupId;
   return '<details class="fugrp"' + (open ? ' open' : '') + ' ontoggle="if(this.open)UI.fuOpenGroup=' + js(f.groupId) + '"><summary><span class="who1">👥 공통 · ' + items.length + '명</span><b>' + esc(f.title) + '</b>' +
     '<span class="muted">완료 ' + done + '/' + all.length + '</span><span class="meta">' + (f.due ? esc(fmtD(f.due)) + ' ' + dday(f.due) : '기한 없음') + '</span></summary>' +
-    '<div class="fugrp-b">' + items.map(function (x) { return fuRow(x, true); }).join('') + '</div></details>';
+    '<div class="fugrp-b">' + items.map(function (x) { return fuRow(x, true, false, compact); }).join('') + '</div></details>';
 }
 /** 공통 팔로업 만들기: 여러 학생에게 같은 할 일 (학생마다 하나씩, 담당은 각 학생 관리팀 담당자) */
 function openFollowupMany() {
@@ -4183,6 +4213,7 @@ function viewDeadlines() {
   var soon = pending.filter(function (a) { var n = dayDiff(a.deadline); return n >= 0 && n <= 7; }).length;
   var noPortal = pending.filter(function (a) { return a.universityId && !portalAccounts(a.studentId, a.universityId).length; }).length;
   var h = '<div class="toolbar"><h2 style="margin:0;margin-right:auto">원서 관리 <span class="muted">제출 전 ' + pending.length + '건</span></h2>' +
+    segP([['student', '학생별'], ['date', '마감일별'], ['uni', '대학별']], 'dlView', 'student') +
     seg([['14', '2주'], ['30', '한 달'], ['60', '두 달'], ['all', '전체']], UI.dlRange, 'dlRange') +
     '<select onchange="UI.dlCountry=this.value;render()"><option value="">모든 국가</option>' + opts(COUNTRIES, UI.dlCountry) + '</select>' +
     (isMgr() ? '<select onchange="UI.counselor=this.value;render()"><option value="all">모든 학생</option><option value="me"' + (UI.counselor === 'me' ? ' selected' : '') + '>내 담당 학생만</option></select>' : '') +
@@ -4193,34 +4224,65 @@ function viewDeadlines() {
     '<span class="' + (noPortal ? 'dday soon' : 'muted') + '">포털 계정 없음 ' + noPortal + '건</span>' +
     '<span class="muted">포털에서 제출하면 여기서 <b>[제출 완료]</b>만 눌러주세요.</span></div>';
   if (!list.length) return h + '<div class="card empty">해당하는 지원 건이 없습니다. (마감일을 넣은 지원대학만 표시됩니다)</div>';
-  // 학생별로 묶기 (제출 전 마감이 가까운 학생부터), 학생 줄을 눌러 접기·펼치기 (이 브라우저에 기억)
-  var groups = [], byS = {};
-  list.forEach(function (a) { if (!byS[a.studentId]) { byS[a.studentId] = []; groups.push(a.studentId); } byS[a.studentId].push(a); });
-  var fold = dlFold(), allClosed = groups.every(function (sid) { return fold[sid]; });
-  UI._dlSids = groups;
+  // 학생별 / 마감일별 / 대학별로 묶기 (제출 전 마감이 가까운 묶음부터), 머리줄을 눌러 접기·펼치기 (계정별로 기억)
+  var mode = UI.dlView || 'student';
+  var keyOf = mode === 'date' ? function (a) { return 'date:' + a.deadline; } : mode === 'uni' ? function (a) { return 'uni:' + String(a.university || '').trim().toLowerCase(); } : function (a) { return a.studentId; };
+  var groups = [], byK = {}, sids = [];
+  list.forEach(function (a) {
+    var k = keyOf(a); if (!byK[k]) { byK[k] = []; groups.push(k); } byK[k].push(a);
+    if (sids.indexOf(a.studentId) < 0) sids.push(a.studentId);
+  });
+  if (mode === 'date') groups.sort(function (x, y) { return x.localeCompare(y); });
+  if (mode === 'uni') {
+    var firstOf = function (k) { var r = byK[k], p = r.filter(open)[0]; return (p ? '0' : '1') + (p || r[0]).deadline; };
+    groups.sort(function (x, y) { return firstOf(x).localeCompare(firstOf(y)) || byK[x][0].university.localeCompare(byK[y][0].university); });
+  }
+  var fold = dlFold(), allClosed = groups.every(function (k) { return fold[k]; });
+  UI._dlSids = sids;
   h = h.replace('<div class="dl-sum">', '<div class="dl-sum"><button class="btn ghost sm" onclick="dlFoldAll(' + (allClosed ? 'false' : 'true') + ',' + js(groups) + ')">' + (allClosed ? '모두 펼치기' : '모두 접기') + '</button>');
-  return h + '<div class="card tbl-wrap"><table class="dl"><thead><tr><th>마감</th><th>대학 · 전형 · 전공</th><th>🔑 원서 포털</th><th>메모</th><th></th></tr></thead><tbody>' +
-    groups.map(function (sid) {
-      var s = studentById(sid), rows = byS[sid], closed = !!fold[sid], pend = rows.filter(open), first = pend[0];
-      var head = '<tr class="dl-g" onclick="dlToggle(' + js(sid) + ')"><td colspan="5"><span class="caret">' + (closed ? '▶' : '▼') + '</span> ' +
-        '<a href="#/student/' + esc(s.id) + '" onclick="event.stopPropagation();UI.tab=\'apps\'"><b>' + esc(s.name) + '</b></a> ' + branchPill(s) +
-        (s.englishName ? ' <span class="muted" style="font-size:.8rem">' + esc(s.englishName) + '</span> <button class="ibtn" title="영문 이름 복사" onclick="event.stopPropagation();copyText(' + js(s.englishName) + ')">📋</button>' : '') +
-        ' <span class="muted">· 제출 전 ' + pend.length + ' / ' + rows.length + '곳</span>' + (first ? ' <span class="muted">· 다음 마감 ' + esc(fmtD(first.deadline)) + '</span> ' + dday(first.deadline) : '') +
-        (closed ? ' <span class="muted" style="font-size:.8rem">' + esc(rows.map(function (a) { return a.university; }).join(' · ')) + '</span>' : '') + '</td></tr>';
-      return head + (closed ? '' : rows.map(function (a) {
-        var n = dayDiff(a.deadline), op = open(a);
-        var cls = !op ? 'done' : n < 0 ? 'late' : n <= 7 ? 'soon' : '';
-        var memo = String(a.memo || '');
-        return '<tr class="' + cls + '"><td class="nw"><b>' + esc(fmtD(a.deadline)) + '</b> ' + (op ? dday(a.deadline) : '') + '</td>' +
-          '<td><b>' + esc(a.university) + '</b>' + (a.status === '보류' ? ' <span class="pill a-보류" title="안 낼 수도 있음 — 마감 전에 낼지 정하기">보류</span>' : '') + (a.round ? ' <span class="muted">· ' + esc(a.round) + '</span>' : '') + (a.major ? '<div class="muted" style="font-size:.8rem">' + esc(a.major) + '</div>' : '') + mcMore(a) + '</td>' +
-          '<td class="nw">' + (op || portalAccounts(s.id, a.universityId).length ? portalCell(s, a) : '') + '</td>' +
-          '<td class="dl-memo">' + (/\n/.test(memo) ? '<div class="longtxt" style="max-height:4.5em" onclick="openForm(\'apps\',' + js(a.id) + ')" title="눌러서 고치기">' + esc(memo) + '</div>'
-            : '<input type="text" value="' + esc(memo) + '" title="메모 — 쓰고 다른 곳을 누르면 저장" onchange="saveAppMemo(' + js(a.id) + ',this.value)">') + '</td>' +
-          '<td class="nw">' + (op ? '<button class="btn sm" onclick="submitApp(' + js(a.id) + ')">제출 완료</button>'
-            : '<span class="pill a-' + esc(a.status) + '">' + esc(a.status) + '</span>' + (a.submittedAt ? '<div class="muted" style="font-size:.75rem">' + esc(fmtD(a.submittedAt)) + ' · ' + esc(teacherName(a.submittedBy)) + '</div>' : '') +
-              (a.status === '제출완료' ? '<button class="ibtn" title="제출 전으로 되돌리기" onclick="unsubmitApp(' + js(a.id) + ')">되돌리기</button>' : '')) + '</td></tr>';
-      }).join(''));
+  var th = mode === 'date' ? '<th>학생</th><th>대학 · 전형 · 전공</th>' : mode === 'uni' ? '<th>마감</th><th>학생 · 전형 · 전공</th>' : '<th>마감</th><th>대학 · 전형 · 전공</th>';
+  return h + '<div class="card tbl-wrap"><table class="dl"><thead><tr>' + th + '<th>🔑 원서 포털</th><th>메모</th><th></th></tr></thead><tbody>' +
+    groups.map(function (k) {
+      var rows = byK[k].slice().sort(function (x, y) { return (open(y) - open(x)) || x.deadline.localeCompare(y.deadline); });
+      var closed = !!fold[k], pend = rows.filter(open), first = pend[0], label;
+      if (mode === 'date') {
+        var d = rows[0].deadline;
+        label = '<b>' + esc(fmtD(d)) + '</b> ' + dday(d) + ' <span class="muted">· ' + rows.length + '건' + (pend.length < rows.length ? ' (제출 전 ' + pend.length + ')' : '') + '</span>' +
+          (closed ? ' <span class="muted" style="font-size:.8rem">' + esc(rows.map(function (a) { return studentById(a.studentId).name + ' ' + a.university; }).join(' · ')) + '</span>' : '');
+      } else if (mode === 'uni') {
+        var nS = rows.map(function (a) { return a.studentId; }).filter(function (v, i, arr) { return arr.indexOf(v) === i; }).length;
+        label = '<b>' + esc(rows[0].university) + '</b> <span class="muted">· ' + nS + '명' + (pend.length < rows.length ? ' (제출 전 ' + pend.length + '건)' : '') + '</span>' +
+          (first ? ' <span class="muted">· 다음 마감 ' + esc(fmtD(first.deadline)) + '</span> ' + dday(first.deadline) : '') +
+          (closed ? ' <span class="muted" style="font-size:.8rem">' + esc(rows.map(function (a) { return studentById(a.studentId).name; }).join(' · ')) + '</span>' : '');
+      } else {
+        var s = studentById(k);
+        label = '<a href="#/student/' + esc(s.id) + '" onclick="event.stopPropagation();UI.tab=\'apps\'"><b>' + esc(s.name) + '</b></a> ' + branchPill(s) +
+          (s.englishName ? ' <span class="muted" style="font-size:.8rem">' + esc(s.englishName) + '</span> <button class="ibtn" title="영문 이름 복사" onclick="event.stopPropagation();copyText(' + js(s.englishName) + ')">📋</button>' : '') +
+          ' <span class="muted">· 제출 전 ' + pend.length + ' / ' + rows.length + '곳</span>' + (first ? ' <span class="muted">· 다음 마감 ' + esc(fmtD(first.deadline)) + '</span> ' + dday(first.deadline) : '') +
+          (closed ? ' <span class="muted" style="font-size:.8rem">' + esc(rows.map(function (a) { return a.university; }).join(' · ')) + '</span>' : '');
+      }
+      var head = '<tr class="dl-g" onclick="dlToggle(' + js(k) + ')"><td colspan="5"><span class="caret">' + (closed ? '▶' : '▼') + '</span> ' + label + '</td></tr>';
+      return head + (closed ? '' : rows.map(function (a) { return dlRow(a, mode, open(a)); }).join(''));
     }).join('') + '</tbody></table></div>';
+}
+/** 원서 관리 한 줄 — mode: student(마감 | 대학) / date(학생 | 대학) / uni(마감 | 학생·전형) */
+function dlRow(a, mode, op) {
+  var s = studentById(a.studentId), n = dayDiff(a.deadline);
+  var cls = !op ? 'done' : n < 0 ? 'late' : n <= 7 ? 'soon' : '';
+  var memo = String(a.memo || '');
+  var hold = a.status === '보류' ? ' <span class="pill a-보류" title="안 낼 수도 있음 — 마감 전에 낼지 정하기">보류</span>' : '';
+  var who = '<a href="#/student/' + esc(s.id) + '" onclick="UI.tab=\'apps\'"><b>' + esc(s.name) + '</b></a> ' + branchPill(s);
+  var c1 = mode === 'date' ? '<td class="nw">' + who + '</td>' : '<td class="nw"><b>' + esc(fmtD(a.deadline)) + '</b> ' + (op ? dday(a.deadline) : '') + '</td>';
+  var c2 = mode === 'uni'
+    ? '<td>' + who + hold + (a.round ? ' <span class="muted">· ' + esc(a.round) + '</span>' : '') + (a.major ? '<div class="muted" style="font-size:.8rem">' + esc(a.major) + '</div>' : '') + mcMore(a) + '</td>'
+    : '<td><b>' + esc(a.university) + '</b>' + hold + (a.round ? ' <span class="muted">· ' + esc(a.round) + '</span>' : '') + (a.major ? '<div class="muted" style="font-size:.8rem">' + esc(a.major) + '</div>' : '') + mcMore(a) + '</td>';
+  return '<tr class="' + cls + '">' + c1 + c2 +
+    '<td class="nw">' + (op || portalAccounts(s.id, a.universityId).length ? portalCell(s, a) : '') + '</td>' +
+    '<td class="dl-memo">' + (/\n/.test(memo) ? '<div class="longtxt" style="max-height:4.5em" onclick="openForm(\'apps\',' + js(a.id) + ')" title="눌러서 고치기">' + esc(memo) + '</div>'
+      : '<input type="text" value="' + esc(memo) + '" title="메모 — 쓰고 다른 곳을 누르면 저장" onchange="saveAppMemo(' + js(a.id) + ',this.value)">') + '</td>' +
+    '<td class="nw">' + (op ? '<button class="btn sm" onclick="submitApp(' + js(a.id) + ')">제출 완료</button>'
+      : '<span class="pill a-' + esc(a.status) + '">' + esc(a.status) + '</span>' + (a.submittedAt ? '<div class="muted" style="font-size:.75rem">' + esc(fmtD(a.submittedAt)) + ' · ' + esc(teacherName(a.submittedBy)) + '</div>' : '') +
+        (a.status === '제출완료' ? '<button class="ibtn" title="제출 전으로 되돌리기" onclick="unsubmitApp(' + js(a.id) + ')">되돌리기</button>' : '')) + '</td></tr>';
 }
 function dlFold() { if (!UI.dlFold) UI.dlFold = prefGet('dlFold', null) || {}; return UI.dlFold; }
 function dlFoldSave() { prefSet('dlFold', UI.dlFold); }
