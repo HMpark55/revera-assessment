@@ -23,11 +23,21 @@ const TABLES = {
   atlas_payments: ['studentId', 'classId', 'date', 'amount', 'currency', 'method', 'memo', 'raw', 'src', 'guessed', 'pre'], // 결제 기록 (raw: 원래 글, src 'parsed' = 결제 내역 글에서 꺼냄, guessed 'Y' = 연도 추정, pre 'Y' = 선등록금)
   atlas_attend: ['classId', 'studentId', 'col', 'value'], // 정규반·특강 출결 (학생 × 날짜 칸)
   atlas_lessons: ['classId', 'sortOrder', 'date', 'mode', 'time', 'status', 'fee', 'kst', 'feedback'], // 개인·그룹 수업 기록 (시트 줄 그대로)
+  // 강사: 페이 방식 hour = 시급(元) × 수업 시간, pct = 그 수업 수강료의 % / zoom: 쓰는 Zoom 번호 / off 'Y' = 그만둠
+  atlas_teachers: ['name', 'payType', 'payRate', 'zoom', 'phone', 'memo', 'off'],
+  // 수업 일정 (Classroom Assignment 한 칸): 상해 시간 기준, 수강료는 실제로 수업한 날짜의 매출
+  //   studentIds·attend(학생별 출결)·checks(리마인드 보냄: teacher·student·parent·zoom) 는 JSON, payAmt = 이 수업 강사 페이를 직접 정할 때
+  atlas_sched: ['date', 'start', 'end', 'room', 'mode', 'teacherId', 'classId', 'studentIds', 'title', 'fee', 'currency', 'status', 'attend', 'checks', 'memo', 'payAmt'],
 };
+const ROOMS = ['상담실', 'A1', 'A2', 'A3', 'A4', 'A5(큰 강의실)'];
+const SCHED_STATUS = ['예정', '완료', '취소', '리스케줄'];
+const MODES = ['대면', 'ZOOM (상해)', 'ZOOM (한국)', 'ZOOM'];
 const CURRENCIES = ['CNY', 'KRW'];
 const PREVIEW = 300; // 화면 전체를 불러올 때 긴 글은 앞부분만 (눌러서 열 때 전체)
 const META = ['createdAt', 'createdBy', 'updatedAt', 'updatedBy'];
 
+const DATE = /^\d{4}-\d{2}-\d{2}$/, HM = /^([01]\d|2[0-3]):[0-5]\d$/;
+const NUM = /^\d+(\.\d+)?$/;
 class AtlasError extends Error { constructor(msg, status) { super(msg); this.status = status || 400; } }
 
 function attachAtlas(db, store) {
@@ -48,7 +58,7 @@ function attachAtlas(db, store) {
   const get = (t, id) => db.prepare(`SELECT * FROM ${t} WHERE id = ?`).get(String(id || ''));
   const ts = () => new Date().toISOString();
   const clean = (v, max) => String(v == null ? '' : v).slice(0, max || 20000);
-  ['atlas_payments:studentId', 'atlas_attend:classId', 'atlas_lessons:classId', 'atlas_enroll:classId', 'atlas_consults:studentId', 'atlas_fu:studentId'].forEach((x) => {
+  ['atlas_sched:date', 'atlas_payments:studentId', 'atlas_attend:classId', 'atlas_lessons:classId', 'atlas_enroll:classId', 'atlas_consults:studentId', 'atlas_fu:studentId'].forEach((x) => {
     const [t, c] = x.split(':'); db.exec(`CREATE INDEX IF NOT EXISTS ix_${t}_${c} ON ${t}(${c})`);
   });
   /** 긴 글은 앞부분만 + _cut 에 잘린 칸 이름 */
@@ -74,7 +84,8 @@ function attachAtlas(db, store) {
       enroll: preview(all('atlas_enroll'), ['payment', 'remark', 'note']),
       payments: db.prepare('SELECT id, studentId, classId, date, amount, currency, method, memo, guessed, pre, src FROM atlas_payments').all().map((r) => Object.assign(r, { memo: String(r.memo || '').slice(0, 120) })),
       attend: all('atlas_attend').map((a) => ({ id: a.id, classId: a.classId, studentId: a.studentId, col: a.col, value: a.value })),
-      groups: GROUPS, classKinds: CLASS_KINDS,
+      teachers: all('atlas_teachers'),
+      groups: GROUPS, classKinds: CLASS_KINDS, rooms: ROOMS, schedStatus: SCHED_STATUS, modes: MODES,
     };
   }
   /** 한 줄 전체 (앞부분만 받은 긴 칸을 열 때) */
@@ -89,6 +100,13 @@ function attachAtlas(db, store) {
     const q = String(arg && arg.q || '').trim(); if (!q) return [];
     return db.prepare("SELECT DISTINCT studentId FROM atlas_consults WHERE content LIKE ? ESCAPE '\\' OR program LIKE ? ESCAPE '\\' LIMIT 2000")
       .all(...Array(2).fill('%' + q.replace(/[\\%_]/g, (c) => '\\' + c) + '%')).map((r) => r.studentId);
+  }
+  /** 수업 일정: 날짜 범위 (YYYY-MM-DD ~ YYYY-MM-DD, 최대 1년) */
+  function getSched(me, arg) {
+    const from = String(arg && arg.from || ''), to = String(arg && arg.to || '');
+    if (!DATE.test(from) || !DATE.test(to) || to < from) throw new AtlasError('날짜 범위가 올바르지 않습니다.');
+    if ((new Date(to) - new Date(from)) / 864e5 > 370) throw new AtlasError('한 번에 1년까지만 불러올 수 있습니다.');
+    return db.prepare('SELECT * FROM atlas_sched WHERE date >= ? AND date <= ? ORDER BY date, start').all(from, to);
   }
   const getConsults = (me, arg) => db.prepare('SELECT * FROM atlas_consults WHERE studentId = ?').all(String(arg && arg.studentId || ''));
   const getLessons = (me, arg) => db.prepare('SELECT * FROM atlas_lessons WHERE classId = ? ORDER BY CAST(sortOrder AS REAL), createdAt').all(String(arg && arg.classId || ''));
@@ -112,6 +130,27 @@ function attachAtlas(db, store) {
     }
     if (t === 'atlas_enroll') ['sessions', 'unitPrice'].forEach((k) => { if (v[k] && !/^\d+(\.\d+)?$/.test(v[k].replace(/,/g, ''))) throw new AtlasError('숫자로 적어주세요.'); if (v[k]) v[k] = v[k].replace(/,/g, ''); });
     if (t === 'atlas_enroll' && v.extra) { try { JSON.parse(v.extra); } catch (e) { throw new AtlasError('칸 값이 올바르지 않습니다.'); } }
+    if (t === 'atlas_teachers') {
+      if ('name' in v && !v.name) throw new AtlasError('강사 이름을 입력하세요.');
+      if (v.payType && !['hour', 'pct'].includes(v.payType)) throw new AtlasError('페이 방식이 올바르지 않습니다.');
+      if ('payRate' in v) { v.payRate = v.payRate.replace(/[,%元¥\s]/g, ''); if (v.payRate && !NUM.test(v.payRate)) throw new AtlasError('페이는 숫자로 적어주세요.'); }
+      if (v.name && !rec.id && db.prepare('SELECT 1 FROM atlas_teachers WHERE name = ?').get(v.name)) throw new AtlasError('같은 이름의 강사가 이미 있습니다.');
+    }
+    if (t === 'atlas_sched') {
+      if ('date' in v && !DATE.test(v.date)) throw new AtlasError('날짜를 고르세요.');
+      ['start', 'end'].forEach((k) => { if (k in v && !HM.test(v[k])) throw new AtlasError('시간 형식이 올바르지 않습니다. (예: 17:30)'); });
+      if (v.status && !SCHED_STATUS.includes(v.status)) throw new AtlasError('상태가 올바르지 않습니다.');
+      if (v.currency && !CURRENCIES.includes(v.currency)) throw new AtlasError('통화가 올바르지 않습니다.');
+      ['fee', 'payAmt'].forEach((k) => { if (k in v) { v[k] = v[k].replace(/[,元¥₩\s]/g, ''); if (v[k] && !NUM.test(v[k])) throw new AtlasError('금액은 숫자로 적어주세요.'); } });
+      if (v.teacherId && !get('atlas_teachers', v.teacherId)) throw new AtlasError('강사를 찾을 수 없습니다.', 404);
+      if ('studentIds' in v) {
+        let ids; try { ids = JSON.parse(v.studentIds || '[]'); } catch (e) { ids = null; }
+        if (!Array.isArray(ids) || ids.length > 40 || ids.some((x) => typeof x !== 'string' || !get('atlas_students', x))) throw new AtlasError('학생을 찾을 수 없습니다.', 404);
+      }
+      ['attend', 'checks'].forEach((k) => { if (k in v && v[k]) { let o; try { o = JSON.parse(v[k]); } catch (e) { o = null; } if (!o || typeof o !== 'object' || Array.isArray(o)) throw new AtlasError('칸 값이 올바르지 않습니다.'); } });
+      const st = rec.id ? Object.assign({}, get(t, rec.id) || {}, v) : v;
+      if (st.start && st.end && st.end <= st.start) throw new AtlasError('끝나는 시간이 시작보다 늦어야 합니다.');
+    }
     if (t === 'atlas_students' && 'name' in v && !v.name) throw new AtlasError('학생 이름을 입력하세요.');
     if (t === 'atlas_classes' && 'name' in v && !v.name) throw new AtlasError('수업 이름을 입력하세요.');
     if (t === 'atlas_students' && v.gradYear && !/^\d{4}$/.test(v.gradYear)) throw new AtlasError('학년이 올바르지 않습니다.');
@@ -119,7 +158,7 @@ function attachAtlas(db, store) {
     if (t === 'atlas_classes' && v.kind && !CLASS_KINDS.includes(v.kind)) throw new AtlasError('수업 종류가 올바르지 않습니다.');
     if (t === 'atlas_fu' && 'campaign' in v && !v.campaign) throw new AtlasError('팔로업 이름을 입력하세요.');
     if (v.studentId !== undefined && !get('atlas_students', v.studentId)) throw new AtlasError('학생을 찾을 수 없습니다.', 404);
-    if (v.classId !== undefined && !get('atlas_classes', v.classId)) throw new AtlasError('수업을 찾을 수 없습니다.', 404);
+    if (v.classId && !get('atlas_classes', v.classId)) throw new AtlasError('수업을 찾을 수 없습니다.', 404);
     const at = ts();
     if (rec.id) {
       const cur = get(t, rec.id);
@@ -132,6 +171,12 @@ function attachAtlas(db, store) {
     if (t === 'atlas_classes' && !v.name) throw new AtlasError('수업 이름을 입력하세요.');
     if ((t === 'atlas_consults' || t === 'atlas_fu' || t === 'atlas_payments') && !v.studentId) throw new AtlasError('학생을 고르세요.');
     if (t === 'atlas_lessons' && !v.classId) throw new AtlasError('수업을 고르세요.');
+    if (t === 'atlas_teachers' && !v.name) throw new AtlasError('강사 이름을 입력하세요.');
+    if (t === 'atlas_sched') {
+      if (!v.date || !v.start || !v.end) throw new AtlasError('날짜와 시간을 입력하세요.');
+      if (!v.status) v.status = '예정';
+      if (!v.currency) v.currency = 'CNY';
+    }
     if (t === 'atlas_attend') { // 학생 × 날짜 = 1칸, 비우면 지움
       if (!v.classId || !v.studentId || !v.col) throw new AtlasError('출결 칸이 올바르지 않습니다.');
       const cur = db.prepare('SELECT id FROM atlas_attend WHERE classId = ? AND studentId = ? AND col = ?').get(v.classId, v.studentId, v.col);
@@ -159,6 +204,7 @@ function attachAtlas(db, store) {
     if (!TABLES[t]) throw new AtlasError('없는 표입니다.');
     const cur = get(t, arg.id);
     if (!cur) throw new AtlasError('이미 삭제되었습니다.', 404);
+    if (t === 'atlas_teachers' && db.prepare('SELECT 1 FROM atlas_sched WHERE teacherId = ?').get(cur.id)) throw new AtlasError('수업 일정이 있는 강사는 지울 수 없습니다. “그만둠”으로 표시해주세요.');
     if (t === 'atlas_students' || t === 'atlas_classes') db.prepare(`UPDATE ${t} SET deletedAt = ?, updatedBy = ? WHERE id = ?`).run(ts(), me.email, cur.id);
     else db.prepare(`DELETE FROM ${t} WHERE id = ?`).run(cur.id);
     return { ok: true };
@@ -331,7 +377,7 @@ function attachAtlas(db, store) {
   /** Compass 학생 화면 → A 학생 */
   const compassOf = (me, arg) => db.prepare("SELECT id, name FROM atlas_students WHERE compassId = ? AND compassId != '' AND deletedAt = ''").all(String(arg && arg.compassId || ''));
 
-  return { allowed, rpc: { extractPayments, compassCandidates, linkCompass, unlinkCompass, compassOf, ping: () => ({ ok: true }), getAll, getRow, getConsults, searchConsults, getLessons, save, remove, renameCampaign, importData }, AtlasError };
+  return { allowed, rpc: { extractPayments, compassCandidates, linkCompass, unlinkCompass, compassOf, ping: () => ({ ok: true }), getAll, getSched, getRow, getConsults, searchConsults, getLessons, save, remove, renameCampaign, importData }, AtlasError };
 }
 
 module.exports = { attachAtlas, AtlasError };

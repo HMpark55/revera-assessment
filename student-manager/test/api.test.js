@@ -2558,3 +2558,32 @@ test('사건 기록: 팔로업·연락에 주제(한 줄), 답변 말풍선마�
   assert.strictEqual((await up(other, rid)).status, 404);
   assert.strictEqual((await up(sid, 'nope')).status, 404);
 });
+
+test('REVERA A 수업 일정: 강사(시급·%), 수업 칸 저장·검사, 날짜 범위로 불러오기, 일정 있는 강사는 못 지움, 수업 없는 결제', async () => {
+  const admin = client(); await admin.login('admin@revera.test', 'admin-pass-1');
+  await admin.ok('saveTeacher', { email: 'hm2@revera.test', name: '박현모', role: 'staff', password: 'temp-pass-2' });
+  const hm = client(); await hm.login('hm2@revera.test', 'temp-pass-2');
+  await hm.ok('changePassword', { current: 'temp-pass-2', next: 'mine-pass-2' });
+  const call = async (fn, arg) => { const r = await hm.req('POST', '/api/atlas/' + fn, { arg }); assert.strictEqual(r.status, 200, fn + ': ' + JSON.stringify(r.data)); return r.data; };
+  const bad = async (fn, arg) => (await hm.req('POST', '/api/atlas/' + fn, { arg })).status;
+  const s = await call('save', { table: 'atlas_students', rec: { name: '일정 학생' } });
+  const t = await call('save', { table: 'atlas_teachers', rec: { name: '안지연', payType: 'pct', payRate: '50%', zoom: '6' } });
+  assert.strictEqual(t.payRate, '50');
+  assert.strictEqual(await bad('save', { table: 'atlas_teachers', rec: { name: '안지연' } }), 400, '같은 이름');
+  assert.strictEqual(await bad('save', { table: 'atlas_teachers', rec: { name: 'x', payType: 'day' } }), 400);
+  const x = await call('save', { table: 'atlas_sched', rec: { date: '2026-10-26', start: '17:30', end: '19:30', room: 'A2', mode: 'ZOOM (상해)', teacherId: t.id, studentIds: JSON.stringify([s.id]), title: 'IB Physics HL', fee: '1,800' } });
+  assert.deepStrictEqual([x.status, x.currency, x.fee], ['예정', 'CNY', '1800']);
+  assert.strictEqual(await bad('save', { table: 'atlas_sched', rec: { date: '2026-10-26', start: '19:30', end: '17:30' } }), 400, '끝이 시작보다 빠름');
+  assert.strictEqual(await bad('save', { table: 'atlas_sched', rec: { date: '2026-10-26', start: '9시', end: '10:00' } }), 400);
+  assert.strictEqual(await bad('save', { table: 'atlas_sched', rec: { date: '2026-10-26', start: '09:00', end: '10:00', studentIds: '["nope"]' } }), 404);
+  assert.strictEqual(await bad('save', { table: 'atlas_sched', rec: { id: x.id, end: '17:00' } }), 400, '고칠 때도 시작·끝 검사');
+  await call('save', { table: 'atlas_sched', rec: { id: x.id, status: '완료', attend: JSON.stringify({ [s.id]: '출석' }), checks: JSON.stringify({ teacher: '2026-10-25' }) } });
+  await call('save', { table: 'atlas_sched', rec: { date: '2026-11-02', start: '17:30', end: '19:30', teacherId: t.id } });
+  let l = await call('getSched', { from: '2026-10-01', to: '2026-10-31' });
+  assert.deepStrictEqual(l.map((r) => [r.date, r.status]), [['2026-10-26', '완료']]);
+  assert.strictEqual(await bad('getSched', { from: '2026-01-01', to: '2027-06-01' }), 400, '1년 넘게는 안 됨');
+  assert.strictEqual(await bad('remove', { table: 'atlas_teachers', id: t.id }), 400, '일정 있는 강사');
+  assert.ok((await call('getAll')).teachers.some((r) => r.id === t.id));
+  const p = await call('save', { table: 'atlas_payments', rec: { studentId: s.id, classId: '', date: '2026-10-20', amount: '6000', currency: 'CNY' } });
+  assert.strictEqual(p.classId, '', '수업을 고르지 않은 결제도 저장');
+});
