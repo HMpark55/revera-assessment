@@ -687,8 +687,8 @@ var TERMS_INTAKE = ['9월', '8월', '3월', '1월'];
 var GRADE_ALL = ['K'].concat([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(function (n) { return 'G' + n; }), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13].map(function (n) { return 'Y' + n; }));
 var MAJOR_STATUS = ['후보', '유력', '최종', '제외'];
 var MEETING_TYPES = ['대면', 'ZOOM', '전화', '위챗'];
-/** 답변한 사람 — 우리 쪽은 담당 선생님·관리팀 */
-var REPLY_FROM = ['학생', '어머님', '아버님', '담당 선생님', '관리팀', '기타'];
+/** 답변한 사람 — 우리 쪽은 원장님·담당 선생님·컨설턴트·관리팀 */
+var REPLY_FROM = ['학생', '어머님', '아버님', '원장님', '담당 선생님', '컨설턴트', '관리팀', '기타'];
 var CONTACT_FROM = ['학생', '어머님', '아버님', '학부모', '학교', '기타'];
 var CONTACT_CHANNELS = ['위챗', '카톡', '왓츠앱', '전화', '대면', '기타'];
 var ACCOUNT_CATS = ['원서 포털', '시험', '학교 LMS', '기타'];
@@ -2889,13 +2889,13 @@ function submitRequest(id) {
   }).catch(function (e) { toast(errMsg(e), true); });
 }
 /* ----- 답변 주고받은 기록: 팔로업·받은 연락 하나에 학생 → 우리 → 어머님 … 이어서 ----- */
-var OUR_SIDE = { '담당 선생님': 1, '관리팀': 1, '담당자': 1 };
+var OUR_SIDE = { '원장님': 1, '담당 선생님': 1, '컨설턴트': 1, '관리팀': 1, '담당자': 1 };
 function repliesOf(fid) {
   return (S.fureplies || []).filter(function (x) { return x.followupId === fid; })
     .sort(function (a, b) { return (a.date || a.createdAt.slice(0, 10)).localeCompare(b.date || b.createdAt.slice(0, 10)) || a.createdAt.localeCompare(b.createdAt); });
 }
-/** 우리 쪽 답변은 쓴 선생님 이름도 같이 */
-function replyWho(x) { return OUR_SIDE[x.who] ? x.who + ' ' + teacherName(x.createdBy) : x.who; }
+/** 우리 쪽 답변은 쓴 선생님 이름도 같이 (원장님은 대신 적는 경우가 많아 이름 없이) */
+function replyWho(x) { return OUR_SIDE[x.who] && x.who !== '원장님' ? x.who + ' ' + teacherName(x.createdBy) : x.who; }
 function openThread(fid) {
   var f = findRow('followups', fid); if (!f) return toast('팔로업을 찾을 수 없습니다. 새로고침 해주세요.', true);
   var s = studentById(f.studentId), reps = repliesOf(fid), contact = f.kind === 'contact';
