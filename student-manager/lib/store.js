@@ -158,7 +158,9 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 /** 달력 자동 표시 항목 (키, 처음 색) — 화면 이름은 원장님 미팅·다음 미팅·지원 마감 */
 const AUTO_CATS = [['sched', '#7c5cc4'], ['nextmeet', '#0b1b45'], ['deadline', '#9ca3af']];
 const { SUBJECTS, KIND_CATS, LEVEL_CATS } = require('./subjects');
-const OPTION_KINDS = { subject: '과목', school: '학교', curriculum: '커리큘럼', site: '사이트', evcat: '일정 분류', track: '트랙', doccat: '서류 분류', pgcat: '대회·프로그램 분류', tz: '시간대' }; // tz: value = 화면 이름, category = 세계 시간대(IANA), fullName = 같은 시간을 쓰는 도시
+const OPTION_KINDS = { subject: '과목', school: '학교', curriculum: '커리큘럼', site: '사이트', evcat: '일정 분류', track: '트랙', doccat: '서류 분류', pgcat: '대회·프로그램 분류', fucat: '팔로업 분류', tz: '시간대' }; // tz: value = 화면 이름, category = 세계 시간대(IANA), fullName = 같은 시간을 쓰는 도시
+/** 팔로업 분류 초기값 (목록 관리 › 팔로업 분류) — 팔로업·받은 연락을 분류별로 묶어 봄 */
+const DEFAULT_FUCATS = ['서류', '에세이', '추천서', '시험·성적', '원서·지원', '학교 생활', '상담·미팅', '기타'];
 const DEFAULT_PGCATS = ['에세이 대회', '수학·과학 대회', '경시·올림피아드', '리서치', '서머 프로그램', '봉사·활동', '기타'];
 /** 서류 분류 초기값 (목록 관리 › 서류 분류) — 성적·학력 탭 파일과 서류 탭 항목에 씀 */
 const DEFAULT_DOCCATS = ['재학증명서', '성적증명서', '졸업증명서', '어학증빙', '표준화학력(SAT·AP·IB)', '지원자격증빙(출입국·여권 등)', '기타(학사일정표·고교 프로파일 등)'];
@@ -188,7 +190,7 @@ const STUDENT_COLS = ['school', 'consult', 'todo', 'contacts', 'nextMeet', 'dead
 const OLD_PACKAGES = { '홍콩 패키지': '홍콩', '한국 3특': '3년특례', '한국 12특': '12년특례' };
 const DEFAULT_TRACKS = ['3년특례', '12년특례', '홍콩', '싱가폴', '미국', '캐나다', '영국', '일본', '한국 일반', '기타'];
 /** 목록 이름을 바꾸면 함께 바뀌는 곳 */
-const OPTION_TARGET = { school: ['students', 'school'], curriculum: ['students', 'curriculum'], site: ['accounts', 'site'], evcat: ['events', 'category'], track: ['students', 'tracks'], doccat: ['files', 'category'], pgcat: ['programs', 'category'] };
+const OPTION_TARGET = { school: ['students', 'school'], curriculum: ['students', 'curriculum'], site: ['accounts', 'site'], evcat: ['events', 'category'], track: ['students', 'tracks'], doccat: ['files', 'category'], pgcat: ['programs', 'category'], fucat: ['followups', 'category'] };
 const ACCOUNT_CATS = ['원서 포털', '시험', '학교 LMS', '기타'];
 /** 메인 화면 공용 달력의 일정 분류 */
 /** 달력 일정 분류 초기값 (목록 관리 › 일정 분류에서 이름·색·순서 변경) */
@@ -622,6 +624,17 @@ function migrate(db) {
         .run(crypto.randomUUID(), 'pgcat', v, String(i + 1), ts, 'system', ts, 'system');
     });
     db.prepare("INSERT INTO meta VALUES ('v22_pgcats', ?)").run(ts);
+  }
+  // v37: 팔로업 분류 (자유 입력 주제 대신 정해진 분류에서 고름 — 처음 목록 + 이미 쓰던 분류)
+  if (!db.prepare("SELECT 1 FROM meta WHERE key = 'v37_fucats'").get()) {
+    const ts = now();
+    const used = db.prepare("SELECT DISTINCT category v FROM followups WHERE category != '' AND deletedAt = ''").all().map((r) => r.v);
+    [...new Set(DEFAULT_FUCATS.concat(used))].forEach((v, i) => {
+      if (db.prepare("SELECT 1 FROM options WHERE kind = 'fucat' AND value = ?").get(v)) return;
+      db.prepare('INSERT INTO options (id, kind, value, sortOrder, createdAt, createdBy, updatedAt, updatedBy) VALUES (?,?,?,?,?,?,?,?)')
+        .run(crypto.randomUUID(), 'fucat', v, String(i + 1), ts, 'system', ts, 'system');
+    });
+    db.prepare("INSERT INTO meta VALUES ('v37_fucats', ?)").run(ts);
   }
   ensureColumns(db, 'programs', ['name', 'category', 'target', 'schedule', 'deadline', 'url', 'memo', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy']);
   // v23: "성적·재학·졸업 증명서" 칸을 서류 목록으로 합침 — 서류 줄에 안 묶인 학생 파일을 학생·분류별 서류 줄(수합 완료)로.
