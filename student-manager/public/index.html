@@ -488,7 +488,8 @@
   .wg > .wbody { container-type:inline-size; }
   @container (max-width:600px) { .fu { flex-wrap:wrap; } .fu .t { flex:1 1 calc(100% - 60px); } .fu-acts { width:100%; justify-content:flex-end; flex-wrap:wrap; } }
   .thread { display:flex; flex-direction:column; gap:6px; max-height:46vh; overflow:auto; }
-  .th-item { border:1px solid #e6e2f2; background:#f7f5fc; border-radius:8px; padding:6px 10px; margin-right:40px; }
+  .th-item { border:1px solid #e6e2f2; background:#f7f5fc; border-radius:12px 12px 12px 4px; padding:6px 10px; align-self:flex-start; max-width:78%; min-width:200px; } /* 채팅방처럼: 상대 쪽 왼쪽, 우리 쪽 오른쪽 */
+  .th-item:has(.fr-edit) { align-self:stretch; max-width:none; }
   .th-files { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; align-items:center; }
   .th-files .shot img { max-height:64px; }
   .th-acts label.ibtn { cursor:pointer; }
@@ -504,7 +505,7 @@
   .fu-hits { margin:-2px 0 8px 34px; padding:6px 10px; border-left:3px solid #f1dca6; background:#fffbf0; font-size:.85rem; cursor:pointer; display:flex; flex-direction:column; gap:4px; }
   .fu-hits mark { background:#ffe58a; padding:0 1px; }
   .hit-r.ours b { color:#1d6b46; }
-  .th-item.ours { background:#f0f7f2; border-color:#d6eadb; margin:0 0 0 40px; }
+  .th-item.ours { background:#f0f7f2; border-color:#d6eadb; align-self:flex-end; border-radius:12px 12px 4px 12px; }
   .th-h { display:flex; gap:6px; align-items:center; font-size:.82rem; }
   .th-h .ibtn { margin-left:auto; }
   td.clip1 { max-width:260px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -2945,7 +2946,7 @@ function replyAttach(list, rid, fid) {
   upReplyFiles(x.studentId, { replyId: rid }, Array.prototype.slice.call(list || [])).then(function (n) { if (n) { refreshThread(fid); render(); toast('파일 ' + n + '개를 이 답변에 붙였습니다.'); } });
 }
 /** 새 답변에 붙일 파일 (답변을 추가할 때 함께 올라감) */
-function replyPendBtn() { return '<label class="btn ghost sm" title="이 답변에 붙일 파일·캡처 (내용 칸에서 Ctrl+V로 캡처 붙여넣기도 됨)">📎 파일<input type="file" multiple hidden accept="' + ACCEPT_FILES + '" onchange="addReplyPend(this.files);this.value=\'\'"></label>'; }
+function replyPendBtn() { return '<label class="btn ghost sm" style="display:inline-flex;width:auto;margin:0" title="이 답변에 붙일 파일·캡처 (내용 칸에서 Ctrl+V로 캡처 붙여넣기도 됨)">📎 파일<input type="file" multiple hidden accept="' + ACCEPT_FILES + '" onchange="addReplyPend(this.files);this.value=\'\'"></label>'; }
 function replyPendBox() { UI.replyPend = []; return '<div class="th-files" id="fr-pend"></div>'; }
 function addReplyPend(list) {
   Array.prototype.forEach.call(list || [], function (f) {
@@ -2971,7 +2972,7 @@ function openThread(fid) {
   var f = findRow('followups', fid); if (!f) return toast('팔로업을 찾을 수 없습니다. 새로고침 해주세요.', true);
   var s = studentById(f.studentId), reps = repliesOf(fid), contact = f.kind === 'contact';
   modal('💬 답변 — ' + s.name,
-    '<div class="full">' + (f.topic ? '<div class="topic">🗂 ' + esc(f.topic) + '</div> ' : '') + '<b>' + esc(f.title) + '</b>' + (contact ? '<div class="muted">📩 ' + esc([f.fromWho, f.channel, f.receivedDate && fmtD(f.receivedDate)].filter(Boolean).join(' · ')) + '</div>' : '') +
+    '<div class="full">' + (f.topic ? '<div class="topic" style="margin-right:6px">🗂 ' + esc(f.topic) + '</div>' : '') + '<b>' + esc(f.title) + '</b>' + (contact ? '<div class="muted">📩 ' + esc([f.fromWho, f.channel, f.receivedDate && fmtD(f.receivedDate)].filter(Boolean).join(' · ')) + '</div>' : '') +
       (f.detail && f.detail.trim() !== f.title ? '<div class="muted" style="white-space:pre-wrap;max-height:120px;overflow:auto">' + esc(f.detail) + '</div>' : '') + '</div>' +
     '<div class="full thread">' + threadItems(fid) + '</div>' +
     '<div class="full" style="border-top:1px solid #eee;padding-top:8px"><b>답변 추가</b></div>' +
