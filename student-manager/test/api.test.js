@@ -2615,3 +2615,29 @@ test('REVERA A 수업 일정 가져오기(atlas-sched-v1): 학생 이름 연결(
   assert.ok(l.some((r) => r.id === manual.id));
   assert.strictEqual((await hm.req('POST', '/api/atlas/importSched', { arg: { data: { format: 'x' } } })).status, 400);
 });
+
+test('팔로업 서식(할 일·세부·받은 내용): 허용한 서식만, 일반 글은 서식에서 다시 만듦, 일반 글만 고치면 서식은 버림 · 위젯 순서 저장', async () => {
+  const admin = client(); await admin.login('admin@revera.test', 'admin-pass-1');
+  const sid = (await admin.saveOk('students', { name: '서식학생' })).savedId;
+  let d = await admin.saveOk('followups', { studentId: sid, title: 'x', titleHtml: '<b>1. 성적표</b><br><span style="color: #d9534f" onclick="alert(1)">2. 추천서</span><script>alert(1)</script>', detail: 'y', detailHtml: '<s>끝남</s><div>남음</div>', status: '할 일' });
+  let f = d.followups.find((x) => x.id === d.savedId);
+  assert.strictEqual(f.title, '1. 성적표\n2. 추천서');
+  assert.ok(!/onclick|script/.test(f.titleHtml) && /<b>1\. 성적표<\/b>/.test(f.titleHtml) && /color: #d9534f/.test(f.titleHtml));
+  assert.deepStrictEqual([f.detail, /<s>끝남<\/s>/.test(f.detailHtml)], ['끝남\n남음', true]);
+  d = await admin.saveOk('followups', { id: f.id, updatedAt: f.updatedAt, title: '✓ 1. 성적표\n2. 추천서' });
+  f = d.followups.find((x) => x.id === f.id);
+  assert.deepStrictEqual([f.title, f.titleHtml, !!f.detailHtml], ['✓ 1. 성적표\n2. 추천서', '', true], '일반 글만 고치면 그 칸 서식만 버림');
+  const c = await admin.saveOk('followups', { studentId: sid, kind: 'contact', fromWho: '학생', channel: '위챗', title: '받은 첫 줄', detail: '', detailHtml: '받은 <b>첫 줄</b><br>둘째', status: '할 일' });
+  assert.strictEqual(c.followups.find((x) => x.id === c.savedId).detail, '받은 첫 줄\n둘째');
+  const g = await admin.saveOk('followups', { studentId: sid, title: '두번째', status: '할 일' });
+  const h = await admin.saveOk('followups', { studentId: sid, title: '세번째', status: '할 일' });
+  const before = g.followups.find((x) => x.id === f.id).updatedAt;
+  d = await admin.ok('saveOrder', { kind: 'followups', ids: [h.savedId, f.id] });
+  d = await admin.ok('saveOrder', { kind: 'followups', ids: [g.savedId, f.id] });
+  assert.deepStrictEqual(d.me.fuOrder, [g.savedId, f.id, h.savedId], '끈 화면 순서가 앞, 예전에 정한 것은 뒤에 그대로');
+  assert.strictEqual(d.followups.find((x) => x.id === f.id).updatedAt, before, '순서만 바꾸면 고친 시각은 그대로');
+  await admin.ok('saveTeacher', { email: 'order2@revera.test', name: '순서', role: 'staff', password: 'pass-4900' });
+  const other = client(); await other.login('order2@revera.test', 'pass-4900');
+  assert.deepStrictEqual((await other.ok('getAll')).me.fuOrder, [], '다른 계정의 순서는 따로');
+  assert.strictEqual((await admin.rpc('saveOrder', { kind: 'followups', ids: ['nope'] })).status, 404);
+});

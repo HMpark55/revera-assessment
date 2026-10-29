@@ -98,7 +98,7 @@ const TABLES = {
     label: '팔로업',
     fields: ['studentId', 'title', 'detail', 'category', 'assignee', 'due', 'status', 'reply', 'replyDate', 'replyFrom', 'meetingId', 'noteId',
       'kind', 'fromWho', 'channel', 'receivedDate', 'answer', 'answerDate', 'groupId',
-      'remindAt', 'remindTo', 'topic'], // topic: 주제 한 줄 (같은 학생의 같은 주제끼리 한 사건으로 묶임), remindAt: 알림 시각(한국 시간 'YYYY-MM-DDTHH:MM'), remindTo: 받는 사람 ('@assignee' = 그때의 담당자, 쉼표로 이메일 추가)
+      'remindAt', 'remindTo', 'topic', 'titleHtml', 'detailHtml'], // titleHtml·detailHtml: 할 일·세부(받은) 내용의 서식(글자색·굵게·취소선), 일반 글(title·detail)은 저장할 때 서식에서 다시 만듦 / topic: 주제 한 줄 (같은 학생의 같은 주제끼리 한 사건으로 묶임), remindAt: 알림 시각(한국 시간 'YYYY-MM-DDTHH:MM'), remindTo: 받는 사람 ('@assignee' = 그때의 담당자, 쉼표로 이메일 추가)
     summary: (r) => [r.title, r.status].filter(Boolean).join(' · '),
   },
   fureplies: { // 팔로업·받은 연락에 이어지는 답변 (학생 → 우리 → 어머님 …)
@@ -379,7 +379,8 @@ function migrate(db) {
   db.exec('CREATE INDEX IF NOT EXISTS unirounds_uni ON unirounds(universityId)');
   db.exec('CREATE INDEX IF NOT EXISTS unimajors_uni ON unimajors(universityId)');
   ensureColumns(db, 'files', ['mime', 'size', 'storedName', 'docId', 'meetingId', 'followupId', 'scoreId']);
-  ensureColumns(db, 'files', ['replyId']); // 팔로업·연락의 어느 답변(말풍선)에 붙은 파일인지
+  ensureColumns(db, 'files', ['replyId']);
+  ensureColumns(db, 'teachers', ['fuOrder']); // 메인 위젯에서 끌어서 정한 내 팔로업 순서 (팔로업 id JSON 배열, 계정마다 따로) // 팔로업·연락의 어느 답변(말풍선)에 붙은 파일인지
   ensureColumns(db, 'docs', ['receivedAt', 'receivedBy']);
   ensureColumns(db, 'contracts', ['paid']); // 이전 버전 열 (새 버전은 입금 기록으로 계산)
   db.exec('CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
@@ -1063,7 +1064,7 @@ function openStore(dbPath, opts) {
     const meRow = getTeacher(me.email) || me; // 화면 시간은 저장된 계정 정보로 (방금 바꾼 값 포함)
     const out = {
       me: { email: me.email, name: me.name, role: me.role, dev: !!me.dev, branch: accountBranch(me), tz: accountTz(meRow), branchTz: branchTz(meRow), viewTz: TZS.includes(meRow.viewTz) ? meRow.viewTz : '', mustChangePassword: !!me.mustChangePassword,
-        homeLayout: parseLayout((db.prepare('SELECT homeLayout FROM teachers WHERE email = ?').get(me.email) || {}).homeLayout), viewPrefs: parseViewPrefs(meRow.viewPrefs) },
+        homeLayout: parseLayout((db.prepare('SELECT homeLayout FROM teachers WHERE email = ?').get(me.email) || {}).homeLayout), viewPrefs: parseViewPrefs(meRow.viewPrefs), fuOrder: parseFuOrder(meRow.fuOrder) },
       homeDefault: parseLayout(getMeta('homeLayoutDefault')),
       studentCols: parseCols(getMeta('studentCols')),
       uploadMB: uploadMB(),
@@ -1245,13 +1246,17 @@ function openStore(dbPath, opts) {
     tx(() => {
       const rec = {};
       TABLES[table].fields.forEach((k) => { if (k in obj) rec[k] = clean(obj[k]); });
-      if ('contentHtml' in obj) {
-        // 서식 있는 회의록: 허용한 서식만 남기고, 검색·메일용 일반 글(content)은 여기서 다시 만듦
-        const raw = String(obj.contentHtml || '');
-        if (raw.length > 400000) throw new UserError('내용이 너무 깁니다. 나눠서 기록해주세요.');
-        const html = sanitizeRich(raw);
-        rec.content = richToText(html);
-        rec.contentHtml = hasFormatting(html) ? html : '';
+      // 서식 있는 글 (회의록·상담 내용, 팔로업 할 일·세부 내용): 허용한 서식만 남기고, 검색·메일용 일반 글은 여기서 다시 만듦
+      for (const [hk, tk] of [['contentHtml', 'content'], ['titleHtml', 'title'], ['detailHtml', 'detail']]) {
+        if (!TABLES[table].fields.includes(hk)) continue;
+        if (hk in obj) {
+          const raw = String(obj[hk] || '');
+          if (raw.length > 400000) throw new UserError('내용이 너무 깁니다. 나눠서 기록해주세요.');
+          const html = sanitizeRich(raw), text = richToText(html).replace(/\n+$/, '');
+          if (hk !== 'contentHtml' && !text.trim() && String(obj[tk] || '').trim()) { rec[hk] = ''; continue; } // 서식 칸이 비었으면 보낸 일반 글 그대로
+          rec[tk] = text;
+          rec[hk] = hasFormatting(html) ? html : '';
+        } else if (hk !== 'contentHtml' && tk in obj) rec[hk] = ''; // 일반 글만 고치면(빠른 추가·체크 등) 예전 서식은 버림
       }
       if ('counselor' in rec) rec.counselor = lower(rec.counselor);
       // 컨설턴트에게 숨겨진 칸은 새로 쓰거나 고칠 수도 없음
@@ -2051,6 +2056,13 @@ function openStore(dbPath, opts) {
       requireManager(me, '목록 관리');
       tx(() => ids.forEach((id, i) => db.prepare("UPDATE options SET sortOrder = ?, updatedAt = ?, updatedBy = ? WHERE id = ? AND kind = 'evauto'").run(String(i + 1), t, me.email, String(id))));
       log(me.email, 'update', 'options', '', '달력 자동 표시 순서 변경');
+    } else if (arg.kind === 'followups') { // 메인 위젯의 팔로업 순서 — 계정마다 따로 (끈 화면의 순서를 앞에, 예전에 정한 다른 팔로업은 그 뒤에 그대로)
+      const rows = ids.map((id) => getRow('followups', id));
+      rows.forEach((r) => { if (!r || r.deletedAt) throw new UserError('팔로업을 찾을 수 없습니다. 새로고침 해주세요.', 404); requireStudent(me, r.studentId); });
+      const now_ = rows.map((r) => r.id), prev = parseFuOrder((db.prepare('SELECT fuOrder FROM teachers WHERE email = ?').get(me.email) || {}).fuOrder);
+      const open = new Set(db.prepare("SELECT id FROM followups WHERE deletedAt = '' AND status != '완료'").all().map((r) => r.id)); // 끝난 팔로업은 순서에서 정리
+      const next = now_.concat(prev.filter((id) => !now_.includes(id) && open.has(id))).slice(0, 1000);
+      db.prepare('UPDATE teachers SET fuOrder = ? WHERE email = ?').run(JSON.stringify(next), me.email);
     } else if (arg.kind === 'universities') {
       requireManager(me, '대학 순서 변경');
       tx(() => ids.forEach((id, i) => db.prepare('UPDATE universities SET sortOrder = ?, updatedAt = ?, updatedBy = ? WHERE id = ?').run(String(i + 1), t, me.email, String(id))));
@@ -2201,6 +2213,7 @@ function openStore(dbPath, opts) {
     db.prepare('UPDATE teachers SET viewPrefs = ? WHERE email = ?').run(JSON.stringify(o), me.email);
     return { ok: true, viewPrefs: o };
   }
+  function parseFuOrder(v) { try { const a = JSON.parse(v || '[]'); return Array.isArray(a) ? a.filter((x) => typeof x === 'string').slice(0, 1000) : []; } catch (e) { return []; } }
   function parseLayout(v) { try { const x = JSON.parse(v || 'null'); return Array.isArray(x) ? x : null; } catch (e) { return null; } }
   /** [{ id, s: '가로칸x세로칸'(예: 2x3), hide, ts: 제목 크기 ''|'l'|'xl', tc: 제목 색, bg: 배경색 }] 만 받음. 빈칸은 id 가 gap1, gap2 … */
   function cleanLayout(list) {
