@@ -49,6 +49,7 @@ function createApp(store, opts) {
   // 가져오기 파일(회의록 첨부 이미지 포함)은 크기가 커서 따로 허용
   app.use('/api/rpc/importData', express.json({ limit: '60mb' }));
   app.use('/api/atlas/importData', express.json({ limit: '60mb' }));
+  app.use('/api/atlas/importSched', express.json({ limit: '20mb' }));
   app.use(express.json({ limit: '5mb' }));
 
   // 클라우드 상태 확인용 (DB 연결까지 확인)

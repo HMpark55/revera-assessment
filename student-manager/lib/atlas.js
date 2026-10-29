@@ -50,6 +50,7 @@ function attachAtlas(db, store) {
   }
 
   if (!new Set(db.prepare('PRAGMA table_info(atlas_consults)').all().map((c) => c.name)).has('src')) db.exec("ALTER TABLE atlas_consults ADD COLUMN src TEXT DEFAULT ''");
+  if (!new Set(db.prepare('PRAGMA table_info(atlas_sched)').all().map((c) => c.name)).has('src')) db.exec("ALTER TABLE atlas_sched ADD COLUMN src TEXT DEFAULT ''"); // 'sheet' = Classroom Assignment 시트에서 가져옴
   if (!new Set(db.prepare('PRAGMA table_info(atlas_students)').all().map((c) => c.name)).has('compassId')) db.exec("ALTER TABLE atlas_students ADD COLUMN compassId TEXT DEFAULT ''"); // Compass 학생과 연결
 
   const extra = String(process.env.ATLAS_EMAILS || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
@@ -332,6 +333,62 @@ function attachAtlas(db, store) {
     return n;
   }
 
+  /**
+   * 수업 일정 가져오기 (atlas-sched-v1, Classroom Assignment 시트를 바꾼 파일): 그 기간에 시트에서 가져왔던 칸만 지우고 새로 넣음
+   * (A에서 직접 넣은 수업은 그대로). 학생은 이름이 하나뿐인 학생과 연결(동명이인은 연결 안 하고 글로 남김), 없는 강사는 새로 만듦. dryRun 이면 세기만.
+   */
+  function importSched(me, arg) {
+    const data = arg && arg.data;
+    if (!data || data.format !== 'atlas-sched-v1' || !Array.isArray(data.rows)) throw new AtlasError('수업 일정 가져오기 파일이 아닙니다.');
+    if (!DATE.test(data.from || '') || !DATE.test(data.to || '') || data.to < data.from) throw new AtlasError('파일의 날짜 범위가 올바르지 않습니다.');
+    const key = (x) => String(x || '').replace(/\s+/g, '').toLowerCase();
+    const byName = new Map();
+    db.prepare("SELECT id, name FROM atlas_students WHERE deletedAt = ''").all().forEach((s) => { const k = key(s.name); if (k.length >= 2) byName.set(k, byName.has(k) ? null : s.id); });
+    const tByName = new Map(db.prepare('SELECT * FROM atlas_teachers').all().map((t) => [t.name, t]));
+    const n = { rows: 0, replaced: 0, manual: 0, matched: 0, same: 0, newTeachers: [], fee: {}, done: 0, sameNames: [] };
+    n.replaced = db.prepare("SELECT COUNT(*) n FROM atlas_sched WHERE src = 'sheet' AND date >= ? AND date <= ?").get(data.from, data.to).n;
+    n.manual = db.prepare("SELECT COUNT(*) n FROM atlas_sched WHERE src != 'sheet' AND date >= ? AND date <= ?").get(data.from, data.to).n;
+    const sameNames = new Set();
+    const run = () => {
+      const at = ts();
+      if (!arg.dryRun) db.prepare("DELETE FROM atlas_sched WHERE src = 'sheet' AND date >= ? AND date <= ?").run(data.from, data.to);
+      for (const t of data.teachers || []) {
+        const name = clean(t.name, 100).trim(); if (!name || tByName.has(name)) continue;
+        n.newTeachers.push(name);
+        const r = { id: crypto.randomUUID(), name, zoom: clean(t.zoom, 20), payType: '', payRate: '', phone: '', memo: '시트에서 가져옴', off: '', createdAt: at, createdBy: me.email, updatedAt: at, updatedBy: me.email };
+        if (!arg.dryRun) { const k = Object.keys(r); db.prepare(`INSERT INTO atlas_teachers (${k.join(', ')}) VALUES (${k.map((x) => '@' + x).join(', ')})`).run(r); }
+        tByName.set(name, r);
+      }
+      const ins = db.prepare('INSERT INTO atlas_sched (id, date, start, end, room, mode, teacherId, classId, studentIds, title, fee, currency, status, attend, checks, memo, payAmt, src, createdAt, createdBy, updatedAt, updatedBy) ' +
+        "VALUES (@id, @date, @start, @end, @room, @mode, @teacherId, '', @studentIds, @title, @fee, 'CNY', @status, '{}', @checks, @memo, '', 'sheet', @at, @by, @at, @by)");
+      for (const x of data.rows) {
+        if (!DATE.test(x.date || '') || x.date < data.from || x.date > data.to || !HM.test(x.start || '') || !HM.test(x.end || '')) continue;
+        const ids = [], rest = [];
+        for (const line of (Array.isArray(x.lines) ? x.lines : []).map((l) => clean(l, 300).trim()).filter(Boolean)) {
+          // 줄 전체 또는 앞 단어(공백·괄호 앞)가 학생 이름 — "김규리", "신진우 (독일)", "배하람 SAS G12", "압구 김예원"
+          const toks = [line].concat(line.split(/[\s()]+/).filter(Boolean).slice(0, 2));
+          const hit = toks.map((t) => [t, byName.get(key(t))]).find((p) => p[1] !== undefined);
+          if (hit && hit[1] === null) sameNames.add(hit[0]);
+          if (hit && hit[1] && !ids.includes(hit[1])) { ids.push(hit[1]); if (key(hit[0]) === key(line)) continue; }
+          rest.push(line);
+        }
+        if (ids.length) n.matched++;
+        const fee = /^\d+(\.\d+)?$/.test(String(x.fee || '')) ? String(x.fee) : '';
+        const status = SCHED_STATUS.includes(x.status) ? x.status : '예정';
+        if (fee && status === '완료') { n.fee[x.date.slice(0, 7)] = (n.fee[x.date.slice(0, 7)] || 0) + Number(fee); n.done++; }
+        const t = tByName.get(clean(x.teacher, 100).trim());
+        const checks = {}; ['teacher', 'student', 'parent', 'zoom'].forEach((k) => { if (x.checks && x.checks[k]) checks[k] = 'sheet'; });
+        n.rows++;
+        if (!arg.dryRun) ins.run({ id: crypto.randomUUID(), date: x.date, start: x.start, end: x.end, room: clean(x.room, 40), mode: MODES.includes(x.mode) ? x.mode : '대면', teacherId: t ? t.id : '',
+          studentIds: JSON.stringify(ids), title: rest.join(' · ').slice(0, 500), fee, status, checks: JSON.stringify(checks),
+          memo: [x.modeLine && !/^(오프라인|ZOOM|zoom|온라인)\s*\(?(상해|한국)?\)?$/.test(String(x.modeLine).trim()) ? clean(x.modeLine, 200) : '', clean(x.memo, 2000)].filter(Boolean).join(' / '), at, by: me.email });
+      }
+    };
+    if (arg.dryRun) run(); else db.transaction(run)();
+    n.sameNames = [...sameNames].slice(0, 30); n.same = sameNames.size;
+    return n;
+  }
+
   /* ----- 원장님 1:1 상담 → Compass (컨설팅으로 이어진 학생) ----- */
   const nname = (x) => String(x || '').replace(/\s+/g, '').toLowerCase();
   const compassRow = (id) => db.prepare("SELECT id, name, school, grade, branch, status FROM students WHERE id = ? AND deletedAt = ''").get(String(id || ''));
@@ -377,7 +434,7 @@ function attachAtlas(db, store) {
   /** Compass 학생 화면 → A 학생 */
   const compassOf = (me, arg) => db.prepare("SELECT id, name FROM atlas_students WHERE compassId = ? AND compassId != '' AND deletedAt = ''").all(String(arg && arg.compassId || ''));
 
-  return { allowed, rpc: { extractPayments, compassCandidates, linkCompass, unlinkCompass, compassOf, ping: () => ({ ok: true }), getAll, getSched, getRow, getConsults, searchConsults, getLessons, save, remove, renameCampaign, importData }, AtlasError };
+  return { allowed, rpc: { extractPayments, compassCandidates, linkCompass, unlinkCompass, compassOf, ping: () => ({ ok: true }), getAll, getSched, importSched, getRow, getConsults, searchConsults, getLessons, save, remove, renameCampaign, importData }, AtlasError };
 }
 
 module.exports = { attachAtlas, AtlasError };

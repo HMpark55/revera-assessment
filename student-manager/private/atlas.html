@@ -134,7 +134,7 @@
 <header class="top">
   <div class="brand">REVERA <span>A</span></div>
   <nav class="nav"><a data-p="home" onclick="go('home')">메인</a><a data-p="consult" onclick="go('consult')">상담 Roster</a><a data-p="sched" onclick="go('sched')">수업 일정</a><a data-p="class" onclick="go('class')">수업 Roster</a><a data-p="oneone" onclick="go('oneone')">원장님 1:1 상담</a><a data-p="pay" onclick="go('pay')">결제</a><a data-p="rev" onclick="go('rev')">매출·강사 페이</a></nav>
-  <label class="back" style="margin-left:auto;cursor:pointer" title="구글 시트에서 바꾼 가져오기 파일(.json)">⬆ 가져오기<input type="file" accept=".json,application/json" style="display:none" onchange="importFile(this)"></label>
+  <label class="back" style="margin-left:auto;cursor:pointer" title="구글 시트(상담·수업 Roster, Classroom Assignment)에서 바꾼 가져오기 파일(.json)">⬆ 가져오기<input type="file" accept=".json,application/json" style="display:none" onchange="importFile(this)"></label>
   <a class="back" style="margin-left:0" href="/#/home">← Compass로 돌아가기</a>
 </header>
 <main id="main"><div class="empty">불러오는 중…</div></main>
@@ -869,7 +869,7 @@ function dayGrid(d) {
 function blockHtml(x) {
   var t = teacherOf(x), st = schStudents(x), c = jsonOf(x.checks, {});
   return '<div class="blk ' + stCls(x) + '" onclick="openSess(' + js(x.id) + ')"><div class="bt">' + esc(x.start) + '–' + esc(x.end) + (x.mode && x.mode !== '대면' ? ' · ' + esc(x.mode) : '') + '</div>' +
-    '<div class="bn">' + esc(st.map(function (s) { return s.name; }).join(', ') || '(학생 없음)') + '</div>' + (x.title ? '<div>' + esc(x.title) + '</div>' : '') +
+    (st.length ? '<div class="bn">' + esc(st.map(function (s) { return s.name; }).join(', ')) + '</div>' + (x.title ? '<div>' + esc(x.title) + '</div>' : '') : '<div class="bn">' + esc(x.title || '(학생 없음)') + '</div>') + // 특강·반 수업은 학생 대신 수업 이름
     '<div class="muted">' + esc([t && t.name ? t.name + ' 쌤' : '', x.fee ? money(x.fee, x.currency) : ''].filter(Boolean).join(' · ')) + '</div>' +
     '<div class="ck">' + CHECKS.filter(function (k) { return k[0] !== 'zoom' || needZoom(x); }).map(function (k) { return '<span class="' + (c[k[0]] ? 'on' : '') + '" title="' + k[1] + ' 리마인드 ' + (c[k[0]] ? '보냄' : '안 보냄') + '">' + k[1].slice(0, 1) + '</span>'; }).join('') + stChip(x) + '</div>' +
     (x.memo ? '<div class="bm">' + esc(x.memo) + '</div>' : '') + '</div>';
@@ -1046,6 +1046,7 @@ function importFile(inp) {
   rd.onload = function () {
     try { IMPORT = JSON.parse(rd.result); } catch (e) { return toast('파일을 읽지 못했습니다.', true); }
     toast('확인하는 중…');
+    if (IMPORT && IMPORT.format === 'atlas-sched-v1') return schedPreview();
     importPreview(false);
   };
   rd.readAsText(f);
@@ -1060,6 +1061,27 @@ function importPreview(replace) {
         '<div class="muted" style="margin-top:8px;font-size:.8rem">같은 파일을 다시 가져와도 학생·상담 기록·수업이 두 번 생기지 않습니다.</div>' +
         '<div style="display:flex;gap:6px;margin-top:12px;justify-content:flex-end"><button class="btn ghost" onclick="IMPORT=null;closeOv()">취소</button><button class="btn" id="imp-go" onclick="importGo()">가져오기</button></div></div></div>';
     }).catch(function (e) { toast(e.message, true); });
+}
+/* 수업 일정 가져오기 (Classroom Assignment 시트) */
+function schedPreview() {
+  api('importSched', { data: IMPORT, dryRun: true }).then(function (n) {
+    var ms = Object.keys(n.fee).sort();
+    $('ov').innerHTML = '<div class="ov center"><div class="panel" style="width:min(620px,100%)"><h3>수업 일정 가져오기 확인</h3>' +
+      '<div class="muted" style="margin:-6px 0 10px;font-size:.85rem">' + esc(IMPORT.from + ' ~ ' + IMPORT.to) + ' · Classroom Assignment 시트</div>' +
+      '<table class="sheet" style="min-width:0;width:100%"><tbody>' + [['수업 칸', n.rows], ['학생과 연결된 칸', n.matched], ['출결 완료 + 수강료 있는 칸', n.done], ['새로 만들 강사', n.newTeachers.length + (n.newTeachers.length ? ' (' + n.newTeachers.join(', ') + ')' : '')],
+        ['전에 시트에서 가져와서 바꿀 칸', n.replaced], ['이 기간에 A에서 직접 넣은 칸 (그대로 둠)', n.manual]]
+        .map(function (r) { return '<tr><td class="ro">' + r[0] + '</td><td class="ro" style="text-align:right"><b>' + esc(r[1]) + '</b></td></tr>'; }).join('') + '</tbody></table>' +
+      (ms.length ? '<h3 style="margin:14px 0 6px;font-size:.95rem">월별 수업 매출 (수업한 날짜 기준)</h3><table class="sheet" style="min-width:0;width:100%"><tbody>' + ms.map(function (m) { return '<tr><td class="ro">' + m + '</td><td class="ro" style="text-align:right">' + money(n.fee[m], 'CNY') + '</td></tr>'; }).join('') + '</tbody></table>' : '') +
+      (n.same ? '<div class="muted" style="margin-top:8px;font-size:.8rem">상담 Roster에 같은 이름이 여러 명이라 연결하지 않은 이름 ' + n.same + '개 (수업 이름 칸에 글로 남김): ' + esc(n.sameNames.join(', ')) + '</div>' : '') +
+      (n.manual ? '<div class="muted" style="margin-top:6px;font-size:.8rem;color:#b45309">이 기간에 A에서 직접 넣은 수업이 있으면 시트 것과 겹쳐 두 번 보일 수 있습니다.</div>' : '') +
+      '<div class="muted" style="margin-top:8px;font-size:.8rem">같은 파일을 다시 가져오면 시트에서 가져온 칸만 바뀌고 두 번 생기지 않습니다. 강사 페이 방식은 “매출·강사 페이 → 강사 관리”에서 정해주세요.</div>' +
+      '<div style="display:flex;gap:6px;margin-top:12px;justify-content:flex-end"><button class="btn ghost" onclick="IMPORT=null;closeOv()">취소</button><button class="btn" id="imp-go" onclick="schedGo()">가져오기</button></div></div></div>';
+  }).catch(function (e) { toast(e.message, true); });
+}
+function schedGo() {
+  $('imp-go').disabled = true; $('imp-go').textContent = '가져오는 중…';
+  api('importSched', { data: IMPORT }).then(function (n) { IMPORT = null; closeOv(); SCH = { from: '', to: '', list: [] }; toast('수업 ' + n.rows + '칸을 가져왔습니다.'); load(); })
+    .catch(function (e) { toast(e.message, true); $('imp-go').disabled = false; $('imp-go').textContent = '가져오기'; });
 }
 function importGo() {
   var rep = !!($('imp-rep') && $('imp-rep').checked);

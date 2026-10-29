@@ -2587,3 +2587,31 @@ test('REVERA A 수업 일정: 강사(시급·%), 수업 칸 저장·검사, 날�
   const p = await call('save', { table: 'atlas_payments', rec: { studentId: s.id, classId: '', date: '2026-10-20', amount: '6000', currency: 'CNY' } });
   assert.strictEqual(p.classId, '', '수업을 고르지 않은 결제도 저장');
 });
+
+test('REVERA A 수업 일정 가져오기(atlas-sched-v1): 학생 이름 연결(동명이인 제외), 강사 새로 만듦, 다시 가져와도 시트 칸만 바뀜', async () => {
+  const admin = client(); await admin.login('admin@revera.test', 'admin-pass-1');
+  await admin.ok('saveTeacher', { email: 'hm3@revera.test', name: '박현모', role: 'staff', password: 'temp-pass-3' });
+  const hm = client(); await hm.login('hm3@revera.test', 'temp-pass-3');
+  await hm.ok('changePassword', { current: 'temp-pass-3', next: 'mine-pass-3' });
+  const call = async (fn, arg) => { const r = await hm.req('POST', '/api/atlas/' + fn, { arg }); assert.strictEqual(r.status, 200, fn + ': ' + JSON.stringify(r.data)); return r.data; };
+  const s1 = await call('save', { table: 'atlas_students', rec: { name: '가져온학생' } });
+  await call('save', { table: 'atlas_students', rec: { name: '동명이' } }); await call('save', { table: 'atlas_students', rec: { name: '동명이' } });
+  const manual = await call('save', { table: 'atlas_sched', rec: { date: '2026-03-02', start: '09:00', end: '10:00', title: '직접 넣은 수업' } });
+  const data = { format: 'atlas-sched-v1', from: '2026-03-01', to: '2026-03-31', teachers: [{ name: '시트강사', zoom: '6' }], rows: [
+    { date: '2026-03-02', start: '17:30', end: '19:30', room: 'A2', mode: 'ZOOM (상해)', teacher: '시트강사', lines: ['가져온학생 SAS G10', 'IB Physics'], modeLine: 'ZOOM (상해)', fee: '1800', status: '완료', checks: { teacher: 'Y', student: 'Y' }, memo: '리마ok' },
+    { date: '2026-03-03', start: '10:00', end: '11:00', room: '상담실', mode: '대면', teacher: '', lines: ['동명이', '미팅'], modeLine: '', fee: '', status: '완료', checks: {}, memo: '' },
+    { date: '2026-04-01', start: '10:00', end: '11:00', room: 'A1', lines: ['범위 밖'], status: '완료' }] };
+  let n = await call('importSched', { data, dryRun: true });
+  assert.deepStrictEqual([n.rows, n.matched, n.done, n.newTeachers, n.manual, n.sameNames], [2, 1, 1, ['시트강사'], 1, ['동명이']]);
+  await call('importSched', { data });
+  let l = await call('getSched', { from: '2026-03-01', to: '2026-03-31' });
+  const x = l.find((r) => r.room === 'A2');
+  assert.deepStrictEqual([JSON.parse(x.studentIds), x.title, x.fee, x.status, x.src], [[s1.id], '가져온학생 SAS G10 · IB Physics', '1800', '완료', 'sheet']);
+  assert.ok((await call('getAll')).teachers.find((t) => t.name === '시트강사' && t.zoom === '6'));
+  n = await call('importSched', { data });
+  assert.strictEqual(n.replaced, 2, '다시 가져오면 시트 칸만 바뀜');
+  l = await call('getSched', { from: '2026-03-01', to: '2026-03-31' });
+  assert.strictEqual(l.length, 3, '시트 2칸 + 직접 넣은 1칸 (두 번 생기지 않음)');
+  assert.ok(l.some((r) => r.id === manual.id));
+  assert.strictEqual((await hm.req('POST', '/api/atlas/importSched', { arg: { data: { format: 'x' } } })).status, 400);
+});
