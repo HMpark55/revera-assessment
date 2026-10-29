@@ -2630,9 +2630,14 @@ test('팔로업 서식(할 일·세부·받은 내용): 허용한 서식만, 일
   const c = await admin.saveOk('followups', { studentId: sid, kind: 'contact', fromWho: '학생', channel: '위챗', title: '받은 첫 줄', detail: '', detailHtml: '받은 <b>첫 줄</b><br>둘째', status: '할 일' });
   assert.strictEqual(c.followups.find((x) => x.id === c.savedId).detail, '받은 첫 줄\n둘째');
   const g = await admin.saveOk('followups', { studentId: sid, title: '두번째', status: '할 일' });
+  const h = await admin.saveOk('followups', { studentId: sid, title: '세번째', status: '할 일' });
   const before = g.followups.find((x) => x.id === f.id).updatedAt;
+  d = await admin.ok('saveOrder', { kind: 'followups', ids: [h.savedId, f.id] });
   d = await admin.ok('saveOrder', { kind: 'followups', ids: [g.savedId, f.id] });
-  assert.deepStrictEqual([d.followups.find((x) => x.id === g.savedId).sortOrder, d.followups.find((x) => x.id === f.id).sortOrder], ['1', '2']);
+  assert.deepStrictEqual(d.me.fuOrder, [g.savedId, f.id, h.savedId], '끈 화면 순서가 앞, 예전에 정한 것은 뒤에 그대로');
   assert.strictEqual(d.followups.find((x) => x.id === f.id).updatedAt, before, '순서만 바꾸면 고친 시각은 그대로');
+  await admin.ok('saveTeacher', { email: 'order2@revera.test', name: '순서', role: 'staff', password: 'pass-4900' });
+  const other = client(); await other.login('order2@revera.test', 'pass-4900');
+  assert.deepStrictEqual((await other.ok('getAll')).me.fuOrder, [], '다른 계정의 순서는 따로');
   assert.strictEqual((await admin.rpc('saveOrder', { kind: 'followups', ids: ['nope'] })).status, 404);
 });

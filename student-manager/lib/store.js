@@ -380,7 +380,7 @@ function migrate(db) {
   db.exec('CREATE INDEX IF NOT EXISTS unimajors_uni ON unimajors(universityId)');
   ensureColumns(db, 'files', ['mime', 'size', 'storedName', 'docId', 'meetingId', 'followupId', 'scoreId']);
   ensureColumns(db, 'files', ['replyId']);
-  ensureColumns(db, 'followups', ['sortOrder']); // 메인 위젯에서 끌어서 정한 순서 (진행 중이 아닌 팔로업) // 팔로업·연락의 어느 답변(말풍선)에 붙은 파일인지
+  ensureColumns(db, 'teachers', ['fuOrder']); // 메인 위젯에서 끌어서 정한 내 팔로업 순서 (팔로업 id JSON 배열, 계정마다 따로) // 팔로업·연락의 어느 답변(말풍선)에 붙은 파일인지
   ensureColumns(db, 'docs', ['receivedAt', 'receivedBy']);
   ensureColumns(db, 'contracts', ['paid']); // 이전 버전 열 (새 버전은 입금 기록으로 계산)
   db.exec('CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
@@ -1064,7 +1064,7 @@ function openStore(dbPath, opts) {
     const meRow = getTeacher(me.email) || me; // 화면 시간은 저장된 계정 정보로 (방금 바꾼 값 포함)
     const out = {
       me: { email: me.email, name: me.name, role: me.role, dev: !!me.dev, branch: accountBranch(me), tz: accountTz(meRow), branchTz: branchTz(meRow), viewTz: TZS.includes(meRow.viewTz) ? meRow.viewTz : '', mustChangePassword: !!me.mustChangePassword,
-        homeLayout: parseLayout((db.prepare('SELECT homeLayout FROM teachers WHERE email = ?').get(me.email) || {}).homeLayout), viewPrefs: parseViewPrefs(meRow.viewPrefs) },
+        homeLayout: parseLayout((db.prepare('SELECT homeLayout FROM teachers WHERE email = ?').get(me.email) || {}).homeLayout), viewPrefs: parseViewPrefs(meRow.viewPrefs), fuOrder: parseFuOrder(meRow.fuOrder) },
       homeDefault: parseLayout(getMeta('homeLayoutDefault')),
       studentCols: parseCols(getMeta('studentCols')),
       uploadMB: uploadMB(),
@@ -2056,11 +2056,13 @@ function openStore(dbPath, opts) {
       requireManager(me, '목록 관리');
       tx(() => ids.forEach((id, i) => db.prepare("UPDATE options SET sortOrder = ?, updatedAt = ?, updatedBy = ? WHERE id = ? AND kind = 'evauto'").run(String(i + 1), t, me.email, String(id))));
       log(me.email, 'update', 'options', '', '달력 자동 표시 순서 변경');
-    } else if (arg.kind === 'followups') { // 메인 위젯의 팔로업 순서 (모두에게 같음) — 고친 시각은 그대로 (열려 있는 수정 창과 부딪히지 않게)
-      const up = db.prepare('UPDATE followups SET sortOrder = ? WHERE id = ?');
+    } else if (arg.kind === 'followups') { // 메인 위젯의 팔로업 순서 — 계정마다 따로 (끈 화면의 순서를 앞에, 예전에 정한 다른 팔로업은 그 뒤에 그대로)
       const rows = ids.map((id) => getRow('followups', id));
       rows.forEach((r) => { if (!r || r.deletedAt) throw new UserError('팔로업을 찾을 수 없습니다. 새로고침 해주세요.', 404); requireStudent(me, r.studentId); });
-      tx(() => rows.forEach((r, i) => up.run(String(i + 1), r.id)));
+      const now_ = rows.map((r) => r.id), prev = parseFuOrder((db.prepare('SELECT fuOrder FROM teachers WHERE email = ?').get(me.email) || {}).fuOrder);
+      const open = new Set(db.prepare("SELECT id FROM followups WHERE deletedAt = '' AND status != '완료'").all().map((r) => r.id)); // 끝난 팔로업은 순서에서 정리
+      const next = now_.concat(prev.filter((id) => !now_.includes(id) && open.has(id))).slice(0, 1000);
+      db.prepare('UPDATE teachers SET fuOrder = ? WHERE email = ?').run(JSON.stringify(next), me.email);
     } else if (arg.kind === 'universities') {
       requireManager(me, '대학 순서 변경');
       tx(() => ids.forEach((id, i) => db.prepare('UPDATE universities SET sortOrder = ?, updatedAt = ?, updatedBy = ? WHERE id = ?').run(String(i + 1), t, me.email, String(id))));
@@ -2211,6 +2213,7 @@ function openStore(dbPath, opts) {
     db.prepare('UPDATE teachers SET viewPrefs = ? WHERE email = ?').run(JSON.stringify(o), me.email);
     return { ok: true, viewPrefs: o };
   }
+  function parseFuOrder(v) { try { const a = JSON.parse(v || '[]'); return Array.isArray(a) ? a.filter((x) => typeof x === 'string').slice(0, 1000) : []; } catch (e) { return []; } }
   function parseLayout(v) { try { const x = JSON.parse(v || 'null'); return Array.isArray(x) ? x : null; } catch (e) { return null; } }
   /** [{ id, s: '가로칸x세로칸'(예: 2x3), hide, ts: 제목 크기 ''|'l'|'xl', tc: 제목 색, bg: 배경색 }] 만 받음. 빈칸은 id 가 gap1, gap2 … */
   function cleanLayout(list) {

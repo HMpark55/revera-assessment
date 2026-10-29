@@ -1791,14 +1791,15 @@ document.addEventListener('dragend', function () {
   render();
 });
 
-/* ----- 메인 위젯: 진행 중이 아닌 팔로업은 끌어서 순서 바꾸기 (순서는 모두에게 같음, followups.sortOrder) ----- */
+/* ----- 메인 위젯: 진행 중이 아닌 팔로업은 끌어서 순서 바꾸기 (순서는 계정마다 따로, teachers.fuOrder) ----- */
 function canDragFu(f) { return f.status !== '완료' && !fuProg(f); }
 function dragFu(fn) { UI._dragFu = true; try { return fn(); } finally { UI._dragFu = false; } }
 function noDragFu(fn) { var was = UI._dragFu; UI._dragFu = false; try { return fn(); } finally { UI._dragFu = was; } }
-/** 끌 수 있는 항목만 끌어서 정한 순서로 (그 항목들이 있던 자리 안에서만 바꿈, 한 번도 안 끈 새 항목이 먼저) */
+/** 끌 수 있는 항목만 내가 끌어서 정한 순서로 (계정마다 따로, 그 항목들이 있던 자리 안에서만 바꿈, 한 번도 안 끈 새 항목이 먼저) */
 function manualOrder(list, fuOf) {
+  var rank = {}; (S.me.fuOrder || []).forEach(function (id, i) { rank[id] = i + 1; });
   var slots = [], items = [];
-  list.forEach(function (x, i) { var f = fuOf(x); if (f) { slots.push(i); items.push({ x: x, k: Number(f.sortOrder) || 0, i: i }); } });
+  list.forEach(function (x, i) { var f = fuOf(x); if (f) { slots.push(i); items.push({ x: x, k: rank[f.id] || 0, i: i }); } });
   if (!items.some(function (y) { return y.k; })) return list;
   items.sort(function (a, b) { return a.k - b.k || a.i - b.i; });
   var out = list.slice(); slots.forEach(function (p, j) { out[p] = items[j].x; });
