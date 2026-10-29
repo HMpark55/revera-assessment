@@ -497,6 +497,9 @@
   .futopic { display:inline-block; font-size:.75rem; color:#5b3e00; background:#fff3d6; border:1px solid #f1dca6; border-radius:4px; padding:0 6px; flex-shrink:0; white-space:nowrap; max-width:260px; overflow:hidden; text-overflow:ellipsis; }
   .ev .scbr { font-size:.65rem; color:#6b5aa6; border:1px solid #c9bdf0; border-radius:3px; padding:0 2px; margin-right:3px; background:#fff; }
   .tl-snip { padding:2px 10px 8px 34px; font-size:.82rem; color:#4b5563; } .tl-snip mark { background:#ffe58a; padding:0 1px; }
+  .fu-prog { font-size:.72rem; color:#1f3d7a; background:#eaf0fb; border-radius:9px; padding:0 7px; flex-shrink:0; font-weight:600; } .fu-prog.all { color:#15803d; background:#dcf3e4; }
+  .fu-cl { display:flex; flex-direction:column; gap:1px; margin:3px 0 2px; } .fu-cl label { display:flex; gap:6px; align-items:flex-start; font-size:.86rem; cursor:pointer; width:fit-content; }
+  .fu-cl label input { margin-top:3px; } .fu-cl label.dn span { text-decoration:line-through; color:var(--muted); }
   .futopic b { font-weight:600; color:#a16207; margin-right:2px; }
   details.topic-g { border:1px solid var(--border); border-radius:8px; margin:8px 0; background:#fff; }
   details.topic-g > summary { display:flex; gap:10px; align-items:baseline; flex-wrap:wrap; padding:8px 10px; background:#fbf7ec; border-radius:8px; cursor:pointer; list-style:none; }
@@ -810,7 +813,7 @@ var FORMS = {
       ph: '예: HKU 심리학 PS 2차 수정 중 / 추천서 3명 확정 / 출입국사실증명서 수합 대기' }] },
   followups: { title: '팔로업', fields: [
     { k: 'topic', t: 'topic', full: 1 },
-    { k: 'title', l: '할 일', req: 1, full: 1, ph: '예: HKU Personal Statement 2차 피드백 전달' },
+    { k: 'title', l: '할 일 (Enter로 줄을 나누면 줄마다 체크할 수 있어요)', t: 'textarea', req: 1, full: 1, ph: '예: HKU Personal Statement 2차 피드백 전달\n\n여러 개를 같이 챙길 때는 줄을 나눠서\n1. 성적표 받기\n2. 추천서 확인' },
     { k: 'assignee', l: '담당자', t: 'teacher' }, { k: 'due', l: '기한', t: 'date' }, { t: 'remind', full: 1 },
     { k: 'detail', l: '세부 내용 / 학생에게 보낸 메시지', t: 'textarea', full: 1 }, { t: 'replies', full: 1 }],
     defaults: function () { return { status: '할 일', assignee: S.me.email }; } },
@@ -2834,10 +2837,11 @@ function fuRow(f, showStudent, inSource, compact) {
     '<div class="t" onclick="openForm(' + js(contact ? 'contact' : 'followups') + ',' + js(f.id) + ')" title="' + esc([f.detail, reply].filter(Boolean).join('\n')) + '">' +
       '<div class="l1"><span class="who1">' + (showStudent ? '<a href="#/student/' + esc(s.id) + '" onclick="event.stopPropagation();UI.tab=\'followups\'"><b>' + esc(s.name) + '</b></a> ' + branchPill(s) + ' · ' : '') +
         esc(teacherName(f.assignee) || '담당 미정') + '</span>' + (contact ? '<span class="ctag">📩' + (compact ? '' : ' ' + esc([f.fromWho, f.channel].filter(Boolean).join(' · ')) + (f.receivedDate ? ' ' + esc(fmtD(f.receivedDate)) : '')) + '</span>' : '') +
-        (f.topic && !compact && !UI.noTopicChip ? '<span class="futopic" title="주제 — 같은 주제끼리 한 사건으로 묶임"><b>주제</b> ' + esc(f.topic) + '</span>' : '') + '<span class="tt">' + esc(f.title) + '</span>' + (f.category && !compact ? '<span class="tag">' + esc(f.category) + '</span>' : '') +
+        (f.topic && !compact && !UI.noTopicChip ? '<span class="futopic" title="주제 — 같은 주제끼리 한 사건으로 묶임"><b>주제</b> ' + esc(f.topic) + '</span>' : '') + fuTitleHtml(f, compact) + (f.category && !compact ? '<span class="tag">' + esc(f.category) + '</span>' : '') +
         (contact && !done ? (f.status === '할 일' ? '<span class="pill d-요청함">답변 필요</span>' : fuStatusPill(f)) : !done && f.status !== '할 일' ? fuStatusPill(f) : '') + reqTag +
         (src ? '<span class="linked">' + (f.meetingId ? '미팅 ' : '상담 ') + esc(fmtD(src.date)) + '</span>' : '') +
         '<span class="meta">' + (done ? esc(fmtTime(f.doneAt).slice(5, 10).replace('-', '/')) + ' 완료' : f.due ? esc(fmtD(f.due)) + ' ' + dday(f.due) : '기한 없음') + '</span></div>' +
+      (compact || contact ? '' : fuChecklist(f)) +
       (compact ? '' : (contact && f.detail && f.detail.trim() !== f.title ? '<div class="l2">' + esc(f.detail.replace(/\s+/g, ' ')) + '</div>' : '') +
       (reply ? '<div class="l2 rp">' + esc(reply) + '</div>' : !contact && f.detail ? '<div class="l2">' + esc(f.detail) + '</div>' : '') +
       (shots.length ? '<div class="fu-shots">' + shots.slice(0, 4).map(function (x) { return '<a href="/api/files/' + esc(x.id) + '" class="lbimg" data-g="fu-' + esc(f.id) + '" title="' + esc(x.name) + '" target="_blank" rel="noopener" onclick="event.stopPropagation()"><img src="/api/files/' + esc(x.id) + '" alt=""></a>'; }).join('') + (shots.length > 4 ? '<span class="muted">+' + (shots.length - 4) + '</span>' : '') + '</div>' : '') +
@@ -2846,6 +2850,34 @@ function fuRow(f, showStudent, inSource, compact) {
     '</div>' + (compact ? '<span class="fu-acts">' + (done ? '' : fuDoneBtn(f.id)) + '</span></div>' : '<span class="fu-acts"><button type="button" class="ibtn rv-b" title="담당은 그대로 — 이 기록을 다른 선생님이 꼭 보도록 알림" onclick="openReview(\'followups\',' + js(f.id) + ')">👀 확인 요청</button>' + (done ? '' : '<button type="button" class="ibtn ho-b" title="이 일을 다른 선생님에게 넘김 — 담당이 그 선생님으로 바뀜 (휴무 등)" onclick="openRequest(' + js(f.id) + ')">↪ 넘기기</button>') +
     '<button type="button" class="ibtn" title="답변 주고받은 기록 (학생·어머님·아버님·우리 쪽)" onclick="openThread(' + js(f.id) + ')">💬' + (reps.length ? ' ' + reps.length : '') + '</button>' +
     (done ? '<button type="button" class="ibtn" title="다시 할 일로" onclick="doneFollowup(' + js(f.id) + ', true)">되돌리기</button>' : fuDoneBtn(f.id)) + '</span></div>');
+}
+/* ----- 할 일 여러 줄 = 체크 목록: 끝낸 줄은 맨 앞에 "✓ " (다른 화면·알림에서도 그대로 읽힘) ----- */
+var FU_DONE = /^✓\s*/;
+function fuLines(f) { return String(f.title || '').split('\n').map(function (l) { return l.trim(); }).filter(Boolean); }
+function fuTitleHtml(f, compact) {
+  var L = fuLines(f);
+  if (L.length <= 1) return '<span class="tt">' + esc(f.title) + '</span>';
+  var done = L.filter(function (l) { return FU_DONE.test(l); }).length, next = L.filter(function (l) { return !FU_DONE.test(l); })[0] || L[0];
+  return '<span class="tt">' + esc(next.replace(FU_DONE, '')) + '</span><span class="muted nw">외 ' + (L.length - 1) + '개</span>' +
+    '<span class="fu-prog' + (done === L.length ? ' all' : '') + '" title="체크한 줄 / 전체 줄">' + done + '/' + L.length + '</span>';
+}
+function fuChecklist(f) {
+  var L = fuLines(f); if (L.length <= 1) return '';
+  var off = f.status === '완료';
+  return '<div class="fu-cl" onclick="event.stopPropagation()">' + L.map(function (l, i) {
+    var dn = FU_DONE.test(l);
+    return '<label class="' + (dn ? 'dn' : '') + '"><input type="checkbox"' + (dn ? ' checked' : '') + (off ? ' disabled' : '') + ' onchange="fuLineToggle(' + js(f.id) + ',' + i + ',this.checked)"> <span>' + esc(l.replace(FU_DONE, '')) + '</span></label>';
+  }).join('') + '</div>';
+}
+function fuLineToggle(id, i, on) {
+  var f = findRow('followups', id); if (!f) return;
+  var L = fuLines(f); if (!L[i]) return render();
+  L[i] = (on ? '✓ ' : '') + L[i].replace(FU_DONE, '');
+  mutate('save', { table: 'followups', obj: { id: id, updatedAt: f.updatedAt, title: L.join('\n') } }).then(function (d) {
+    if (!d) return;
+    var cur = findRow('followups', id);
+    if (cur && cur.status !== '완료' && fuLines(cur).every(function (l) { return FU_DONE.test(l); }) && confirm('모든 줄을 체크했습니다. 이 팔로업을 완료로 할까요?')) doneFollowup(id);
+  });
 }
 /** 팔로업 줄 여러 개 — 공통 팔로업(groupId)은 한 줄로 묶고 펼치면 학생별 */
 function fuRows(list, compact) {
