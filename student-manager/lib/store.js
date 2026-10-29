@@ -384,6 +384,7 @@ function migrate(db) {
   db.exec('CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
   ensureColumns(db, 'teachers', ['notify']); // '' = 이메일 알림 받음, 'off' = 안 받음
   ensureColumns(db, 'teachers', ['homeLayout']);
+  ensureColumns(db, 'teachers', ['viewPrefs']); // 화면 보기 선택(JSON) — 메인 팔로업 간단히/자세히, 원서 관리 보기 등
   ensureColumns(db, 'teachers', ['color']);
   ensureColumns(db, 'teachers', ['sortOrder']); // 계정 관리에서 끌어서 정한 순서 (학생 목록 관리팀 담당순) // 관리팀 색 (학생 목록 줄 배경). '' = 없음 // 메인 화면 배치(JSON). '' = 관리자가 정한 기본 배치
   // v10: 팔로업 요청(휴무 등으로 다른 선생님에게 부탁), 대학 자료 파일
@@ -1061,7 +1062,7 @@ function openStore(dbPath, opts) {
     const meRow = getTeacher(me.email) || me; // 화면 시간은 저장된 계정 정보로 (방금 바꾼 값 포함)
     const out = {
       me: { email: me.email, name: me.name, role: me.role, dev: !!me.dev, branch: accountBranch(me), tz: accountTz(meRow), branchTz: branchTz(meRow), viewTz: TZS.includes(meRow.viewTz) ? meRow.viewTz : '', mustChangePassword: !!me.mustChangePassword,
-        homeLayout: parseLayout((db.prepare('SELECT homeLayout FROM teachers WHERE email = ?').get(me.email) || {}).homeLayout) },
+        homeLayout: parseLayout((db.prepare('SELECT homeLayout FROM teachers WHERE email = ?').get(me.email) || {}).homeLayout), viewPrefs: parseViewPrefs(meRow.viewPrefs) },
       homeDefault: parseLayout(getMeta('homeLayoutDefault')),
       studentCols: parseCols(getMeta('studentCols')),
       uploadMB: uploadMB(),
@@ -2182,6 +2183,22 @@ function openStore(dbPath, opts) {
   }
 
   /* ----- 메인 화면 배치 (계정별, 관리자는 모두의 기본 배치) ----- */
+  /** 계정별 화면 보기 선택 — 정해 둔 키·값만 받음 */
+  const VIEW_PREFS = { dashFuView: ['s', 'd'], dlView: ['student', 'date', 'uni'], dashDlView: ['list', 'student', 'uni'] };
+  function parseViewPrefs(v) {
+    let o; try { o = JSON.parse(v || '{}'); } catch (e) { o = {}; }
+    const out = {};
+    Object.keys(VIEW_PREFS).forEach((k) => { if (o && VIEW_PREFS[k].includes(o[k])) out[k] = o[k]; });
+    return out;
+  }
+  function saveViewPref(me, arg) {
+    const k = String(arg && arg.key || ''), v = String(arg && arg.value || '');
+    if (!VIEW_PREFS[k] || !VIEW_PREFS[k].includes(v)) throw new UserError('보기 설정이 올바르지 않습니다.');
+    const row = db.prepare('SELECT viewPrefs FROM teachers WHERE email = ?').get(me.email);
+    const o = parseViewPrefs(row && row.viewPrefs); o[k] = v;
+    db.prepare('UPDATE teachers SET viewPrefs = ? WHERE email = ?').run(JSON.stringify(o), me.email);
+    return { ok: true, viewPrefs: o };
+  }
   function parseLayout(v) { try { const x = JSON.parse(v || 'null'); return Array.isArray(x) ? x : null; } catch (e) { return null; } }
   /** [{ id, s: '가로칸x세로칸'(예: 2x3), hide, ts: 제목 크기 ''|'l'|'xl', tc: 제목 색, bg: 배경색 }] 만 받음. 빈칸은 id 가 gap1, gap2 … */
   function cleanLayout(list) {
@@ -2809,7 +2826,7 @@ function openStore(dbPath, opts) {
     db, filesDir, dbPath, listFiles, pendingSync, markSync, replaceSchedule, restoreFromDb, countTeachers, upsertAdmin, login, loginAs, logout, authenticate, addFile, getFile, addUniFile, getUniFile,
     rpc: { getAll: (me) => getAll(me), save, remove, restore, purge, getTrash, getLog, saveTeacher, changePassword, importData, copyCycle, getActivity, saveMany, updateMe,
       saveOption, removeOption, deleteTeacher, getAutomation, saveAutomation, saveEvent, removeEvent,
-      saveWithFollowups, requestFollowup, saveOrder, saveUniFile, removeUniFile, saveProgram, removeProgram, getStorage, retrySync, saveHomeLayout, saveStudentCols, saveBreak, removeBreak, requestReview, doneReview, cancelReview, excludeSched, unexcludeSched, saveAutoCat, getNotices, noticeAct, fixSubjects, removeMany, restoreMany, purgeMany, addFollowupMany, addMajorsMany, renameFaculty },
+      saveWithFollowups, requestFollowup, saveOrder, saveUniFile, removeUniFile, saveProgram, removeProgram, getStorage, retrySync, saveHomeLayout, saveStudentCols, saveBreak, removeBreak, requestReview, doneReview, cancelReview, excludeSched, unexcludeSched, saveAutoCat, getNotices, noticeAct, fixSubjects, saveViewPref, removeMany, restoreMany, purgeMany, addFollowupMany, addMajorsMany, renameFaculty },
     backup, getConfig, getMeta, recordRun, listTeachers, close: () => db.close(),
   };
 }

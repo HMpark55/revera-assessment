@@ -2519,3 +2519,20 @@ test('개발자 역할: 관리자 권한 + 다른 계정으로 로그인·돌아
   assert.strictEqual(d.me.email, 'dev@revera.test'); assert.ok(!d.devAs);
   assert.ok(!store.db.prepare("SELECT 1 FROM log WHERE email = 'dev@revera.test' AND summary LIKE '%계정으로 로그인%'").get(), '다른 계정 로그인은 기록하지 않음');
 });
+
+test('화면 보기 선택: 계정별로 서버에 저장 (다른 계정과 따로), 정해진 값만', async () => {
+  const admin = client(); await admin.login('admin@revera.test', 'admin-pass-1');
+  await admin.ok('saveTeacher', { email: 'view@revera.test', name: '보기', role: 'staff', password: 'pass-4700' });
+  const t = client(); await t.login('view@revera.test', 'pass-4700');
+  let d = await t.ok('getAll');
+  assert.deepStrictEqual(d.me.viewPrefs, {});
+  await t.ok('saveViewPref', { key: 'dashDlView', value: 'uni' });
+  await t.ok('saveViewPref', { key: 'dashFuView', value: 'd' });
+  d = await t.ok('getAll');
+  assert.deepStrictEqual(d.me.viewPrefs, { dashFuView: 'd', dashDlView: 'uni' });
+  const t2 = client(); await t2.login('view@revera.test', 'pass-4700');
+  assert.deepStrictEqual((await t2.ok('getAll')).me.viewPrefs, { dashFuView: 'd', dashDlView: 'uni' }, '다른 PC(새 로그인)에서도 같음');
+  assert.deepStrictEqual((await admin.ok('getAll')).me.viewPrefs, {}, '다른 계정과는 따로');
+  assert.strictEqual((await t.rpc('saveViewPref', { key: 'dashDlView', value: 'date' })).status, 400, '위젯에서 뺀 마감일별');
+  assert.strictEqual((await t.rpc('saveViewPref', { key: 'hack', value: 'x' })).status, 400);
+});

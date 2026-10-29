@@ -1775,8 +1775,8 @@ function wDeadlines() {
   var list = S.apps.filter(function (a) { var n = dayDiff(a.deadline); return studentById(a.studentId) && APP_FINAL.indexOf(a.status) < 0 && n !== null && n <= 30; })
     .sort(function (a, b) { return a.deadline.localeCompare(b.deadline); });
   var late = list.filter(function (a) { return dayDiff(a.deadline) < 0; }).length, soon = list.filter(function (a) { var n = dayDiff(a.deadline); return n >= 0 && n <= 7; }).length;
-  var mode = segP([['list', '마감순'], ['student', '학생별'], ['date', '마감일별'], ['uni', '대학별']], 'dashDlView', 'list'), v = UI.dashDlView;
-  var goDl = 'UI.dlRange=\'30\';UI.dlView=' + js(v === 'list' ? 'student' : v) + ';prefSet(\'dlView\',UI.dlView);go(\'#/deadlines\')';
+  var mode = segP([['list', '마감순'], ['student', '학생별'], ['uni', '대학별']], 'dashDlView', 'list'), v = UI.dashDlView;
+  var goDl = 'UI.dlRange=\'30\';segPick(\'dlView\',' + js(v === 'list' ? 'student' : v) + ');go(\'#/deadlines\')';
   var noP = function (a) { return a.universityId && !portalAccounts(a.studentId, a.universityId).length ? '<span class="dday soon nw" title="원서 포털 계정 없음">포털 없음</span>' : ''; };
   var body;
   if (v === 'list') body = list.map(function (a) {
@@ -1786,17 +1786,16 @@ function wDeadlines() {
   }).join('');
   else {
     var groups = [], byK = {};
-    list.forEach(function (a) { var k = v === 'date' ? a.deadline : v === 'student' ? a.studentId : String(a.university || '').trim().toLowerCase(); if (!byK[k]) { byK[k] = []; groups.push(k); } byK[k].push(a); });
+    list.forEach(function (a) { var k = v === 'student' ? a.studentId : String(a.university || '').trim().toLowerCase(); if (!byK[k]) { byK[k] = []; groups.push(k); } byK[k].push(a); });
     body = groups.map(function (k) {
       var rows = byK[k], d = rows[0].deadline, late = dayDiff(d) < 0;
-      var head = v === 'date' ? '<b>' + esc(fmtD(d)) + '</b> ' + dday(d) + ' <span class="muted">· ' + rows.length + '건</span>'
-        : v === 'student' ? '<b>' + esc(studentById(rows[0].studentId).name) + '</b> <span class="muted">· ' + rows.length + '곳 · 다음 마감 ' + esc(fmtD(d)) + '</span> ' + dday(d)
+      var head = v === 'student' ? '<b>' + esc(studentById(rows[0].studentId).name) + '</b> <span class="muted">· ' + rows.length + '곳 · 다음 마감 ' + esc(fmtD(d)) + '</span> ' + dday(d)
         : '<b>' + esc(rows[0].university) + '</b> <span class="muted">· ' + rows.length + '건 · 다음 마감 ' + esc(fmtD(d)) + '</span> ' + dday(d);
       return '<div class="row dlw-g" style="cursor:pointer' + (late ? ';background:#fff1f0' : '') + '" onclick="' + goDl + '"><span class="grow">' + head + '</span></div>' +
         rows.map(function (a) {
           var st = studentById(a.studentId);
           return '<div class="row dlw-r" style="cursor:pointer" onclick="' + goDl + '"><span class="nw"><b>' + esc(v === 'student' ? a.university : st.name) + '</b></span>' +
-            '<span class="grow" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + (v === 'date' ? esc(a.university) : '<span class="muted">' + esc(fmtD(a.deadline)) + '</span> ' + (v === 'student' ? dday(a.deadline) : '')) + (a.round ? ' <span class="muted">· ' + esc(a.round) + '</span>' : '') + '</span>' + noP(a) + '</div>';
+            '<span class="grow" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + '<span class="muted">' + esc(fmtD(a.deadline)) + '</span> ' + (v === 'student' ? dday(a.deadline) : '') + (a.round ? ' <span class="muted">· ' + esc(a.round) + '</span>' : '') + '</span>' + noP(a) + '</div>';
         }).join('');
     }).join('');
   }
@@ -1912,12 +1911,20 @@ function systemAlerts(all) {
 function chip(n, label, onclick, alert) {
   return '<span class="chip' + (alert ? ' alert' : '') + '" onclick="' + onclick + '">' + esc(label) + ' <b>' + n + '</b></span>';
 }
-/** 고른 값을 계정별로 기억하는 seg — 처음엔 prefGet(key), 없으면 def */
+/** 고른 값을 계정별로 서버에 기억하는 seg (다른 PC에서도 같은 보기) — 없으면 def */
 function segP(list, key, def) {
-  if (UI[key] === undefined) UI[key] = prefGet(key, def);
+  var ok = function (v) { return list.some(function (o) { return o[0] === v; }); };
+  if (!ok(UI[key])) { var saved = (S.me.viewPrefs || {})[key]; UI[key] = ok(saved) ? saved : def; }
   return '<span class="seg">' + list.map(function (o) {
-    return '<a class="' + (UI[key] === o[0] ? 'on' : '') + '" onclick="UI.' + key + '=' + js(o[0]) + ';prefSet(' + js(key) + ',UI.' + key + ');render()">' + esc(o[1]) + '</a>';
+    return '<a class="' + (UI[key] === o[0] ? 'on' : '') + '" onclick="segPick(' + js(key) + ',' + js(o[0]) + ')">' + esc(o[1]) + '</a>';
   }).join('') + '</span>';
+}
+function segPick(key, v) {
+  UI[key] = v; render();
+  if (!S.me.viewPrefs) S.me.viewPrefs = {};
+  if (S.me.viewPrefs[key] === v) return;
+  S.me.viewPrefs[key] = v;
+  api('saveViewPref', { key: key, value: v }).catch(function (e) { toast(errMsg(e), true); });
 }
 /** 작은 선택 버튼 묶음 — UI[key] 값을 바꾸고 다시 그림 */
 function seg(list, cur, key) {
