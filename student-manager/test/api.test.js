@@ -2536,3 +2536,25 @@ test('화면 보기 선택: 계정별로 서버에 저장 (다른 계정과 따�
   assert.strictEqual((await t.rpc('saveViewPref', { key: 'dashDlView', value: 'date' })).status, 400, '위젯에서 뺀 마감일별');
   assert.strictEqual((await t.rpc('saveViewPref', { key: 'hack', value: 'x' })).status, 400);
 });
+
+test('사건 기록: 팔로업·연락에 주제(한 줄), 답변 말풍선마다 파일 붙이기 (다른 학생 답변에는 불가)', async () => {
+  const admin = client(); await admin.login('admin@revera.test', 'admin-pass-1');
+  const sid = (await admin.saveOk('students', { name: '사건학생' })).savedId;
+  let d = await admin.saveOk('followups', { studentId: sid, kind: 'contact', fromWho: '학생', channel: '위챗', title: '연구계획서 질문', detail: '연구계획서 질문', topic: '사이언스 페어' });
+  const fid = d.savedId;
+  assert.strictEqual(d.followups.find((f) => f.id === fid).topic, '사이언스 페어');
+  assert.strictEqual((await admin.save('followups', { studentId: sid, title: 'x', topic: 'a'.repeat(61) })).status, 400);
+  d = await admin.saveOk('fureplies', { studentId: sid, followupId: fid, who: '원장님', date: '2026-10-28', content: '구글 닥스에 정리해 둠' });
+  const rid = d.savedId;
+  const png = Buffer.from('89504e470d0a1a0a', 'hex');
+  const up = (studentId, replyId) => admin.req('POST', '/api/files/upload?studentId=' + studentId + '&replyId=' + replyId, undefined,
+    { 'Content-Type': 'image/png', 'X-File-Name': encodeURIComponent('학교 안내문.png') }, png);
+  const r = await up(sid, rid);
+  assert.strictEqual(r.status, 200, JSON.stringify(r.data));
+  const f = r.data.files.find((x) => x.replyId === rid);
+  assert.ok(f, '답변에 붙음');
+  assert.deepStrictEqual([f.followupId, f.category], [fid, '연락'], '그 답변의 팔로업에도 묶임');
+  const other = (await admin.saveOk('students', { name: '다른학생2' })).savedId;
+  assert.strictEqual((await up(other, rid)).status, 404);
+  assert.strictEqual((await up(sid, 'nope')).status, 404);
+});
