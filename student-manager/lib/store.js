@@ -98,7 +98,7 @@ const TABLES = {
     label: '팔로업',
     fields: ['studentId', 'title', 'detail', 'category', 'assignee', 'due', 'status', 'reply', 'replyDate', 'replyFrom', 'meetingId', 'noteId',
       'kind', 'fromWho', 'channel', 'receivedDate', 'answer', 'answerDate', 'groupId',
-      'remindAt', 'remindTo'], // remindAt: 알림 시각(한국 시간 'YYYY-MM-DDTHH:MM'), remindTo: 받는 사람 ('@assignee' = 그때의 담당자, 쉼표로 이메일 추가)
+      'remindAt', 'remindTo', 'topic'], // topic: 주제 한 줄 (같은 학생의 같은 주제끼리 한 사건으로 묶임), remindAt: 알림 시각(한국 시간 'YYYY-MM-DDTHH:MM'), remindTo: 받는 사람 ('@assignee' = 그때의 담당자, 쉼표로 이메일 추가)
     summary: (r) => [r.title, r.status].filter(Boolean).join(' · '),
   },
   fureplies: { // 팔로업·받은 연락에 이어지는 답변 (학생 → 우리 → 어머님 …)
@@ -379,11 +379,13 @@ function migrate(db) {
   db.exec('CREATE INDEX IF NOT EXISTS unirounds_uni ON unirounds(universityId)');
   db.exec('CREATE INDEX IF NOT EXISTS unimajors_uni ON unimajors(universityId)');
   ensureColumns(db, 'files', ['mime', 'size', 'storedName', 'docId', 'meetingId', 'followupId', 'scoreId']);
+  ensureColumns(db, 'files', ['replyId']); // 팔로업·연락의 어느 답변(말풍선)에 붙은 파일인지
   ensureColumns(db, 'docs', ['receivedAt', 'receivedBy']);
   ensureColumns(db, 'contracts', ['paid']); // 이전 버전 열 (새 버전은 입금 기록으로 계산)
   db.exec('CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
   ensureColumns(db, 'teachers', ['notify']); // '' = 이메일 알림 받음, 'off' = 안 받음
   ensureColumns(db, 'teachers', ['homeLayout']);
+  ensureColumns(db, 'teachers', ['viewPrefs']); // 화면 보기 선택(JSON) — 메인 팔로업 간단히/자세히, 원서 관리 보기 등
   ensureColumns(db, 'teachers', ['color']);
   ensureColumns(db, 'teachers', ['sortOrder']); // 계정 관리에서 끌어서 정한 순서 (학생 목록 관리팀 담당순) // 관리팀 색 (학생 목록 줄 배경). '' = 없음 // 메인 화면 배치(JSON). '' = 관리자가 정한 기본 배치
   // v10: 팔로업 요청(휴무 등으로 다른 선생님에게 부탁), 대학 자료 파일
@@ -1061,7 +1063,7 @@ function openStore(dbPath, opts) {
     const meRow = getTeacher(me.email) || me; // 화면 시간은 저장된 계정 정보로 (방금 바꾼 값 포함)
     const out = {
       me: { email: me.email, name: me.name, role: me.role, dev: !!me.dev, branch: accountBranch(me), tz: accountTz(meRow), branchTz: branchTz(meRow), viewTz: TZS.includes(meRow.viewTz) ? meRow.viewTz : '', mustChangePassword: !!me.mustChangePassword,
-        homeLayout: parseLayout((db.prepare('SELECT homeLayout FROM teachers WHERE email = ?').get(me.email) || {}).homeLayout) },
+        homeLayout: parseLayout((db.prepare('SELECT homeLayout FROM teachers WHERE email = ?').get(me.email) || {}).homeLayout), viewPrefs: parseViewPrefs(meRow.viewPrefs) },
       homeDefault: parseLayout(getMeta('homeLayoutDefault')),
       studentCols: parseCols(getMeta('studentCols')),
       uploadMB: uploadMB(),
@@ -1164,6 +1166,7 @@ function openStore(dbPath, opts) {
     if (table === 'meetings' || table === 'notes') checkUrl(v('sourceUrl'), '원본 자료 링크');
     if (table === 'accounts') { need('site', '사이트 이름을 입력하세요.'); checkUrl(v('url'), '사이트 주소'); }
     if (table === 'followups' && v('replyDate') && !DATE_RE.test(v('replyDate'))) throw new UserError('답변 날짜 형식이 올바르지 않습니다.');
+    if (table === 'followups' && String(v('topic') || '').length > 60) throw new UserError('주제는 60자 이내로 적어주세요.');
     if (table === 'fureplies') {
       const f = getRow('followups', v('followupId'));
       if (!f || f.deletedAt || f.studentId !== v('studentId')) throw new UserError('팔로업을 찾을 수 없습니다. 새로고침 해주세요.', 404);
@@ -2182,6 +2185,22 @@ function openStore(dbPath, opts) {
   }
 
   /* ----- 메인 화면 배치 (계정별, 관리자는 모두의 기본 배치) ----- */
+  /** 계정별 화면 보기 선택 — 정해 둔 키·값만 받음 */
+  const VIEW_PREFS = { dashFuView: ['s', 'd'], dlView: ['student', 'date', 'uni'], dashDlView: ['list', 'student', 'uni'], stuFuView: ['list', 'topic'] };
+  function parseViewPrefs(v) {
+    let o; try { o = JSON.parse(v || '{}'); } catch (e) { o = {}; }
+    const out = {};
+    Object.keys(VIEW_PREFS).forEach((k) => { if (o && VIEW_PREFS[k].includes(o[k])) out[k] = o[k]; });
+    return out;
+  }
+  function saveViewPref(me, arg) {
+    const k = String(arg && arg.key || ''), v = String(arg && arg.value || '');
+    if (!VIEW_PREFS[k] || !VIEW_PREFS[k].includes(v)) throw new UserError('보기 설정이 올바르지 않습니다.');
+    const row = db.prepare('SELECT viewPrefs FROM teachers WHERE email = ?').get(me.email);
+    const o = parseViewPrefs(row && row.viewPrefs); o[k] = v;
+    db.prepare('UPDATE teachers SET viewPrefs = ? WHERE email = ?').run(JSON.stringify(o), me.email);
+    return { ok: true, viewPrefs: o };
+  }
   function parseLayout(v) { try { const x = JSON.parse(v || 'null'); return Array.isArray(x) ? x : null; } catch (e) { return null; } }
   /** [{ id, s: '가로칸x세로칸'(예: 2x3), hide, ts: 제목 크기 ''|'l'|'xl', tc: 제목 색, bg: 배경색 }] 만 받음. 빈칸은 id 가 gap1, gap2 … */
   function cleanLayout(list) {
@@ -2440,7 +2459,12 @@ function openStore(dbPath, opts) {
   }
   /** 파일 1개 저장 + 기록 (트랜잭션 안에서 호출, 저장한 경로는 stored 에 추가) */
   function storeFile(me, s, info, stored) {
-    let doc = null, meeting = null, fu = null, score = null;
+    let doc = null, meeting = null, fu = null, score = null, reply = null;
+    if (info.replyId) { // 답변 말풍선에 붙이는 파일 → 그 답변의 팔로업에도 묶임
+      reply = getRow('fureplies', info.replyId);
+      if (!reply || reply.deletedAt || reply.studentId !== s.id) throw new UserError('답변을 찾을 수 없습니다. 새로고침 해주세요.', 404);
+      info.followupId = reply.followupId;
+    }
     if (info.scoreId) {
       score = getRow('scores', info.scoreId);
       if (!score || score.deletedAt || score.studentId !== s.id) throw new UserError('점수 기록을 찾을 수 없습니다. 새로고침 해주세요.', 404);
@@ -2469,7 +2493,7 @@ function openStore(dbPath, opts) {
     stored.push(path.join(filesDir, storedName));
     const t = now();
     const rec = { id, studentId: s.id, category: doc ? doc.category || guessDocCat(doc.name) : meeting ? '미팅' : fu ? '연락' : score ? scoreDocCat(score.kind) : fileCat(info.category), name, memo: clean(info.memo || ''), mime: type,
-      size: String(info.buffer.length), storedName, docId: doc ? doc.id : '', meetingId: meeting ? meeting.id : '', followupId: fu ? fu.id : '', scoreId: score ? score.id : '',
+      size: String(info.buffer.length), storedName, docId: doc ? doc.id : '', meetingId: meeting ? meeting.id : '', followupId: fu ? fu.id : '', scoreId: score ? score.id : '', replyId: reply ? reply.id : '',
       createdAt: t, createdBy: me.email, updatedAt: t, updatedBy: me.email };
     const keys = Object.keys(rec);
     db.prepare(`INSERT INTO files (${keys.join(', ')}) VALUES (${keys.map((k) => '@' + k).join(', ')})`).run(rec);
@@ -2809,7 +2833,7 @@ function openStore(dbPath, opts) {
     db, filesDir, dbPath, listFiles, pendingSync, markSync, replaceSchedule, restoreFromDb, countTeachers, upsertAdmin, login, loginAs, logout, authenticate, addFile, getFile, addUniFile, getUniFile,
     rpc: { getAll: (me) => getAll(me), save, remove, restore, purge, getTrash, getLog, saveTeacher, changePassword, importData, copyCycle, getActivity, saveMany, updateMe,
       saveOption, removeOption, deleteTeacher, getAutomation, saveAutomation, saveEvent, removeEvent,
-      saveWithFollowups, requestFollowup, saveOrder, saveUniFile, removeUniFile, saveProgram, removeProgram, getStorage, retrySync, saveHomeLayout, saveStudentCols, saveBreak, removeBreak, requestReview, doneReview, cancelReview, excludeSched, unexcludeSched, saveAutoCat, getNotices, noticeAct, fixSubjects, removeMany, restoreMany, purgeMany, addFollowupMany, addMajorsMany, renameFaculty },
+      saveWithFollowups, requestFollowup, saveOrder, saveUniFile, removeUniFile, saveProgram, removeProgram, getStorage, retrySync, saveHomeLayout, saveStudentCols, saveBreak, removeBreak, requestReview, doneReview, cancelReview, excludeSched, unexcludeSched, saveAutoCat, getNotices, noticeAct, fixSubjects, saveViewPref, removeMany, restoreMany, purgeMany, addFollowupMany, addMajorsMany, renameFaculty },
     backup, getConfig, getMeta, recordRun, listTeachers, close: () => db.close(),
   };
 }

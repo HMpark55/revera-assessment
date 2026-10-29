@@ -2519,3 +2519,99 @@ test('개발자 역할: 관리자 권한 + 다른 계정으로 로그인·돌아
   assert.strictEqual(d.me.email, 'dev@revera.test'); assert.ok(!d.devAs);
   assert.ok(!store.db.prepare("SELECT 1 FROM log WHERE email = 'dev@revera.test' AND summary LIKE '%계정으로 로그인%'").get(), '다른 계정 로그인은 기록하지 않음');
 });
+
+test('화면 보기 선택: 계정별로 서버에 저장 (다른 계정과 따로), 정해진 값만', async () => {
+  const admin = client(); await admin.login('admin@revera.test', 'admin-pass-1');
+  await admin.ok('saveTeacher', { email: 'view@revera.test', name: '보기', role: 'staff', password: 'pass-4700' });
+  const t = client(); await t.login('view@revera.test', 'pass-4700');
+  let d = await t.ok('getAll');
+  assert.deepStrictEqual(d.me.viewPrefs, {});
+  await t.ok('saveViewPref', { key: 'dashDlView', value: 'uni' });
+  await t.ok('saveViewPref', { key: 'dashFuView', value: 'd' });
+  d = await t.ok('getAll');
+  assert.deepStrictEqual(d.me.viewPrefs, { dashFuView: 'd', dashDlView: 'uni' });
+  const t2 = client(); await t2.login('view@revera.test', 'pass-4700');
+  assert.deepStrictEqual((await t2.ok('getAll')).me.viewPrefs, { dashFuView: 'd', dashDlView: 'uni' }, '다른 PC(새 로그인)에서도 같음');
+  assert.deepStrictEqual((await admin.ok('getAll')).me.viewPrefs, {}, '다른 계정과는 따로');
+  assert.strictEqual((await t.rpc('saveViewPref', { key: 'dashDlView', value: 'date' })).status, 400, '위젯에서 뺀 마감일별');
+  assert.strictEqual((await t.rpc('saveViewPref', { key: 'hack', value: 'x' })).status, 400);
+});
+
+test('사건 기록: 팔로업·연락에 주제(한 줄), 답변 말풍선마다 파일 붙이기 (다른 학생 답변에는 불가)', async () => {
+  const admin = client(); await admin.login('admin@revera.test', 'admin-pass-1');
+  const sid = (await admin.saveOk('students', { name: '사건학생' })).savedId;
+  let d = await admin.saveOk('followups', { studentId: sid, kind: 'contact', fromWho: '학생', channel: '위챗', title: '연구계획서 질문', detail: '연구계획서 질문', topic: '사이언스 페어' });
+  const fid = d.savedId;
+  assert.strictEqual(d.followups.find((f) => f.id === fid).topic, '사이언스 페어');
+  assert.strictEqual((await admin.save('followups', { studentId: sid, title: 'x', topic: 'a'.repeat(61) })).status, 400);
+  d = await admin.saveOk('fureplies', { studentId: sid, followupId: fid, who: '원장님', date: '2026-10-28', content: '구글 닥스에 정리해 둠' });
+  const rid = d.savedId;
+  const png = Buffer.from('89504e470d0a1a0a', 'hex');
+  const up = (studentId, replyId) => admin.req('POST', '/api/files/upload?studentId=' + studentId + '&replyId=' + replyId, undefined,
+    { 'Content-Type': 'image/png', 'X-File-Name': encodeURIComponent('학교 안내문.png') }, png);
+  const r = await up(sid, rid);
+  assert.strictEqual(r.status, 200, JSON.stringify(r.data));
+  const f = r.data.files.find((x) => x.replyId === rid);
+  assert.ok(f, '답변에 붙음');
+  assert.deepStrictEqual([f.followupId, f.category], [fid, '연락'], '그 답변의 팔로업에도 묶임');
+  const other = (await admin.saveOk('students', { name: '다른학생2' })).savedId;
+  assert.strictEqual((await up(other, rid)).status, 404);
+  assert.strictEqual((await up(sid, 'nope')).status, 404);
+});
+
+test('REVERA A 수업 일정: 강사(시급·%), 수업 칸 저장·검사, 날짜 범위로 불러오기, 일정 있는 강사는 못 지움, 수업 없는 결제', async () => {
+  const admin = client(); await admin.login('admin@revera.test', 'admin-pass-1');
+  await admin.ok('saveTeacher', { email: 'hm2@revera.test', name: '박현모', role: 'staff', password: 'temp-pass-2' });
+  const hm = client(); await hm.login('hm2@revera.test', 'temp-pass-2');
+  await hm.ok('changePassword', { current: 'temp-pass-2', next: 'mine-pass-2' });
+  const call = async (fn, arg) => { const r = await hm.req('POST', '/api/atlas/' + fn, { arg }); assert.strictEqual(r.status, 200, fn + ': ' + JSON.stringify(r.data)); return r.data; };
+  const bad = async (fn, arg) => (await hm.req('POST', '/api/atlas/' + fn, { arg })).status;
+  const s = await call('save', { table: 'atlas_students', rec: { name: '일정 학생' } });
+  const t = await call('save', { table: 'atlas_teachers', rec: { name: '안지연', payType: 'pct', payRate: '50%', zoom: '6' } });
+  assert.strictEqual(t.payRate, '50');
+  assert.strictEqual(await bad('save', { table: 'atlas_teachers', rec: { name: '안지연' } }), 400, '같은 이름');
+  assert.strictEqual(await bad('save', { table: 'atlas_teachers', rec: { name: 'x', payType: 'day' } }), 400);
+  const x = await call('save', { table: 'atlas_sched', rec: { date: '2026-10-26', start: '17:30', end: '19:30', room: 'A2', mode: 'ZOOM (상해)', teacherId: t.id, studentIds: JSON.stringify([s.id]), title: 'IB Physics HL', fee: '1,800' } });
+  assert.deepStrictEqual([x.status, x.currency, x.fee], ['예정', 'CNY', '1800']);
+  assert.strictEqual(await bad('save', { table: 'atlas_sched', rec: { date: '2026-10-26', start: '19:30', end: '17:30' } }), 400, '끝이 시작보다 빠름');
+  assert.strictEqual(await bad('save', { table: 'atlas_sched', rec: { date: '2026-10-26', start: '9시', end: '10:00' } }), 400);
+  assert.strictEqual(await bad('save', { table: 'atlas_sched', rec: { date: '2026-10-26', start: '09:00', end: '10:00', studentIds: '["nope"]' } }), 404);
+  assert.strictEqual(await bad('save', { table: 'atlas_sched', rec: { id: x.id, end: '17:00' } }), 400, '고칠 때도 시작·끝 검사');
+  await call('save', { table: 'atlas_sched', rec: { id: x.id, status: '완료', attend: JSON.stringify({ [s.id]: '출석' }), checks: JSON.stringify({ teacher: '2026-10-25' }) } });
+  await call('save', { table: 'atlas_sched', rec: { date: '2026-11-02', start: '17:30', end: '19:30', teacherId: t.id } });
+  let l = await call('getSched', { from: '2026-10-01', to: '2026-10-31' });
+  assert.deepStrictEqual(l.map((r) => [r.date, r.status]), [['2026-10-26', '완료']]);
+  assert.strictEqual(await bad('getSched', { from: '2026-01-01', to: '2027-06-01' }), 400, '1년 넘게는 안 됨');
+  assert.strictEqual(await bad('remove', { table: 'atlas_teachers', id: t.id }), 400, '일정 있는 강사');
+  assert.ok((await call('getAll')).teachers.some((r) => r.id === t.id));
+  const p = await call('save', { table: 'atlas_payments', rec: { studentId: s.id, classId: '', date: '2026-10-20', amount: '6000', currency: 'CNY' } });
+  assert.strictEqual(p.classId, '', '수업을 고르지 않은 결제도 저장');
+});
+
+test('REVERA A 수업 일정 가져오기(atlas-sched-v1): 학생 이름 연결(동명이인 제외), 강사 새로 만듦, 다시 가져와도 시트 칸만 바뀜', async () => {
+  const admin = client(); await admin.login('admin@revera.test', 'admin-pass-1');
+  await admin.ok('saveTeacher', { email: 'hm3@revera.test', name: '박현모', role: 'staff', password: 'temp-pass-3' });
+  const hm = client(); await hm.login('hm3@revera.test', 'temp-pass-3');
+  await hm.ok('changePassword', { current: 'temp-pass-3', next: 'mine-pass-3' });
+  const call = async (fn, arg) => { const r = await hm.req('POST', '/api/atlas/' + fn, { arg }); assert.strictEqual(r.status, 200, fn + ': ' + JSON.stringify(r.data)); return r.data; };
+  const s1 = await call('save', { table: 'atlas_students', rec: { name: '가져온학생' } });
+  await call('save', { table: 'atlas_students', rec: { name: '동명이' } }); await call('save', { table: 'atlas_students', rec: { name: '동명이' } });
+  const manual = await call('save', { table: 'atlas_sched', rec: { date: '2026-03-02', start: '09:00', end: '10:00', title: '직접 넣은 수업' } });
+  const data = { format: 'atlas-sched-v1', from: '2026-03-01', to: '2026-03-31', teachers: [{ name: '시트강사', zoom: '6' }], rows: [
+    { date: '2026-03-02', start: '17:30', end: '19:30', room: 'A2', mode: 'ZOOM (상해)', teacher: '시트강사', lines: ['가져온학생 SAS G10', 'IB Physics'], modeLine: 'ZOOM (상해)', fee: '1800', status: '완료', checks: { teacher: 'Y', student: 'Y' }, memo: '리마ok' },
+    { date: '2026-03-03', start: '10:00', end: '11:00', room: '상담실', mode: '대면', teacher: '', lines: ['동명이', '미팅'], modeLine: '', fee: '', status: '완료', checks: {}, memo: '' },
+    { date: '2026-04-01', start: '10:00', end: '11:00', room: 'A1', lines: ['범위 밖'], status: '완료' }] };
+  let n = await call('importSched', { data, dryRun: true });
+  assert.deepStrictEqual([n.rows, n.matched, n.done, n.newTeachers, n.manual, n.sameNames], [2, 1, 1, ['시트강사'], 1, ['동명이']]);
+  await call('importSched', { data });
+  let l = await call('getSched', { from: '2026-03-01', to: '2026-03-31' });
+  const x = l.find((r) => r.room === 'A2');
+  assert.deepStrictEqual([JSON.parse(x.studentIds), x.title, x.fee, x.status, x.src], [[s1.id], '가져온학생 SAS G10 · IB Physics', '1800', '완료', 'sheet']);
+  assert.ok((await call('getAll')).teachers.find((t) => t.name === '시트강사' && t.zoom === '6'));
+  n = await call('importSched', { data });
+  assert.strictEqual(n.replaced, 2, '다시 가져오면 시트 칸만 바뀜');
+  l = await call('getSched', { from: '2026-03-01', to: '2026-03-31' });
+  assert.strictEqual(l.length, 3, '시트 2칸 + 직접 넣은 1칸 (두 번 생기지 않음)');
+  assert.ok(l.some((r) => r.id === manual.id));
+  assert.strictEqual((await hm.req('POST', '/api/atlas/importSched', { arg: { data: { format: 'x' } } })).status, 400);
+});

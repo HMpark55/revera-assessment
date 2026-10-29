@@ -488,8 +488,24 @@
   .wg > .wbody { container-type:inline-size; }
   @container (max-width:600px) { .fu { flex-wrap:wrap; } .fu .t { flex:1 1 calc(100% - 60px); } .fu-acts { width:100%; justify-content:flex-end; flex-wrap:wrap; } }
   .thread { display:flex; flex-direction:column; gap:6px; max-height:46vh; overflow:auto; }
-  .th-item { border:1px solid #e6e2f2; background:#f7f5fc; border-radius:8px; padding:6px 10px; margin-right:40px; }
-  .th-item.ours { background:#f0f7f2; border-color:#d6eadb; margin:0 0 0 40px; }
+  .th-item { border:1px solid #e6e2f2; background:#f7f5fc; border-radius:12px 12px 12px 4px; padding:6px 10px; align-self:flex-start; max-width:78%; min-width:200px; } /* 채팅방처럼: 상대 쪽 왼쪽, 우리 쪽 오른쪽 */
+  .th-item:has(.fr-edit) { align-self:stretch; max-width:none; }
+  .th-files { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; align-items:center; }
+  .th-files .shot img { max-height:64px; }
+  .th-acts label.ibtn { cursor:pointer; }
+  .fr-btns { display:flex; flex-direction:column; gap:4px; }
+  .topic { display:inline-block; font-size:.75rem; color:#5b3e00; background:#fff3d6; border:1px solid #f1dca6; border-radius:4px; padding:0 6px; flex-shrink:0; white-space:nowrap; max-width:220px; overflow:hidden; text-overflow:ellipsis; }
+  details.topic-g { border:1px solid var(--border); border-radius:8px; margin:8px 0; background:#fff; }
+  details.topic-g > summary { display:flex; gap:10px; align-items:baseline; flex-wrap:wrap; padding:8px 10px; background:#fbf7ec; border-radius:8px; cursor:pointer; list-style:none; }
+  details.topic-g[open] > summary { border-radius:8px 8px 0 0; border-bottom:1px solid var(--border); }
+  details.topic-g > summary::before { content:'▶'; font-size:.7rem; color:var(--muted); }
+  details.topic-g[open] > summary::before { content:'▼'; }
+  details.topic-g > .fu { padding-left:10px; padding-right:10px; }
+  .tg-add { margin-left:auto; display:flex; gap:4px; }
+  .fu-hits { margin:-2px 0 8px 34px; padding:6px 10px; border-left:3px solid #f1dca6; background:#fffbf0; font-size:.85rem; cursor:pointer; display:flex; flex-direction:column; gap:4px; }
+  .fu-hits mark { background:#ffe58a; padding:0 1px; }
+  .hit-r.ours b { color:#1d6b46; }
+  .th-item.ours { background:#f0f7f2; border-color:#d6eadb; align-self:flex-end; border-radius:12px 12px 4px 12px; }
   .th-h { display:flex; gap:6px; align-items:center; font-size:.82rem; }
   .th-h .ibtn { margin-left:auto; }
   td.clip1 { max-width:260px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -687,8 +703,8 @@ var TERMS_INTAKE = ['9월', '8월', '3월', '1월'];
 var GRADE_ALL = ['K'].concat([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(function (n) { return 'G' + n; }), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13].map(function (n) { return 'Y' + n; }));
 var MAJOR_STATUS = ['후보', '유력', '최종', '제외'];
 var MEETING_TYPES = ['대면', 'ZOOM', '전화', '위챗'];
-/** 답변한 사람 — 우리 쪽은 담당 선생님·관리팀 */
-var REPLY_FROM = ['학생', '어머님', '아버님', '담당 선생님', '관리팀', '기타'];
+/** 답변한 사람 — 우리 쪽은 원장님·담당 선생님·컨설턴트·관리팀 */
+var REPLY_FROM = ['학생', '어머님', '아버님', '원장님', '담당 선생님', '컨설턴트', '관리팀', '기타'];
 var CONTACT_FROM = ['학생', '어머님', '아버님', '학부모', '학교', '기타'];
 var CONTACT_CHANNELS = ['위챗', '카톡', '왓츠앱', '전화', '대면', '기타'];
 var ACCOUNT_CATS = ['원서 포털', '시험', '학교 LMS', '기타'];
@@ -778,6 +794,7 @@ var FORMS = {
     { k: 'needsReview', l: '확인', t: 'check', cl: '확인 필요 (가져온 자료 — 내용 확인 후 체크 해제)', legacy: 1 }, { t: 'review', full: 1 }],
     defaults: function () { return { date: today(), writer: S.me.name }; } },
   contact: { table: 'followups', title: '받은 연락', fields: [
+    { k: 'topic', t: 'topic', full: 1 },
     { k: 'fromWho', l: '보낸 사람', t: 'select', o: CONTACT_FROM }, { k: 'channel', l: '어떻게', t: 'select', o: CONTACT_CHANNELS },
     { k: 'receivedDate', l: '받은 날짜', t: 'date' }, { k: 'assignee', l: '담당 (답할 사람)', t: 'teacher' },
     { k: 'detail', l: '받은 내용', t: 'textarea', full: 1, big: 1, req: 1 },
@@ -789,6 +806,7 @@ var FORMS = {
     { k: 'progress', l: '지금 이 학생은 무엇을 하고 있나요? (누가 봐도 바로 알 수 있게 짧게)', t: 'textarea', full: 1,
       ph: '예: HKU 심리학 PS 2차 수정 중 / 추천서 3명 확정 / 출입국사실증명서 수합 대기' }] },
   followups: { title: '팔로업', fields: [
+    { k: 'topic', t: 'topic', full: 1 },
     { k: 'title', l: '할 일', req: 1, full: 1, ph: '예: HKU Personal Statement 2차 피드백 전달' },
     { k: 'assignee', l: '담당자', t: 'teacher' }, { k: 'due', l: '기한', t: 'date' }, { t: 'remind', full: 1 },
     { k: 'detail', l: '세부 내용 / 학생에게 보낸 메시지', t: 'textarea', full: 1 }, { t: 'replies', full: 1 }],
@@ -1224,6 +1242,13 @@ function $(id) { return document.getElementById(id); }
 function searchInput(e, key) {
   UI[key] = e.target.value;
   renderKeepSearch();
+}
+/** 결과가 검색칸과 같은 묶음 안에 있는 화면(학생 화면 탭)용: 전체를 다시 그리고 커서 자리 되살림 (한글 조합 중에는 기다림) */
+function searchInputFull(e, key) {
+  if (e.isComposing) return;
+  UI[key] = e.target.value;
+  var pos = e.target.selectionStart; render();
+  var q = $('q'); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch (x) { /* */ } }
 }
 function renderKeepSearch() {
   var live = $('q'), app = $('app');
@@ -1775,8 +1800,8 @@ function wDeadlines() {
   var list = S.apps.filter(function (a) { var n = dayDiff(a.deadline); return studentById(a.studentId) && APP_FINAL.indexOf(a.status) < 0 && n !== null && n <= 30; })
     .sort(function (a, b) { return a.deadline.localeCompare(b.deadline); });
   var late = list.filter(function (a) { return dayDiff(a.deadline) < 0; }).length, soon = list.filter(function (a) { var n = dayDiff(a.deadline); return n >= 0 && n <= 7; }).length;
-  var mode = segP([['list', '마감순'], ['date', '마감일별'], ['uni', '대학별']], 'dashDlView', 'list'), v = UI.dashDlView;
-  var goDl = 'UI.dlRange=\'30\';UI.dlView=' + js(v === 'list' ? 'student' : v) + ';prefSet(\'dlView\',UI.dlView);go(\'#/deadlines\')';
+  var mode = segP([['list', '마감순'], ['student', '학생별'], ['uni', '대학별']], 'dashDlView', 'list'), v = UI.dashDlView;
+  var goDl = 'UI.dlRange=\'30\';segPick(\'dlView\',' + js(v === 'list' ? 'student' : v) + ');go(\'#/deadlines\')';
   var noP = function (a) { return a.universityId && !portalAccounts(a.studentId, a.universityId).length ? '<span class="dday soon nw" title="원서 포털 계정 없음">포털 없음</span>' : ''; };
   var body;
   if (v === 'list') body = list.map(function (a) {
@@ -1786,16 +1811,16 @@ function wDeadlines() {
   }).join('');
   else {
     var groups = [], byK = {};
-    list.forEach(function (a) { var k = v === 'date' ? a.deadline : String(a.university || '').trim().toLowerCase(); if (!byK[k]) { byK[k] = []; groups.push(k); } byK[k].push(a); });
+    list.forEach(function (a) { var k = v === 'student' ? a.studentId : String(a.university || '').trim().toLowerCase(); if (!byK[k]) { byK[k] = []; groups.push(k); } byK[k].push(a); });
     body = groups.map(function (k) {
       var rows = byK[k], d = rows[0].deadline, late = dayDiff(d) < 0;
-      var head = v === 'date' ? '<b>' + esc(fmtD(d)) + '</b> ' + dday(d) + ' <span class="muted">· ' + rows.length + '건</span>'
+      var head = v === 'student' ? '<b>' + esc(studentById(rows[0].studentId).name) + '</b> <span class="muted">· ' + rows.length + '곳 · 다음 마감 ' + esc(fmtD(d)) + '</span> ' + dday(d)
         : '<b>' + esc(rows[0].university) + '</b> <span class="muted">· ' + rows.length + '건 · 다음 마감 ' + esc(fmtD(d)) + '</span> ' + dday(d);
       return '<div class="row dlw-g" style="cursor:pointer' + (late ? ';background:#fff1f0' : '') + '" onclick="' + goDl + '"><span class="grow">' + head + '</span></div>' +
         rows.map(function (a) {
           var st = studentById(a.studentId);
-          return '<div class="row dlw-r" style="cursor:pointer" onclick="' + goDl + '"><span class="nw"><b>' + esc(st.name) + '</b></span>' +
-            '<span class="grow" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + (v === 'date' ? esc(a.university) : '<span class="muted">' + esc(fmtD(a.deadline)) + '</span>') + (a.round ? ' <span class="muted">· ' + esc(a.round) + '</span>' : '') + '</span>' + noP(a) + '</div>';
+          return '<div class="row dlw-r" style="cursor:pointer" onclick="' + goDl + '"><span class="nw"><b>' + esc(v === 'student' ? a.university : st.name) + '</b></span>' +
+            '<span class="grow" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + '<span class="muted">' + esc(fmtD(a.deadline)) + '</span> ' + (v === 'student' ? dday(a.deadline) : '') + (a.round ? ' <span class="muted">· ' + esc(a.round) + '</span>' : '') + '</span>' + noP(a) + '</div>';
         }).join('');
     }).join('');
   }
@@ -1911,12 +1936,20 @@ function systemAlerts(all) {
 function chip(n, label, onclick, alert) {
   return '<span class="chip' + (alert ? ' alert' : '') + '" onclick="' + onclick + '">' + esc(label) + ' <b>' + n + '</b></span>';
 }
-/** 고른 값을 계정별로 기억하는 seg — 처음엔 prefGet(key), 없으면 def */
+/** 고른 값을 계정별로 서버에 기억하는 seg (다른 PC에서도 같은 보기) — 없으면 def */
 function segP(list, key, def) {
-  if (UI[key] === undefined) UI[key] = prefGet(key, def);
+  var ok = function (v) { return list.some(function (o) { return o[0] === v; }); };
+  if (!ok(UI[key])) { var saved = (S.me.viewPrefs || {})[key]; UI[key] = ok(saved) ? saved : def; }
   return '<span class="seg">' + list.map(function (o) {
-    return '<a class="' + (UI[key] === o[0] ? 'on' : '') + '" onclick="UI.' + key + '=' + js(o[0]) + ';prefSet(' + js(key) + ',UI.' + key + ');render()">' + esc(o[1]) + '</a>';
+    return '<a class="' + (UI[key] === o[0] ? 'on' : '') + '" onclick="segPick(' + js(key) + ',' + js(o[0]) + ')">' + esc(o[1]) + '</a>';
   }).join('') + '</span>';
+}
+function segPick(key, v) {
+  UI[key] = v; render();
+  if (!S.me.viewPrefs) S.me.viewPrefs = {};
+  if (S.me.viewPrefs[key] === v) return;
+  S.me.viewPrefs[key] = v;
+  api('saveViewPref', { key: key, value: v }).catch(function (e) { toast(errMsg(e), true); });
 }
 /** 작은 선택 버튼 묶음 — UI[key] 값을 바꾸고 다시 그림 */
 function seg(list, cur, key) {
@@ -2794,7 +2827,7 @@ function fuRow(f, showStudent, inSource, compact) {
     '<div class="t" onclick="openForm(' + js(contact ? 'contact' : 'followups') + ',' + js(f.id) + ')" title="' + esc([f.detail, reply].filter(Boolean).join('\n')) + '">' +
       '<div class="l1"><span class="who1">' + (showStudent ? '<a href="#/student/' + esc(s.id) + '" onclick="event.stopPropagation();UI.tab=\'followups\'"><b>' + esc(s.name) + '</b></a> ' + branchPill(s) + ' · ' : '') +
         esc(teacherName(f.assignee) || '담당 미정') + '</span>' + (contact ? '<span class="ctag">📩' + (compact ? '' : ' ' + esc([f.fromWho, f.channel].filter(Boolean).join(' · ')) + (f.receivedDate ? ' ' + esc(fmtD(f.receivedDate)) : '')) + '</span>' : '') +
-        '<span class="tt">' + esc(f.title) + '</span>' + (f.category && !compact ? '<span class="tag">' + esc(f.category) + '</span>' : '') +
+        (f.topic && !compact && !UI.noTopicChip ? '<span class="topic" title="주제">🗂 ' + esc(f.topic) + '</span>' : '') + '<span class="tt">' + esc(f.title) + '</span>' + (f.category && !compact ? '<span class="tag">' + esc(f.category) + '</span>' : '') +
         (contact && !done ? (f.status === '할 일' ? '<span class="pill d-요청함">답변 필요</span>' : fuStatusPill(f)) : !done && f.status !== '할 일' ? fuStatusPill(f) : '') + reqTag +
         (src ? '<span class="linked">' + (f.meetingId ? '미팅 ' : '상담 ') + esc(fmtD(src.date)) + '</span>' : '') +
         '<span class="meta">' + (done ? esc(fmtTime(f.doneAt).slice(5, 10).replace('-', '/')) + ' 완료' : f.due ? esc(fmtD(f.due)) + ' ' + dday(f.due) : '기한 없음') + '</span></div>' +
@@ -2881,36 +2914,88 @@ function submitRequest(id) {
   }).catch(function (e) { toast(errMsg(e), true); });
 }
 /* ----- 답변 주고받은 기록: 팔로업·받은 연락 하나에 학생 → 우리 → 어머님 … 이어서 ----- */
-var OUR_SIDE = { '담당 선생님': 1, '관리팀': 1, '담당자': 1 };
+var OUR_SIDE = { '원장님': 1, '담당 선생님': 1, '컨설턴트': 1, '관리팀': 1, '담당자': 1 };
+/** 이 답변(말풍선)에 붙은 파일 */
+function replyFiles(rid) { return S.files.filter(function (f) { return f.replyId === rid; }).sort(function (a, b) { return a.createdAt.localeCompare(b.createdAt); }); }
+/** 이 학생이 쓴 주제들 (최근 순) */
+function topicsOf(sid) {
+  var seen = {}, out = [];
+  S.followups.filter(function (f) { return f.studentId === sid && f.topic; }).sort(function (a, b) { return (b.updatedAt || '').localeCompare(a.updatedAt || ''); })
+    .forEach(function (f) { var k = f.topic.trim().toLowerCase(); if (!seen[k]) { seen[k] = 1; out.push(f.topic.trim()); } });
+  return out;
+}
+/** 파일 올리기 (params: replyId 등) — 올린 수를 돌려줌 */
+function upReplyFiles(studentId, params, files) {
+  var chain = Promise.resolve(), ok = 0;
+  files.forEach(function (f) {
+    chain = chain.then(function () {
+      if (f.size > upMax()) return toast(f.name + ': ' + upMB() + 'MB를 넘는 파일은 올릴 수 없습니다.', true);
+      busy(true);
+      return fetch('/api/files/upload?studentId=' + encodeURIComponent(studentId) + Object.keys(params).map(function (k) { return '&' + k + '=' + encodeURIComponent(params[k]); }).join(''), {
+        method: 'POST', credentials: 'same-origin', body: f,
+        headers: { 'X-Requested-With': 'revera', 'X-File-Name': encodeURIComponent(f.name), 'Content-Type': f.type || 'application/octet-stream' }
+      }).then(handle, function () { busy(false); throw new Error('서버에 연결할 수 없습니다.'); })
+        .then(function (d) { S.files = d.files || S.files; ok++; }).catch(function (e) { toast(f.name + ': ' + errMsg(e), true); });
+    });
+  });
+  return chain.then(function () { return ok; });
+}
+/** 이미 있는 답변 말풍선에 파일 붙이기 */
+function replyAttach(list, rid, fid) {
+  var x = findRow('fureplies', rid); if (!x) return;
+  upReplyFiles(x.studentId, { replyId: rid }, Array.prototype.slice.call(list || [])).then(function (n) { if (n) { refreshThread(fid); render(); toast('파일 ' + n + '개를 이 답변에 붙였습니다.'); } });
+}
+/** 새 답변에 붙일 파일 (답변을 추가할 때 함께 올라감) */
+function replyPendBtn() { return '<label class="btn ghost sm" style="display:inline-flex;width:auto;margin:0" title="이 답변에 붙일 파일·캡처 (내용 칸에서 Ctrl+V로 캡처 붙여넣기도 됨)">📎 파일<input type="file" multiple hidden accept="' + ACCEPT_FILES + '" onchange="addReplyPend(this.files);this.value=\'\'"></label>'; }
+function replyPendBox() { UI.replyPend = []; return '<div class="th-files" id="fr-pend"></div>'; }
+function addReplyPend(list) {
+  Array.prototype.forEach.call(list || [], function (f) {
+    if (f.size > upMax()) return toast(upMB() + 'MB를 넘는 파일은 올릴 수 없습니다.', true);
+    UI.replyPend.push(f); var i = UI.replyPend.length - 1, img = /^image\//.test(f.type);
+    $('fr-pend').insertAdjacentHTML('beforeend', '<span class="shot new' + (img ? '' : ' doc') + '">' + (img ? '<img src="' + URL.createObjectURL(f) + '" alt="">' : '📎 ' + esc(f.name)) +
+      '<button type="button" title="빼기" onclick="UI.replyPend[' + i + ']=null;this.parentNode.remove()">✕</button></span>');
+  });
+  modalDirty = true;
+}
+function replyPendUpload(studentId, rid, fid) {
+  var files = (UI.replyPend || []).filter(Boolean); UI.replyPend = []; if ($('fr-pend')) $('fr-pend').innerHTML = '';
+  if (!files.length || !rid) return;
+  upReplyFiles(studentId, { replyId: rid }, files).then(function (n) { if (n) { refreshThread(fid); render(); toast('파일 ' + n + '개를 함께 붙였습니다.'); } });
+}
 function repliesOf(fid) {
   return (S.fureplies || []).filter(function (x) { return x.followupId === fid; })
     .sort(function (a, b) { return (a.date || a.createdAt.slice(0, 10)).localeCompare(b.date || b.createdAt.slice(0, 10)) || a.createdAt.localeCompare(b.createdAt); });
 }
-/** 우리 쪽 답변은 쓴 선생님 이름도 같이 */
-function replyWho(x) { return OUR_SIDE[x.who] ? x.who + ' ' + teacherName(x.createdBy) : x.who; }
+/** 우리 쪽 답변은 쓴 선생님 이름도 같이 (원장님은 대신 적는 경우가 많아 이름 없이) */
+function replyWho(x) { return OUR_SIDE[x.who] && x.who !== '원장님' ? x.who + ' ' + teacherName(x.createdBy) : x.who; }
 function openThread(fid) {
   var f = findRow('followups', fid); if (!f) return toast('팔로업을 찾을 수 없습니다. 새로고침 해주세요.', true);
   var s = studentById(f.studentId), reps = repliesOf(fid), contact = f.kind === 'contact';
   modal('💬 답변 — ' + s.name,
-    '<div class="full"><b>' + esc(f.title) + '</b>' + (contact ? '<div class="muted">📩 ' + esc([f.fromWho, f.channel, f.receivedDate && fmtD(f.receivedDate)].filter(Boolean).join(' · ')) + '</div>' : '') +
+    '<div class="full">' + (f.topic ? '<div class="topic" style="margin-right:6px">🗂 ' + esc(f.topic) + '</div>' : '') + '<b>' + esc(f.title) + '</b>' + (contact ? '<div class="muted">📩 ' + esc([f.fromWho, f.channel, f.receivedDate && fmtD(f.receivedDate)].filter(Boolean).join(' · ')) + '</div>' : '') +
       (f.detail && f.detail.trim() !== f.title ? '<div class="muted" style="white-space:pre-wrap;max-height:120px;overflow:auto">' + esc(f.detail) + '</div>' : '') + '</div>' +
     '<div class="full thread">' + threadItems(fid) + '</div>' +
     '<div class="full" style="border-top:1px solid #eee;padding-top:8px"><b>답변 추가</b></div>' +
     fld('답변한 사람', '<select name="who">' + REPLY_FROM.map(function (w) { return '<option' + (w === (reps.length && !OUR_SIDE[reps[reps.length - 1].who] ? '담당 선생님' : contact ? '담당 선생님' : '학생') ? ' selected' : '') + '>' + esc(w) + '</option>'; }).join('') + '</select>') +
     fld('날짜', inp('date', today(), 'date')) +
-    fld('내용 (위챗·문자 답장, 우리가 답한 내용 등)', '<textarea name="content" class="big"></textarea>', true, true),
+    fld('내용 (위챗·문자 답장, 우리가 답한 내용 등) — 캡처는 여기서 Ctrl+V', '<textarea name="content" id="fr-content" class="big"></textarea>', true, true) +
+    '<div class="full">' + replyPendBtn() + replyPendBox() + '</div>',
     '<button class="btn ghost" onclick="closeModal()">닫기</button><button class="btn" onclick="submitReply(' + js(fid) + ')">답변 추가</button>');
+  UI.replyPend = [];
   var ta = $('mf').querySelector('textarea'); if (ta) ta.focus();
 }
 function threadItems(fid, inline) {
   var reps = repliesOf(fid);
   return reps.length ? reps.map(function (x) {
     var mine = x.createdBy === S.me.email || isAdmin();
+    var fs = replyFiles(x.id);
     return '<div class="th-item' + (OUR_SIDE[x.who] ? ' ours' : '') + '" id="th-' + esc(x.id) + '"><div class="th-h"><b>' + esc(replyWho(x)) + '</b> <span class="muted">' + esc(x.date ? fmtD(x.date) : fmtTime(x.createdAt)) +
       (x.updatedAt && x.updatedAt !== x.createdAt ? ' · 수정됨' : '') + '</span>' +
-      (mine ? '<span class="th-acts"><button type="button" class="ibtn" title="이 답변 고치기" onclick="editReply(' + js(x.id) + ',' + js(fid) + ')">✏️</button>' +
-        '<button type="button" class="ibtn" title="이 답변 지우기 (휴지통)" onclick="removeReply(' + js(x.id) + ',' + js(fid) + ')">✕</button></span>' : '') + '</div>' +
-      '<div class="th-b">' + esc(x.content) + '</div></div>';
+      '<span class="th-acts"><label class="ibtn" title="이 답변에 파일·캡처 붙이기">📎<input type="file" multiple hidden accept="' + ACCEPT_FILES + '" onchange="replyAttach(this.files,' + js(x.id) + ',' + js(fid) + ');this.value=\'\'"></label>' +
+      (mine ? '<button type="button" class="ibtn" title="이 답변 고치기" onclick="editReply(' + js(x.id) + ',' + js(fid) + ')">✏️</button>' +
+        '<button type="button" class="ibtn" title="이 답변 지우기 (휴지통)" onclick="removeReply(' + js(x.id) + ',' + js(fid) + ')">✕</button>' : '') + '</span></div>' +
+      '<div class="th-b">' + esc(x.content) + '</div>' +
+      (fs.length ? '<div class="th-files">' + fs.map(function (f) { return '<span class="shot-wrap" id="fw-' + esc(f.id) + '">' + fileThumb(f) + (f.createdBy === S.me.email || isAdmin() ? '<button type="button" class="ibtn" title="이 파일 지우기 (휴지통)" onclick="removeFormFile(' + js(f.id) + ')">✕</button>' : '') + '</span>'; }).join('') + '</div>' : '') + '</div>';
   }).join('') : '<div class="empty" style="padding:10px">아직 답변 기록이 없습니다.</div>';
 }
 /** 팔로업·받은 연락 수정 창 안에서 답변 추가 (창은 그대로, 입력 중인 내용 유지) */
@@ -2919,6 +3004,7 @@ function addReplyInline(fid) {
   if (!c || !c.value.trim()) return toast('답변 내용을 입력하세요.', true);
   api('save', { table: 'fureplies', obj: { studentId: f.studentId, followupId: fid, who: $('fr-who').value, date: $('fr-date').value, content: c.value.trim() } }).then(function (d) {
     S.fureplies = d.fureplies || S.fureplies; c.value = '';
+    replyPendUpload(f.studentId, d.savedId, fid);
     var cur = findRow('followups', fid), up = $('mf') && $('mf').querySelector('[name=updatedAt]');
     if (up && cur) up.value = cur.updatedAt;
     $('fr-list').innerHTML = threadItems(fid); render(); toast('답변을 추가했습니다.');
@@ -2927,8 +3013,9 @@ function addReplyInline(fid) {
 function submitReply(fid) {
   var f = findRow('followups', fid), o = formData($('mf'));
   if (!String(o.content || '').trim()) return toast('내용을 입력하세요.', true);
+  var pend = (UI.replyPend || []).filter(Boolean);
   mutate('save', { table: 'fureplies', obj: { studentId: f.studentId, followupId: fid, who: o.who, date: o.date, content: o.content.trim() } }, '답변을 추가했습니다.')
-    .then(function (d) { if (d) openThread(fid); });
+    .then(function (d) { if (d) { openThread(fid); UI.replyPend = pend; replyPendUpload(f.studentId, d.savedId, fid); } });
 }
 /** 답변 고치기: 그 자리에서 답변한 사람·날짜·내용 수정 (창은 그대로) */
 function editReply(id, fid) {
@@ -2977,12 +3064,71 @@ function tabFollowups(s) {
   var open = openFollowups(s.id).filter(kindOk);
   var done = all.filter(function (f) { return f.status === '완료'; }).sort(function (a, b) { return (b.doneAt || '').localeCompare(a.doneAt || ''); });
   var h = '<div class="card">' + secHead('팔로업·연락 <span class="muted">남은 ' + open.length + '건</span>', '<span class="toolbar" style="margin:0">' + seg([['all', '전체'], ['todo', '할 일'], ['contact', '받은 연락']], UI.fuKind, 'fuKind') +
+    segP([['list', '목록'], ['topic', '주제별']], 'stuFuView', 'list') +
     '<button class="btn ghost sm" onclick="openForm(\'followups\',null,' + js(s.id) + ')">할 일 자세히 추가</button><button class="btn sm" onclick="openForm(\'contact\',null,' + js(s.id) + ')">📩 받은 연락 추가</button></span>');
+  h += '<div class="toolbar" style="margin:6px 0"><input type="text" id="q" class="grow" placeholder="🔎 주제·할 일·받은 내용·답변·첨부파일 이름 검색 (완료된 것까지)" value="' + esc(UI.sfuQ || '') + '" oninput="searchInputFull(event,\'sfuQ\')" oncompositionend="searchInputFull(event,\'sfuQ\')"></div>';
+  var q = (UI.sfuQ || '').trim().toLowerCase();
+  if (q) {
+    var hits = all.filter(function (f) { return fuHit(f, q); }).sort(function (a, b) { return (b.updatedAt || '').localeCompare(a.updatedAt || ''); });
+    return h + (hits.length ? '<div class="muted" style="margin:4px 0">검색 결과 ' + hits.length + '건</div>' + hits.map(function (f) { return fuRow(f, false) + fuHitBox(f, q); }).join('') : '<div class="empty">찾는 내용이 없습니다.</div>') + '</div>';
+  }
   h += '<div class="quick"><input type="text" id="fu-title" placeholder="챙겨야 할 일을 입력하고 Enter (예: 추천서 요청 메일 확인)" onkeydown="if(event.key===\'Enter\')quickFollowup(' + js(s.id) + ')">' +
     '<select id="fu-who" title="담당자">' + teacherOpts(S.me.email) + '</select><input type="date" id="fu-due" title="기한"><button class="btn" onclick="quickFollowup(' + js(s.id) + ')">추가</button></div>';
+  if (UI.stuFuView === 'topic') return h + topicGroups(s, all) + '</div>';
   h += open.length ? open.map(function (f) { return fuRow(f, false); }).join('') : '<div class="empty">' + (UI.fuKind === 'contact' ? '답이 필요한 받은 연락이 없습니다.' : '남은 팔로업이 없습니다.') + '</div>';
   if (done.length) h += '<details class="donebox"><summary>완료된 항목 ' + done.length + '건</summary>' + done.slice(0, 30).map(function (f) { return fuRow(f, false); }).join('') + '</details>';
   return h + '</div>';
+}
+/** 주제별(사건) 보기: 같은 주제의 팔로업·받은 연락을 한 묶음으로 — 머리줄 한 줄에 주제·건수·답변·파일·최근 날짜 */
+function topicGroups(s, list) {
+  var groups = [], byT = {};
+  list.forEach(function (f) { var k = (f.topic || '').trim().toLowerCase(); if (!byT[k]) { byT[k] = []; groups.push(k); } byT[k].push(f); });
+  var last = function (f) { var r = repliesOf(f.id); return [f.updatedAt || '', r.length ? r[r.length - 1].createdAt : ''].sort().pop(); };
+  var lastOf = function (k) { return byT[k].map(last).sort().pop() || ''; };
+  groups.sort(function (a, b) { return (a === '') - (b === '') || lastOf(b).localeCompare(lastOf(a)); });
+  if (!groups.length) return '<div class="empty">기록이 없습니다.</div>';
+  UI.noTopicChip = true;
+  var out = groups.map(function (k) {
+    var items = byT[k].slice().sort(function (a, b) { return ((a.status === '완료') - (b.status === '완료')) || (a.createdAt || '').localeCompare(b.createdAt || ''); });
+    var nOpen = items.filter(function (f) { return f.status !== '완료'; }).length;
+    var nRep = items.reduce(function (n, f) { return n + repliesOf(f.id).length; }, 0);
+    var nFile = items.reduce(function (n, f) { return n + S.files.filter(function (x) { return x.followupId === f.id; }).length; }, 0);
+    var name = k ? items[0].topic.trim() : '주제 없음', lt = lastOf(k);
+    var add = k ? '<span class="tg-add" onclick="event.preventDefault();event.stopPropagation()"><button class="ibtn" title="이 주제로 할 일 추가" onclick="openForm(\'followups\',null,' + js(s.id) + ',{topic:' + js(name) + '})">+ 할 일</button>' +
+      '<button class="ibtn" title="이 주제로 받은 연락 추가" onclick="openForm(\'contact\',null,' + js(s.id) + ',{topic:' + js(name) + '})">+ 📩 연락</button></span>' : '';
+    return '<details class="topic-g"' + (nOpen || !k ? ' open' : '') + '><summary><span class="tg-h">' + (k ? '🗂 <b>' + esc(name) + '</b>' : '<span class="muted">주제 없음</span>') + '</span>' +
+      '<span class="muted">' + items.length + '건' + (nOpen ? ' · 남은 ' + nOpen : ' · 모두 완료') + (nRep ? ' · 💬 ' + nRep : '') + (nFile ? ' · 📎 ' + nFile : '') + (lt ? ' · 최근 ' + esc(fmtD(lt.slice(0, 10))) : '') + '</span>' + add + '</summary>' +
+      items.map(function (f) { return fuRow(f, false); }).join('') + '</details>';
+  }).join('');
+  UI.noTopicChip = false;
+  return out;
+}
+/** 검색: 팔로업 하나가 q 와 맞는지 (주제·할 일·받은 내용·답변·첨부파일 이름) */
+function fuHit(f, q) {
+  var s = studentById(f.studentId);
+  var text = [f.topic, f.title, f.detail, f.category, f.fromWho, s && s.name, teacherName(f.assignee)].concat(repliesOf(f.id).map(function (x) { return x.content + ' ' + x.who; }))
+    .concat(S.files.filter(function (x) { return x.followupId === f.id; }).map(function (x) { return x.name; }));
+  return text.join(' ').toLowerCase().indexOf(q) >= 0;
+}
+/** 검색어 앞뒤 글 + 강조 */
+function hlSnip(text, q, w) {
+  text = String(text || '').replace(/\s+/g, ' '); w = w || 50;
+  var i = text.toLowerCase().indexOf(q); if (i < 0) return null;
+  var a = Math.max(0, i - w), b = Math.min(text.length, i + q.length + w);
+  return (a ? '…' : '') + esc(text.slice(a, i)) + '<mark>' + esc(text.slice(i, i + q.length)) + '</mark>' + esc(text.slice(i + q.length, b)) + (b < text.length ? '…' : '');
+}
+/** 검색 결과 줄 아래: 걸린 문장(어느 답변인지)과 걸린·붙은 파일 */
+function fuHitBox(f, q) {
+  var lines = [];
+  var d = hlSnip(f.detail, q); if (d && f.detail.trim() !== f.title) lines.push('<div><span class="muted">' + (f.kind === 'contact' ? '받은 내용' : '세부') + '</span> ' + d + '</div>');
+  repliesOf(f.id).forEach(function (x) {
+    var fs = replyFiles(x.id), hit = hlSnip(x.content, q), fhit = fs.filter(function (y) { return y.name.toLowerCase().indexOf(q) >= 0; });
+    if (hit || fhit.length) lines.push('<div class="hit-r' + (OUR_SIDE[x.who] ? ' ours' : '') + '"><b>💬 ' + esc(replyWho(x)) + '</b> <span class="muted">' + esc(x.date ? fmtD(x.date) : fmtTime(x.createdAt)) + '</span> ' + (hit || '') +
+      (fhit.length ? '<div class="th-files">' + fhit.map(fileThumb).join('') + '</div>' : '') + '</div>');
+  });
+  var loose = S.files.filter(function (x) { return x.followupId === f.id && !x.replyId && x.name.toLowerCase().indexOf(q) >= 0; });
+  if (loose.length) lines.push('<div class="th-files">' + loose.map(fileThumb).join('') + '</div>');
+  return lines.length ? '<div class="fu-hits" onclick="openForm(' + js(f.kind === 'contact' ? 'contact' : 'followups') + ',' + js(f.id) + ')">' + lines.join('') + '</div>' : '';
 }
 function loadActivity(sid) {
   api('getActivity', { studentId: sid }).then(function (d) {
@@ -2994,7 +3140,7 @@ function loadActivity(sid) {
 /* ----- 팔로업 트래커 (전체 학생) ----- */
 function viewFollowups() {
   UI.fuWho = UI.fuWho || 'me'; UI.fuStatus = UI.fuStatus || 'open'; UI.fuDue = UI.fuDue || 'all';
-  var q = (UI.fuQ || '').toLowerCase();
+  var q = (UI.fuQ || '').trim().toLowerCase();
   UI.fuKind = UI.fuKind || 'all';
   var list = S.followups.filter(function (f) {
     var s = studentById(f.studentId); if (!s) return false;
@@ -3008,7 +3154,7 @@ function viewFollowups() {
     var n = dayDiff(f.due);
     if (UI.fuDue === 'over' && !(n !== null && n < 0)) return false;
     if (UI.fuDue === 'week' && !(n !== null && n <= 7)) return false;
-    if (q && [s.name, f.title, f.detail, f.category, teacherName(f.assignee)].join(' ').toLowerCase().indexOf(q) < 0) return false;
+    if (q && !fuHit(f, q)) return false;
     return true;
   }).sort(fuSort);
   UI.fuGroup = UI.fuGroup || 'due';
@@ -3016,7 +3162,7 @@ function viewFollowups() {
   var h = '<div class="toolbar"><h2 style="margin:0;margin-right:auto">팔로업·연락 <span class="muted">' + list.length + '건</span></h2>' +
     seg([['all', '전체'], ['todo', '할 일'], ['contact', '받은 연락']], UI.fuKind, 'fuKind') + seg([['due', '기한별로 보기'], ['student', '학생별로 보기']], UI.fuGroup, 'fuGroup') +
     '<button class="btn" onclick="openFollowupMany()" title="모든 학생 또는 여러 학생에게 같은 할 일">👥 공통 팔로업</button></div>';
-  h += '<div class="toolbar"><input type="text" id="q" class="grow" placeholder="학생·할 일·담당자 검색" value="' + esc(UI.fuQ || '') + '" oninput="searchInput(event,\'fuQ\')" oncompositionend="searchInput(event,\'fuQ\')">' +
+  h += '<div class="toolbar"><input type="text" id="q" class="grow" placeholder="🔎 학생·주제·할 일·답변·첨부파일 이름·담당자 검색" value="' + esc(UI.fuQ || '') + '" oninput="searchInput(event,\'fuQ\')" oncompositionend="searchInput(event,\'fuQ\')">' +
     '<select onchange="UI.fuWho=this.value;render()">' + [['me', '내가 담당인 일'], ['mystudents', '내 담당 학생의 일'], ['all', '전체'], ['none', '담당자 미정']].map(function (o) {
       return '<option value="' + o[0] + '"' + (UI.fuWho === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') +
       S.teachers.filter(function (t) { return t.active; }).map(function (t) { return '<option value="' + esc(t.email) + '"' + (UI.fuWho === t.email ? ' selected' : '') + '>' + esc(t.name) + '</option>'; }).join('') + '</select>' +
@@ -3026,6 +3172,7 @@ function viewFollowups() {
       return '<option value="' + o[0] + '"' + (UI.fuDue === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></div>';
   if (!list.length) return h + '<div class="card empty">' + (UI.fuKind === 'contact' ? '해당하는 받은 연락이 없습니다. 학생 화면의 “팔로업·연락” 탭에서 “📩 받은 연락 추가”로 기록할 수 있습니다.'
     : '해당하는 팔로업이 없습니다. 학생 화면의 “팔로업·연락” 탭에서 추가할 수 있습니다.') + (UI.fuWho === 'me' ? ' <a href="javascript:void 0" onclick="UI.fuWho=\'all\';render()">전체 담당자 보기</a>' : '') + '</div>';
+  if (q) return h + '<div class="card">' + list.map(function (f) { return fuRow(f, true) + fuHitBox(f, q); }).join('') + '</div>';
   if (UI.fuGroup === 'due') {
     var buckets = [['기한 지남', 'over', function (n) { return n !== null && n < 0; }], ['오늘·내일', '', function (n) { return n === 0 || n === 1; }],
       ['이번 주 (7일 이내)', '', function (n) { return n !== null && n > 1 && n <= 7; }], ['그 이후', '', function (n) { return n !== null && n > 7; }], ['기한 없음', '', function (n) { return n === null; }]];
@@ -4912,7 +5059,7 @@ function searchAll(q) {
   var ap = S.apps.filter(function (a) { var s = studentById(a.studentId); return s && hit([a.university, a.major, a.round, a.country, s.name]); })
     .map(function (a) { var s = studentById(a.studentId); return { title: s.name + ' — ' + a.university, sub: [a.major, a.round, a.deadline, a.status].filter(Boolean).join(' · '), href: '#/student/' + s.id, tab: 'apps' }; });
   if (ap.length) groups.push({ label: '지원대학', items: ap });
-  var fu = S.followups.filter(function (f) { var s = studentById(f.studentId); return s && hit([f.title, f.detail, f.category, s.name, teacherName(f.assignee)].concat(repliesOf(f.id).map(function (x) { return x.content; }))); })
+  var fu = S.followups.filter(function (f) { var s = studentById(f.studentId); return s && hit([f.topic, f.title, f.detail, f.category, s.name, teacherName(f.assignee)].concat(repliesOf(f.id).map(function (x) { return x.content; }))); })
     .map(function (f) { var s = studentById(f.studentId); return { title: s.name + ' — ' + f.title, sub: [f.status, '담당 ' + (teacherName(f.assignee) || '미정'), f.due].filter(Boolean).join(' · '), href: '#/student/' + s.id, tab: 'followups' }; });
   if (fu.length) groups.push({ label: '팔로업', items: fu });
   var dc = S.docs.filter(function (d) { var s = studentById(d.studentId); return s && hit([d.name, d.memo, s.name]); })
@@ -5554,10 +5701,12 @@ function field(f, rec) {
     datalist('dl-site', siteList().map(function (x) { return x.value; })), f.full, f.req);
   if (f.t === 'rich') return richField(f, rec);
   if (f.t === 'shots') return shotsField(rec);
+  if (f.t === 'topic') return fld('🗂 주제 (한 줄 — 같은 주제끼리 한 사건으로 묶여 기록이 쌓임)', inp('topic', rec.topic || '', 'text', ' list="dl-topic" maxlength="60" placeholder="예: 사이언스 페어 연구계획서 / HKU 추천서 / 여름 캠프 서류"') +
+    datalist('dl-topic', topicsOf(rec.studentId)), true);
   if (f.t === 'replies') return rec.id ? '<div class="full"><label>💬 답변 (학생·어머님·아버님·우리 쪽 — 이어서 기록)</label><div class="thread" id="fr-list">' + threadItems(rec.id) + '</div>' +
     '<div class="fr-add"><select id="fr-who">' + REPLY_FROM.map(function (w) { return '<option' + (w === '학생' ? ' selected' : '') + '>' + esc(w) + '</option>'; }).join('') + '</select>' +
-    '<input type="date" id="fr-date" value="' + esc(today()) + '"><textarea id="fr-content" placeholder="답변 내용 (위챗·문자 답장, 우리가 답한 내용 등)"></textarea>' +
-    '<button type="button" class="btn sm" onclick="addReplyInline(' + js(rec.id) + ')">답변 추가</button></div></div>' : '';
+    '<input type="date" id="fr-date" value="' + esc(today()) + '"><textarea id="fr-content" placeholder="답변 내용 (위챗·문자 답장, 우리가 답한 내용 등) — 캡처는 여기서 Ctrl+V"></textarea>' +
+    '<span class="fr-btns"><button type="button" class="btn sm" onclick="addReplyInline(' + js(rec.id) + ')">답변 추가</button>' + replyPendBtn() + '</span></div>' + replyPendBox() + '</div>' : '';
   if (f.t === 'scorefiles') return shotsField(rec, 'score');
   if (f.t === 'docfiles') return shotsField(rec, 'doc');
   if (f.t === 'meetfiles') return shotsField(rec, 'meeting');
@@ -5808,11 +5957,12 @@ function addShots(files) {
   modalDirty = true;
 }
 document.addEventListener('paste', function (e) {
-  if (!$('shots')) return;
+  var toReply = document.activeElement && document.activeElement.id === 'fr-content' && $('fr-pend');
+  if (!$('shots') && !toReply) return;
   var items = Array.prototype.filter.call((e.clipboardData || {}).items || [], function (it) { return it.kind === 'file' && /^image\//.test(it.type); });
   if (!items.length) return; // 글자는 원래대로 붙여넣기
   e.preventDefault();
-  addShots(items.map(function (it, n) { var f = it.getAsFile(); return new File([f], '캡처-' + today() + '-' + (n + 1) + '.' + (f.type.split('/')[1] || 'png').replace('jpeg', 'jpg'), { type: f.type }); }));
+  (toReply ? addReplyPend : addShots)(items.map(function (it, n) { var f = it.getAsFile(); return new File([f], '캡처-' + today() + '-' + (n + 1) + '.' + (f.type.split('/')[1] || 'png').replace('jpeg', 'jpg'), { type: f.type }); }));
 });
 function uploadShots(studentId, followupId, param) {
   var files = (UI.shots || []).filter(Boolean); UI.shots = [];
