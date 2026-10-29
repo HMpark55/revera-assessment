@@ -494,7 +494,10 @@
   .th-files .shot img { max-height:64px; }
   .th-acts label.ibtn { cursor:pointer; }
   .fr-btns { display:flex; flex-direction:column; gap:4px; }
-  .topic { display:inline-block; font-size:.75rem; color:#5b3e00; background:#fff3d6; border:1px solid #f1dca6; border-radius:4px; padding:0 6px; flex-shrink:0; white-space:nowrap; max-width:220px; overflow:hidden; text-overflow:ellipsis; }
+  .futopic { display:inline-block; font-size:.75rem; color:#5b3e00; background:#fff3d6; border:1px solid #f1dca6; border-radius:4px; padding:0 6px; flex-shrink:0; white-space:nowrap; max-width:260px; overflow:hidden; text-overflow:ellipsis; }
+  .ev .scbr { font-size:.65rem; color:#6b5aa6; border:1px solid #c9bdf0; border-radius:3px; padding:0 2px; margin-right:3px; background:#fff; }
+  .tl-snip { padding:2px 10px 8px 34px; font-size:.82rem; color:#4b5563; } .tl-snip mark { background:#ffe58a; padding:0 1px; }
+  .futopic b { font-weight:600; color:#a16207; margin-right:2px; }
   details.topic-g { border:1px solid var(--border); border-radius:8px; margin:8px 0; background:#fff; }
   details.topic-g > summary { display:flex; gap:10px; align-items:baseline; flex-wrap:wrap; padding:8px 10px; background:#fbf7ec; border-radius:8px; cursor:pointer; list-style:none; }
   details.topic-g[open] > summary { border-radius:8px 8px 0 0; border-bottom:1px solid var(--border); }
@@ -2100,14 +2103,17 @@ function calItems(from, to) {
   if (UI.calDl !== false) {
     if (autoOn('deadline')) deadlineItems(false).forEach(function (i) { if (i.date >= from && i.date <= to) add(i.date, { dl: i }); });
     if (autoOn('nextmeet')) nextMeetings().forEach(function (m) { if (m.nextDate >= from && m.nextDate <= to) add(m.nextDate, { nm: m }); });
-    if (autoOn('sched')) (S.sched || []).forEach(function (x) { var d = x.startAt.slice(0, 10); if (d >= from && d <= to && anyStudent(x.studentId)) add(d, { sc: x }); }); // 원장님 미팅은 지점과 상관없이 모두
+    if (autoOn('sched')) (S.sched || []).forEach(function (x) { // 원장님 미팅은 지점과 상관없이 모두 (달력 위에서 지점으로 거를 수 있음)
+      var d = x.startAt.slice(0, 10), st = anyStudent(x.studentId);
+      if (d >= from && d <= to && st && (!UI.calScBr || branchOf(st) === UI.calScBr)) add(d, { sc: x });
+    });
   }
   return by;
 }
 function calChip(it) {
   if (it.sc) {
     var ss = anyStudent(it.sc.studentId);
-    return '<span class="ev sc" style="border-left-color:' + autoCat('sched').color + ';background:' + autoCat('sched').color + '1f" title="' + esc('원장님 ' + schedTime(it.sc) + ' · ' + it.sc.title + (it.sc.detail ? ' · ' + it.sc.detail : '')) + '" onclick="event.stopPropagation();openStudent(' + js(ss.id) + ',\'meetings\')">' + esc(it.sc.startAt.slice(11, 16) + ' 원장님 · ' + ss.name) + '</span>';
+    return '<span class="ev sc" style="border-left-color:' + autoCat('sched').color + ';background:' + autoCat('sched').color + '1f" title="' + esc('원장님 ' + schedTime(it.sc) + ' · ' + ss.name + ' (' + branchOf(ss) + ') · ' + it.sc.title + (it.sc.detail ? ' · ' + it.sc.detail : '')) + '" onclick="event.stopPropagation();openStudent(' + js(ss.id) + ',\'meetings\')">' + (UI.calScBr ? '' : '<span class="scbr">' + esc(String(branchOf(ss)).slice(0, 2)) + '</span>') + esc(it.sc.startAt.slice(11, 16) + ' 원장님 · ' + ss.name) + '</span>';
   }
   if (it.ev) return '<span class="ev' + (it.cont ? ' cont' : '') + '" style="' + evStyle(it.ev.category) + '" title="' + esc((it.ev.time ? it.ev.time + ' ' : '') + it.ev.title + (it.ev.origTime ? ' (' + it.ev.origTime + ')' : '') + (it.ev.shared === 'TRUE' ? ' · 전체 지점 공유' : '') + (it.ev.memo ? '\n' + it.ev.memo : '')) + '" onclick="event.stopPropagation();openEvent(' + js(it.ev.id) + ')">' + (it.ev.private === 'TRUE' ? '🔒 ' : it.ev.shared === 'TRUE' ? '🌐 ' : '') + esc((it.ev.time && !it.cont ? it.ev.time + ' ' : '') + it.ev.title) + '</span>';
   if (it.nm) {
@@ -2146,6 +2152,7 @@ function calendarCard() {
     '<button class="btn ghost sm" onclick="UI.calOff++;render()" title="다음 달">▶</button>' +
     '<label class="muted" style="margin-left:6px"><input type="checkbox"' + (UI.calDl !== false ? ' checked' : '') + ' onchange="UI.calDl=this.checked;render()"> 학생 지원 마감·다음 미팅도 보기</label>' +
     '<label class="muted"><input type="checkbox"' + (UI.calBreak !== false ? ' checked' : '') + ' onchange="UI.calBreak=this.checked;render()"> 학교 방학</label>' +
+    (UI.calDl !== false && autoOn('sched') ? '<select title="원장님 미팅 학생의 지점" style="width:auto" onchange="UI.calScBr=this.value;render()"><option value="">원장님 미팅: 모든 지점</option>' + BRANCHES.map(function (b) { return '<option value="' + esc(b) + '"' + (UI.calScBr === b ? ' selected' : '') + '>원장님 미팅: ' + esc(b) + ' 학생</option>'; }).join('') + '</select>' : '') +
     '<button class="btn sm" onclick="openEvent(null,today())">+ 일정 추가</button>' +
     '<button class="btn ghost sm" onclick="refreshSchedule(this)" title="원장님 스케줄 시트를 지금 다시 읽어옴 (시트는 수정하지 않음)">↻ 원장님 일정 가져오기</button>' +
     '<span class="cal-legend">' + evCats().map(function (c) { return '<span><i style="background:' + evColor(c.value) + '"></i>' + esc(c.value) + '</span>'; }).join('') +
@@ -2405,7 +2412,7 @@ function todoList(todos) {
   return todos.map(function (n) {
     var s = studentById(n.studentId);
     return '<div class="todo"><input type="checkbox" title="완료 처리" onchange="toggleDone(' + js(n.id) + ', this.checked)">' +
-      '<div class="t"><div>' + esc(n.nextAction) + '</div><div class="muted"><a href="#/student/' + esc(s.id) + '" onclick="UI.tab=\'notes\'">' + esc(s.name) + '</a> · 담당 ' + esc(teacherName(s.counselor) || '미지정') +
+      '<div class="t"><div>' + esc(n.nextAction) + '</div><div class="muted"><a href="#/student/' + esc(s.id) + '" onclick="UI.tab=\'consults\'">' + esc(s.name) + '</a> · 담당 ' + esc(teacherName(s.counselor) || '미지정') +
       (n.nextDue ? ' · ' + esc(n.nextDue) + ' ' + dday(n.nextDue) : '') + '</div></div></div>';
   }).join('');
 }
@@ -2665,10 +2672,10 @@ function downloadBoard() {
 }
 
 /* ============================== 학생 상세 ============================== */
-var TAB_LABEL = { appinfo: '원서 정보', summary: '요약', meetings: '미팅', accounts: '계정', followups: '팔로업·연락', notes: '전체 기록', contracts: '계약', majors: '전공', apps: '지원대학', scores: '성적·학력', schools: '학력', docs: '서류', profile: '학생 정보' };
+var TAB_LABEL = { appinfo: '원서 정보', summary: '요약', meetings: '미팅', accounts: '계정', followups: '팔로업·연락', consults: '상담', notes: '전체 기록', contracts: '계약', majors: '전공', apps: '지원대학', scores: '성적·학력', schools: '학력', docs: '서류', profile: '학생 정보' };
 /** 학생 화면 탭 묶음: 요약 | 진행 | 입시 | 행정 */
 function tabGroups() {
-  return [['', ['summary']], ['진행', ['followups', 'meetings'].concat(isMgr() ? ['notes'] : [])],
+  return [['', ['summary']], ['진행', ['followups', 'meetings'].concat(isMgr() ? ['consults', 'notes'] : [])],
     ['입시', ['apps', 'appinfo', 'scores', 'docs']], ['행정', ['contracts', 'profile']]];
 }
 function tabsForRole() { return [].concat.apply([], tabGroups().map(function (g) { return g[1]; })); }
@@ -2699,13 +2706,13 @@ function viewStudent(id) {
     var n = t === 'summary' ? null : t === 'followups' ? openFollowups(id).length : t === 'profile' ? null : t === 'scores' ? childOf('schools', id).length + childOf('courses', id).length + childOf('scores', id).length + childOf('files', id).filter(function (f) { return !f.docId && !f.meetingId && !f.followupId && !f.scoreId; }).length :
       t === 'accounts' ? childOf('accounts', id).length : t === 'meetings' ? childOf('meetings', id).length :
       t === 'majors' ? childOf('majorplans', id).filter(function (m) { return m.status !== '제외'; }).length :
-      t === 'notes' ? timelineOf(id).length : ['contracts', 'apps', 'docs', 'schools', 'appinfo'].indexOf(t) >= 0 ? childOf(t, id).length : null;
+      t === 'notes' ? timelineOf(id).length : t === 'consults' ? notesOf(id).length : ['contracts', 'apps', 'docs', 'schools', 'appinfo'].indexOf(t) >= 0 ? childOf(t, id).length : null;
     return '<a class="' + (UI.tab === t ? 'on' : '') + '" onclick="UI.tab=' + js(t) + ';render()">' + TAB_LABEL[t] + (n ? ' (' + n + ')' : '') + '</a>';
   };
   h += '<div class="tabs">' + tabGroups().map(function (g, i) {
     return (i ? '<span class="tsep"></span>' : '') + (g[0] ? '<span class="tg">' + g[0] + '</span>' : '') + g[1].map(tabLink).join('');
   }).join('') + '</div>';
-  return h + { appinfo: tabAppinfo, summary: tabSummary, followups: tabFollowups, notes: tabNotes, contracts: tabContracts, scores: tabScores, apps: tabApps,
+  return h + { appinfo: tabAppinfo, summary: tabSummary, followups: tabFollowups, consults: tabConsults, notes: tabNotes, contracts: tabContracts, scores: tabScores, apps: tabApps,
     docs: tabDocs, profile: tabProfile, majors: tabMajors, schools: tabSchools, accounts: tabAccounts, meetings: tabMeetings }[UI.tab](s);
 }
 function addBtn(table, sid, label) { return '<button class="btn" onclick="openForm(' + js(table) + ',null,' + js(sid) + ')">' + label + '</button>'; }
@@ -2827,7 +2834,7 @@ function fuRow(f, showStudent, inSource, compact) {
     '<div class="t" onclick="openForm(' + js(contact ? 'contact' : 'followups') + ',' + js(f.id) + ')" title="' + esc([f.detail, reply].filter(Boolean).join('\n')) + '">' +
       '<div class="l1"><span class="who1">' + (showStudent ? '<a href="#/student/' + esc(s.id) + '" onclick="event.stopPropagation();UI.tab=\'followups\'"><b>' + esc(s.name) + '</b></a> ' + branchPill(s) + ' · ' : '') +
         esc(teacherName(f.assignee) || '담당 미정') + '</span>' + (contact ? '<span class="ctag">📩' + (compact ? '' : ' ' + esc([f.fromWho, f.channel].filter(Boolean).join(' · ')) + (f.receivedDate ? ' ' + esc(fmtD(f.receivedDate)) : '')) + '</span>' : '') +
-        (f.topic && !compact && !UI.noTopicChip ? '<span class="topic" title="주제">🗂 ' + esc(f.topic) + '</span>' : '') + '<span class="tt">' + esc(f.title) + '</span>' + (f.category && !compact ? '<span class="tag">' + esc(f.category) + '</span>' : '') +
+        (f.topic && !compact && !UI.noTopicChip ? '<span class="futopic" title="주제 — 같은 주제끼리 한 사건으로 묶임"><b>주제</b> ' + esc(f.topic) + '</span>' : '') + '<span class="tt">' + esc(f.title) + '</span>' + (f.category && !compact ? '<span class="tag">' + esc(f.category) + '</span>' : '') +
         (contact && !done ? (f.status === '할 일' ? '<span class="pill d-요청함">답변 필요</span>' : fuStatusPill(f)) : !done && f.status !== '할 일' ? fuStatusPill(f) : '') + reqTag +
         (src ? '<span class="linked">' + (f.meetingId ? '미팅 ' : '상담 ') + esc(fmtD(src.date)) + '</span>' : '') +
         '<span class="meta">' + (done ? esc(fmtTime(f.doneAt).slice(5, 10).replace('-', '/')) + ' 완료' : f.due ? esc(fmtD(f.due)) + ' ' + dday(f.due) : '기한 없음') + '</span></div>' +
@@ -2972,7 +2979,7 @@ function openThread(fid) {
   var f = findRow('followups', fid); if (!f) return toast('팔로업을 찾을 수 없습니다. 새로고침 해주세요.', true);
   var s = studentById(f.studentId), reps = repliesOf(fid), contact = f.kind === 'contact';
   modal('💬 답변 — ' + s.name,
-    '<div class="full">' + (f.topic ? '<div class="topic" style="margin-right:6px">🗂 ' + esc(f.topic) + '</div>' : '') + '<b>' + esc(f.title) + '</b>' + (contact ? '<div class="muted">📩 ' + esc([f.fromWho, f.channel, f.receivedDate && fmtD(f.receivedDate)].filter(Boolean).join(' · ')) + '</div>' : '') +
+    '<div class="full">' + (f.topic ? '<div class="futopic" style="margin-right:6px"><b>주제</b> ' + esc(f.topic) + '</div>' : '') + '<b>' + esc(f.title) + '</b>' + (contact ? '<div class="muted">📩 ' + esc([f.fromWho, f.channel, f.receivedDate && fmtD(f.receivedDate)].filter(Boolean).join(' · ')) + '</div>' : '') +
       (f.detail && f.detail.trim() !== f.title ? '<div class="muted" style="white-space:pre-wrap;max-height:120px;overflow:auto">' + esc(f.detail) + '</div>' : '') + '</div>' +
     '<div class="full thread">' + threadItems(fid) + '</div>' +
     '<div class="full" style="border-top:1px solid #eee;padding-top:8px"><b>답변 추가</b></div>' +
@@ -3096,7 +3103,7 @@ function topicGroups(s, list) {
     var name = k ? items[0].topic.trim() : '주제 없음', lt = lastOf(k);
     var add = k ? '<span class="tg-add" onclick="event.preventDefault();event.stopPropagation()"><button class="ibtn" title="이 주제로 할 일 추가" onclick="openForm(\'followups\',null,' + js(s.id) + ',{topic:' + js(name) + '})">+ 할 일</button>' +
       '<button class="ibtn" title="이 주제로 받은 연락 추가" onclick="openForm(\'contact\',null,' + js(s.id) + ',{topic:' + js(name) + '})">+ 📩 연락</button></span>' : '';
-    return '<details class="topic-g"' + (nOpen || !k ? ' open' : '') + '><summary><span class="tg-h">' + (k ? '🗂 <b>' + esc(name) + '</b>' : '<span class="muted">주제 없음</span>') + '</span>' +
+    return '<details class="topic-g"' + (nOpen || !k ? ' open' : '') + '><summary><span class="tg-h">' + (k ? '<span class="futopic"><b>주제</b></span> <b>' + esc(name) + '</b>' : '<span class="muted">주제 없음</span>') + '</span>' +
       '<span class="muted">' + items.length + '건' + (nOpen ? ' · 남은 ' + nOpen : ' · 모두 완료') + (nRep ? ' · 💬 ' + nRep : '') + (nFile ? ' · 📎 ' + nFile : '') + (lt ? ' · 최근 ' + esc(fmtD(lt.slice(0, 10))) : '') + '</span>' + add + '</summary>' +
       items.map(function (f) { return fuRow(f, false); }).join('') + '</details>';
   }).join('');
@@ -3193,28 +3200,49 @@ function viewFollowups() {
   }).join('');
 }
 
-function tabNotes(s) {
+/** 상담 탭: 상담기록만 (관리자·관리팀) */
+function tabConsults(s) {
   var notes = notesOf(s.id);
-  UI.noteView = UI.noteView || 'all';
-  var head = secHead('전체 기록 <span class="muted">상담·미팅·연락을 날짜순으로 (관리자·관리팀만)</span>', '<span class="toolbar" style="margin:0">' +
-    seg([['all', '전체'], ['notes', '상담기록만']], UI.noteView, 'noteView') + addBtn('notes', s.id, '+ 상담 기록') + '</span>');
-  if (UI.noteView === 'notes') return '<div class="card">' + head + (notes.length ? notes.map(noteItem).join('') : '<div class="empty">아직 상담 기록이 없습니다.</div>') + '</div>';
-  var items = timelineOf(s.id);
+  return '<div class="card">' + secHead('상담 기록 <span class="muted">' + notes.length + '건 (관리자·관리팀만)</span>', addBtn('notes', s.id, '+ 상담 기록')) +
+    (notes.length ? notes.map(noteItem).join('') : '<div class="empty">아직 상담 기록이 없습니다.</div>') + '</div>';
+}
+/** 전체 기록: 팔로업·받은 연락·미팅·상담을 날짜순으로 모아 찾아보는 곳 (검색) */
+var TL_KIND = { followups: '팔로업', contact: '받은 연락', meetings: '미팅', notes: '상담' };
+function tlKindOf(x) { return x.t === 'followups' ? (x.r.kind === 'contact' ? 'contact' : 'followups') : x.t; }
+function tabNotes(s) {
+  UI.tlKind = UI.tlKind || 'all';
+  var q = (UI.tlQ || '').trim().toLowerCase();
+  var all = timelineOf(s.id), items = all.filter(function (x) { return (UI.tlKind === 'all' || tlKindOf(x) === UI.tlKind) && (!q || tlText(x).toLowerCase().indexOf(q) >= 0); });
+  var cnt = {}; all.forEach(function (x) { var k = tlKindOf(x); cnt[k] = (cnt[k] || 0) + 1; });
   UI.tlOpen = UI.tlOpen || {};
-  return '<div class="card">' + head + '<div class="toolbar" style="margin:0 0 8px"><span class="muted grow" style="font-size:.85rem">상담기록·미팅 회의록·받은 연락(우리 답변 포함)을 날짜순으로 모아 봅니다. 줄을 누르면 펼쳐지고, 👀 로 다른 선생님에게 확인을 요청할 수 있습니다.</span>' +
+  var head = secHead('전체 기록 <span class="muted">팔로업·받은 연락·미팅·상담을 날짜순으로 (관리자·관리팀만)</span>', addBtn('notes', s.id, '+ 상담 기록'));
+  return '<div class="card">' + head +
+    '<div class="toolbar" style="margin:0 0 6px"><input type="text" id="q" class="grow" placeholder="🔎 내용·주제·답변·참석자·첨부파일 이름 검색" value="' + esc(UI.tlQ || '') + '" oninput="searchInputFull(event,\'tlQ\')" oncompositionend="searchInputFull(event,\'tlQ\')">' +
+    seg([['all', '전체 ' + all.length]].concat(['followups', 'contact', 'meetings', 'notes'].filter(function (k) { return cnt[k]; }).map(function (k) { return [k, TL_KIND[k] + ' ' + cnt[k]]; })), UI.tlKind, 'tlKind') + '</div>' +
+    '<div class="toolbar" style="margin:0 0 8px"><span class="muted grow" style="font-size:.85rem">' + (q ? '검색 결과 ' + items.length + '건 — 걸린 문장을 노란색으로 보여줍니다.' : '줄을 누르면 펼쳐지고, 👀 로 다른 선생님에게 확인을 요청할 수 있습니다.') + '</span>' +
     (items.length ? '<button class="btn ghost sm" id="tl-all" onclick="tlAll(!tlAnyOpen())">' + (tlAnyOpen() ? '모두 접기' : '모두 펼치기') + '</button>' : '') + '</div>' +
-    (items.length ? items.map(timelineRow).join('') : '<div class="empty">아직 기록이 없습니다.</div>') + '</div>';
+    (items.length ? items.map(function (x) { return timelineRow(x, q); }).join('') : '<div class="empty">' + (q ? '찾는 내용이 없습니다.' : '아직 기록이 없습니다.') + '</div>') + '</div>';
+}
+/** 검색할 글: 기록 내용 + (팔로업) 답변·첨부파일 이름 */
+function tlText(x) {
+  var r = x.r;
+  if (x.t === 'notes') return [r.type, r.content, r.nextAction, r.attendees].join(' ');
+  if (x.t === 'meetings') return [r.topic, r.content, r.attendees, r.place, r.writer, r.parentNote].join(' ');
+  return [r.topic, r.title, r.detail, r.fromWho, r.channel].concat(repliesOf(r.id).map(function (y) { return y.who + ' ' + y.content; }))
+    .concat(S.files.filter(function (f) { return f.followupId === r.id; }).map(function (f) { return f.name; })).join(' ');
 }
 /** 전체 기록 한 줄(접힘) — 누르면 내용 펼침 */
-function timelineRow(x) {
+function timelineRow(x, q) {
   var r = x.r, open = !!UI.tlOpen[r.id];
-  var kind = x.t === 'notes' ? '상담' : x.t === 'meetings' ? '미팅' : '받은 연락';
+  var kind = TL_KIND[tlKindOf(x)];
   var title = x.t === 'notes' ? (r.type || '') + ' · ' + String(r.content || '').split('\n').filter(function (l) { return l.trim(); })[0] :
-    x.t === 'meetings' ? (r.topic || String(r.content || '').split('\n')[0] || '안건 없음') : [r.fromWho, r.channel].filter(Boolean).join(' · ') + ' — ' + (r.title || '');
-  var tail = x.t === 'followups' ? (r.status === '완료' ? '<span class="pill s-진행중">처리 완료</span>' : '<span class="pill d-요청함">답변 필요</span>') + (repliesOf(r.id).length ? '<span class="muted nw">💬 답변 ' + repliesOf(r.id).length + '</span>' : '') : '';
+    x.t === 'meetings' ? (r.topic || String(r.content || '').split('\n')[0] || '안건 없음') : r.kind === 'contact' ? [r.fromWho, r.channel].filter(Boolean).join(' · ') + ' — ' + (r.title || '') : (r.title || '');
+  var tail = x.t === 'followups' ? (r.status === '완료' ? '<span class="pill s-진행중">' + (r.kind === 'contact' ? '처리 완료' : '완료') + '</span>' : r.kind === 'contact' ? '<span class="pill d-요청함">답변 필요</span>' : fuStatusPill(r)) + (repliesOf(r.id).length ? '<span class="muted nw">💬 답변 ' + repliesOf(r.id).length + '</span>' : '') : '';
+  var snip = q ? hlSnip(tlText(x), q, 60) : '';
   var body = timelineItem(x).replace(' id="ref-' + esc(r.id) + '"', '');
   return '<div class="tlx' + (open ? ' open' : '') + '" id="ref-' + esc(r.id) + '"><div class="tlh" onclick="tlToggle(' + js(r.id) + ')"><span class="tg">' + (open ? '▲' : '▼') + '</span>' +
-    '<b class="nw">' + esc(fmtD(x.d)) + '</b><span class="pill">' + kind + '</span><span class="grow tlt">' + esc(title || '') + '</span>' + tail + reviewTag(x.t, r.id) + '</div>' +
+    '<b class="nw">' + esc(fmtD(x.d)) + '</b><span class="pill">' + kind + '</span>' + (r.topic && x.t === 'followups' ? '<span class="futopic"><b>주제</b> ' + esc(r.topic) + '</span>' : '') + '<span class="grow tlt">' + esc(title || '') + '</span>' + tail + reviewTag(x.t, r.id) + '</div>' +
+    (snip ? '<div class="tl-snip">' + snip + '</div>' : '') +
     '<div class="tlb">' + body + '</div></div>';
 }
 function tlToggle(id) {
@@ -3234,7 +3262,7 @@ function timelineOf(sid) {
   var out = [];
   notesOf(sid).forEach(function (n) { out.push({ t: 'notes', d: n.date, at: n.createdAt, r: n }); });
   childOf('meetings', sid).forEach(function (m) { out.push({ t: 'meetings', d: m.date, at: m.createdAt, r: m }); });
-  childOf('followups', sid).forEach(function (f) { if (f.kind === 'contact') out.push({ t: 'followups', d: f.receivedDate || f.createdAt.slice(0, 10), at: f.createdAt, r: f }); });
+  childOf('followups', sid).forEach(function (f) { out.push({ t: 'followups', d: f.kind === 'contact' ? f.receivedDate || f.createdAt.slice(0, 10) : f.createdAt.slice(0, 10), at: f.createdAt, r: f }); });
   return out.sort(function (a, b) { return String(b.d).localeCompare(String(a.d)) || String(b.at).localeCompare(String(a.at)); });
 }
 function timelineItem(x) {
@@ -3249,11 +3277,12 @@ function timelineItem(x) {
       (r.parentNote ? '<div class="body" style="background:#fff7ef"><b>🔒 부모님 전달·대화 내용</b>\n' + esc(r.parentNote) + '</div>' : '') +
       reviewBox('meetings', r.id) + '</div>';
   }
-  return '<div class="note tl" id="ref-' + esc(r.id) + '"><div class="meta"><b style="color:#222">' + esc(r.receivedDate || r.createdAt.slice(0, 10)) + '</b><span class="pill">받은 연락</span>' +
-    '<span>' + esc([r.fromWho, r.channel].filter(Boolean).join(' · ')) + '</span><span>기록 ' + esc(teacherName(r.createdBy)) + '</span>' +
-    (r.status === '완료' ? '<span class="pill s-진행중">처리 완료</span>' : '<span class="pill d-요청함">답변 필요</span>') +
-    '<span class="acts"><button class="btn ghost sm" onclick="openThread(' + js(r.id) + ')">💬 답변</button><button class="btn ghost sm" onclick="openForm(\'contact\',' + js(r.id) + ')">수정</button></span></div>' +
-    '<div class="body">' + esc(r.detail || r.title) + '</div>' +
+  var ct = r.kind === 'contact';
+  return '<div class="note tl" id="ref-' + esc(r.id) + '"><div class="meta"><b style="color:#222">' + esc(ct ? r.receivedDate || r.createdAt.slice(0, 10) : r.createdAt.slice(0, 10)) + '</b><span class="pill">' + (ct ? '받은 연락' : '팔로업') + '</span>' +
+    '<span>' + esc(ct ? [r.fromWho, r.channel].filter(Boolean).join(' · ') : '담당 ' + (teacherName(r.assignee) || '미정') + (r.due ? ' · 기한 ' + fmtD(r.due) : '')) + '</span><span>기록 ' + esc(teacherName(r.createdBy)) + '</span>' +
+    (r.status === '완료' ? '<span class="pill s-진행중">' + (ct ? '처리 완료' : '완료') + '</span>' : ct ? '<span class="pill d-요청함">답변 필요</span>' : fuStatusPill(r)) +
+    '<span class="acts"><button class="btn ghost sm" onclick="openThread(' + js(r.id) + ')">💬 답변</button><button class="btn ghost sm" onclick="openForm(' + js(ct ? 'contact' : 'followups') + ',' + js(r.id) + ')">수정</button></span></div>' +
+    '<div class="body">' + esc((ct ? r.detail : [r.title, r.detail].filter(Boolean).join('\n')) || r.title) + '</div>' +
     repliesOf(r.id).map(function (x) { return '<div class="body" style="background:' + (OUR_SIDE[x.who] ? '#f2f8f5' : '#f5f3fb') + '"><b>💬 ' + esc(replyWho(x)) + (x.date ? ' ' + esc(fmtD(x.date)) : '') + '</b>\n' + esc(x.content) + '</div>'; }).join('') +
     reviewBox('followups', r.id) + '</div>';
 }
@@ -3263,15 +3292,15 @@ function reviewsOf(table, id) { return (S.reviews || []).filter(function (r) { r
 function myReviews() { return (S.reviews || []).filter(function (r) { return r.toEmail === S.me.email && !r.doneAt && studentById(r.studentId) && findRow(r.refTable, r.refId); }); }
 function reviewRef(r) {
   var x = findRow(r.refTable, r.refId) || {};
-  if (r.refTable === 'notes') return { label: '상담기록 ' + fmtD(x.date) + ' ' + (x.type || ''), tab: 'notes' };
+  if (r.refTable === 'notes') return { label: '상담기록 ' + fmtD(x.date) + ' ' + (x.type || ''), tab: 'consults' };
   if (r.refTable === 'meetings') return { label: '미팅 ' + fmtD(x.date) + (x.topic ? ' · ' + x.topic : ''), tab: 'meetings' };
   return { label: (x.kind === 'contact' ? '받은 연락 ' + (x.fromWho || '') + ' · ' : '팔로업 · ') + (x.title || ''), tab: 'followups' };
 }
 /** 기록으로 이동해서 보이게 (상담기록 탭은 관리자·관리팀만) */
 function openRef(table, id) {
   var r = findRow(table, id); if (!r) return toast('기록을 찾을 수 없습니다. 삭제되었을 수 있습니다.', true);
-  var tab = table === 'notes' || (isMgr() && table !== 'meetings') ? 'notes' : table === 'meetings' ? 'meetings' : 'followups';
-  if (tab === 'notes') { UI.noteView = 'all'; UI.tlOpen = UI.tlOpen || {}; UI.tlOpen[id] = true; }
+  var tab = table === 'notes' ? 'consults' : isMgr() && table !== 'meetings' ? 'notes' : table === 'meetings' ? 'meetings' : 'followups';
+  if (tab === 'notes') { UI.tlKind = 'all'; UI.tlQ = ''; UI.tlOpen = UI.tlOpen || {}; UI.tlOpen[id] = true; }
   if (table === 'meetings') { UI.mtOpen = UI.mtOpen || {}; UI.mtOpen[id] = true; }
   if (table === 'followups' && r.status === '완료') UI.fuKind = 'all';
   UI.focusRef = id; openStudent(r.studentId, tab);
@@ -3512,12 +3541,15 @@ function schedRow(x) {
     (x.detail ? ' <span class="muted">' + esc(x.detail) + '</span>' : '') + (x.sheetLabel ? ' <span class="pill" title="시트에 적힌 시간 (출장 중 현지 시간 → 상해 시간으로 바꿈)">시트: ' + esc(x.sheetLabel) + '</span>' : '') + '</span>' +
     '<button type="button" class="btn ghost sm" title="같은 이름의 다른 학생 일정 등 — 지우고 다음 가져오기에서도 뺍니다" onclick="excludeSched(' + js(x.key) + ')">우리 학생 아님</button></div>';
 }
+/** 원장님 미팅 일정: 앞으로 잡힌 일정이 있을 때만 칸을 보여줌 (없으면 자리 차지 안 함) */
 function schedCard(s) {
-  var all = schedOf(s.id); if (!all.length) return '';
-  var t = today(), up = all.filter(function (x) { return x.startAt.slice(0, 10) >= t; }), past = all.filter(function (x) { return x.startAt.slice(0, 10) < t; }).reverse();
-  return '<div class="card">' + secHead('원장님 미팅 일정 <span class="muted">구글 시트에서 · 상해 시간</span>', '') +
-    (up.length ? '<div class="sum-list">' + up.map(schedRow).join('') + '</div>' : '<div class="empty">앞으로 잡힌 원장님 일정이 없습니다.</div>') +
-    (past.length ? '<details class="donebox"><summary>지난 일정 ' + past.length + '건</summary><div class="sum-list">' + past.map(schedRow).join('') + '</div></details>' : '') + '</div>';
+  var t = today(), up = schedOf(s.id).filter(function (x) { return x.startAt.slice(0, 10) >= t; });
+  if (!up.length) return '';
+  return '<div class="card">' + secHead('원장님 미팅 일정 <span class="muted">구글 시트에서 · 상해 시간</span>', '') + '<div class="sum-list">' + up.map(schedRow).join('') + '</div></div>';
+}
+function schedPast(s) {
+  var t = today(), past = schedOf(s.id).filter(function (x) { return x.startAt.slice(0, 10) < t; }).reverse();
+  return past.length ? '<details class="donebox"><summary>지난 원장님 일정 ' + past.length + '건</summary><div class="sum-list">' + past.map(schedRow).join('') + '</div></details>' : '';
 }
 function excludeSched(key) {
   if (!confirm('이 일정을 이 학생 일정에서 뺄까요?\n(같은 이름의 다른 학생 일정일 때 — 다음 가져오기에서도 들어오지 않습니다. 관리자가 백업·알림 화면에서 되돌릴 수 있어요)')) return;
@@ -3527,7 +3559,7 @@ function tabMeetings(s) {
   var ms = childOf('meetings', s.id).sort(meetingSort);
   var rv = ms.filter(function (m) { return m.needsReview === 'TRUE'; }).length;
   return schedCard(s) + '<div class="card">' + secHead('미팅 회의록 <span class="muted">' + ms.length + '건' + (rv ? ' · 확인 필요 ' + rv + '건' : '') + '</span>', addBtn('meetings', s.id, '+ 회의록 추가')) +
-    (ms.length ? ms.map(function (m) { return meetingItem(m, false); }).join('') : '<div class="empty">기록된 미팅이 없습니다.</div>') + '</div>';
+    (ms.length ? ms.map(function (m) { return meetingItem(m, false); }).join('') : '<div class="empty">기록된 미팅이 없습니다.</div>') + schedPast(s) + '</div>';
 }
 function viewMeetings() {
   UI.mtWhen = UI.mtWhen === 'review' ? 'review' : 'all'; UI.mtWho = UI.mtWho || 'all';
@@ -5076,7 +5108,7 @@ function searchAll(q) {
   if (mts.length) groups.push({ label: '미팅', items: mts });
   if (isMgr()) {
     var nt = S.notes.filter(function (n) { var s = studentById(n.studentId); return s && hit([n.content, n.nextAction, n.attendees, s.name]); })
-      .map(function (n) { var s = studentById(n.studentId); var c = String(n.content || n.nextAction); return { title: s.name + ' — 상담기록 ' + n.date, sub: c.length > 60 ? c.slice(0, 60) + '…' : c, href: '#/student/' + s.id, tab: 'notes' }; });
+      .map(function (n) { var s = studentById(n.studentId); var c = String(n.content || n.nextAction); return { title: s.name + ' — 상담기록 ' + n.date, sub: c.length > 60 ? c.slice(0, 60) + '…' : c, href: '#/student/' + s.id, tab: 'consults' }; });
     if (nt.length) groups.push({ label: '상담기록', items: nt });
   }
   return groups;
@@ -5701,7 +5733,7 @@ function field(f, rec) {
     datalist('dl-site', siteList().map(function (x) { return x.value; })), f.full, f.req);
   if (f.t === 'rich') return richField(f, rec);
   if (f.t === 'shots') return shotsField(rec);
-  if (f.t === 'topic') return fld('🗂 주제 (한 줄 — 같은 주제끼리 한 사건으로 묶여 기록이 쌓임)', inp('topic', rec.topic || '', 'text', ' list="dl-topic" maxlength="60" placeholder="예: 사이언스 페어 연구계획서 / HKU 추천서 / 여름 캠프 서류"') +
+  if (f.t === 'topic') return fld('주제 (한 줄 — 같은 주제끼리 한 사건으로 묶여 기록이 쌓임)', inp('topic', rec.topic || '', 'text', ' list="dl-topic" maxlength="60" placeholder="예: 사이언스 페어 연구계획서 / HKU 추천서 / 여름 캠프 서류"') +
     datalist('dl-topic', topicsOf(rec.studentId)), true);
   if (f.t === 'replies') return rec.id ? '<div class="full"><label>💬 답변 (학생·어머님·아버님·우리 쪽 — 이어서 기록)</label><div class="thread" id="fr-list">' + threadItems(rec.id) + '</div>' +
     '<div class="fr-add"><select id="fr-who">' + REPLY_FROM.map(function (w) { return '<option' + (w === '학생' ? ' selected' : '') + '>' + esc(w) + '</option>'; }).join('') + '</select>' +
