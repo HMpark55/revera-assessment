@@ -98,7 +98,7 @@ const TABLES = {
     label: '팔로업',
     fields: ['studentId', 'title', 'detail', 'category', 'assignee', 'due', 'status', 'reply', 'replyDate', 'replyFrom', 'meetingId', 'noteId',
       'kind', 'fromWho', 'channel', 'receivedDate', 'answer', 'answerDate', 'groupId',
-      'remindAt', 'remindTo', 'topic'], // topic: 주제 한 줄 (같은 학생의 같은 주제끼리 한 사건으로 묶임), remindAt: 알림 시각(한국 시간 'YYYY-MM-DDTHH:MM'), remindTo: 받는 사람 ('@assignee' = 그때의 담당자, 쉼표로 이메일 추가)
+      'remindAt', 'remindTo', 'topic', 'titleHtml', 'detailHtml'], // titleHtml·detailHtml: 할 일·세부(받은) 내용의 서식(글자색·굵게·취소선), 일반 글(title·detail)은 저장할 때 서식에서 다시 만듦 / topic: 주제 한 줄 (같은 학생의 같은 주제끼리 한 사건으로 묶임), remindAt: 알림 시각(한국 시간 'YYYY-MM-DDTHH:MM'), remindTo: 받는 사람 ('@assignee' = 그때의 담당자, 쉼표로 이메일 추가)
     summary: (r) => [r.title, r.status].filter(Boolean).join(' · '),
   },
   fureplies: { // 팔로업·받은 연락에 이어지는 답변 (학생 → 우리 → 어머님 …)
@@ -379,7 +379,8 @@ function migrate(db) {
   db.exec('CREATE INDEX IF NOT EXISTS unirounds_uni ON unirounds(universityId)');
   db.exec('CREATE INDEX IF NOT EXISTS unimajors_uni ON unimajors(universityId)');
   ensureColumns(db, 'files', ['mime', 'size', 'storedName', 'docId', 'meetingId', 'followupId', 'scoreId']);
-  ensureColumns(db, 'files', ['replyId']); // 팔로업·연락의 어느 답변(말풍선)에 붙은 파일인지
+  ensureColumns(db, 'files', ['replyId']);
+  ensureColumns(db, 'followups', ['sortOrder']); // 메인 위젯에서 끌어서 정한 순서 (진행 중이 아닌 팔로업) // 팔로업·연락의 어느 답변(말풍선)에 붙은 파일인지
   ensureColumns(db, 'docs', ['receivedAt', 'receivedBy']);
   ensureColumns(db, 'contracts', ['paid']); // 이전 버전 열 (새 버전은 입금 기록으로 계산)
   db.exec('CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
@@ -1245,13 +1246,17 @@ function openStore(dbPath, opts) {
     tx(() => {
       const rec = {};
       TABLES[table].fields.forEach((k) => { if (k in obj) rec[k] = clean(obj[k]); });
-      if ('contentHtml' in obj) {
-        // 서식 있는 회의록: 허용한 서식만 남기고, 검색·메일용 일반 글(content)은 여기서 다시 만듦
-        const raw = String(obj.contentHtml || '');
-        if (raw.length > 400000) throw new UserError('내용이 너무 깁니다. 나눠서 기록해주세요.');
-        const html = sanitizeRich(raw);
-        rec.content = richToText(html);
-        rec.contentHtml = hasFormatting(html) ? html : '';
+      // 서식 있는 글 (회의록·상담 내용, 팔로업 할 일·세부 내용): 허용한 서식만 남기고, 검색·메일용 일반 글은 여기서 다시 만듦
+      for (const [hk, tk] of [['contentHtml', 'content'], ['titleHtml', 'title'], ['detailHtml', 'detail']]) {
+        if (!TABLES[table].fields.includes(hk)) continue;
+        if (hk in obj) {
+          const raw = String(obj[hk] || '');
+          if (raw.length > 400000) throw new UserError('내용이 너무 깁니다. 나눠서 기록해주세요.');
+          const html = sanitizeRich(raw), text = richToText(html).replace(/\n+$/, '');
+          if (hk !== 'contentHtml' && !text.trim() && String(obj[tk] || '').trim()) { rec[hk] = ''; continue; } // 서식 칸이 비었으면 보낸 일반 글 그대로
+          rec[tk] = text;
+          rec[hk] = hasFormatting(html) ? html : '';
+        } else if (hk !== 'contentHtml' && tk in obj) rec[hk] = ''; // 일반 글만 고치면(빠른 추가·체크 등) 예전 서식은 버림
       }
       if ('counselor' in rec) rec.counselor = lower(rec.counselor);
       // 컨설턴트에게 숨겨진 칸은 새로 쓰거나 고칠 수도 없음
@@ -2051,6 +2056,11 @@ function openStore(dbPath, opts) {
       requireManager(me, '목록 관리');
       tx(() => ids.forEach((id, i) => db.prepare("UPDATE options SET sortOrder = ?, updatedAt = ?, updatedBy = ? WHERE id = ? AND kind = 'evauto'").run(String(i + 1), t, me.email, String(id))));
       log(me.email, 'update', 'options', '', '달력 자동 표시 순서 변경');
+    } else if (arg.kind === 'followups') { // 메인 위젯의 팔로업 순서 (모두에게 같음) — 고친 시각은 그대로 (열려 있는 수정 창과 부딪히지 않게)
+      const up = db.prepare('UPDATE followups SET sortOrder = ? WHERE id = ?');
+      const rows = ids.map((id) => getRow('followups', id));
+      rows.forEach((r) => { if (!r || r.deletedAt) throw new UserError('팔로업을 찾을 수 없습니다. 새로고침 해주세요.', 404); requireStudent(me, r.studentId); });
+      tx(() => rows.forEach((r, i) => up.run(String(i + 1), r.id)));
     } else if (arg.kind === 'universities') {
       requireManager(me, '대학 순서 변경');
       tx(() => ids.forEach((id, i) => db.prepare('UPDATE universities SET sortOrder = ?, updatedAt = ?, updatedBy = ? WHERE id = ?').run(String(i + 1), t, me.email, String(id))));

@@ -500,6 +500,11 @@
   .fu-prog { font-size:.72rem; color:#1f3d7a; background:#eaf0fb; border-radius:9px; padding:0 7px; flex-shrink:0; font-weight:600; } .fu-prog.all { color:#15803d; background:#dcf3e4; }
   .fu-cl { display:flex; flex-direction:column; gap:1px; margin:3px 0 2px; } .fu-cl label { display:flex; gap:6px; align-items:flex-start; font-size:.86rem; cursor:pointer; width:fit-content; }
   .fu-cl label input { margin-top:3px; } .fu-cl label.dn span { text-decoration:line-through; color:var(--muted); }
+  .mrich { border:1px solid var(--border); border-radius:6px; background:#fff; } .mrich:focus-within { border-color:var(--gold); }
+  .mrich .rich-tb { padding:3px 6px; } .mrich .mr-ed { min-height:46px; height:auto; max-height:280px; resize:none; overflow:auto; padding:7px 10px; line-height:1.5; }
+  .mrich .mr-ed.big { min-height:150px; } .mrich .mr-ed:empty:before { content:attr(data-ph); color:#9ca3af; white-space:pre-wrap; }
+  .fu .tt b, .fu-cl b { font-weight:800; }
+  .fgrip { width:12px; flex-shrink:0; font-size:.8rem; letter-spacing:-2px; color:#b0b6c2; cursor:grab; align-self:center; } .fdrag.dragging { opacity:.4; }
   .futopic b { font-weight:600; color:#a16207; margin-right:2px; }
   details.topic-g { border:1px solid var(--border); border-radius:8px; margin:8px 0; background:#fff; }
   details.topic-g > summary { display:flex; gap:10px; align-items:baseline; flex-wrap:wrap; padding:8px 10px; background:#fbf7ec; border-radius:8px; cursor:pointer; list-style:none; }
@@ -803,7 +808,7 @@ var FORMS = {
     { k: 'topic', t: 'topic', full: 1 },
     { k: 'fromWho', l: '보낸 사람', t: 'select', o: CONTACT_FROM }, { k: 'channel', l: '어떻게', t: 'select', o: CONTACT_CHANNELS },
     { k: 'receivedDate', l: '받은 날짜', t: 'date' }, { k: 'assignee', l: '담당 (답할 사람)', t: 'teacher' },
-    { k: 'detail', l: '받은 내용', t: 'textarea', full: 1, big: 1, req: 1 },
+    { k: 'detail', l: '받은 내용', t: 'mrich', hk: 'detailHtml', full: 1, big: 1, req: 1 },
     { t: 'shots', full: 1 },
     { k: 'need', l: '답이 필요한가요?', t: 'need', full: 1 },
     { k: 'due', l: '언제까지 답할지 (정해졌으면)', t: 'date' }, { t: 'remind', full: 1 }, { t: 'replies', full: 1 }, { t: 'review', full: 1 }],
@@ -813,9 +818,9 @@ var FORMS = {
       ph: '예: HKU 심리학 PS 2차 수정 중 / 추천서 3명 확정 / 출입국사실증명서 수합 대기' }] },
   followups: { title: '팔로업', fields: [
     { k: 'topic', t: 'topic', full: 1 },
-    { k: 'title', l: '할 일 (Enter로 줄을 나누면 줄마다 체크할 수 있어요)', t: 'textarea', req: 1, full: 1, ph: '예: HKU Personal Statement 2차 피드백 전달\n\n여러 개를 같이 챙길 때는 줄을 나눠서\n1. 성적표 받기\n2. 추천서 확인' },
+    { k: 'title', l: '할 일 (Enter로 줄을 나누면 줄마다 체크할 수 있어요)', t: 'mrich', hk: 'titleHtml', req: 1, full: 1, ph: '예: HKU Personal Statement 2차 피드백 전달\n\n여러 개를 같이 챙길 때는 줄을 나눠서\n1. 성적표 받기\n2. 추천서 확인' },
     { k: 'assignee', l: '담당자', t: 'teacher' }, { k: 'due', l: '기한', t: 'date' }, { t: 'remind', full: 1 },
-    { k: 'detail', l: '세부 내용 / 학생에게 보낸 메시지', t: 'textarea', full: 1 }, { t: 'replies', full: 1 }],
+    { k: 'detail', l: '세부 내용 / 학생에게 보낸 메시지', t: 'mrich', hk: 'detailHtml', full: 1 }, { t: 'replies', full: 1 }],
     defaults: function () { return { status: '할 일', assignee: S.me.email }; } },
   notes: { title: '상담 기록', fields: [
     { k: 'date', l: '날짜', t: 'date', req: 1 }, { k: 'time', l: '시간', ph: '예: PM 1:00' }, { k: 'tz', l: '시간 기준', t: 'tz' },
@@ -1786,6 +1791,41 @@ document.addEventListener('dragend', function () {
   render();
 });
 
+/* ----- 메인 위젯: 진행 중이 아닌 팔로업은 끌어서 순서 바꾸기 (순서는 모두에게 같음, followups.sortOrder) ----- */
+function canDragFu(f) { return f.status !== '완료' && !fuProg(f); }
+function dragFu(fn) { UI._dragFu = true; try { return fn(); } finally { UI._dragFu = false; } }
+function noDragFu(fn) { var was = UI._dragFu; UI._dragFu = false; try { return fn(); } finally { UI._dragFu = was; } }
+/** 끌 수 있는 항목만 끌어서 정한 순서로 (그 항목들이 있던 자리 안에서만 바꿈, 한 번도 안 끈 새 항목이 먼저) */
+function manualOrder(list, fuOf) {
+  var slots = [], items = [];
+  list.forEach(function (x, i) { var f = fuOf(x); if (f) { slots.push(i); items.push({ x: x, k: Number(f.sortOrder) || 0, i: i }); } });
+  if (!items.some(function (y) { return y.k; })) return list;
+  items.sort(function (a, b) { return a.k - b.k || a.i - b.i; });
+  var out = list.slice(); slots.forEach(function (p, j) { out[p] = items[j].x; });
+  return out;
+}
+var fdrag = null;
+document.addEventListener('dragstart', function (e) {
+  var el = e.target.closest && e.target.closest('.fdrag'); if (!el || e.target.closest('.wgrid.editing')) return;
+  fdrag = el; el.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move';
+  try { e.dataTransfer.setData('text/plain', el.getAttribute('data-fid')); } catch (x) { /* 일부 브라우저 */ }
+});
+document.addEventListener('dragover', function (e) {
+  if (!fdrag) return;
+  var el = e.target.closest && e.target.closest('.fdrag');
+  if (!el || el === fdrag || el.parentNode !== fdrag.parentNode) return;
+  e.preventDefault();
+  var r = el.getBoundingClientRect();
+  el.parentNode.insertBefore(fdrag, e.clientY < r.top + r.height / 2 ? el : el.nextSibling);
+});
+document.addEventListener('drop', function (e) { if (fdrag) e.preventDefault(); });
+document.addEventListener('dragend', function () {
+  if (!fdrag) return;
+  var box = fdrag.parentNode; fdrag.classList.remove('dragging'); fdrag = null;
+  var ids = Array.prototype.map.call(box.querySelectorAll(':scope > .fdrag'), function (x) { return x.getAttribute('data-fid'); });
+  if (ids.length) mutate('saveOrder', { kind: 'followups', ids: ids }, '순서를 저장했습니다.');
+});
+
 /* 위젯 내용 */
 function wStudents() {
   var active = S.students.filter(isActive).sort(byManager);
@@ -1799,7 +1839,7 @@ function wFollowups() {
   return '<div class="card"><div class="sec-h"><h3>팔로업 <span class="muted">' + fuList.length + '건</span></h3><span class="toolbar" style="margin:0">' +
     segP([['s', '간단히'], ['d', '자세히']], 'dashFuView', 's') + seg([['all', '모든 선생님'], ['me', '내 것만']], UI.dashFu, 'dashFu') +
     '<a class="more-link" href="#/followups" onclick="UI.fuWho=' + js(UI.dashFu === 'me' ? 'me' : 'all') + '">트래커 →</a></span></div>' +
-    (fuList.length ? '<div class="scroll-box">' + fuRows(fuList, UI.dashFuView !== 'd') + '</div>' : '<div class="empty">남은 팔로업이 없습니다.</div>') + '</div>';
+    (fuList.length ? '<div class="scroll-box fdrag-box">' + dragFu(function () { return fuRows(manualOrder(fuList, function (f) { return canDragFu(f) ? f : null; }), UI.dashFuView !== 'd'); }) + '</div>' : '<div class="empty">남은 팔로업이 없습니다.</div>') + '</div>';
 }
 /** 메인 "원서 관리": 제출 전인 지원 중 마감 지남·30일 안 — 줄을 누르면 원서 관리, 포털 열기·제출 완료는 원서 관리에서 */
 function wDeadlines() {
@@ -1976,7 +2016,7 @@ function todayItems(scope) {
   openFollowups().forEach(function (f) {
     if (!asked(f)) return;
     var s = studentById(f.studentId), n = dayDiff(f.due);
-    out.push({ top: 1, n: n === null ? 0 : n, noDate: n === null, kind: '넘겨받음', text: f.title + (f.requestNote ? ' — ' + f.requestNote : ''), who: s.name + ' · ' + teacherName(f.requestedBy) + ' 님 요청', fu: f.id,
+    out.push({ top: 1, n: n === null ? 0 : n, noDate: n === null, kind: '넘겨받음', text: f.title + (f.requestNote ? ' — ' + f.requestNote : ''), html: fuInline(f) + (f.requestNote ? ' — ' + esc(f.requestNote) : ''), who: s.name + ' · ' + teacherName(f.requestedBy) + ' 님 요청', fu: f.id,
       go: 'openStudent(' + js(s.id) + ',\'followups\')' });
   });
   var gseen = {};
@@ -1992,7 +2032,7 @@ function todayItems(scope) {
         return;
       }
     }
-    out.push({ n: n, kind: f.kind === 'contact' ? '받은 연락' : '팔로업', text: f.title, who: s.name + (mine ? '' : ' · ' + (teacherName(f.assignee) || '담당 미정')), fu: f.id,
+    out.push({ n: n, kind: f.kind === 'contact' ? '받은 연락' : '팔로업', text: f.title, html: fuInline(f), who: s.name + (mine ? '' : ' · ' + (teacherName(f.assignee) || '담당 미정')), fu: f.id,
       go: 'openStudent(' + js(s.id) + ',\'followups\')' });
   });
   upcomingDeadlines().forEach(function (i) {
@@ -2030,7 +2070,8 @@ function todayItems(scope) {
     out.push({ n: Math.max(a, 0), kind: '일정', text: (e.time && a >= 0 ? e.time + ' ' : '') + e.title + (e.endDate ? ' (' + fmtD(e.date) + '~' + fmtD(e.endDate) + ')' : ''), who: e.category || '', go: 'openEvent(' + js(e.id) + ')' });
   });
   out.forEach(function (i) { var f = i.fu && findRow('followups', i.fu); i.prog = f && fuProg(f) ? 1 : 0; });
-  return out.sort(function (a, b) { return a.prog - b.prog || (b.top || 0) - (a.top || 0) || a.n - b.n; }); // 진행 중인 팔로업은 아래로
+  out.sort(function (a, b) { return a.prog - b.prog || (b.top || 0) - (a.top || 0) || a.n - b.n; }); // 진행 중인 팔로업은 아래로
+  return manualOrder(out, function (i) { var f = i.fu && findRow('followups', i.fu); return f && canDragFu(f) ? f : null; }); // 팔로업끼리는 끌어서 정한 순서 (다른 항목 자리는 그대로)
 }
 /** 회의록에 적힌 "다음 미팅 날짜" (학생별·날짜별 하나, 그날 회의록이 이미 있으면 제외) */
 function nextMeetings() {
@@ -2050,13 +2091,15 @@ function todayCard() {
     seg([['me', '내 일'], ['all', '전체']], UI.todayScope, 'todayScope') + '</div>';
   var nd = UI._nodueWidget ? '' : noDueItems(UI.todayScope); // "기한 없는 팔로업" 위젯을 켜두면 여기선 생략
   if (!list.length) return h + '<div class="empty">' + (UI.todayScope === 'me' ? '오늘 챙길 내 일이 없습니다.' : '오늘 챙길 일이 없습니다.') + '</div>' + nd + '</div>';
-  return h + '<div class="today-list">' + list.map(function (i) {
+  return h + '<div class="today-list fdrag-box">' + list.map(function (i) {
     var when = i.noDate ? '' : i.n < 0 ? (-i.n) + '일 지남' : i.n === 0 ? '오늘' : i.n === 1 ? '내일' : i.n + '일 뒤';
     var f = i.fu && findRow('followups', i.fu);
-    return '<div class="tdi' + (i.n < 0 ? ' over' : '') + (i.top ? ' asked' : '') + (f && fuProg(f) ? ' prog' : '') + '" onclick="' + i.go + '">' + // go 는 js() 로 이미 이스케이프된 코드
+    var dg = f && canDragFu(f);
+    return '<div class="tdi' + (dg ? ' fdrag' : '') + (i.n < 0 ? ' over' : '') + (i.top ? ' asked' : '') + (f && fuProg(f) ? ' prog' : '') + '"' + (dg ? ' draggable="true" data-fid="' + esc(f.id) + '"' : '') + ' onclick="' + i.go + '">' + // go 는 js() 로 이미 이스케이프된 코드
+      '<span class="fgrip' + (dg ? ' grip' : '') + '"' + (dg ? ' title="끌어서 순서 바꾸기"' : '') + '>' + (dg ? '⋮⋮' : '') + '</span>' +
       (f ? fuCheck(f) :
         i.rv ? '<input type="checkbox" title="확인했어요" onclick="event.stopPropagation()" onchange="doneReview(' + js(i.rv) + ', this.checked)">' : '<span style="width:16px"></span>') +
-      '<span class="when">' + (i.rv ? '확인' : i.top && i.noDate ? '요청' : when) + '</span><span class="kind' + (i.kind === '넘겨받음' ? ' k-ho' : i.kind === '확인 요청' ? ' k-rv' : '') + '">' + esc(i.kind) + '</span><span class="who">' + esc(i.who) + '</span><span class="txt">' + esc(i.text) + '</span>' + (f ? fuDoneBtn(f.id) : '') + '</div>';
+      '<span class="when">' + (i.rv ? '확인' : i.top && i.noDate ? '요청' : when) + '</span><span class="kind' + (i.kind === '넘겨받음' ? ' k-ho' : i.kind === '확인 요청' ? ' k-rv' : '') + '">' + esc(i.kind) + '</span><span class="who">' + esc(i.who) + '</span><span class="txt">' + (i.html || esc(i.text)) + '</span>' + (f ? fuDoneBtn(f.id) : '') + '</div>';
   }).join('') + '</div>' + nd + '</div>';
 }
 /** 기한 없는 팔로업: "오늘 챙길 일" 아래 접힌 한 줄. 등록 후 7일이 넘으면 주황색 */
@@ -2074,7 +2117,7 @@ function noDueItems(scope, flat) {
       var f = x.f, s = studentById(f.studentId);
       return '<div class="tdi' + (fuProg(f) ? ' prog' : '') + '" onclick="openStudent(' + js(s.id) + ',\'followups\')">' + fuCheck(f) +
         '<span class="when"><span class="dday ' + (x.age >= NODUE_OLD ? 'soon' : 'far') + '">' + (x.age ? x.age + '일째' : '오늘 등록') + '</span></span><span class="kind">기한 없음</span>' +
-        '<span class="who">' + esc(s.name + (scope === 'me' ? '' : ' · ' + (teacherName(f.assignee) || '담당 미정'))) + '</span><span class="txt">' + (f.kind === 'contact' ? '📩 ' + esc(f.fromWho || '') + ': ' : '') + esc(f.title) + '</span>' + fuDoneBtn(f.id) + '</div>';
+        '<span class="who">' + esc(s.name + (scope === 'me' ? '' : ' · ' + (teacherName(f.assignee) || '담당 미정'))) + '</span><span class="txt">' + (f.kind === 'contact' ? '📩 ' + esc(f.fromWho || '') + ': ' : '') + fuInline(f) + '</span>' + fuDoneBtn(f.id) + '</div>';
     }).join('');
   if (flat) return rows;
   return '<details class="nodue"' + (UI.nodueOpen ? ' open' : '') + ' ontoggle="UI.nodueOpen=this.open"><summary>기한 없는 ' + (scope === 'me' ? '내 ' : '') + '팔로업 <b>' + list.length + '건</b>' +
@@ -2832,7 +2875,8 @@ function fuRow(f, showStudent, inSource, compact) {
   var reps = repliesOf(f.id), last = reps[reps.length - 1];
   var reply = last ? '💬 ' + replyWho(last) + (last.date ? ' ' + fmtD(last.date) : '') + ': ' + last.content : '';
   var shots = contact ? S.files.filter(function (x) { return x.followupId === f.id && /^image\//.test(x.mime); }) : [];
-  return '<div class="fu' + (compact ? ' cpt' : '') + (done ? ' done' : fuProg(f) ? ' prog' : '') + (!done && f.due && dayDiff(f.due) < 0 ? ' over' : '') + '" id="ref-' + esc(f.id) + '">' +
+  var dg = UI._dragFu && canDragFu(f);
+  return '<div class="fu' + (dg ? ' fdrag' : '') + (compact ? ' cpt' : '') + (done ? ' done' : fuProg(f) ? ' prog' : '') + (!done && f.due && dayDiff(f.due) < 0 ? ' over' : '') + '" id="ref-' + esc(f.id) + '"' + (dg ? ' draggable="true" data-fid="' + esc(f.id) + '"' : '') + '>' + (dg ? '<span class="grip fgrip" title="끌어서 순서 바꾸기">⋮⋮</span>' : UI._dragFu ? '<span class="fgrip"></span>' : '') +
     (done ? '<span class="fu-ok" title="완료">✓</span>' : fuCheck(f)) +
     '<div class="t" onclick="openForm(' + js(contact ? 'contact' : 'followups') + ',' + js(f.id) + ')" title="' + esc([f.detail, reply].filter(Boolean).join('\n')) + '">' +
       '<div class="l1"><span class="who1">' + (showStudent ? '<a href="#/student/' + esc(s.id) + '" onclick="event.stopPropagation();UI.tab=\'followups\'"><b>' + esc(s.name) + '</b></a> ' + branchPill(s) + ' · ' : '') +
@@ -2842,8 +2886,8 @@ function fuRow(f, showStudent, inSource, compact) {
         (src ? '<span class="linked">' + (f.meetingId ? '미팅 ' : '상담 ') + esc(fmtD(src.date)) + '</span>' : '') +
         '<span class="meta">' + (done ? esc(fmtTime(f.doneAt).slice(5, 10).replace('-', '/')) + ' 완료' : f.due ? esc(fmtD(f.due)) + ' ' + dday(f.due) : '기한 없음') + '</span></div>' +
       (compact || contact ? '' : fuChecklist(f)) +
-      (compact ? '' : (contact && f.detail && f.detail.trim() !== f.title ? '<div class="l2">' + esc(f.detail.replace(/\s+/g, ' ')) + '</div>' : '') +
-      (reply ? '<div class="l2 rp">' + esc(reply) + '</div>' : !contact && f.detail ? '<div class="l2">' + esc(f.detail) + '</div>' : '') +
+      (compact ? '' : (contact && f.detail && f.detail.trim() !== f.title ? '<div class="l2">' + detailInline(f) + '</div>' : '') +
+      (reply ? '<div class="l2 rp">' + esc(reply) + '</div>' : !contact && f.detail ? '<div class="l2">' + detailInline(f) + '</div>' : '') +
       (shots.length ? '<div class="fu-shots">' + shots.slice(0, 4).map(function (x) { return '<a href="/api/files/' + esc(x.id) + '" class="lbimg" data-g="fu-' + esc(f.id) + '" title="' + esc(x.name) + '" target="_blank" rel="noopener" onclick="event.stopPropagation()"><img src="/api/files/' + esc(x.id) + '" alt=""></a>'; }).join('') + (shots.length > 4 ? '<span class="muted">+' + (shots.length - 4) + '</span>' : '') + '</div>' : '') +
       (f.requestNote && !done && f.assignee === S.me.email ? '<div class="l2" style="color:#7a4d00">↪ ' + esc(f.requestNote) + '</div>' : '') +
       (reviewsOf('followups', f.id).some(function (r) { return !r.doneAt; }) ? '<div onclick="event.stopPropagation()">' + reviewBox('followups', f.id, true) + '</div>' : '')) +
@@ -2853,27 +2897,40 @@ function fuRow(f, showStudent, inSource, compact) {
 }
 /* ----- 할 일 여러 줄 = 체크 목록: 끝낸 줄은 맨 앞에 "✓ " (다른 화면·알림에서도 그대로 읽힘) ----- */
 var FU_DONE = /^✓\s*/;
-function fuLines(f) { return String(f.title || '').split('\n').map(function (l) { return l.trim(); }).filter(Boolean); }
+/** 할 일 줄: [{ html, text, done }] — 서식(titleHtml)이 있으면 서식대로, 빈 줄은 뺌 */
+function fuItems(f) {
+  var hl = richLines(f.titleHtml, f.title);
+  return hl.map(function (h) { var t = htmlText(h).trim(); return { html: h, text: t, done: FU_DONE.test(t) }; }).filter(function (x) { return x.text; });
+}
+function fuLines(f) { return fuItems(f).map(function (x) { return x.text; }); }
+/** 줄 HTML 앞의 "✓ " 빼기 (첫 글자 조각에서) */
+function stripDone(h) { return h.replace(/^((?:<[^>]+>)*)✓\s*/, '$1'); }
+/** 한 줄로 보여줄 할 일 (위젯·오늘 챙길 일): 줄은 " / " 로 이어서, 끝낸 줄은 취소선 */
+function fuInline(f) {
+  var it = fuItems(f); if (!it.length) return esc(f.title);
+  return it.map(function (x) { return x.done ? '<s class="muted">' + stripDone(x.html) + '</s>' : x.html; }).join(' <span class="muted">/</span> ');
+}
 function fuTitleHtml(f, compact) {
-  var L = fuLines(f);
-  if (L.length <= 1) return '<span class="tt">' + esc(f.title) + '</span>';
-  var done = L.filter(function (l) { return FU_DONE.test(l); }).length, next = L.filter(function (l) { return !FU_DONE.test(l); })[0] || L[0];
-  return '<span class="tt">' + esc(next.replace(FU_DONE, '')) + '</span><span class="muted nw">외 ' + (L.length - 1) + '개</span>' +
-    '<span class="fu-prog' + (done === L.length ? ' all' : '') + '" title="체크한 줄 / 전체 줄">' + done + '/' + L.length + '</span>';
+  var it = fuItems(f);
+  if (it.length <= 1) return '<span class="tt">' + (f.titleHtml ? richOr(f.titleHtml) : esc(f.title)) + '</span>';
+  var done = it.filter(function (x) { return x.done; }).length, next = it.filter(function (x) { return !x.done; })[0] || it[0];
+  return '<span class="tt">' + stripDone(next.html) + '</span><span class="muted nw">외 ' + (it.length - 1) + '개</span>' +
+    '<span class="fu-prog' + (done === it.length ? ' all' : '') + '" title="체크한 줄 / 전체 줄">' + done + '/' + it.length + '</span>';
 }
 function fuChecklist(f) {
-  var L = fuLines(f); if (L.length <= 1) return '';
+  var it = fuItems(f); if (it.length <= 1) return '';
   var off = f.status === '완료';
-  return '<div class="fu-cl" onclick="event.stopPropagation()">' + L.map(function (l, i) {
-    var dn = FU_DONE.test(l);
-    return '<label class="' + (dn ? 'dn' : '') + '"><input type="checkbox"' + (dn ? ' checked' : '') + (off ? ' disabled' : '') + ' onchange="fuLineToggle(' + js(f.id) + ',' + i + ',this.checked)"> <span>' + esc(l.replace(FU_DONE, '')) + '</span></label>';
+  return '<div class="fu-cl" onclick="event.stopPropagation()">' + it.map(function (x, i) {
+    return '<label class="' + (x.done ? 'dn' : '') + '"><input type="checkbox"' + (x.done ? ' checked' : '') + (off ? ' disabled' : '') + ' onchange="fuLineToggle(' + js(f.id) + ',' + i + ',this.checked)"> <span>' + stripDone(x.html) + '</span></label>';
   }).join('') + '</div>';
 }
 function fuLineToggle(id, i, on) {
   var f = findRow('followups', id); if (!f) return;
-  var L = fuLines(f); if (!L[i]) return render();
-  L[i] = (on ? '✓ ' : '') + L[i].replace(FU_DONE, '');
-  mutate('save', { table: 'followups', obj: { id: id, updatedAt: f.updatedAt, title: L.join('\n') } }).then(function (d) {
+  var it = fuItems(f); if (!it[i]) return render();
+  it[i].html = (on ? '✓ ' : '') + stripDone(it[i].html);
+  var obj = { id: id, updatedAt: f.updatedAt, title: it.map(function (x, j) { return j === i ? (on ? '✓ ' : '') + x.text.replace(FU_DONE, '') : x.text; }).join('\n') };
+  if (f.titleHtml) obj.titleHtml = it.map(function (x) { return x.html; }).join('<br>');
+  mutate('save', { table: 'followups', obj: obj }).then(function (d) {
     if (!d) return;
     var cur = findRow('followups', id);
     if (cur && cur.status !== '완료' && fuLines(cur).every(function (l) { return FU_DONE.test(l); }) && confirm('모든 줄을 체크했습니다. 이 팔로업을 완료로 할까요?')) doneFollowup(id);
@@ -2893,7 +2950,7 @@ function fuGroupRow(items, compact) {
   var open = UI.fuOpenGroup === f.groupId;
   return '<details class="fugrp"' + (open ? ' open' : '') + ' ontoggle="if(this.open)UI.fuOpenGroup=' + js(f.groupId) + '"><summary><span class="who1">👥 공통 · ' + items.length + '명</span><b>' + esc(f.title) + '</b>' +
     '<span class="muted">완료 ' + done + '/' + all.length + '</span><span class="meta">' + (f.due ? esc(fmtD(f.due)) + ' ' + dday(f.due) : '기한 없음') + '</span></summary>' +
-    '<div class="fugrp-b">' + items.map(function (x) { return fuRow(x, true, false, compact); }).join('') + '</div></details>';
+    '<div class="fugrp-b">' + noDragFu(function () { return items.map(function (x) { return fuRow(x, true, false, compact); }).join(''); }) + '</div></details>';
 }
 /** 공통 팔로업 만들기: 여러 학생에게 같은 할 일 (학생마다 하나씩, 담당은 각 학생 관리팀 담당자) */
 function openFollowupMany() {
@@ -3011,8 +3068,8 @@ function openThread(fid) {
   var f = findRow('followups', fid); if (!f) return toast('팔로업을 찾을 수 없습니다. 새로고침 해주세요.', true);
   var s = studentById(f.studentId), reps = repliesOf(fid), contact = f.kind === 'contact';
   modal('💬 답변 — ' + s.name,
-    '<div class="full">' + (f.topic ? '<div class="futopic" style="margin-right:6px"><b>주제</b> ' + esc(f.topic) + '</div>' : '') + '<b>' + esc(f.title) + '</b>' + (contact ? '<div class="muted">📩 ' + esc([f.fromWho, f.channel, f.receivedDate && fmtD(f.receivedDate)].filter(Boolean).join(' · ')) + '</div>' : '') +
-      (f.detail && f.detail.trim() !== f.title ? '<div class="muted" style="white-space:pre-wrap;max-height:120px;overflow:auto">' + esc(f.detail) + '</div>' : '') + '</div>' +
+    '<div class="full">' + (f.topic ? '<div class="futopic" style="margin-right:6px"><b>주제</b> ' + esc(f.topic) + '</div>' : '') + '<b>' + fuItems(f).map(function (x) { return x.done ? '<s class="muted">' + stripDone(x.html) + '</s>' : x.html; }).join('<br>') + '</b>' + (contact ? '<div class="muted">📩 ' + esc([f.fromWho, f.channel, f.receivedDate && fmtD(f.receivedDate)].filter(Boolean).join(' · ')) + '</div>' : '') +
+      (f.detail && f.detail.trim() !== f.title ? '<div class="muted rich" style="white-space:pre-wrap;max-height:120px;overflow:auto">' + richOr(f.detailHtml, f.detail) + '</div>' : '') + '</div>' +
     '<div class="full thread">' + threadItems(fid) + '</div>' +
     '<div class="full" style="border-top:1px solid #eee;padding-top:8px"><b>답변 추가</b></div>' +
     fld('답변한 사람', '<select name="who">' + REPLY_FROM.map(function (w) { return '<option' + (w === (reps.length && !OUR_SIDE[reps[reps.length - 1].who] ? '담당 선생님' : contact ? '담당 선생님' : '학생') ? ' selected' : '') + '>' + esc(w) + '</option>'; }).join('') + '</select>') +
@@ -3314,7 +3371,7 @@ function timelineItem(x) {
     '<span>' + esc(ct ? [r.fromWho, r.channel].filter(Boolean).join(' · ') : '담당 ' + (teacherName(r.assignee) || '미정') + (r.due ? ' · 기한 ' + fmtD(r.due) : '')) + '</span><span>기록 ' + esc(teacherName(r.createdBy)) + '</span>' +
     (r.status === '완료' ? '<span class="pill s-진행중">' + (ct ? '처리 완료' : '완료') + '</span>' : ct ? '<span class="pill d-요청함">답변 필요</span>' : fuStatusPill(r)) +
     '<span class="acts"><button class="btn ghost sm" onclick="openThread(' + js(r.id) + ')">💬 답변</button><button class="btn ghost sm" onclick="openForm(' + js(ct ? 'contact' : 'followups') + ',' + js(r.id) + ')">수정</button></span></div>' +
-    '<div class="body">' + esc((ct ? r.detail : [r.title, r.detail].filter(Boolean).join('\n')) || r.title) + '</div>' +
+    '<div class="body rich">' + (ct ? richOr(r.detailHtml, r.detail || r.title) : fuItems(r).map(function (x) { return x.done ? '<s>' + stripDone(x.html) + '</s>' : x.html; }).join('<br>') + (r.detail ? '<br>' + richOr(r.detailHtml, r.detail) : '')) + '</div>' +
     repliesOf(r.id).map(function (x) { return '<div class="body" style="background:' + (OUR_SIDE[x.who] ? '#f2f8f5' : '#f5f3fb') + '"><b>💬 ' + esc(replyWho(x)) + (x.date ? ' ' + esc(fmtD(x.date)) : '') + '</b>\n' + esc(x.content) + '</div>'; }).join('') +
     reviewBox('followups', r.id) + '</div>';
 }
@@ -5765,6 +5822,7 @@ function field(f, rec) {
     datalist('dl-site', siteList().map(function (x) { return x.value; })), f.full, f.req);
   if (f.t === 'rich') return richField(f, rec);
   if (f.t === 'shots') return shotsField(rec);
+  if (f.t === 'mrich') return mrichField(f, rec);
   if (f.t === 'topic') return fld('주제 (한 줄 — 같은 주제끼리 한 사건으로 묶여 기록이 쌓임)', inp('topic', rec.topic || '', 'text', ' list="dl-topic" maxlength="60" placeholder="예: 사이언스 페어 연구계획서 / HKU 추천서 / 여름 캠프 서류"') +
     datalist('dl-topic', topicsOf(rec.studentId)), true);
   if (f.t === 'replies') return rec.id ? '<div class="full"><label>💬 답변 (학생·어머님·아버님·우리 쪽 — 이어서 기록)</label><div class="thread" id="fr-list">' + threadItems(rec.id) + '</div>' +
@@ -6043,6 +6101,56 @@ function uploadShots(studentId, followupId, param) {
   });
   chain.then(function () { if (ok) toast((param ? '파일 ' + ok + '개를' : '스크린샷 ' + ok + '장을') + ' 함께 저장했습니다.'); });
 }
+/* ----- 작은 서식 편집기 (팔로업 할 일·세부 내용, 받은 연락): 굵게·취소선·글자색·형광펜 ----- */
+var MR_COLORS = [['#d9534f', '빨강'], ['#d98a00', '주황'], ['#1d9e75', '초록'], ['#1d4ed8', '파랑']];
+function mrichField(f, rec) {
+  var html = rec[f.hk] ? cleanRich(rec[f.hk]) : esc(rec[f.k] || '').split('\n').join('<br>');
+  var b = function (cmd, label, title, val, cls) { return '<button type="button" class="rbtn-t' + (cls ? ' ' + cls : '') + '" title="' + esc(title) + '" onmousedown="event.preventDefault()" onclick="mrCmd(' + js(f.k) + ',' + js(cmd) + ',' + js(val || null) + ')">' + label + '</button>'; };
+  return '<div class="full"><label>' + esc(f.l) + (f.req ? ' <b>*</b>' : '') + '</label><div class="mrich">' +
+    '<div class="rich-tb">' + b('bold', '<b>B</b>', '굵게 (Ctrl+B)') + b('strikeThrough', '<s>S</s>', '취소선') +
+      '<span class="rsep"></span>' + MR_COLORS.map(function (c) { return '<button type="button" class="sw" title="글자색: ' + c[1] + '" style="background:' + c[0] + '" onmousedown="event.preventDefault()" onclick="mrCmd(' + js(f.k) + ',\'foreColor\',' + js(c[0]) + ')"></button>'; }).join('') +
+      '<button type="button" class="sw" title="형광펜 (노랑 배경)" style="background:#fff3a3" onmousedown="event.preventDefault()" onclick="mrCmd(' + js(f.k) + ',\'hiliteColor\',\'#fff3a3\')"></button>' +
+      '<span class="rsep"></span>' + b('removeFormat', '서식 지우기', '선택한 글자의 서식 지우기') + '</div>' +
+    '<div class="rich-ed mr-ed' + (f.big ? ' big' : '') + '" id="mr-' + esc(f.k) + '" data-k="' + esc(f.k) + '" data-hk="' + esc(f.hk) + '" data-ph="' + esc(f.ph || '') + '" contenteditable="true" spellcheck="false" onpaste="richPaste(event)" onfocus="richInit()" oninput="modalDirty=true">' + html + '</div></div></div>';
+}
+function mrCmd(k, cmd, val) {
+  var ed = $('mr-' + k); if (!ed) return;
+  ed.focus(); richInit();
+  if (cmd === 'hiliteColor' && !document.queryCommandSupported('hiliteColor')) cmd = 'backColor';
+  document.execCommand(cmd, false, val);
+  modalDirty = true;
+}
+/** 저장할 때: 편집기 → 일반 글 + 서식(HTML) */
+function mrichRead(o) {
+  Array.prototype.forEach.call(document.querySelectorAll('#mf .mr-ed'), function (ed) {
+    var t = ed.innerText.replace(/\u00a0/g, ' ').replace(/\n+$/, '');
+    o[ed.getAttribute('data-k')] = t.trim() ? t : '';
+    o[ed.getAttribute('data-hk')] = t.trim() ? ed.innerHTML : '';
+  });
+}
+/** 서식 있는 글 → 줄마다 HTML (체크 목록·한 줄 요약용). 서식이 없으면 일반 글에서 */
+function richLines(html, text) {
+  if (!html) return String(text || '').split('\n').map(function (l) { return esc(l); });
+  var tpl = document.createElement('template'); tpl.innerHTML = cleanRich(html);
+  var lines = [''], walk = function (node, wrap) {
+    Array.prototype.forEach.call(node.childNodes, function (n) {
+      if (n.nodeType === 3) { lines[lines.length - 1] += wrap(esc(n.nodeValue)); return; }
+      if (n.nodeType !== 1) return;
+      var tag = n.tagName.toLowerCase();
+      if (tag === 'br') { lines.push(''); return; }
+      if (tag === 'div') { if (lines[lines.length - 1] !== '') lines.push(''); walk(n, wrap); if (lines[lines.length - 1] !== '') lines.push(''); return; }
+      var open = '<' + tag + (n.getAttribute('style') ? ' style="' + esc(n.getAttribute('style')) + '"' : '') + '>', close = '</' + tag + '>';
+      walk(n, function (x) { return wrap(open + x + close); });
+    });
+  };
+  walk(tpl.content, function (x) { return x; });
+  return lines;
+}
+/** 세부(받은) 내용 한 줄 (줄은 띄어쓰기로 이어서, 서식은 그대로) */
+function detailInline(f) { return f.detailHtml ? richLines(f.detailHtml).filter(function (h) { return htmlText(h).trim(); }).join(' ') : esc(String(f.detail || '').replace(/\s+/g, ' ')); }
+function htmlText(h) { var d = document.createElement('div'); d.innerHTML = h; return d.textContent; }
+/** 서식 있는 글을 화면에 (서식이 없으면 일반 글) */
+function richOr(html, text) { return html ? cleanRich(html) : esc(text || ''); }
 /* ----- 서식 있는 회의록 편집기 (굵게·밑줄·취소선·글자색·배경색·글자 크기, 크게 쓰기) ----- */
 var RICH_COLORS = [['#222222', '검정'], ['#d9534f', '빨강'], ['#d98a00', '주황'], ['#1d9e75', '초록'], ['#1d4ed8', '파랑'], ['#7c5cc4', '보라']];
 var RICH_BG = [['#fff3a3', '노랑'], ['#d9f2e3', '연두'], ['#dbeafe', '하늘'], ['#fde2e2', '분홍'], ['transparent', '배경 없음']];
@@ -6138,6 +6246,7 @@ function furowsData() {
 function submitForm(key) {
   var F = FORMS[key], table = F.table || key;
   var o = formData($('mf'));
+  mrichRead(o);
   var miss = F.fields.filter(function (f) { return f.req && f.t !== 'uni' && !(f.mgr && !isMgr()) && !String(o[f.k] || '').trim(); })[0];
   if (table === 'apps' && !o.universityId && !(o.id && o.university)) return toast('대학을 목록에서 선택하세요.', true);
   if (table === 'payments' && !(amt(o.amount) > 0)) return toast('입금액을 숫자로 입력하세요.', true);
