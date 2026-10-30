@@ -153,9 +153,17 @@
 <script>
 'use strict';
 var D = null; // 서버 데이터
-var V = { pm: '', pc: '', pmeth: '', pq: '', page: 'home', tab: 'recent', school: '', q: '', camp: '', classId: '', classFilter: '진행', limit: 50, ooId: '', sd: '', sv: 'day', rm: '' };
-try { var sv = JSON.parse(localStorage.getItem('atlas.view') || '{}'); Object.keys(sv).forEach(function (k) { if (k in V) V[k] = sv[k]; }); } catch (e) {}
-V.page = 'home'; V.tab = 'recent'; V.limit = 50; V.sd = ''; // 들어오면 항상 메인부터 (상담 Roster는 최근 50명부터)
+var V = { pm: '', pc: '', pmeth: '', pq: '', page: 'home', tab: 'recent', school: '', q: '', camp: '', classId: '', classFilter: '진행', limit: 50, ooId: '', sd: '', sv: 'day', rm: '', rmSid: '', rpParts: null };
+var V_NOKEEP = ['page', 'tab', 'limit', 'sd', 'rpFrom', 'rpTo']; // 들어올 때마다 처음 상태 (메인부터, 상담 Roster는 최근 50명부터, 리포트 기간은 최근 30일)
+/** 화면 설정은 계정에 저장 (Compass의 개인 화면 설정과 같은 곳) — 예전에 이 브라우저에 저장한 것은 한 번 옮김 */
+function prefsLoad() {
+  return compassApi('getPrefs').then(function (p) {
+    var sv = p && p['atlas.view'], local = null;
+    try { local = JSON.parse(localStorage.getItem('atlas.view') || 'null'); localStorage.removeItem('atlas.view'); } catch (e) {}
+    if (!sv && local) { sv = local; setTimeout(keep, 0); }
+    Object.keys(sv || {}).forEach(function (k) { if (k in V && V_NOKEEP.indexOf(k) < 0) V[k] = sv[k]; });
+  }).catch(function () { /* 설정을 못 불러와도 화면은 처음 상태로 */ });
+}
 var PAGE = 50; // 표는 한 번에 50줄씩 (더 보기)
 var TAGS = ['블랙리스트', '팔로업X', '귀임', '원서완료'];
 
@@ -163,7 +171,19 @@ function $(id) { return document.getElementById(id); }
 function esc(v) { return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
 function js(v) { return esc(JSON.stringify(v == null ? '' : v)); }
 function toast(msg, err) { var t = $('toast'); t.textContent = msg; t.className = err ? 'err' : ''; t.style.display = 'block'; clearTimeout(toast.t); toast.t = setTimeout(function () { t.style.display = 'none'; }, err ? 4000 : 1800); }
-function keep() { try { localStorage.setItem('atlas.view', JSON.stringify(V)); } catch (e) {} }
+function keep() { clearTimeout(keep.t); keep.t = setTimeout(keepSend, 800); }
+function keepSend(leaving) {
+  clearTimeout(keep.t); keep.t = null;
+  var o = {}; Object.keys(V).forEach(function (k) { if (V_NOKEEP.indexOf(k) < 0) o[k] = V[k]; });
+  var j = JSON.stringify(o); if (j === keep.last) return; keep.last = j;
+  if (leaving === true) { try { fetch('/api/rpc/savePref', { method: 'POST', keepalive: true, credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'revera' }, body: JSON.stringify({ arg: { key: 'atlas.view', value: o } }) }); } catch (e) {} return; }
+  compassApi('savePref', { key: 'atlas.view', value: o }).catch(function (e) { keep.last = ''; toast('화면 설정을 저장하지 못했습니다: ' + e.message, true); });
+}
+window.addEventListener('pagehide', function () { if (keep.t) keepSend(true); });
+function compassApi(fn, arg) {
+  return fetch('/api/rpc/' + fn, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'revera' }, body: JSON.stringify({ arg: arg }) })
+    .then(function (r) { return r.json().catch(function () { return {}; }).then(function (b) { if (!r.ok) throw new Error(b.error || '저장하지 못했습니다.'); return b; }); });
+}
 function today() { var d = new Date(); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
 
 function api(fn, arg) {
@@ -1122,6 +1142,7 @@ function rmReportGen() {
   }
   out.push('궁금하신 점은 언제든 편하게 말씀해 주세요. 감사합니다.');
   ta.value = out.join('\n');
+  keep();
 }
 function viewRev() {
   if (!V.rm) V.rm = monthOf(today());
@@ -1223,7 +1244,7 @@ function importGo() {
 /* 다른 사람이 고친 내용: 창으로 돌아올 때 다시 불러오기 (입력 중이면 건너뜀) */
 window.addEventListener('focus', function () { var a = document.activeElement; if (D && !$('ov').innerHTML && !(a && /INPUT|TEXTAREA|SELECT/.test(a.tagName))) { SCH = { from: '', to: '', list: [] }; load(); } });
 document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeOv(); });
-load();
+prefsLoad().then(load);
 </script>
 </body>
 </html>

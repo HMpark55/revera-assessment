@@ -986,6 +986,7 @@ function errMsg(e) { return (e && e.message ? e.message : String(e)).replace(/^E
 
 function load(data) {
   if (!data || !data.me) throw cutError(); // 받은 데이터가 온전하지 않으면 보던 화면·로그인 상태를 그대로 둠
+  data.me.prefs = prefsFrom(data.me);
   S.me = data.me; S.teachers = data.teachers; S.allStudents = data.students; S.loadedAt = Date.now();
   CHILD.forEach(function (t) { S[t] = data[t] || []; });
   S.options = data.options || [];
@@ -995,6 +996,7 @@ function load(data) {
   S.programs = data.programs || [];
   S.homeDefault = data.homeDefault || null;
   S.reviews = data.reviews || [];
+  viewPrefsLoad();
   S.site = data.site || { bugUrl: '', hideMenus: {}, hideable: [] };
   if ('devAs' in data) { S.devAs = data.devAs; devBanner(); } // 개발자가 다른 계정으로 보는 중 (화면 전체를 불러올 때만 실려 옴)
   // 원장님 스케줄은 중국 시간으로 저장 → 내 시간으로 바꿔 둠 (압구정 계정은 한국 시간으로 보임)
@@ -1185,7 +1187,7 @@ function renderBell() {
 }
 /** ② 오늘 챙길 일 — 로그인 후 한 번 (오늘 다시 보지 않기 가능), 🔔 › 오늘 요약 으로 언제든 */
 function todaySummary(force) {
-  if (!force) { try { if (sessionStorage.getItem(prefKey('sumShown')) || localStorage.getItem(prefKey('sumDay')) === today()) return; } catch (e) {} }
+  if (!force) { try { if (sessionStorage.getItem(prefKey('sumShown'))) return; } catch (e) {} if (prefGet('sumDay', '') === today()) return; }
   var td = today(), wk = wallNow(myTZ(), Date.now() + 7 * 86400000).slice(0, 10), me = S.me.email;
   var fu = S.followups.filter(function (f) { return f.assignee === me && f.status !== '완료' && studentById(f.studentId); });
   var late = fu.filter(function (f) { return f.due && f.due < td; }).sort(function (a, b) { return a.due < b.due ? -1 : 1; });
@@ -1209,7 +1211,7 @@ function todaySummary(force) {
     '<label style="margin-right:auto;font-size:.82rem;color:var(--muted);display:inline-flex;gap:6px;align-items:center"><input type="checkbox" id="sum-off"> 오늘 다시 보지 않기</label>' +
     '<button class="btn ghost" onclick="sumClose();go(\'#/followups\')">팔로업 화면으로</button><button class="btn" onclick="sumClose()">확인</button>');
 }
-function sumClose() { if ($('sum-off') && $('sum-off').checked) { try { localStorage.setItem(prefKey('sumDay'), today()); } catch (e) {} } closeModal(true); }
+function sumClose() { if ($('sum-off') && $('sum-off').checked) prefSet('sumDay', today()); closeModal(true); }
 /* ----- 개발자: 다른 계정으로 로그인 · 돌아가기 ----- */
 function devLoginAs(email) {
   var t = S.teachers.filter(function (x) { return x.email === email; })[0]; if (!t) return;
@@ -1626,6 +1628,7 @@ function render() {
   if (r.view === 'map') mapInit();
   if (UI.focusRef) { var fr = $('ref-' + UI.focusRef); UI.focusRef = null; if (fr) { fr.scrollIntoView({ block: 'center' }); fr.classList.add('flash'); } }
   var q = $('q'); if (q && UI._focusQ) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); UI._focusQ = false; }
+  viewPrefsSync();
 }
 
 /* ============================== 메인 화면 ============================== */
@@ -1974,8 +1977,58 @@ function alertKey(kind, x) {
 }
 /* ----- 이 브라우저에 저장하는 화면 설정 (접기·칸 너비·공유 항목 등) — 계정마다 따로 ----- */
 function prefKey(k) { return k + '@' + ((S.me && S.me.email) || ''); }
-function prefGet(k, def) { try { var v = localStorage.getItem(prefKey(k)); return v == null ? def : JSON.parse(v); } catch (e) { return def; } }
-function prefSet(k, v) { try { if (v == null) localStorage.removeItem(prefKey(k)); else localStorage.setItem(prefKey(k), JSON.stringify(v)); } catch (e) { /* 저장 안 되는 브라우저는 이번 화면에만 */ } }
+/* ----- 개인 화면 설정: 계정에 저장 (어느 PC에서 로그인해도 같게) — 표 칸 너비·접기·내보내기 칸·닫은 알림·정렬 등 ----- */
+var PREF_NAME = { 'compass.alertsOff': 'alertsOff', exportFields2: 'exportFields', 'compass.majFold': 'majFold', 'compass.uniFold': 'uniFold' };
+var PREF_T = {}, PREF_PEND = {};
+function prefName(k) { return PREF_NAME[k] || k; }
+function prefGet(k, def) { var o = (S.me && S.me.prefs) || {}, n = prefName(k); return Object.prototype.hasOwnProperty.call(o, n) ? o[n] : def; }
+function prefSet(k, v) {
+  var n = prefName(k); if (!S.me) return;
+  S.me.prefs = S.me.prefs || {};
+  if (v == null) delete S.me.prefs[n]; else S.me.prefs[n] = v;
+  PREF_PEND[n] = { v: v == null ? null : v };
+  clearTimeout(PREF_T[n]);
+  PREF_T[n] = setTimeout(function () { prefSend(n); }, 700);
+}
+function prefSend(n, leaving) {
+  clearTimeout(PREF_T[n]); delete PREF_T[n];
+  var p = PREF_PEND[n]; if (!p || p.sent) return; p.sent = 1;
+  if (leaving) { // 화면을 떠날 때: 응답을 기다리지 않고 보냄
+    try { fetch('/api/rpc/savePref', { method: 'POST', keepalive: true, credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'revera' }, body: JSON.stringify({ arg: { key: n, value: p.v } }) }); } catch (e) {}
+    return;
+  }
+  api('savePref', { key: n, value: p.v }).then(function () { if (PREF_PEND[n] === p) delete PREF_PEND[n]; }).catch(function (e) { if (PREF_PEND[n] === p) delete PREF_PEND[n]; toast('화면 설정을 저장하지 못했습니다: ' + errMsg(e), true); });
+}
+// 새로고침·다른 화면으로 갈 때 아직 안 보낸 설정을 바로 보냄
+window.addEventListener('pagehide', function () { Object.keys(PREF_T).forEach(function (n) { prefSend(n, true); }); });
+document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden') Object.keys(PREF_T).forEach(function (n) { prefSend(n); }); });
+/** 새로 받은 계정 설정 + 아직 저장 중인 설정 */
+function prefsFrom(me) { var o = Object.assign({}, me.prefs || {}); Object.keys(PREF_PEND).forEach(function (n) { if (PREF_PEND[n].v == null) delete o[n]; else o[n] = PREF_PEND[n].v; }); return o; }
+/** 예전에 이 브라우저에만 저장해 둔 설정을 계정으로 한 번 옮김 (계정에 이미 있으면 계정 것을 씀) */
+function migrateLocalPrefs() {
+  var em = S.me.email, done = {};
+  try {
+    Object.keys(localStorage).forEach(function (key) {
+      var at = key.lastIndexOf('@' + em); if (at < 0 || at + em.length + 1 !== key.length) return;
+      var k = key.slice(0, at); if (k === 'pcNoti') return; // PC 알림을 띄웠는지는 PC마다
+      if (!/^colw:/.test(k) && ['scFold', 'dlFold', 'compass.majFold', 'compass.uniFold', 'exportFields2', 'compass.alertsOff', 'sumDay'].indexOf(k) < 0) return;
+      var v; try { v = JSON.parse(localStorage.getItem(key)); } catch (e) { v = localStorage.getItem(key); }
+      if (prefGet(k, undefined) === undefined && v != null && !done[prefName(k)]) { prefSet(k, v); done[prefName(k)] = 1; }
+      localStorage.removeItem(key);
+    });
+  } catch (e) { /* 저장소를 못 쓰는 브라우저 */ }
+}
+/** 새로고침해도 기억할 화면 선택 (계정별): 학생 목록 정렬, 오늘 챙길 일 범위, 달력 체크, 원서 관리 "제출 끝난 건 숨기기" */
+var VIEW_KEEP = ['stSort', 'stView', 'todayScope', 'calDl', 'calBreak', 'dlHideDone'];
+function viewPrefsLoad() {
+  if (UI._prefFor === S.me.email) return;
+  UI._prefFor = S.me.email;
+  VIEW_KEEP.forEach(function (k) { var v = prefGet('view.' + k, undefined); if (v === undefined) delete UI[k]; else UI[k] = v; });
+  migrateLocalPrefs();
+}
+function viewPrefsSync() {
+  VIEW_KEEP.forEach(function (k) { if (UI[k] !== undefined && JSON.stringify(UI[k]) !== JSON.stringify(prefGet('view.' + k, undefined))) prefSet('view.' + k, UI[k]); });
+}
 function dismissedAlerts() { return prefGet('compass.alertsOff', null) || UI.alertsOff || []; }
 function dismissAlert(key) {
   var list = dismissedAlerts().filter(function (k) { return k !== key; }).concat([key]).slice(-30);
@@ -2410,8 +2463,9 @@ function moneyByCur(list, fn) {
   return ks.length ? ks.map(function (k) { return money(by[k], k); }).join('<br>') : '<span class="muted">-</span>';
 }
 var STUDENT_COLS_DEFAULT = ['school', 'consult', 'todo', 'contacts', 'nextMeet', 'deadline', 'lastMeet', 'check', 'manager', 'status'];
-function studentCols() {
-  var keys = S.studentCols && S.studentCols.length ? S.studentCols : STUDENT_COLS_DEFAULT;
+function studentCols(common) {
+  var mine = common ? null : prefGet('studentCols', null);
+  var keys = mine && mine.length ? mine : S.studentCols && S.studentCols.length ? S.studentCols : STUDENT_COLS_DEFAULT;
   return keys.map(function (k) { return STUDENT_COLS.filter(function (c) { return c.k === k && !c.hide; })[0]; }).filter(Boolean);
 }
 function studentTable(list, dl) {
@@ -2423,29 +2477,43 @@ function studentTable(list, dl) {
         cols.map(function (c) { return c.cell(s, ctx); }).join('') + '</tr>';
     }).join('') + '</tbody></table>';
 }
-/* ----- 목록 관리 › 학생 목록 칸 ----- */
-function viewStudentCols() {
-  var on = studentCols().map(function (c) { return c.k; });
+/* ----- 학생 목록 칸: 목록 관리 › 학생 목록 칸 = 모두의 기본 (관리자·관리팀), 학생 목록 ⚙ 칸 = 내 것만 ----- */
+function stColRows(common) {
+  var on = studentCols(common).map(function (c) { return c.k; });
   var off = STUDENT_COLS.filter(function (c) { return on.indexOf(c.k) < 0 && !c.hide; });
+  var cm = common ? 'true' : 'false';
   var row = function (c, i, shown) {
-    return '<tr><td class="nw"><label style="display:inline-flex;gap:6px;align-items:center"><input type="checkbox"' + (shown ? ' checked' : '') + ' onchange="stColToggle(' + js(c.k) + ',this.checked)"> <b>' + esc(c.l) + '</b></label></td>' +
-      '<td class="nw">' + (shown ? '<button class="btn ghost sm" title="앞으로"' + (i ? '' : ' disabled') + ' onclick="stColMove(' + js(c.k) + ',-1)">▲</button> <button class="btn ghost sm" title="뒤로"' + (i < on.length - 1 ? '' : ' disabled') + ' onclick="stColMove(' + js(c.k) + ',1)">▼</button>' : '<span class="muted">숨김</span>') + '</td></tr>';
+    return '<tr><td class="nw"><label style="display:inline-flex;gap:6px;align-items:center"><input type="checkbox"' + (shown ? ' checked' : '') + ' onchange="stColToggle(' + js(c.k) + ',this.checked,' + cm + ')"> <b>' + esc(c.l) + '</b></label></td>' +
+      '<td class="nw">' + (shown ? '<button type="button" class="btn ghost sm" title="앞으로"' + (i ? '' : ' disabled') + ' onclick="stColMove(' + js(c.k) + ',-1,' + cm + ')">▲</button> <button type="button" class="btn ghost sm" title="뒤로"' + (i < on.length - 1 ? '' : ' disabled') + ' onclick="stColMove(' + js(c.k) + ',1,' + cm + ')">▼</button>' : '') + '</td></tr>';
   };
-  return '<div class="notice">학생 목록(학생 메뉴) 표에 보일 칸과 순서입니다. <b>모든 선생님에게 똑같이</b> 적용됩니다. 이름 칸은 항상 맨 앞에 있습니다. <b>계약 금액·미수금</b>은 관리자·관리팀에게만 값이 보이고 컨설턴트에게는 “-”로 보입니다.</div>' +
-    '<div class="card tbl-wrap"><table><thead><tr><th>칸</th><th>순서</th></tr></thead><tbody>' +
-    studentCols().map(function (c, i) { return row(c, i, true); }).join('') + off.map(function (c) { return row(c, 0, false); }).join('') + '</tbody></table>' +
+  return '<table><thead><tr><th>칸</th><th>순서</th></tr></thead><tbody>' + studentCols(common).map(function (c, i) { return row(c, i, true); }).join('') + off.map(function (c) { return row(c, 0, false); }).join('') + '</tbody></table>';
+}
+function viewStudentCols() {
+  return '<div class="notice">학생 목록(학생 메뉴) 표에 보일 칸과 순서의 <b>모두의 기본</b>입니다. 각 선생님은 학생 목록의 <b>⚙ 칸</b>에서 자기 화면만 따로 바꿀 수 있고, 따로 바꾸지 않은 선생님에게는 이 기본이 보입니다. 이름 칸은 항상 맨 앞에 있습니다. <b>계약 금액·미수금</b>은 관리자·관리팀에게만 보입니다.</div>' +
+    '<div class="card tbl-wrap">' + stColRows(true) +
     '<div class="toolbar" style="margin-top:8px"><button class="btn ghost sm" onclick="saveStudentCols(null)">처음 상태로 되돌리기</button></div></div>';
 }
-function saveStudentCols(cols) { mutate('saveStudentCols', { cols: cols }, '학생 목록 칸을 저장했습니다.'); }
-function stColToggle(k, on) {
-  var l = studentCols().map(function (c) { return c.k; }).filter(function (x) { return x !== k; });
-  if (on) l.push(k);
-  saveStudentCols(l);
+/** 학생 목록 ⚙ 칸: 내 화면에만 보일 칸 */
+function openMyCols() {
+  var mine = prefGet('studentCols', null);
+  modal('학생 목록 칸 — 내 화면',
+    '<div class="full muted" style="font-size:.82rem">여기서 바꾼 칸·순서는 <b>내 계정에만</b> 적용됩니다.' + (mine ? '' : ' 지금은 모두의 기본 칸이 보이는 중입니다.') + '</div><div class="full tbl-wrap" id="mycols">' + stColRows(false) + '</div>',
+    (mine ? '<button class="btn ghost" style="margin-right:auto" onclick="prefSet(\'studentCols\',null);closeModal(true);render();toast(\'모두의 기본 칸으로 되돌렸습니다.\')">모두의 기본으로 되돌리기</button>' : '') + '<button class="btn" onclick="closeModal(true)">닫기</button>');
 }
-function stColMove(k, d) {
-  var l = studentCols().map(function (c) { return c.k; }), i = l.indexOf(k), j = i + d;
+function saveStudentCols(cols) { mutate('saveStudentCols', { cols: cols }, '모두의 기본 칸을 저장했습니다.'); }
+function stColSave(l, common) {
+  if (common) return saveStudentCols(l);
+  prefSet('studentCols', l); render(); if ($('mycols')) $('mycols').innerHTML = stColRows(false);
+}
+function stColToggle(k, on, common) {
+  var l = studentCols(common).map(function (c) { return c.k; }).filter(function (x) { return x !== k; });
+  if (on) l.push(k);
+  stColSave(l, common);
+}
+function stColMove(k, d, common) {
+  var l = studentCols(common).map(function (c) { return c.k; }), i = l.indexOf(k), j = i + d;
   if (i < 0 || j < 0 || j >= l.length) return;
-  l[i] = l[j]; l[j] = k; saveStudentCols(l);
+  l[i] = l[j]; l[j] = k; stColSave(l, common);
 }
 function unpaidTable(list, compact) {
   return '<table><thead><tr><th>학생</th><th>계약</th>' + (compact ? '' : '<th>계약액</th><th>입금액</th>') + '<th>미수금</th><th>납부 기한</th>' + (compact ? '' : '<th>마지막 입금</th><th></th>') + '</tr></thead><tbody>' +
@@ -2595,6 +2663,7 @@ function viewStudents() {
       S.teachers.map(function (t) { return '<option value="' + esc(t.email) + '"' + (UI.counselor === t.email ? ' selected' : '') + '>' + esc(t.name) + '</option>'; }).join('') +
       '</select>' : '') + '<select onchange="UI.stSort=this.value;render()" title="정렬">' + [['manager', '관리팀 담당순'], ['name', '이름순'], ['deadline', '마감 임박순'], ['meeting', '미팅 오래된 순']].map(function (o) {
         return '<option value="' + o[0] + '"' + (UI.stSort === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select>' +
+      (UI.stView !== 'board' ? '<button class="btn ghost sm" onclick="openMyCols()" title="표에 보일 칸·순서를 내 화면에서만 바꾸기">⚙ 칸</button>' : '') +
       (UI.stView === 'board' ? '<select onchange="UI.stTrack=this.value;render()" title="트랙"><option value="">모든 트랙</option>' + opts(trackList(), UI.stTrack || '').replace('<option value="">—</option>', '') + '</select>' : '') +
       '<button class="btn ' + (stFilterCount() ? '' : 'ghost') + '" onclick="UI.stFOpen=!UI.stFOpen;render()">필터 더 보기' + (stFilterCount() ? ' (' + stFilterCount() + ')' : '') + ' ' + (UI.stFOpen ? '▴' : '▾') + '</button></div>';
   if (UI.stFOpen || stFilterCount()) h += stFilterBar(base);
@@ -6033,7 +6102,7 @@ function dropBox(onchange, opt) {
 }
 var ACCEPT_FILES = '.pdf,.png,.jpg,.jpeg,.webp,.heic,.gif,.doc,.docx,.xls,.xlsx,.hwp';
 /** 파일 하나: 이미지는 작은 그림(누르면 팝업), 그 외는 이름 버튼 */
-/* ----- 표 칸 너비: 제목 줄 칸 경계를 끌어서 넓히고 좁힘. 이 브라우저에 표마다 기억, 경계를 두 번 누르면 처음 너비로 ----- */
+/* ----- 표 칸 너비: 제목 줄 칸 경계를 끌어서 넓히고 좁힘. 계정에 표마다 기억, 경계를 두 번 누르면 처음 너비로 ----- */
 function colKey(t) {
   var view = (location.hash || '#/home').replace(/\/[0-9a-f-]{8,}/gi, '/:id');
   return 'colw:' + view + ':' + Array.prototype.map.call(t.tHead.rows[0].cells, function (c) { return c.textContent.trim(); }).join('|');

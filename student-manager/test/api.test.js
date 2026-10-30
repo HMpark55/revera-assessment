@@ -2686,3 +2686,22 @@ test('REVERA A 로드맵·리포트(시험): Compass 학생별 로드맵 저장�
   assert.strictEqual((await call('brief', { studentId: cid })).roadmap.length, 0);
   assert.strictEqual((await admin.req('POST', '/api/atlas/brief', { arg: { studentId: cid } })).status, 404, '허용된 계정만');
 });
+
+test('개인 화면 설정: 계정에 저장(다른 계정과 따로), 정해진 이름만, 지우기, 학생 목록 칸 검사', async () => {
+  const admin = client(); await admin.login('admin@revera.test', 'admin-pass-1');
+  await admin.ok('saveTeacher', { email: 'pref2@revera.test', name: '설정', role: 'staff', password: 'pass-4902' });
+  const other = client(); await other.login('pref2@revera.test', 'pass-4902');
+  await admin.ok('savePref', { key: 'colw:#/students:이름|학교', value: [120, 80] });
+  await admin.ok('savePref', { key: 'view.stSort', value: 'name' });
+  await admin.ok('savePref', { key: 'atlas.view', value: { school: 'CISS' } });
+  let me = (await admin.ok('getAll')).me;
+  assert.deepStrictEqual([me.prefs['colw:#/students:이름|학교'], me.prefs['view.stSort'], me.prefs['atlas.view'].school], [[120, 80], 'name', 'CISS']);
+  assert.deepStrictEqual((await admin.ok('getPrefs'))['view.stSort'], 'name');
+  assert.deepStrictEqual((await other.ok('getAll')).me.prefs, {}, '다른 계정과 따로');
+  await admin.ok('savePref', { key: 'view.stSort', value: null });
+  assert.ok(!('view.stSort' in (await admin.ok('getAll')).me.prefs), 'null = 지우기');
+  assert.strictEqual((await admin.rpc('savePref', { key: 'password', value: 'x' })).status, 400, '정해진 이름만');
+  assert.strictEqual((await admin.rpc('savePref', { key: 'studentCols', value: ['school', 'nope'] })).status, 400);
+  await admin.ok('savePref', { key: 'studentCols', value: ['school', 'status'] });
+  assert.strictEqual((await admin.rpc('savePref', { key: 'scFold', value: 'x'.repeat(20001) })).status, 400, '너무 큼');
+});
