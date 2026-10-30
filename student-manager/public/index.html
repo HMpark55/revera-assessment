@@ -361,12 +361,6 @@
   .swatches { display:flex; gap:6px; flex-wrap:wrap; }
   /* 알림: 🔔 알림함 · 오른쪽 아래 카드 · 오늘 챙길 일 */
   .tstu { display:grid; grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); gap:4px 14px; padding:4px 0 6px; font-size:.85rem; }
-  .rm-month { border-left:3px solid #d5dbe6; padding:2px 0 6px 12px; margin:0 0 10px 4px; }
-  .rm-month.now { border-left-color:#c9a227; } .rm-month.past { opacity:.75; }
-  .rm-mh { font-weight:700; margin-bottom:4px; color:#0b1b45; }
-  .rm-row { display:flex; align-items:center; gap:8px; padding:4px 0; flex-wrap:wrap; }
-  .rm-row.done a { text-decoration:line-through; color:#9aa3b5; }
-  .rm-d { font-size:.85rem; } .rm-m { font-size:.8rem; flex-basis:100%; padding-left:26px; }
   .fu-split { display:flex; flex-wrap:wrap; gap:6px 16px; align-items:center; margin-top:6px; padding:8px 10px; background:#f5f7fb; border-radius:8px; font-size:.85rem; }
   .fu-split .fs-t { font-weight:600; }
   .fu-split label { display:inline-flex; align-items:center; gap:4px; color:#222; cursor:pointer; }
@@ -718,7 +712,7 @@ var DOC_DONE = ['수합 완료', '해당 없음'];
 /** 서류 탭 서류 이름 예시 */
 var DOC_PRESETS = ['성적증명서', '재학증명서', '졸업증명서', '출입국사실증명서(학생)', '출입국사실증명서(부)', '출입국사실증명서(모)', '여권 사본', '가족관계증명서', '추천서'];
 var STORY_STATUS = ['작성 전', '검토 중', '확정'];
-var CHILD = ['appinfo', 'notes', 'contracts', 'payments', 'apps', 'scores', 'activities', 'docs', 'links', 'files', 'followups', 'fureplies', 'majorplans', 'schools', 'courses', 'accounts', 'meetings', 'roadmap',
+var CHILD = ['appinfo', 'notes', 'contracts', 'payments', 'apps', 'scores', 'activities', 'docs', 'links', 'files', 'followups', 'fureplies', 'majorplans', 'schools', 'courses', 'accounts', 'meetings',
   'universities', 'unicycles', 'unirounds', 'unimajors'];
 var CATALOG_TABLES = ['universities', 'unicycles', 'unirounds', 'unimajors'];
 var FOLLOWUP_STATUS = ['할 일', '진행 중', '대기', '완료'];
@@ -924,11 +918,6 @@ var FORMS = {
     { k: 'g1', l: '1학기 / T1 성적' }, { k: 'g2', l: '2학기 / T2 성적' }, { k: 'g3', l: 'T3 성적 (Trimester)' }, { k: 'final', l: '최종 성적' },
     { k: 'memo', l: '메모', full: 1 }],
     defaults: function () { return { termType: COURSE_TERMS[0] }; } },
-  roadmap: { title: '로드맵', fields: [
-    { k: 'date', l: '날짜 (언제까지·언제)', t: 'date', req: 1 }, { k: 'category', l: '분류', t: 'select', o: function () { return S.site.roadmapCats || []; } },
-    { k: 'title', l: '할 일·목표', req: 1, full: 1, ph: '예: SAT 1차 응시, 여름 리서치 프로그램 지원, 11학년 1학기 성적 확인' },
-    { k: 'memo', l: '메모', t: 'textarea', full: 1 }, { k: 'done', l: '완료', t: 'check', cl: '끝냄' }],
-    defaults: function () { return { category: '기타' }; } },
   activities: { title: '활동·대회', fields: [
     { k: 'category', l: '분류', t: 'select', o: ACT_CATS }, { k: 'name', l: '활동 이름', req: 1 },
     { k: 'role', l: '역할' }, { k: 'period', l: '기간', ph: '예: 2026.06 – 2026.08' },
@@ -1006,7 +995,7 @@ function load(data) {
   S.programs = data.programs || [];
   S.homeDefault = data.homeDefault || null;
   S.reviews = data.reviews || [];
-  S.site = data.site || { bugUrl: '', hideMenus: {}, roadmapCats: [], hideable: [] };
+  S.site = data.site || { bugUrl: '', hideMenus: {}, hideable: [] };
   if ('devAs' in data) { S.devAs = data.devAs; devBanner(); } // 개발자가 다른 계정으로 보는 중 (화면 전체를 불러올 때만 실려 옴)
   // 원장님 스케줄은 중국 시간으로 저장 → 내 시간으로 바꿔 둠 (압구정 계정은 한국 시간으로 보임)
   S.sched = (data.sched || []).map(function (x) { return Object.assign({}, x, { startAt: shiftWall(x.startAt, SCHED_TZ, myTZ()), endAt: shiftWall(x.endAt, SCHED_TZ, myTZ()) }); });
@@ -1672,7 +1661,6 @@ var WIDGETS = [ // sizes: 고를 수 있는 크기(가로칸x세로칸), 첫 번
   { id: 'meetings', title: '최근 미팅 회의록', sizes: ['2x2', '1x2', '1x3', '2x3'], hideFor: 'mgr', render: wMeetings },
   { id: 'contacts', title: '답 안 한 연락', sizes: ['1x2', '1x1', '1x3', '2x2', '2x3'], extra: true, render: wContacts },
   { id: 'nodue', title: '기한 없는 팔로업', sizes: ['1x2', '1x1', '1x3', '2x2', '2x3'], extra: true, render: wNoDue },
-  { id: 'roadmap', title: '다가오는 로드맵', sizes: ['1x2', '1x1', '1x3', '2x2', '2x3'], extra: true, render: wRoadmap },
   { id: 'programs', title: '대회·프로그램 마감 임박', sizes: ['1x2', '1x1', '1x3', '2x2'], extra: true, render: wPrograms },
   { id: 'mystudents', title: '내 담당 학생', sizes: ['2x2', '1x2', '1x3', '2x3'], extra: true, render: wMyStudents },
   { id: 'activity', title: '최근 활동', sizes: ['1x3', '1x2', '2x2', '2x3'], extra: true, render: wActivity },
@@ -1949,19 +1937,6 @@ function wNoDue() {
   return '<div class="card"><div class="sec-h"><h3>기한 없는 팔로업 <span class="muted">' + NODUE_OLD + '일 넘으면 주황</span></h3>' + seg([['me', '내 것'], ['all', '전체']], UI.dashNd, 'dashNd') + '</div>' +
     (html ? '<div class="scroll-box sm">' + html + '</div>' : '<div class="empty">기한 없는 팔로업이 없습니다.</div>') + '</div>';
 }
-/** 로드맵: 끝내지 않은 것 중 30일 안 (지난 것 포함) */
-function roadmapSoon(days) {
-  return (S.roadmap || []).filter(function (x) { var s = studentById(x.studentId), n = dayDiff(x.date); return s && isActive(s) && x.done !== 'TRUE' && n !== null && n <= days; })
-    .sort(function (a, b) { return a.date.localeCompare(b.date); });
-}
-function wRoadmap() {
-  var list = roadmapSoon(30);
-  return '<div class="card"><div class="sec-h"><h3>다가오는 로드맵 <span class="muted">30일</span></h3></div><div class="scroll-box sm">' +
-    (list.length ? '<div class="sum-list">' + list.map(function (x) {
-      var s = studentById(x.studentId);
-      return '<div class="row click" onclick="openStudent(' + js(s.id) + ',\'roadmap\')"><span class="nw"><b>' + esc(fmtD(x.date)) + '</b> ' + dday(x.date) + '</span><span class="grow"><b>' + esc(s.name) + '</b> ' + esc(x.title) + '</span><span class="muted nw">' + esc(x.category || '') + '</span></div>';
-    }).join('') + '</div>' : '<div class="empty">30일 안에 챙길 로드맵이 없습니다.</div>') + '</div></div>';
-}
 function wPrograms() {
   var list = (S.programs || []).filter(function (p) { var n = dayDiff(p.deadline); return n !== null && n >= 0 && n <= 30; })
     .sort(function (a, b) { return a.deadline.localeCompare(b.deadline); });
@@ -2092,11 +2067,6 @@ function todayItems(scope) {
     var n = dayDiff(x.startAt.slice(0, 10)), s = studentById(x.studentId);
     if (n === null || n < 0 || n > 1 || !s || (mine && !isMine(s))) return;
     out.push({ n: n, kind: '원장님 미팅', text: x.startAt.slice(11, 16) + ' ' + x.title + (x.detail ? ' · ' + x.detail : ''), who: s.name, go: 'openStudent(' + js(s.id) + ',\'meetings\')' });
-  });
-  if (!menuHidden('roadmap')) roadmapSoon(1).forEach(function (x) {
-    var s = studentById(x.studentId), n = dayDiff(x.date);
-    if (mine && !isMine(s)) return;
-    out.push({ n: n, kind: '로드맵', text: x.title + (x.category ? ' (' + x.category + ')' : ''), who: s.name, go: 'openStudent(' + js(s.id) + ',\'roadmap\')' });
   });
   nextMeetings().forEach(function (m) {
     var n = dayDiff(m.nextDate), s = studentById(m.studentId);
@@ -2770,10 +2740,10 @@ function downloadBoard() {
 }
 
 /* ============================== 학생 상세 ============================== */
-var TAB_LABEL = { appinfo: '원서 정보', summary: '요약', meetings: '미팅·상담', accounts: '계정', followups: '팔로업·연락', notes: '전체 기록', contracts: '계약', majors: '전공', apps: '지원대학', scores: '성적·학력', schools: '학력', docs: '서류', profile: '학생 정보', roadmap: '로드맵' };
+var TAB_LABEL = { appinfo: '원서 정보', summary: '요약', meetings: '미팅·상담', accounts: '계정', followups: '팔로업·연락', notes: '전체 기록', contracts: '계약', majors: '전공', apps: '지원대학', scores: '성적·학력', schools: '학력', docs: '서류', profile: '학생 정보' };
 /** 학생 화면 탭 묶음: 요약 | 진행 | 입시 | 행정 */
 function tabGroups() {
-  return [['', ['summary']], ['진행', ['followups', 'meetings'].concat(menuHidden('roadmap') ? [] : ['roadmap'], isMgr() ? ['notes'] : [])],
+  return [['', ['summary']], ['진행', ['followups', 'meetings'].concat(isMgr() ? ['notes'] : [])],
     ['입시', ['apps', 'appinfo', 'scores', 'docs']], ['행정', ['contracts', 'profile']]];
 }
 function tabsForRole() { return [].concat.apply([], tabGroups().map(function (g) { return g[1]; })); }
@@ -2796,7 +2766,6 @@ function viewStudent(id) {
     (resume ? '<a class="btn ghost" href="' + esc(resume) + '" target="_blank" rel="noopener">📄 Resume</a>' : '') +
     (drive ? '<a class="btn ghost" href="' + esc(drive) + '" target="_blank" rel="noopener">📁 Drive 폴더</a>' : '') +
     (ATLAS_OK ? '<button class="btn ghost" onclick="openAtlasOf(' + js(s.id) + ')" title="REVERA A의 상담·1:1 상담 이력">A 상담 이력</button>' : '') +
-    '<button class="btn ghost" onclick="openReport(' + js(s.id) + ')" title="기간 동안의 미팅·팔로업·로드맵으로 학부모 보고 문구 초안 만들기">📝 리포트 초안</button>' +
     (otherBranch(s) ? '' : '<button class="btn ghost" onclick="openForm(\'students\',' + js(s.id) + ')">정보 수정</button>') + '</div>' +
     '<div class="progress-box"><b>현재 진행 상황</b> ' + (otherBranch(s) ? '' : '<button class="btn ghost sm" onclick="openForm(\'progress\',' + js(s.id) + ')">수정</button>') +
       '<div>' + (s.progress ? esc(s.progress) : '<span class="muted">아직 적힌 진행 상황이 없습니다. 담당이 아니어도 지금 상황을 바로 알 수 있게 짧게 적어주세요.</span>') + '</div>' +
@@ -2804,7 +2773,7 @@ function viewStudent(id) {
     '</div>';
   var tabLink = function (t) {
     var n = t === 'summary' ? null : t === 'followups' ? openFollowups(id).length : t === 'profile' ? null : t === 'scores' ? childOf('schools', id).length + childOf('courses', id).length + childOf('scores', id).length + childOf('files', id).filter(function (f) { return !f.docId && !f.meetingId && !f.followupId && !f.scoreId; }).length :
-      t === 'accounts' ? childOf('accounts', id).length : t === 'roadmap' ? childOf('roadmap', id).filter(function (x) { return x.done !== 'TRUE'; }).length : t === 'meetings' ? childOf('meetings', id).length + (isMgr() ? notesOf(id).length : 0) :
+      t === 'accounts' ? childOf('accounts', id).length : t === 'meetings' ? childOf('meetings', id).length + (isMgr() ? notesOf(id).length : 0) :
       t === 'majors' ? childOf('majorplans', id).filter(function (m) { return m.status !== '제외'; }).length :
       t === 'notes' ? timelineOf(id).length : ['contracts', 'apps', 'docs', 'schools', 'appinfo'].indexOf(t) >= 0 ? childOf(t, id).length : null;
     return '<a class="' + (UI.tab === t ? 'on' : '') + '" onclick="UI.tab=' + js(t) + ';render()">' + TAB_LABEL[t] + (n ? ' (' + n + ')' : '') + '</a>';
@@ -2813,7 +2782,7 @@ function viewStudent(id) {
     return (i ? '<span class="tsep"></span>' : '') + (g[0] ? '<span class="tg">' + g[0] + '</span>' : '') + g[1].map(tabLink).join('');
   }).join('') + '</div>';
   return h + { appinfo: tabAppinfo, summary: tabSummary, followups: tabFollowups, notes: tabNotes, contracts: tabContracts, scores: tabScores, apps: tabApps,
-    docs: tabDocs, profile: tabProfile, majors: tabMajors, schools: tabSchools, accounts: tabAccounts, meetings: tabMeetings, roadmap: tabRoadmap }[UI.tab](s);
+    docs: tabDocs, profile: tabProfile, majors: tabMajors, schools: tabSchools, accounts: tabAccounts, meetings: tabMeetings }[UI.tab](s);
 }
 function addBtn(table, sid, label) { return '<button class="btn" onclick="openForm(' + js(table) + ',null,' + js(sid) + ')">' + label + '</button>'; }
 function secHead(title, btn) { return '<div class="sec-h"><h3>' + title + '</h3>' + (btn || '') + '</div>'; }
@@ -4418,76 +4387,6 @@ function tabApps(s) {
       (childOf('majorplans', s.id).length ? ' <a href="javascript:void 0" onclick="UI.tab=\'majors\';render()">예전 전공 후보 기록 ' + childOf('majorplans', s.id).length + '건 보기</a>' : '') + '</div></div>' + tabAccounts(s, true);
 }
 
-/* ----- 로드맵 탭: 연간 마일스톤을 달마다 묶어서 ----- */
-function tabRoadmap(s) {
-  var list = childOf('roadmap', s.id).sort(function (a, b) { return a.date.localeCompare(b.date) || a.createdAt.localeCompare(b.createdAt); });
-  var t = today(), months = {}, order = [];
-  list.forEach(function (x) { var m = x.date.slice(0, 7); if (!months[m]) { months[m] = []; order.push(m); } months[m].push(x); });
-  var left = list.filter(function (x) { return x.done !== 'TRUE'; }).length;
-  var row = function (x) {
-    var done = x.done === 'TRUE', late = !done && x.date < t;
-    return '<div class="rm-row' + (done ? ' done' : '') + '"><input type="checkbox" title="' + (done ? '다시 할 일로' : '끝냄 표시') + '"' + (done ? ' checked' : '') + ' onchange="roadmapDone(' + js(x.id) + ',this.checked)">' +
-      '<span class="nw rm-d">' + esc(fmtD(x.date)) + (done ? '' : ' ' + dday(x.date)) + '</span>' + (x.category ? '<span class="pill">' + esc(x.category) + '</span>' : '') +
-      '<a class="grow" href="javascript:void(0)" onclick="openForm(\'roadmap\',' + js(x.id) + ')">' + (late ? '<b style="color:var(--error)">' + esc(x.title) + '</b>' : esc(x.title)) + '</a>' +
-      (x.memo ? '<span class="muted rm-m">' + esc(x.memo) + '</span>' : '') + '</div>';
-  };
-  return '<div class="card">' + secHead('로드맵 <span class="muted">' + (list.length ? '남은 ' + left + ' / ' + list.length : '') + '</span>',
-      '<span class="toolbar" style="margin:0"><button class="btn ghost" onclick="openReport(' + js(s.id) + ')">📝 학부모 리포트 초안</button>' + addBtn('roadmap', s.id, '+ 로드맵 추가') + '</span>') +
-    '<div class="muted" style="margin-bottom:8px">시험·대회·활동·서머·원서 같은 큰 일정을 미리 깔아두면, 30일 안으로 다가올 때 메인 <b>다가오는 로드맵</b> 위젯(메인 편집에서 켜기)과 하루 전부터 <b>오늘 챙길 일</b>에 나옵니다.</div>' +
-    (order.length ? order.map(function (m) {
-      return '<div class="rm-month' + (m < t.slice(0, 7) ? ' past' : m === t.slice(0, 7) ? ' now' : '') + '"><div class="rm-mh">' + esc(m.slice(0, 4) + '년 ' + Number(m.slice(5)) + '월') + (m === t.slice(0, 7) ? ' <span class="pill s-진행중">이번 달</span>' : '') + '</div>' + months[m].map(row).join('') + '</div>';
-    }).join('') : '<div class="empty">아직 로드맵이 없습니다. “+ 로드맵 추가”로 올해 큰 일정부터 적어보세요.</div>') + '</div>';
-}
-/* ----- 학부모 리포트 초안: 기간 동안의 기록을 모아 문구로 (그대로 보내지 말고 다듬어서) ----- */
-var REPORT_PARTS = [['meet', '이번 기간 미팅'], ['done', '마친 일'], ['open', '진행 중인 일'], ['next', '다가오는 일정']];
-function openReport(sid) {
-  var t = today();
-  UI.rp = { sid: sid, from: addDays(t, -30), to: t, parts: { meet: 1, done: 1, open: 1, next: 1 } };
-  modal('📝 학부모 리포트 초안 — ' + studentById(sid).name,
-    '<div class="full toolbar" style="margin:0;gap:8px;flex-wrap:wrap;align-items:center"><span class="muted">기간</span><input type="date" id="rp-from" style="width:auto" value="' + esc(UI.rp.from) + '" onchange="reportGen()"> ~ <input type="date" id="rp-to" style="width:auto" value="' + esc(t) + '" onchange="reportGen()">' +
-      '<button type="button" class="btn ghost sm" onclick="reportRange(\'month\')">이번 달</button><button type="button" class="btn ghost sm" onclick="reportRange(\'last\')">지난 달</button><button type="button" class="btn ghost sm" onclick="reportRange(30)">최근 30일</button></div>' +
-    '<div class="full" style="display:flex;gap:12px;flex-wrap:wrap">' + REPORT_PARTS.map(function (p) { return '<label style="display:inline-flex;gap:4px;align-items:center;color:#222"><input type="checkbox" class="rp-part" data-p="' + p[0] + '" checked onchange="reportGen()"> ' + p[1] + '</label>'; }).join('') + '</div>' +
-    '<div class="full"><textarea id="rp-text" style="min-height:340px;font-size:.88rem;line-height:1.55"></textarea>' +
-    '<div class="muted" style="font-size:.78rem;margin-top:4px">미팅은 날짜·안건만, 팔로업은 할 일 제목만 가져옵니다 (회의록 내용·🔒 부모님 전달 메모·받은 연락은 넣지 않음). 문구를 다듬은 뒤 복사해서 보내세요. 여기서 고친 내용은 저장되지 않습니다.</div></div>',
-    '<button class="btn ghost" onclick="closeModal(true)">닫기</button><button class="btn" onclick="copyText($(\'rp-text\').value)">📋 복사</button>');
-  reportGen();
-}
-function reportRange(k) {
-  var t = today(), from, to = t;
-  if (k === 'month') from = t.slice(0, 8) + '01';
-  else if (k === 'last') { to = addDays(t.slice(0, 8) + '01', -1); from = to.slice(0, 8) + '01'; }
-  else from = addDays(t, -k);
-  $('rp-from').value = from; $('rp-to').value = to; reportGen();
-}
-function reportGen() {
-  var sid = UI.rp.sid, s = studentById(sid), from = $('rp-from').value, to = $('rp-to').value, t = today();
-  var on = {}; Array.prototype.forEach.call(document.querySelectorAll('.rp-part'), function (c) { on[c.getAttribute('data-p')] = c.checked; });
-  var inR = function (d) { d = String(d || '').slice(0, 10); return d && d >= from && d <= to; };
-  var md = function (d) { return Number(d.slice(5, 7)) + '/' + Number(d.slice(8, 10)); };
-  var fus = S.followups.filter(function (f) { return f.studentId === sid && f.kind !== 'contact'; });
-  var line = function (f) { return fuLines(f).map(function (x) { return x.replace(FU_DONE, ''); }).join(', ') || f.title; };
-  var out = ['안녕하세요, 어머님·아버님. ' + s.name + ' 학생의 ' + md(from) + '~' + md(to) + ' 진행 상황을 정리해 드립니다.', ''];
-  var sec = function (title, rows) { if (!rows.length) return; out.push('■ ' + title); rows.forEach(function (r) { out.push('- ' + r); }); out.push(''); };
-  if (on.meet) sec('이번 기간 미팅', childOf('meetings', sid).filter(function (m) { return inR(m.date); }).sort(function (a, b) { return a.date.localeCompare(b.date); })
-    .map(function (m) { return md(m.date) + ' ' + (m.topic || '미팅') + (m.nextStep ? ' → 다음 계획: ' + m.nextStep : ''); }));
-  if (on.done) sec('마친 일', fus.filter(function (f) { return f.status === '완료' && inR(f.doneAt); }).map(line)
-    .concat(childOf('roadmap', sid).filter(function (x) { return x.done === 'TRUE' && inR(x.date); }).map(function (x) { return x.title; })));
-  if (on.open) sec('진행 중인 일', fus.filter(function (f) { return f.status !== '완료'; }).sort(function (a, b) { return (a.due || '9').localeCompare(b.due || '9'); })
-    .map(function (f) { return line(f) + (f.due ? ' (' + md(f.due) + '까지)' : ''); }));
-  if (on.next) {
-    var lim = addDays(t, 60), nx = [];
-    childOf('roadmap', sid).forEach(function (x) { if (x.done !== 'TRUE' && x.date >= t && x.date <= lim) nx.push([x.date, x.title]); });
-    childOf('apps', sid).forEach(function (a) { if (APP_FINAL.indexOf(a.status) < 0 && a.deadline && a.deadline >= t && a.deadline <= lim) nx.push([a.deadline, [a.university, a.round].filter(Boolean).join(' ') + ' 지원 마감']); });
-    upcomingSched(sid).forEach(function (x) { var d = x.startAt.slice(0, 10); if (d <= lim) nx.push([d, '원장님 미팅 ' + x.startAt.slice(11, 16)]); });
-    sec('다가오는 일정 (60일)', nx.sort(function (a, b) { return a[0].localeCompare(b[0]); }).map(function (x) { return md(x[0]) + ' ' + x[1]; }));
-  }
-  out.push('궁금하신 점은 언제든 편하게 말씀해 주세요. 감사합니다.');
-  $('rp-text').value = out.join('\n');
-}
-function roadmapDone(id, on) {
-  var x = findRow('roadmap', id); if (!x) return;
-  mutate('save', { table: 'roadmap', obj: { id: id, updatedAt: x.updatedAt, done: on ? 'TRUE' : '' } }, on ? '끝냄으로 표시했습니다.' : '다시 할 일로 되돌렸습니다.');
-}
 function tabActivities(s) {
   var list = childOf('activities', s.id).sort(byDate('deadline'));
   return '<div class="card">' + secHead('활동·대회', addBtn('activities', s.id, '+ 활동 추가')) +
@@ -5692,7 +5591,7 @@ function loadAutomation() {
   }).then(function () { if (route().view === 'settings') render(); }).catch(function (e) { toast(errMsg(e), true); });
 }
 function hourOpts(cur) { var h = ''; for (var i = 0; i < 24; i++) h += '<option value="' + i + '"' + (String(i) === String(cur) ? ' selected' : '') + '>' + i + '시</option>'; return h; }
-var MENU_LABEL = { followups: '팔로업·연락', meetings: '미팅', deadlines: '원서 관리', unis: '대학 정보', programs: '대회·프로그램', results: '합격 실적', roadmap: '로드맵 (학생 탭·메인 위젯)' };
+var MENU_LABEL = { followups: '팔로업·연락', meetings: '미팅', deadlines: '원서 관리', unis: '대학 정보', programs: '대회·프로그램', results: '합격 실적' };
 /** 사이트 설정 (관리자): 맨 위 🐞 버튼 링크, 지점별로 숨길 메뉴 */
 function siteCard() {
   var st = S.site || {}, hide = st.hideMenus || {};

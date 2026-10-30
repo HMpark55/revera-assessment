@@ -2642,14 +2642,11 @@ test('팔로업 서식(할 일·세부·받은 내용): 허용한 서식만, 일
   assert.strictEqual((await admin.rpc('saveOrder', { kind: 'followups', ids: ['nope'] })).status, 404);
 });
 
-test('로드맵·사이트 설정(🐞 링크, 지점별 숨긴 메뉴)·팔로업 여러 줄을 따로 만들기', async () => {
+test('사이트 설정(🐞 링크, 지점별 숨긴 메뉴)·팔로업 여러 줄을 따로 만들기', async () => {
   const admin = client(); await admin.login('admin@revera.test', 'admin-pass-1');
-  const sid = (await admin.saveOk('students', { name: '로드맵학생' })).savedId;
-  let d = await admin.saveOk('roadmap', { studentId: sid, date: '2026-12-05', title: 'SAT 응시', category: '시험' });
-  assert.strictEqual(d.roadmap.find((x) => x.id === d.savedId).title, 'SAT 응시');
-  assert.strictEqual((await admin.rpc('save', { table: 'roadmap', obj: { studentId: sid, title: '날짜 없음' } })).status, 400);
-  assert.strictEqual((await admin.rpc('save', { table: 'roadmap', obj: { studentId: sid, date: '2026-12-01', title: 'x', category: '없는분류' } })).status, 400);
-  d = await admin.ok('saveSite', { bugUrl: 'https://docs.google.com/spreadsheets/d/x/edit', hideMenus: { '압구정': ['deadlines', 'nope'], '상해': [] } });
+  const sid = (await admin.saveOk('students', { name: '여러줄학생' })).savedId;
+  assert.ok(/^https:\/\/docs\.google\.com\/spreadsheets\//.test((await admin.ok('getAll')).site.bugUrl), '처음엔 정해 둔 시트 링크');
+  let d = await admin.ok('saveSite', { bugUrl: 'https://docs.google.com/spreadsheets/d/x/edit', hideMenus: { '압구정': ['deadlines', 'nope'], '상해': [] } });
   assert.strictEqual(d.site.bugUrl, 'https://docs.google.com/spreadsheets/d/x/edit');
   assert.deepStrictEqual(d.site.hideMenus['압구정'], ['deadlines'], '정해진 메뉴만');
   assert.strictEqual((await admin.rpc('saveSite', { bugUrl: 'javascript:alert(1)' })).status, 400);
@@ -2662,4 +2659,30 @@ test('로드맵·사이트 설정(🐞 링크, 지점별 숨긴 메뉴)·팔로�
   const made = d.followups.filter((x) => d.savedIds.includes(x.id));
   assert.deepStrictEqual(made.map((x) => [x.title, x.category, x.due]).sort(), [['성적표 받기', '서류', '2026-11-20'], ['추천서', '서류', '2026-11-20']]);
   assert.strictEqual((await admin.rpc('addFollowupLines', { obj: { studentId: sid }, lines: [{ title: '하나' }] })).status, 400);
+  assert.strictEqual((await admin.ok('saveSite', { bugUrl: '' })).site.bugUrl, '', '비우면 버튼 숨김 (처음 링크로 돌아가지 않음)');
+});
+
+test('REVERA A 로드맵·리포트(시험): Compass 학생별 로드맵 저장·검사, 한 학생 기록 모으기(같은 이름 A 학생의 수업 일정 포함)', async () => {
+  const admin = client(); await admin.login('admin@revera.test', 'admin-pass-1');
+  await admin.ok('saveTeacher', { email: 'hm3@revera.test', name: '박현모', role: 'staff', password: 'temp-pass-3' });
+  const hm = client(); await hm.login('hm3@revera.test', 'temp-pass-3');
+  await hm.ok('changePassword', { current: 'temp-pass-3', next: 'mine-pass-3' });
+  const call = async (fn, arg) => { const r = await hm.req('POST', '/api/atlas/' + fn, { arg }); assert.strictEqual(r.status, 200, fn + ': ' + JSON.stringify(r.data)); return r.data; };
+  const bad = async (fn, arg) => (await hm.req('POST', '/api/atlas/' + fn, { arg })).status;
+  const cid = (await admin.saveOk('students', { name: '로드 맵' })).savedId;
+  await admin.saveOk('meetings', { studentId: cid, date: '2026-10-01', topic: '성적 점검', status: '완료' });
+  const a = await call('save', { table: 'atlas_students', rec: { name: '로드맵' } });
+  await call('save', { table: 'atlas_sched', rec: { date: '2026-10-02', start: '17:00', end: '18:00', studentIds: JSON.stringify([a.id]), title: '수학', status: '완료' } });
+  const r = await call('save', { table: 'atlas_roadmap', rec: { studentId: cid, date: '2026-12-05', title: 'SAT 응시', category: '시험' } });
+  assert.strictEqual(await bad('save', { table: 'atlas_roadmap', rec: { studentId: a.id, date: '2026-12-05', title: 'x' } }), 404, 'A 학생 id가 아니라 Compass 학생 id');
+  assert.strictEqual(await bad('save', { table: 'atlas_roadmap', rec: { studentId: cid, title: '날짜 없음' } }), 400);
+  assert.strictEqual(await bad('save', { table: 'atlas_roadmap', rec: { studentId: cid, date: '2026-12-05', title: 'x', category: '없음' } }), 400);
+  await call('save', { table: 'atlas_roadmap', rec: { id: r.id, done: 'TRUE' } });
+  const b = await call('brief', { studentId: cid });
+  assert.deepStrictEqual([b.student.name, b.meetings.length, b.classes.map((c) => c.title), b.roadmap.map((x) => [x.title, x.done]), b.aLinked], ['로드 맵', 1, ['수학'], [['SAT 응시', 'TRUE']], 1]);
+  assert.ok((await call('compassStudents')).some((x) => x.id === cid));
+  assert.strictEqual(await bad('brief', { studentId: 'nope' }), 404);
+  await call('remove', { table: 'atlas_roadmap', id: r.id });
+  assert.strictEqual((await call('brief', { studentId: cid })).roadmap.length, 0);
+  assert.strictEqual((await admin.req('POST', '/api/atlas/brief', { arg: { studentId: cid } })).status, 404, '허용된 계정만');
 });

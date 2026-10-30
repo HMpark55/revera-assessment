@@ -101,11 +101,6 @@ const TABLES = {
       'remindAt', 'remindTo', 'topic', 'titleHtml', 'detailHtml'], // titleHtml·detailHtml: 할 일·세부(받은) 내용의 서식(글자색·굵게·취소선), 일반 글(title·detail)은 저장할 때 서식에서 다시 만듦 / topic: 주제 한 줄 (같은 학생의 같은 주제끼리 한 사건으로 묶임), remindAt: 알림 시각(한국 시간 'YYYY-MM-DDTHH:MM'), remindTo: 받는 사람 ('@assignee' = 그때의 담당자, 쉼표로 이메일 추가)
     summary: (r) => [r.title, r.status].filter(Boolean).join(' · '),
   },
-  roadmap: { // 연간 로드맵: 학생별 마일스톤 (시험·대회·활동·서머 등), 다가오면 메인 위젯에 보임
-    label: '로드맵',
-    fields: ['studentId', 'date', 'title', 'category', 'memo', 'done'], // done: 'TRUE' = 끝냄
-    summary: (r) => [r.date, r.title].filter(Boolean).join(' '),
-  },
   fureplies: { // 팔로업·받은 연락에 이어지는 답변 (학생 → 우리 → 어머님 …)
     label: '답변',
     fields: ['studentId', 'followupId', 'who', 'date', 'content'],
@@ -208,9 +203,10 @@ const DEFAULT_SITES = [
   ['UCAS', '원서 포털', 'https://www.ucas.com'], ['Schoology', '학교 LMS', 'https://app.schoology.com'],
   ['Microsoft Teams', '학교 LMS', 'https://teams.microsoft.com']];
 const DEFAULT_CURRICULA = ['IB', 'AP', 'A-Level', 'IGCSE', '국내 일반고', '국내 특목고', '기타'];
-const ROADMAP_CATS = ['시험', '학교 성적', '대회·프로그램', '활동·리서치', '서머·방학', '에세이·원서', '상담·미팅', '기타'];
 /** 지점별로 숨길 수 있는 메뉴 (메인 위젯 중 같은 이름도 함께 숨김) */
-const HIDEABLE_MENUS = ['followups', 'meetings', 'deadlines', 'unis', 'programs', 'results', 'roadmap'];
+const HIDEABLE_MENUS = ['followups', 'meetings', 'deadlines', 'unis', 'programs', 'results'];
+/** 맨 위 🐞 버그·요청 버튼의 처음 링크 (사이트 설정에서 바꾸거나 비울 수 있음) */
+const DEFAULT_BUG_URL = 'https://docs.google.com/spreadsheets/d/1kc0zuaz4AxdTnXXskaM_-mxggxhPW_B1oh7pEFQ3SC4/edit?usp=sharing';
 const CHILD_TABLES = Object.keys(TABLES).filter((t) => t !== 'students');
 
 /** 대학 정보 (학생과 무관한 공용 자료) */
@@ -1190,11 +1186,6 @@ function openStore(dbPath, opts) {
     if (table === 'accounts') { need('site', '사이트 이름을 입력하세요.'); checkUrl(v('url'), '사이트 주소'); }
     if (table === 'followups' && v('replyDate') && !DATE_RE.test(v('replyDate'))) throw new UserError('답변 날짜 형식이 올바르지 않습니다.');
     if (table === 'followups' && String(v('topic') || '').length > 60) throw new UserError('주제는 60자 이내로 적어주세요.');
-    if (table === 'roadmap') {
-      need('title', '할 일·목표를 입력하세요.');
-      if (!DATE_RE.test(v('date'))) throw new UserError('로드맵 날짜를 입력하세요. (YYYY-MM-DD)');
-      if (v('category') && !ROADMAP_CATS.includes(v('category'))) throw new UserError('로드맵 분류가 올바르지 않습니다.');
-    }
     if (table === 'fureplies') {
       const f = getRow('followups', v('followupId'));
       if (!f || f.deletedAt || f.studentId !== v('studentId')) throw new UserError('팔로업을 찾을 수 없습니다. 새로고침 해주세요.', 404);
@@ -2725,7 +2716,8 @@ function openStore(dbPath, opts) {
     try { hide = JSON.parse(getMeta('site.hideMenus') || '{}') || {}; } catch (e) { hide = {}; }
     const hideMenus = {};
     BRANCHES.forEach((b) => { hideMenus[b] = Array.isArray(hide[b]) ? hide[b].filter((m) => HIDEABLE_MENUS.includes(m)) : []; });
-    return { bugUrl: getMeta('site.bugUrl'), hideMenus, roadmapCats: ROADMAP_CATS, hideable: HIDEABLE_MENUS };
+    const bug = db.prepare("SELECT value FROM meta WHERE key = 'site.bugUrl'").get(); // 한 번도 정하지 않았으면 처음 링크
+    return { bugUrl: bug ? bug.value : DEFAULT_BUG_URL, hideMenus, hideable: HIDEABLE_MENUS };
   }
   function saveSite(me, arg) {
     requireAdmin(me, '사이트 설정');

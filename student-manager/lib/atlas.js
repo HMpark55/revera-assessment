@@ -28,7 +28,10 @@ const TABLES = {
   // 수업 일정 (Classroom Assignment 한 칸): 상해 시간 기준, 수강료는 실제로 수업한 날짜의 매출
   //   studentIds·attend(학생별 출결)·checks(리마인드 보냄: teacher·student·parent·zoom) 는 JSON, payAmt = 이 수업 강사 페이를 직접 정할 때
   atlas_sched: ['date', 'start', 'end', 'room', 'mode', 'teacherId', 'classId', 'studentIds', 'title', 'fee', 'currency', 'status', 'attend', 'checks', 'memo', 'payAmt'],
+  // 로드맵 (시험 중): Compass 학생(studentId = Compass 학생 id)별 연간 마일스톤, done 'TRUE' = 끝냄
+  atlas_roadmap: ['studentId', 'date', 'title', 'category', 'memo', 'done'],
 };
+const ROADMAP_CATS = ['시험', '학교 성적', '대회·프로그램', '활동·리서치', '서머·방학', '에세이·원서', '상담·미팅', '기타'];
 const ROOMS = ['상담실', 'A1', 'A2', 'A3', 'A4', 'A5(큰 강의실)'];
 const SCHED_STATUS = ['예정', '완료', '취소', '리스케줄'];
 const MODES = ['대면', 'ZOOM (상해)', 'ZOOM (한국)', 'ZOOM'];
@@ -158,7 +161,14 @@ function attachAtlas(db, store) {
     if (t === 'atlas_students' && v.grp && !GROUPS.includes(v.grp)) throw new AtlasError('구분이 올바르지 않습니다.');
     if (t === 'atlas_classes' && v.kind && !CLASS_KINDS.includes(v.kind)) throw new AtlasError('수업 종류가 올바르지 않습니다.');
     if (t === 'atlas_fu' && 'campaign' in v && !v.campaign) throw new AtlasError('팔로업 이름을 입력하세요.');
-    if (v.studentId !== undefined && !get('atlas_students', v.studentId)) throw new AtlasError('학생을 찾을 수 없습니다.', 404);
+    if (t === 'atlas_roadmap') {
+      if ('title' in v && !v.title) throw new AtlasError('할 일·목표를 입력하세요.');
+      if ('date' in v && !DATE.test(v.date)) throw new AtlasError('날짜를 고르세요.');
+      if (v.category && !ROADMAP_CATS.includes(v.category)) throw new AtlasError('분류가 올바르지 않습니다.');
+      if ('done' in v && v.done && v.done !== 'TRUE') throw new AtlasError('칸 값이 올바르지 않습니다.');
+      if (!rec.id && (!v.title || !v.date)) throw new AtlasError('날짜와 할 일을 입력하세요.');
+      if (v.studentId !== undefined && !compassRow(v.studentId)) throw new AtlasError('Compass 학생을 찾을 수 없습니다.', 404);
+    } else if (v.studentId !== undefined && !get('atlas_students', v.studentId)) throw new AtlasError('학생을 찾을 수 없습니다.', 404);
     if (v.classId && !get('atlas_classes', v.classId)) throw new AtlasError('수업을 찾을 수 없습니다.', 404);
     const at = ts();
     if (rec.id) {
@@ -431,10 +441,36 @@ function attachAtlas(db, store) {
     db.prepare("UPDATE atlas_students SET compassId = '', updatedAt = ?, updatedBy = ? WHERE id = ?").run(ts(), me.email, String(arg && arg.studentId || ''));
     return { ok: true };
   }
+  /** 로드맵·리포트 (시험 중): Compass 학생 이름 목록 */
+  const compassStudents = () => db.prepare("SELECT id, name, school, grade, branch, status FROM students WHERE deletedAt = '' ORDER BY name").all();
+  /** 로드맵·리포트에 쓰는 한 학생의 기록: Compass(미팅·팔로업·지원대학·원장님 일정) + A(수업 일정) + 로드맵 */
+  function brief(me, arg) {
+    const sid = String(arg && arg.studentId || '');
+    const st = db.prepare("SELECT id, name, school, grade, branch, status, hopeUnis FROM students WHERE id = ? AND deletedAt = ''").get(sid);
+    if (!st) throw new AtlasError('Compass 학생을 찾을 수 없습니다.', 404);
+    const q = (sql) => db.prepare(sql).all(sid);
+    // A 학생: Compass와 연결된 학생, 없으면 이름이 같은 학생
+    const aIds = db.prepare("SELECT id, name, compassId FROM atlas_students WHERE deletedAt = ''").all()
+      .filter((a) => a.compassId === sid || (!a.compassId && nname(a.name) === nname(st.name))).map((a) => a.id);
+    const classes = aIds.length ? db.prepare("SELECT date, start, end, title, status, mode, room, studentIds, attend FROM atlas_sched WHERE studentIds != '' ORDER BY date, start").all()
+      .filter((x) => { try { return JSON.parse(x.studentIds || '[]').some((i) => aIds.includes(i)); } catch (e) { return false; } })
+      .map((x) => { let at = {}; try { at = JSON.parse(x.attend || '{}') || {}; } catch (e) { at = {}; } const mine = aIds.map((i) => at[i]).filter(Boolean)[0] || '';
+        return { date: x.date, start: x.start, end: x.end, title: x.title, status: x.status, mode: x.mode, room: x.room, attend: mine }; }) : [];
+    return {
+      student: st, aLinked: aIds.length,
+      meetings: q("SELECT id, date, topic, nextStep, nextDate FROM meetings WHERE studentId = ? AND deletedAt = '' ORDER BY date"),
+      followups: q("SELECT id, title, status, due, doneAt, kind, category FROM followups WHERE studentId = ? AND deletedAt = ''"),
+      apps: q("SELECT id, university, round, deadline, status FROM apps WHERE studentId = ? AND deletedAt = ''"),
+      sched: q('SELECT startAt, title, detail FROM sched WHERE studentId = ? ORDER BY startAt'),
+      classes,
+      roadmap: q('SELECT * FROM atlas_roadmap WHERE studentId = ? ORDER BY date, createdAt'),
+      roadmapCats: ROADMAP_CATS,
+    };
+  }
   /** Compass 학생 화면 → A 학생 */
   const compassOf = (me, arg) => db.prepare("SELECT id, name FROM atlas_students WHERE compassId = ? AND compassId != '' AND deletedAt = ''").all(String(arg && arg.compassId || ''));
 
-  return { allowed, rpc: { extractPayments, compassCandidates, linkCompass, unlinkCompass, compassOf, ping: () => ({ ok: true }), getAll, getSched, importSched, getRow, getConsults, searchConsults, getLessons, save, remove, renameCampaign, importData }, AtlasError };
+  return { allowed, rpc: { extractPayments, compassCandidates, linkCompass, unlinkCompass, compassOf, compassStudents, brief, ping: () => ({ ok: true }), getAll, getSched, importSched, getRow, getConsults, searchConsults, getLessons, save, remove, renameCampaign, importData }, AtlasError };
 }
 
 module.exports = { attachAtlas, AtlasError };

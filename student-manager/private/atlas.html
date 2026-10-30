@@ -125,6 +125,16 @@
   .cols2 > div { min-width:0; }
   @media (max-width: 800px) { .cols2 { grid-template-columns:1fr; } header.top { height:auto; flex-wrap:wrap; gap:4px 10px; padding:6px 10px; } header.top .nav { order:3; width:100%; overflow-x:auto; white-space:nowrap; }
     header.top .nav a { display:inline-block; padding:6px 2px 8px; margin-right:12px; } header.top .back { font-size:.75rem; padding:3px 9px; } }
+  .rm-mon { border-left:3px solid #d5dbe6; padding:2px 0 4px 10px; margin:0 0 10px 2px; } .rm-mon.now { border-left-color:var(--gold); } .rm-mon.past { opacity:.75; }
+  .rm-mh { font-weight:bold; color:var(--navy); margin-bottom:2px; font-size:.88rem; }
+  .rm-it { display:flex; gap:8px; align-items:center; padding:3px 0; font-size:.86rem; flex-wrap:wrap; } .rm-it input { width:auto; }
+  .rm-it.done .tt { text-decoration:line-through; color:#9ca3af; } .rm-it .tt { cursor:pointer; flex:1; min-width:120px; } .rm-it .late { color:#b42318; font-weight:bold; }
+  .rm-it .x { border:0; background:none; color:#9ca3af; cursor:pointer; } .rm-it .mm { flex-basis:100%; padding-left:24px; color:var(--muted); font-size:.78rem; white-space:pre-wrap; }
+  .rm-add { display:grid; grid-template-columns:130px 120px 1fr auto; gap:6px; margin-bottom:10px; } .rm-add input, .rm-add select { width:100%; }
+  .rm-sug { font-size:.82rem; padding:3px 0; display:flex; gap:6px; align-items:center; } .rm-sug span { flex:1; }
+  .rp-bar { display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-bottom:6px; } .rp-bar input[type=date] { width:auto; } .rp-bar label { font-size:.82rem; display:inline-flex; gap:3px; align-items:center; } .rp-bar label input { width:auto; }
+  #rp-text { width:100%; min-height:420px; font-size:.86rem; line-height:1.55; border:1px solid var(--border); border-radius:6px; padding:8px; }
+  @media (max-width: 800px) { .rm-add { grid-template-columns:1fr 1fr; } }
   #toast { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:#111827; color:#fff; padding:9px 16px; border-radius:8px; z-index:80; display:none; font-size:.9rem; }
   #toast.err { background:#b42318; }
   @media (max-width: 800px) { .cols { grid-template-columns:1fr; } header.top { gap:10px; padding:0 10px; } main { padding:12px 10px 40px; } }
@@ -133,7 +143,7 @@
 <body>
 <header class="top">
   <div class="brand">REVERA <span>A</span></div>
-  <nav class="nav"><a data-p="home" onclick="go('home')">메인</a><a data-p="consult" onclick="go('consult')">상담 Roster</a><a data-p="sched" onclick="go('sched')">수업 일정</a><a data-p="class" onclick="go('class')">수업 Roster</a><a data-p="oneone" onclick="go('oneone')">원장님 1:1 상담</a><a data-p="pay" onclick="go('pay')">결제</a><a data-p="rev" onclick="go('rev')">매출·강사 페이</a></nav>
+  <nav class="nav"><a data-p="home" onclick="go('home')">메인</a><a data-p="consult" onclick="go('consult')">상담 Roster</a><a data-p="sched" onclick="go('sched')">수업 일정</a><a data-p="class" onclick="go('class')">수업 Roster</a><a data-p="oneone" onclick="go('oneone')">원장님 1:1 상담</a><a data-p="pay" onclick="go('pay')">결제</a><a data-p="rev" onclick="go('rev')">매출·강사 페이</a><a data-p="rm" onclick="go('rm')">로드맵·리포트 <small style="color:#b45309">시험</small></a></nav>
   <label class="back" style="margin-left:auto;cursor:pointer" title="구글 시트(상담·수업 Roster, Classroom Assignment)에서 바꾼 가져오기 파일(.json)">⬆ 가져오기<input type="file" accept=".json,application/json" style="display:none" onchange="importFile(this)"></label>
   <a class="back" style="margin-left:0" href="/#/home">← Compass로 돌아가기</a>
 </header>
@@ -203,7 +213,7 @@ function go(p) { V.page = p; V.limit = PAGE; if (p === 'consult') { V.tab = 'rec
 function render() {
   if (!D) return;
   [].forEach.call(document.querySelectorAll('.nav a'), function (a) { a.className = a.getAttribute('data-p') === V.page ? 'on' : ''; });
-  $('main').innerHTML = V.page === 'home' ? viewHome() : V.page === 'sched' ? viewSched() : V.page === 'rev' ? viewRev() : V.page === 'class' ? viewClasses() : V.page === 'oneone' ? viewOneOne() : V.page === 'pay' ? viewPay() : viewConsult();
+  $('main').innerHTML = V.page === 'home' ? viewHome() : V.page === 'sched' ? viewSched() : V.page === 'rev' ? viewRev() : V.page === 'class' ? viewClasses() : V.page === 'oneone' ? viewOneOne() : V.page === 'pay' ? viewPay() : V.page === 'rm' ? viewRm() : viewConsult();
   growAll($('main').querySelectorAll('.sheet textarea'));
 }
 function grow(el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 160) + 'px'; }
@@ -994,6 +1004,125 @@ function setCheck(id, k, on) {
 }
 
 /* ----- 매출 · 강사 페이 (수업한 날짜 기준) ----- */
+
+/* ============================== 로드맵·학부모 리포트 (시험 중) ==============================
+   Compass 학생 한 명을 골라 연간 로드맵을 깔고, 기간 동안의 기록(Compass 미팅·팔로업·지원대학 + A 수업 일정)으로 학부모 보고 문구 초안을 만듦 */
+var RM = { list: null, sid: '', b: null, loading: false };
+var RM_FINAL = ['제출완료', '대기', '합격', '불합격', '철회'];
+function viewRm() {
+  if (!RM.list) { if (!RM.loading) { RM.loading = true; api('compassStudents').then(function (l) { RM.list = l; RM.loading = false; var d = V.rmSid && byId(l, V.rmSid) || l.filter(function (x) { return x.name === '김지성'; })[0]; if (d) rmPick(d.id); else render(); }).catch(function (e) { RM.loading = false; toast(e.message, true); }); } return '<div class="empty">불러오는 중…</div>'; }
+  var st = RM.b && RM.b.student;
+  var h = '<h2>로드맵 · 학부모 리포트 <span class="muted" style="font-size:.85rem;font-weight:normal">— 시험 중인 화면 (Compass에 넣기 전에 여기서 먼저 써보기)</span></h2>' +
+    '<div class="toolbar"><input list="dl-cst" placeholder="Compass 학생 이름" style="width:200px" value="' + esc(st ? st.name : '') + '" onchange="rmPickName(this.value)">' +
+    '<datalist id="dl-cst">' + RM.list.map(function (x) { return '<option value="' + esc(x.name) + '">' + esc([x.school, x.grade, x.branch].filter(Boolean).join(' · ')) + '</option>'; }).join('') + '</datalist>' +
+    (st ? '<span class="muted">' + esc([st.school, st.grade, st.branch, st.status].filter(Boolean).join(' · ')) + ' · Compass 미팅 ' + RM.b.meetings.length + ' · 팔로업 ' + RM.b.followups.filter(function (f) { return f.kind !== 'contact'; }).length + ' · A 일정 ' + RM.b.classes.length + (RM.b.aLinked ? '' : ' (A 학생 없음)') + '</span>' : '') + '</div>';
+  if (!st) return h + '<div class="empty">' + (RM.sid ? '불러오는 중…' : '학생 이름을 고르세요.') + '</div>';
+  return h + '<div class="cols2"><div class="card">' + rmRoadmap() + '</div><div class="card">' + rmReportBox() + '</div></div>';
+}
+function rmPickName(v) { var x = (RM.list || []).filter(function (s) { return s.name === v.trim(); })[0]; if (x) rmPick(x.id); else toast('Compass에서 그 이름의 학생을 찾지 못했습니다.', true); }
+function rmPick(id) {
+  RM.sid = id; V.rmSid = id; keep(); RM.b = null; render();
+  api('brief', { studentId: id }).then(function (b) { if (RM.sid !== id) return; RM.b = b; V.rpFrom = V.rpFrom || addDays(today(), -30); render(); }).catch(function (e) { toast(e.message, true); });
+}
+function rmRoadmap() {
+  var b = RM.b, t = today(), months = {}, order = [];
+  b.roadmap.forEach(function (x) { var m = x.date.slice(0, 7); if (!months[m]) { months[m] = []; order.push(m); } months[m].push(x); });
+  var left = b.roadmap.filter(function (x) { return x.done !== 'TRUE'; }).length;
+  var it = function (x) {
+    var done = x.done === 'TRUE', late = !done && x.date < t;
+    return '<div class="rm-it' + (done ? ' done' : '') + '"><input type="checkbox"' + (done ? ' checked' : '') + ' title="끝냄" onchange="rmSet(' + js(x.id) + ',{done:this.checked?\'TRUE\':\'\'})">' +
+      '<span class="tm' + (late ? ' late' : '') + '">' + esc(md(x.date)) + '</span>' + (x.category ? '<span class="chip">' + esc(x.category) + '</span>' : '') +
+      '<span class="tt" title="눌러서 고치기" onclick="rmEdit(' + js(x.id) + ')">' + esc(x.title) + '</span><button class="x" title="지우기" onclick="rmDel(' + js(x.id) + ')">✕</button>' +
+      (x.memo ? '<span class="mm">' + esc(x.memo) + '</span>' : '') + '</div>';
+  };
+  var sug = rmSuggest();
+  return '<h3 class="ch">로드맵 <span class="muted" style="font-weight:normal">' + (b.roadmap.length ? '남은 ' + left + ' / ' + b.roadmap.length : '') + '</span></h3>' +
+    '<div class="rm-add"><input type="date" id="rm-d" value="' + esc(t) + '"><select id="rm-c">' + b.roadmapCats.map(function (c) { return '<option>' + esc(c) + '</option>'; }).join('') + '</select>' +
+    '<input id="rm-t" placeholder="예: SAT 응시, 여름 리서치 지원, 2학기 성적 확인" onkeydown="if(event.key===\'Enter\')rmAdd()"><button class="btn" onclick="rmAdd()">추가</button></div>' +
+    (order.length ? order.map(function (m) {
+      return '<div class="rm-mon' + (m < t.slice(0, 7) ? ' past' : m === t.slice(0, 7) ? ' now' : '') + '"><div class="rm-mh">' + esc(m.slice(0, 4) + '년 ' + Number(m.slice(5)) + '월') + (m === t.slice(0, 7) ? ' <span class="chip s-done">이번 달</span>' : '') + '</div>' + months[m].map(it).join('') + '</div>';
+    }).join('') : '<div class="empty">아직 로드맵이 없습니다. 위 칸에 적거나, 아래 “기록에서 가져오기”로 시작하세요.</div>') +
+    (sug.length ? '<h3 class="ch" style="margin-top:14px">기록에서 가져오기 <span class="muted" style="font-weight:normal">Compass·A에 이미 있는 앞으로의 일정</span></h3>' + sug.map(function (x, i) {
+      return '<div class="rm-sug"><span><b>' + esc(md(x.date)) + '</b> ' + esc(x.title) + ' <span class="muted">' + esc(x.from) + '</span></span><button class="btn ghost sm" onclick="rmAddSug(' + i + ')">+ 로드맵에</button></div>';
+    }).join('') : '');
+}
+/** 앞으로의 일정 중 로드맵에 아직 없는 것: 지원 마감 · 원장님 미팅 · 다음 미팅 */
+function rmSuggest() {
+  var b = RM.b, t = today(), out = [];
+  var has = {}; b.roadmap.forEach(function (x) { has[x.date + '|' + x.title] = 1; });
+  b.apps.forEach(function (a) { if (a.deadline && a.deadline >= t && RM_FINAL.indexOf(a.status) < 0) out.push({ date: a.deadline, title: [a.university, a.round].filter(Boolean).join(' ') + ' 지원 마감', category: '에세이·원서', from: 'Compass 지원대학' }); });
+  b.sched.forEach(function (x) { var d = x.startAt.slice(0, 10); if (d >= t) out.push({ date: d, title: '원장님 미팅 ' + x.startAt.slice(11, 16), category: '상담·미팅', from: 'Compass 원장님 일정' }); });
+  b.meetings.forEach(function (m) { if (m.nextDate && m.nextDate >= t) out.push({ date: m.nextDate, title: '다음 미팅' + (m.nextStep ? ' — ' + m.nextStep : ''), category: '상담·미팅', from: 'Compass 미팅 다음 계획' }); });
+  RM.sug = out.filter(function (x) { return !has[x.date + '|' + x.title]; }).sort(function (a, b2) { return a.date.localeCompare(b2.date); }).slice(0, 15);
+  return RM.sug;
+}
+function rmAfter(r, rm) { RM.b.roadmap = RM.b.roadmap.filter(function (x) { return x.id !== (rm || r.id); }); if (r && !rm) RM.b.roadmap.push(r); RM.b.roadmap.sort(function (a, b) { return a.date.localeCompare(b.date) || String(a.createdAt).localeCompare(String(b.createdAt)); }); render(); }
+function rmAdd() {
+  var t = $('rm-t').value.trim(), d = $('rm-d').value; if (!t || !d) return toast('날짜와 할 일을 적어주세요.', true);
+  api('save', { table: 'atlas_roadmap', rec: { studentId: RM.sid, date: d, category: $('rm-c').value, title: t } }).then(function (r) { rmAfter(r); toast('로드맵에 넣었습니다.'); }).catch(function (e) { toast(e.message, true); });
+}
+function rmAddSug(i) { var x = RM.sug[i]; api('save', { table: 'atlas_roadmap', rec: { studentId: RM.sid, date: x.date, category: x.category, title: x.title } }).then(function (r) { rmAfter(r); }).catch(function (e) { toast(e.message, true); }); }
+function rmSet(id, o) { api('save', { table: 'atlas_roadmap', rec: Object.assign({ id: id }, o) }).then(function (r) { rmAfter(r); }).catch(function (e) { toast(e.message, true); render(); }); }
+function rmEdit(id) {
+  var x = byId(RM.b.roadmap, id);
+  $('ov').innerHTML = '<div class="ov center" onclick="if(event.target===this)closeOv()"><div class="panel" style="max-width:480px"><h3>로드맵 고치기</h3>' +
+    '<div class="rm-add" style="grid-template-columns:1fr 1fr"><input type="date" id="re-d" value="' + esc(x.date) + '"><select id="re-c">' + RM.b.roadmapCats.map(function (c) { return '<option' + (c === x.category ? ' selected' : '') + '>' + esc(c) + '</option>'; }).join('') + '</select></div>' +
+    '<input id="re-t" value="' + esc(x.title) + '" style="width:100%;margin-bottom:6px"><textarea id="re-m" placeholder="메모" style="width:100%;min-height:70px">' + esc(x.memo || '') + '</textarea>' +
+    '<div style="display:flex;gap:6px;justify-content:flex-end;margin-top:8px"><button class="btn ghost" onclick="closeOv()">취소</button><button class="btn" onclick="rmSet(' + js(id) + ',{date:$(\'re-d\').value,category:$(\'re-c\').value,title:$(\'re-t\').value,memo:$(\'re-m\').value});closeOv()">저장</button></div></div></div>';
+}
+function rmDel(id) { if (!confirm('이 로드맵 항목을 지울까요?')) return; api('remove', { table: 'atlas_roadmap', id: id }).then(function () { rmAfter(null, id); }).catch(function (e) { toast(e.message, true); }); }
+
+var RP_PARTS = [['meet', 'Compass 미팅'], ['cls', 'A 수업·상담 일정'], ['done', '마친 일'], ['open', '진행 중인 일'], ['next', '다가오는 일정']];
+function rmReportBox() {
+  V.rpParts = V.rpParts || { meet: 1, cls: 1, done: 1, open: 1, next: 1 };
+  var from = V.rpFrom || addDays(today(), -30), to = V.rpTo || today();
+  setTimeout(rmReportGen, 0);
+  return '<h3 class="ch">학부모 리포트 초안<span class="lk" onclick="rmCopy()">📋 복사</span></h3>' +
+    '<div class="rp-bar"><input type="date" id="rp-from" value="' + esc(from) + '" onchange="V.rpFrom=this.value;rmReportGen()"> ~ <input type="date" id="rp-to" value="' + esc(to) + '" onchange="V.rpTo=this.value;rmReportGen()">' +
+    '<button class="btn ghost sm" onclick="rmRange(\'month\')">이번 달</button><button class="btn ghost sm" onclick="rmRange(\'last\')">지난 달</button><button class="btn ghost sm" onclick="rmRange(30)">최근 30일</button></div>' +
+    '<div class="rp-bar">' + RP_PARTS.map(function (p) { return '<label><input type="checkbox"' + (V.rpParts[p[0]] ? ' checked' : '') + ' onchange="V.rpParts[' + js(p[0]) + ']=this.checked?1:0;rmReportGen()"> ' + p[1] + '</label>'; }).join('') + '</div>' +
+    '<textarea id="rp-text"></textarea><div class="muted" style="font-size:.76rem;margin-top:4px">미팅은 날짜·안건·다음 계획만, 팔로업은 할 일 제목만 가져옵니다 (회의록 본문·부모님 전달 메모·받은 연락은 넣지 않음). 정해진 틀에 기록을 채운 초안이라 다듬어서 보내주세요. 고친 글은 저장되지 않습니다.</div>';
+}
+function rmRange(k) {
+  var t = today(), from, to = t;
+  if (k === 'month') from = t.slice(0, 8) + '01';
+  else if (k === 'last') { to = addDays(t.slice(0, 8) + '01', -1); from = to.slice(0, 8) + '01'; }
+  else from = addDays(t, -k);
+  V.rpFrom = from; V.rpTo = to; $('rp-from').value = from; $('rp-to').value = to; rmReportGen();
+}
+function rmCopy() { var ta = $('rp-text'); ta.select(); try { navigator.clipboard.writeText(ta.value); } catch (e) { document.execCommand('copy'); } toast('복사했습니다.'); }
+function rmReportGen() {
+  var ta = $('rp-text'); if (!ta || !RM.b) return;
+  var b = RM.b, s = b.student, from = $('rp-from').value, to = $('rp-to').value, t = today(), on = V.rpParts;
+  var inR = function (d) { d = String(d || '').slice(0, 10); return d && d >= from && d <= to; };
+  var m2 = function (d) { return Number(d.slice(5, 7)) + '/' + Number(d.slice(8, 10)); };
+  var lines = function (f) { return String(f.title || '').split('\n').map(function (x) { return x.replace(/^✓\s*/, '').trim(); }).filter(Boolean).join(', '); };
+  var fus = b.followups.filter(function (f) { return f.kind !== 'contact'; });
+  var out = ['안녕하세요, 어머님·아버님. ' + s.name + ' 학생의 ' + m2(from) + '~' + m2(to) + ' 진행 상황을 정리해 드립니다.', ''];
+  var sec = function (title, rows) { if (!rows.length) return; out.push('■ ' + title); rows.forEach(function (r) { out.push('- ' + r); }); out.push(''); };
+  var clip = function (x) { return String(x || '').replace(/^[\s■●◆▶※\-•·*]+/, '').split('\n')[0].trim(); };
+  var noName = function (x) { return String(x || '').split(s.name).join('').replace(/^[\s·,]+|[\s·,]+$/g, '').replace(/\s{2,}/g, ' '); };
+  if (on.meet) sec('미팅', b.meetings.filter(function (m) { return inR(m.date); }).map(function (m) { return m2(m.date) + ' ' + (clip(m.topic) || '미팅') + (m.nextStep ? ' → 다음 계획: ' + m.nextStep : ''); }));
+  if (on.cls) {
+    var cl = b.classes.filter(function (c) { return inR(c.date) && c.status !== '취소'; });
+    var done = cl.filter(function (c) { return c.status === '완료'; }).length;
+    sec('수업·상담 일정' + (cl.length ? ' (' + cl.length + '회' + (done && done !== cl.length ? ', 그중 완료 ' + done + '회' : '') + ')' : ''), cl.map(function (c) { return m2(c.date) + ' ' + c.start + ' ' + (noName(c.title) || '수업') + (c.attend ? ' · ' + c.attend : '') + (c.status === '리스케줄' ? ' (일정 변경)' : ''); }));
+  }
+  if (on.done) sec('마친 일', fus.filter(function (f) { return f.status === '완료' && inR(f.doneAt); }).map(lines)
+    .concat(b.roadmap.filter(function (x) { return x.done === 'TRUE' && inR(x.date); }).map(function (x) { return x.title; })));
+  if (on.open) sec('진행 중인 일', fus.filter(function (f) { return f.status !== '완료'; }).sort(function (a, c) { return (a.due || '9').localeCompare(c.due || '9'); })
+    .map(function (f) { return lines(f) + (f.due ? ' (' + m2(f.due) + '까지)' : ''); }));
+  if (on.next) {
+    var lim = addDays(t, 60), nx = [];
+    b.roadmap.forEach(function (x) { if (x.done !== 'TRUE' && x.date >= t && x.date <= lim) nx.push([x.date, x.title]); });
+    b.apps.forEach(function (a) { if (RM_FINAL.indexOf(a.status) < 0 && a.deadline && a.deadline >= t && a.deadline <= lim) nx.push([a.deadline, [a.university, a.round].filter(Boolean).join(' ') + ' 지원 마감']); });
+    b.sched.forEach(function (x) { var d = x.startAt.slice(0, 10); if (d >= t && d <= lim) nx.push([d, '원장님 미팅 ' + x.startAt.slice(11, 16)]); });
+    var seen = {}; nx = nx.filter(function (x) { var k = x[0] + x[1]; if (seen[k]) return false; seen[k] = 1; return true; });
+    sec('다가오는 일정 (60일)', nx.sort(function (a, c) { return a[0].localeCompare(c[0]); }).map(function (x) { return m2(x[0]) + ' ' + x[1]; }));
+  }
+  out.push('궁금하신 점은 언제든 편하게 말씀해 주세요. 감사합니다.');
+  ta.value = out.join('\n');
+}
 function viewRev() {
   if (!V.rm) V.rm = monthOf(today());
   var m = V.rm, from = m + '-01', to = monthEnd(m);
