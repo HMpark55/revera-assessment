@@ -203,6 +203,10 @@ const DEFAULT_SITES = [
   ['UCAS', '원서 포털', 'https://www.ucas.com'], ['Schoology', '학교 LMS', 'https://app.schoology.com'],
   ['Microsoft Teams', '학교 LMS', 'https://teams.microsoft.com']];
 const DEFAULT_CURRICULA = ['IB', 'AP', 'A-Level', 'IGCSE', '국내 일반고', '국내 특목고', '기타'];
+/** 지점별로 숨길 수 있는 메뉴 (메인 위젯 중 같은 이름도 함께 숨김) */
+const HIDEABLE_MENUS = ['followups', 'meetings', 'deadlines', 'unis', 'programs', 'results'];
+/** 맨 위 🐞 버그·요청 버튼의 처음 링크 (사이트 설정에서 바꾸거나 비울 수 있음) */
+const DEFAULT_BUG_URL = 'https://docs.google.com/spreadsheets/d/1kc0zuaz4AxdTnXXskaM_-mxggxhPW_B1oh7pEFQ3SC4/edit?usp=sharing';
 const CHILD_TABLES = Object.keys(TABLES).filter((t) => t !== 'students');
 
 /** 대학 정보 (학생과 무관한 공용 자료) */
@@ -382,7 +386,8 @@ function migrate(db) {
   db.exec('CREATE INDEX IF NOT EXISTS unimajors_uni ON unimajors(universityId)');
   ensureColumns(db, 'files', ['mime', 'size', 'storedName', 'docId', 'meetingId', 'followupId', 'scoreId']);
   ensureColumns(db, 'files', ['replyId']);
-  ensureColumns(db, 'teachers', ['fuOrder']); // 메인 위젯에서 끌어서 정한 내 팔로업 순서 (팔로업 id JSON 배열, 계정마다 따로) // 팔로업·연락의 어느 답변(말풍선)에 붙은 파일인지
+  ensureColumns(db, 'teachers', ['fuOrder']);
+  ensureColumns(db, 'teachers', ['uiPrefs']); // 그 밖의 개인 화면 설정(JSON): 표 칸 너비·접기·정렬·달력 체크·REVERA A 화면 등 — 어느 PC에서나 같게 // 메인 위젯에서 끌어서 정한 내 팔로업 순서 (팔로업 id JSON 배열, 계정마다 따로) // 팔로업·연락의 어느 답변(말풍선)에 붙은 파일인지
   ensureColumns(db, 'docs', ['receivedAt', 'receivedBy']);
   ensureColumns(db, 'contracts', ['paid']); // 이전 버전 열 (새 버전은 입금 기록으로 계산)
   db.exec('CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
@@ -1077,10 +1082,11 @@ function openStore(dbPath, opts) {
     const meRow = getTeacher(me.email) || me; // 화면 시간은 저장된 계정 정보로 (방금 바꾼 값 포함)
     const out = {
       me: { email: me.email, name: me.name, role: me.role, dev: !!me.dev, branch: accountBranch(me), tz: accountTz(meRow), branchTz: branchTz(meRow), viewTz: TZS.includes(meRow.viewTz) ? meRow.viewTz : '', mustChangePassword: !!me.mustChangePassword,
-        homeLayout: parseLayout((db.prepare('SELECT homeLayout FROM teachers WHERE email = ?').get(me.email) || {}).homeLayout), viewPrefs: parseViewPrefs(meRow.viewPrefs), fuOrder: parseFuOrder(meRow.fuOrder) },
+        homeLayout: parseLayout((db.prepare('SELECT homeLayout FROM teachers WHERE email = ?').get(me.email) || {}).homeLayout), viewPrefs: parseViewPrefs(meRow.viewPrefs), fuOrder: parseFuOrder(meRow.fuOrder), prefs: parsePrefs(meRow.uiPrefs) },
       homeDefault: parseLayout(getMeta('homeLayoutDefault')),
       studentCols: parseCols(getMeta('studentCols')),
       uploadMB: uploadMB(),
+      site: siteSettings(),
       branches: BRANCHES, branchTz: BRANCH_TZ,
       teachers: db.prepare("SELECT email, name, role, active, notify, color, sortOrder, branch, tz FROM teachers ORDER BY CASE WHEN sortOrder = '' OR sortOrder IS NULL THEN 1 ELSE 0 END, CAST(sortOrder AS INTEGER), name").all()
         .map((t) => ({ email: t.email, name: t.name, role: t.role, active: !!t.active, notify: t.notify !== 'off', color: t.color || '', sortOrder: Number(t.sortOrder) || 0, branch: accountBranch(t), tz: accountTz(t) })),
@@ -2226,6 +2232,25 @@ function openStore(dbPath, opts) {
     db.prepare('UPDATE teachers SET viewPrefs = ? WHERE email = ?').run(JSON.stringify(o), me.email);
     return { ok: true, viewPrefs: o };
   }
+  /** 개인 화면 설정: 정해진 이름의 칸만, 값은 JSON (칸 하나 20KB, 합쳐서 300KB까지) */
+  const PREF_KEY = /^(colw:[^\n]{1,400}|(scFold|dlFold|majFold|uniFold|exportFields|alertsOff|sumDay|studentCols)|view\.[A-Za-z]{1,30}|atlas\.view)$/;
+  function parsePrefs(v) { try { const o = JSON.parse(v || '{}'); return o && typeof o === 'object' && !Array.isArray(o) ? o : {}; } catch (e) { return {}; } }
+  function savePref(me, arg) {
+    const k = String(arg && arg.key || '');
+    if (!PREF_KEY.test(k)) throw new UserError('화면 설정 이름이 올바르지 않습니다.');
+    const v = arg.value === undefined ? null : arg.value;
+    if (v !== null && JSON.stringify(v).length > 20000) throw new UserError('화면 설정이 너무 큽니다.');
+    if (k === 'studentCols' && v !== null && (!Array.isArray(v) || v.some((x) => !STUDENT_COLS.includes(x)))) throw new UserError('학생 목록 칸이 올바르지 않습니다.');
+    const row = db.prepare('SELECT uiPrefs FROM teachers WHERE email = ?').get(me.email);
+    if (!row) throw new UserError('계정을 찾을 수 없습니다.', 404);
+    const o = parsePrefs(row.uiPrefs);
+    if (v === null) delete o[k]; else o[k] = v;
+    const json = JSON.stringify(o);
+    if (json.length > 300000) throw new UserError('저장한 화면 설정이 너무 많습니다. 표 칸 너비를 몇 개 처음 상태로 되돌려 주세요.');
+    db.prepare('UPDATE teachers SET uiPrefs = ? WHERE email = ?').run(json, me.email);
+    return { ok: true };
+  }
+  const getPrefs = (me) => parsePrefs((db.prepare('SELECT uiPrefs FROM teachers WHERE email = ?').get(me.email) || {}).uiPrefs);
   function parseFuOrder(v) { try { const a = JSON.parse(v || '[]'); return Array.isArray(a) ? a.filter((x) => typeof x === 'string').slice(0, 1000) : []; } catch (e) { return []; } }
   function parseLayout(v) { try { const x = JSON.parse(v || 'null'); return Array.isArray(x) ? x : null; } catch (e) { return null; } }
   /** [{ id, s: '가로칸x세로칸'(예: 2x3), hide, ts: 제목 크기 ''|'l'|'xl', tc: 제목 색, bg: 배경색 }] 만 받음. 빈칸은 id 가 gap1, gap2 … */
@@ -2705,6 +2730,48 @@ function openStore(dbPath, opts) {
     db.prepare("SELECT key, value FROM meta WHERE key LIKE 'cfg.%'").all().forEach((r) => { out[r.key.slice(4)] = r.value; });
     return out;
   }
+  /** 모든 계정에 보이는 사이트 설정: 버그·요청 링크, 지점별 숨긴 메뉴 */
+  function siteSettings() {
+    let hide = {};
+    try { hide = JSON.parse(getMeta('site.hideMenus') || '{}') || {}; } catch (e) { hide = {}; }
+    const hideMenus = {};
+    BRANCHES.forEach((b) => { hideMenus[b] = Array.isArray(hide[b]) ? hide[b].filter((m) => HIDEABLE_MENUS.includes(m)) : []; });
+    const bug = db.prepare("SELECT value FROM meta WHERE key = 'site.bugUrl'").get(); // 한 번도 정하지 않았으면 처음 링크
+    return { bugUrl: bug ? bug.value : DEFAULT_BUG_URL, hideMenus, hideable: HIDEABLE_MENUS };
+  }
+  function saveSite(me, arg) {
+    requireAdmin(me, '사이트 설정');
+    arg = arg || {};
+    if ('bugUrl' in arg) {
+      const u = clean(arg.bugUrl).trim();
+      if (u && !/^https:\/\/\S+$/.test(u)) throw new UserError('링크는 https:// 로 시작해야 합니다.');
+      setMeta('site.bugUrl', u);
+    }
+    if ('hideMenus' in arg) {
+      const src = arg.hideMenus || {}, out = {};
+      BRANCHES.forEach((b) => { out[b] = [...new Set((Array.isArray(src[b]) ? src[b] : []).map(String))].filter((m) => HIDEABLE_MENUS.includes(m)); });
+      setMeta('site.hideMenus', JSON.stringify(out));
+    }
+    return getAll(me);
+  }
+  /** 팔로업 추가 창에서 여러 줄을 "줄마다 따로" 만들 때: 같은 담당·기한·분류로 줄마다 팔로업 하나씩 */
+  function addFollowupLines(me, arg) {
+    arg = arg || {};
+    const base = arg.obj || {}, lines = Array.isArray(arg.lines) ? arg.lines : [];
+    if (base.id) throw new UserError('새 팔로업에서만 여러 개로 나눌 수 있습니다.');
+    if (lines.length < 2) throw new UserError('두 줄 이상일 때 여러 개로 나눌 수 있습니다.');
+    if (lines.length > 30) throw new UserError('한 번에 30개까지 만들 수 있습니다.');
+    const ids = [];
+    tx(() => {
+      for (const l of lines) {
+        const obj = Object.assign({}, base, { title: clean(l && l.title).trim(), titleHtml: clean(l && l.titleHtml) });
+        if (!obj.title) continue;
+        ids.push(save(me, { table: 'followups', obj, noData: true }).savedId);
+      }
+    });
+    if (!ids.length) throw new UserError('할 일을 입력하세요.');
+    return Object.assign(getAll(me), { savedIds: ids });
+  }
   function uploadMB() { const n = Number(getConfig().uploadMB); return Number.isFinite(n) && n >= 1 && n <= UPLOAD_MB_MAX ? n : UPLOAD_MB_DEFAULT; }
   function uploadLimit() { return Math.round(uploadMB() * 1024 * 1024); }
   function setMeta(key, value) {
@@ -2859,7 +2926,7 @@ function openStore(dbPath, opts) {
     db, filesDir, dbPath, listFiles, pendingSync, markSync, replaceSchedule, restoreFromDb, countTeachers, upsertAdmin, login, loginAs, logout, authenticate, addFile, getFile, addUniFile, getUniFile,
     rpc: { getAll: (me) => getAll(me), save, remove, restore, purge, getTrash, getLog, saveTeacher, changePassword, importData, copyCycle, getActivity, saveMany, updateMe,
       saveOption, removeOption, deleteTeacher, getAutomation, saveAutomation, saveEvent, removeEvent,
-      saveWithFollowups, requestFollowup, saveOrder, saveUniFile, removeUniFile, saveProgram, removeProgram, getStorage, retrySync, saveHomeLayout, saveStudentCols, saveBreak, removeBreak, requestReview, doneReview, cancelReview, excludeSched, unexcludeSched, saveAutoCat, getNotices, noticeAct, fixSubjects, saveViewPref, removeMany, restoreMany, purgeMany, addFollowupMany, addMajorsMany, renameFaculty },
+      saveWithFollowups, requestFollowup, saveOrder, saveUniFile, removeUniFile, saveProgram, removeProgram, getStorage, retrySync, saveHomeLayout, saveStudentCols, saveBreak, removeBreak, requestReview, doneReview, cancelReview, excludeSched, unexcludeSched, saveAutoCat, getNotices, noticeAct, fixSubjects, saveViewPref, savePref, getPrefs, removeMany, restoreMany, purgeMany, addFollowupMany, addFollowupLines, saveSite, addMajorsMany, renameFaculty },
     backup, getConfig, getMeta, recordRun, listTeachers, close: () => db.close(),
   };
 }

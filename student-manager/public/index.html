@@ -360,6 +360,12 @@
   .lb-nav.prev { left:16px; } .lb-nav.next { right:16px; }
   .swatches { display:flex; gap:6px; flex-wrap:wrap; }
   /* 알림: 🔔 알림함 · 오른쪽 아래 카드 · 오늘 챙길 일 */
+  .tstu { display:grid; grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); gap:4px 14px; padding:4px 0 6px; font-size:.85rem; }
+  .fu-split { display:flex; flex-wrap:wrap; gap:6px 16px; align-items:center; margin-top:6px; padding:8px 10px; background:#f5f7fb; border-radius:8px; font-size:.85rem; }
+  .fu-split .fs-t { font-weight:600; }
+  .fu-split label { display:inline-flex; align-items:center; gap:4px; color:#222; cursor:pointer; }
+  .dlb { text-decoration:none; padding:2px 7px; font-size:.75rem; vertical-align:middle; }
+  .bugbtn { margin-left:8px; text-decoration:none; }
   .bell { position:relative; margin-right:8px; } .bell .hbtn { position:relative; font-size:.95rem; padding:4px 10px; }
   .bell .hbtn b { position:absolute; top:-6px; right:-6px; background:#d9534f; color:#fff; border-radius:9px; font-size:.68rem; padding:1px 5px; }
   .bell-box { display:none; position:absolute; right:0; top:38px; width:380px; max-width:92vw; background:#fff; color:#222; border:1px solid var(--border); border-radius:10px; box-shadow:0 14px 34px rgba(0,0,0,.2); z-index:60; font-size:.85rem; }
@@ -584,6 +590,7 @@
   .grip { color:#8a919e; cursor:grab; user-select:none; font-size:1rem; letter-spacing:-2px; }
   th.gripc, td.gripc { width:30px; }
   tr.dragging { opacity:.4; }
+  .pwho { display:inline-block; font-size:.68rem; line-height:1.3; padding:0 4px; border-radius:4px; background:#fde7ef; color:#a3214f; font-weight:600; vertical-align:1px; }
   tr.drop-before td { box-shadow:inset 0 2px 0 var(--gold); }
   .furows { display:grid; gap:6px; }
   .furow { display:grid; grid-template-columns:1fr 170px 140px auto; gap:6px; }
@@ -658,6 +665,7 @@
     <div class="um" id="who" style="display:none"><button type="button" class="um-btn" onclick="this.parentNode.classList.toggle('open')"><span class="av" id="um-av"></span><span id="whoami"></span> ▾</button>
       <div class="um-menu"><div class="um-box"><div class="um-h" id="um-h"></div>
         <a href="#/me">MY PAGE</a><a onclick="logout()">LOG OUT</a></div></div></div>
+    <a class="hbtn bugbtn" id="bug" style="display:none" target="_blank" rel="noopener" title="Compass 버그·수정 요청 적기 (새 탭)">🐞 버그·요청</a>
   </div>
   <nav id="nav"></nav>
 </header>
@@ -818,7 +826,7 @@ var FORMS = {
       ph: '예: HKU 심리학 PS 2차 수정 중 / 추천서 3명 확정 / 출입국사실증명서 수합 대기' }] },
   followups: { title: '팔로업', fields: [
     { k: 'category', t: 'fucat' },
-    { k: 'title', l: '할 일 (Enter로 줄을 나누면 줄마다 체크할 수 있어요)', t: 'mrich', hk: 'titleHtml', req: 1, full: 1, ph: '예: HKU Personal Statement 2차 피드백 전달\n\n여러 개를 같이 챙길 때는 줄을 나눠서\n1. 성적표 받기\n2. 추천서 확인' },
+    { k: 'title', l: '할 일 (Enter로 줄을 나누면 줄마다 체크할 수 있어요)', t: 'mrich', hk: 'titleHtml', req: 1, full: 1, split: 1, ph: '예: HKU Personal Statement 2차 피드백 전달\n\n여러 개를 같이 챙길 때는 줄을 나눠서\n1. 성적표 받기\n2. 추천서 확인' },
     { k: 'assignee', l: '담당자', t: 'teacher' }, { k: 'due', l: '기한', t: 'date' }, { t: 'remind', full: 1 },
     { k: 'detail', l: '세부 내용 (예전 기록)', t: 'mrich', hk: 'detailHtml', full: 1, ifSet: 1 }, { t: 'replies', full: 1 }],
     defaults: function () { return { status: '할 일', assignee: S.me.email }; } },
@@ -979,6 +987,7 @@ function errMsg(e) { return (e && e.message ? e.message : String(e)).replace(/^E
 
 function load(data) {
   if (!data || !data.me) throw cutError(); // 받은 데이터가 온전하지 않으면 보던 화면·로그인 상태를 그대로 둠
+  data.me.prefs = prefsFrom(data.me);
   S.me = data.me; S.teachers = data.teachers; S.allStudents = data.students; S.loadedAt = Date.now();
   CHILD.forEach(function (t) { S[t] = data[t] || []; });
   S.options = data.options || [];
@@ -988,6 +997,8 @@ function load(data) {
   S.programs = data.programs || [];
   S.homeDefault = data.homeDefault || null;
   S.reviews = data.reviews || [];
+  viewPrefsLoad();
+  S.site = data.site || { bugUrl: '', hideMenus: {}, hideable: [] };
   if ('devAs' in data) { S.devAs = data.devAs; devBanner(); } // 개발자가 다른 계정으로 보는 중 (화면 전체를 불러올 때만 실려 옴)
   // 원장님 스케줄은 중국 시간으로 저장 → 내 시간으로 바꿔 둠 (압구정 계정은 한국 시간으로 보임)
   S.sched = (data.sched || []).map(function (x) { return Object.assign({}, x, { startAt: shiftWall(x.startAt, SCHED_TZ, myTZ()), endAt: shiftWall(x.endAt, SCHED_TZ, myTZ()) }); });
@@ -1002,6 +1013,8 @@ function load(data) {
   $('um-av').textContent = String(S.me.name || '?').trim().slice(0, 1);
   $('um-h').innerHTML = '<b>' + esc(S.me.name) + '</b> · ' + esc(ROLE_LABEL[S.me.role] || S.me.role) + '<br>' + esc(S.me.email) + '<br><span class="muted">' + esc(isAllBranch() ? '전체 지점(지점 구분 없음)' : myBranch() + ' 지점') + ' · 화면 시간은 ' + esc(tzName(myTZ())) + ' 시간 기준</span>';
   $('who').style.display = ''; $('gs').style.display = ''; $('rf').style.display = '';
+  var bug = $('bug'), bu = safeUrl(S.site.bugUrl);
+  bug.style.display = bu ? '' : 'none'; if (bu) bug.href = bu;
   render();
   if (S.me.mustChangePassword) openPasswordForm(true);
 }
@@ -1037,7 +1050,7 @@ function mutate(fn, arg, okMsg) {
 /* ============================== 로그인 ============================== */
 function showLogin() {
   S.me = null; closeModal(true);
-  $('who').style.display = 'none'; $('gs').style.display = 'none'; $('rf').style.display = 'none'; $('nav').innerHTML = '';
+  $('who').style.display = 'none'; $('gs').style.display = 'none'; $('rf').style.display = 'none'; $('bug').style.display = 'none'; $('nav').innerHTML = '';
   $('app').innerHTML = '<div id="gate"><form class="card login" onsubmit="doLogin(event)">' +
     '<div class="logo">REVERA <span>Compass</span></div>' +
     '<label>이메일</label><input type="email" id="lg-email" autocomplete="username" required>' +
@@ -1175,7 +1188,7 @@ function renderBell() {
 }
 /** ② 오늘 챙길 일 — 로그인 후 한 번 (오늘 다시 보지 않기 가능), 🔔 › 오늘 요약 으로 언제든 */
 function todaySummary(force) {
-  if (!force) { try { if (sessionStorage.getItem(prefKey('sumShown')) || localStorage.getItem(prefKey('sumDay')) === today()) return; } catch (e) {} }
+  if (!force) { try { if (sessionStorage.getItem(prefKey('sumShown'))) return; } catch (e) {} if (prefGet('sumDay', '') === today()) return; }
   var td = today(), wk = wallNow(myTZ(), Date.now() + 7 * 86400000).slice(0, 10), me = S.me.email;
   var fu = S.followups.filter(function (f) { return f.assignee === me && f.status !== '완료' && studentById(f.studentId); });
   var late = fu.filter(function (f) { return f.due && f.due < td; }).sort(function (a, b) { return a.due < b.due ? -1 : 1; });
@@ -1199,7 +1212,7 @@ function todaySummary(force) {
     '<label style="margin-right:auto;font-size:.82rem;color:var(--muted);display:inline-flex;gap:6px;align-items:center"><input type="checkbox" id="sum-off"> 오늘 다시 보지 않기</label>' +
     '<button class="btn ghost" onclick="sumClose();go(\'#/followups\')">팔로업 화면으로</button><button class="btn" onclick="sumClose()">확인</button>');
 }
-function sumClose() { if ($('sum-off') && $('sum-off').checked) { try { localStorage.setItem(prefKey('sumDay'), today()); } catch (e) {} } closeModal(true); }
+function sumClose() { if ($('sum-off') && $('sum-off').checked) prefSet('sumDay', today()); closeModal(true); }
 /* ----- 개발자: 다른 계정으로 로그인 · 돌아가기 ----- */
 function devLoginAs(email) {
   var t = S.teachers.filter(function (x) { return x.email === email; })[0]; if (!t) return;
@@ -1586,7 +1599,7 @@ function openStudent(id, tab) { UI.tab = tab || ''; go('#/student/' + id); }
 function render() {
   if (!S.me) return;
   var r = route();
-  var work = [['students', isMgr() ? '학생' : '담당 학생'], ['followups', '팔로업·연락'], ['meetings', '미팅'], ['deadlines', '원서 관리'], ['unis', '대학 정보'], ['programs', '대회·프로그램'], ['results', '합격 실적']];
+  var work = [['students', isMgr() ? '학생' : '담당 학생'], ['followups', '팔로업·연락'], ['meetings', '미팅'], ['deadlines', '원서 관리'], ['unis', '대학 정보'], ['programs', '대회·프로그램'], ['results', '합격 실적']].filter(function (i) { return !menuHidden(i[0]); });
   var admin = [];
   if (isMgr()) admin.push(['sales', '매출'], ['unilist', '목록 관리']);
   if (isAdmin()) admin.push(['teachers', '계정 관리'], ['settings', '백업·알림'], ['storage', '저장 공간'], ['log', '변경 기록']);
@@ -1616,6 +1629,7 @@ function render() {
   if (r.view === 'map') mapInit();
   if (UI.focusRef) { var fr = $('ref-' + UI.focusRef); UI.focusRef = null; if (fr) { fr.scrollIntoView({ block: 'center' }); fr.classList.add('flash'); } }
   var q = $('q'); if (q && UI._focusQ) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); UI._focusQ = false; }
+  viewPrefsSync();
 }
 
 /* ============================== 메인 화면 ============================== */
@@ -1657,7 +1671,12 @@ var WIDGETS = [ // sizes: 고를 수 있는 크기(가로칸x세로칸), 첫 번
   { id: 'reviews', title: '확인 요청', sizes: ['1x2', '1x1', '1x3', '2x2', '2x3'], extra: true, render: wReviews },
   { id: 'review', title: '확인 필요 회의록', sizes: ['1x2', '1x1', '1x3', '2x2'], extra: true, render: wReview },
 ];
-function widgetOk(w) { return !w.mgr || isMgr(); }
+function widgetOk(w) { return (!w.mgr || isMgr()) && !menuHidden(w.id); }
+/** 관리 › 백업·알림에서 지점별로 숨긴 메뉴 (전체 지점 계정·개발자는 모두 보임) */
+function menuHidden(id) {
+  if (!S.site || isAllBranch() || S.me.role === 'developer') return false;
+  return ((S.site.hideMenus || {})[myBranch()] || []).indexOf(id) >= 0;
+}
 /** 처음 상태 배치 (관리자가 기본 배치를 정하지 않았을 때) */
 function builtinLayout() {
   return WIDGETS.map(function (w) { return { id: w.id, s: w.sizes[0], hide: !!w.extra || (w.hideFor === 'mgr' && isMgr()) }; });
@@ -1959,8 +1978,58 @@ function alertKey(kind, x) {
 }
 /* ----- 이 브라우저에 저장하는 화면 설정 (접기·칸 너비·공유 항목 등) — 계정마다 따로 ----- */
 function prefKey(k) { return k + '@' + ((S.me && S.me.email) || ''); }
-function prefGet(k, def) { try { var v = localStorage.getItem(prefKey(k)); return v == null ? def : JSON.parse(v); } catch (e) { return def; } }
-function prefSet(k, v) { try { if (v == null) localStorage.removeItem(prefKey(k)); else localStorage.setItem(prefKey(k), JSON.stringify(v)); } catch (e) { /* 저장 안 되는 브라우저는 이번 화면에만 */ } }
+/* ----- 개인 화면 설정: 계정에 저장 (어느 PC에서 로그인해도 같게) — 표 칸 너비·접기·내보내기 칸·닫은 알림·정렬 등 ----- */
+var PREF_NAME = { 'compass.alertsOff': 'alertsOff', exportFields2: 'exportFields', 'compass.majFold': 'majFold', 'compass.uniFold': 'uniFold' };
+var PREF_T = {}, PREF_PEND = {};
+function prefName(k) { return PREF_NAME[k] || k; }
+function prefGet(k, def) { var o = (S.me && S.me.prefs) || {}, n = prefName(k); return Object.prototype.hasOwnProperty.call(o, n) ? o[n] : def; }
+function prefSet(k, v) {
+  var n = prefName(k); if (!S.me) return;
+  S.me.prefs = S.me.prefs || {};
+  if (v == null) delete S.me.prefs[n]; else S.me.prefs[n] = v;
+  PREF_PEND[n] = { v: v == null ? null : v };
+  clearTimeout(PREF_T[n]);
+  PREF_T[n] = setTimeout(function () { prefSend(n); }, 700);
+}
+function prefSend(n, leaving) {
+  clearTimeout(PREF_T[n]); delete PREF_T[n];
+  var p = PREF_PEND[n]; if (!p || p.sent) return; p.sent = 1;
+  if (leaving) { // 화면을 떠날 때: 응답을 기다리지 않고 보냄
+    try { fetch('/api/rpc/savePref', { method: 'POST', keepalive: true, credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'revera' }, body: JSON.stringify({ arg: { key: n, value: p.v } }) }); } catch (e) {}
+    return;
+  }
+  api('savePref', { key: n, value: p.v }).then(function () { if (PREF_PEND[n] === p) delete PREF_PEND[n]; }).catch(function (e) { if (PREF_PEND[n] === p) delete PREF_PEND[n]; toast('화면 설정을 저장하지 못했습니다: ' + errMsg(e), true); });
+}
+// 새로고침·다른 화면으로 갈 때 아직 안 보낸 설정을 바로 보냄
+window.addEventListener('pagehide', function () { Object.keys(PREF_T).forEach(function (n) { prefSend(n, true); }); });
+document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden') Object.keys(PREF_T).forEach(function (n) { prefSend(n); }); });
+/** 새로 받은 계정 설정 + 아직 저장 중인 설정 */
+function prefsFrom(me) { var o = Object.assign({}, me.prefs || {}); Object.keys(PREF_PEND).forEach(function (n) { if (PREF_PEND[n].v == null) delete o[n]; else o[n] = PREF_PEND[n].v; }); return o; }
+/** 예전에 이 브라우저에만 저장해 둔 설정을 계정으로 한 번 옮김 (계정에 이미 있으면 계정 것을 씀) */
+function migrateLocalPrefs() {
+  var em = S.me.email, done = {};
+  try {
+    Object.keys(localStorage).forEach(function (key) {
+      var at = key.lastIndexOf('@' + em); if (at < 0 || at + em.length + 1 !== key.length) return;
+      var k = key.slice(0, at); if (k === 'pcNoti') return; // PC 알림을 띄웠는지는 PC마다
+      if (!/^colw:/.test(k) && ['scFold', 'dlFold', 'compass.majFold', 'compass.uniFold', 'exportFields2', 'compass.alertsOff', 'sumDay'].indexOf(k) < 0) return;
+      var v; try { v = JSON.parse(localStorage.getItem(key)); } catch (e) { v = localStorage.getItem(key); }
+      if (prefGet(k, undefined) === undefined && v != null && !done[prefName(k)]) { prefSet(k, v); done[prefName(k)] = 1; }
+      localStorage.removeItem(key);
+    });
+  } catch (e) { /* 저장소를 못 쓰는 브라우저 */ }
+}
+/** 새로고침해도 기억할 화면 선택 (계정별): 학생 목록 정렬, 오늘 챙길 일 범위, 달력 체크, 원서 관리 "제출 끝난 건 숨기기" */
+var VIEW_KEEP = ['stSort', 'stView', 'todayScope', 'calDl', 'calBreak', 'dlHideDone'];
+function viewPrefsLoad() {
+  if (UI._prefFor === S.me.email) return;
+  UI._prefFor = S.me.email;
+  VIEW_KEEP.forEach(function (k) { var v = prefGet('view.' + k, undefined); if (v === undefined) delete UI[k]; else UI[k] = v; });
+  migrateLocalPrefs();
+}
+function viewPrefsSync() {
+  VIEW_KEEP.forEach(function (k) { if (UI[k] !== undefined && JSON.stringify(UI[k]) !== JSON.stringify(prefGet('view.' + k, undefined))) prefSet('view.' + k, UI[k]); });
+}
 function dismissedAlerts() { return prefGet('compass.alertsOff', null) || UI.alertsOff || []; }
 function dismissAlert(key) {
   var list = dismissedAlerts().filter(function (k) { return k !== key; }).concat([key]).slice(-30);
@@ -2160,7 +2229,7 @@ function calItems(from, to) {
 function calChip(it) {
   if (it.sc) {
     var ss = anyStudent(it.sc.studentId);
-    return '<span class="ev sc" style="border-left-color:' + autoCat('sched').color + ';background:' + autoCat('sched').color + '1f" title="' + esc('원장님 ' + schedTime(it.sc) + ' · ' + ss.name + ' (' + branchOf(ss) + ') · ' + it.sc.title + (it.sc.detail ? ' · ' + it.sc.detail : '')) + '" onclick="event.stopPropagation();openStudent(' + js(ss.id) + ',\'meetings\')">' + (UI.calScBr ? '' : '<span class="scbr">' + esc(String(branchOf(ss)).slice(0, 2)) + '</span>') + esc(it.sc.startAt.slice(11, 16) + ' 원장님 · ' + ss.name) + '</span>';
+    return '<span class="ev sc" style="border-left-color:' + autoCat('sched').color + ';background:' + autoCat('sched').color + '1f" title="' + esc('원장님 ' + schedTime(it.sc) + ' · ' + ss.name + ' (' + branchOf(ss) + ') · ' + it.sc.title + (it.sc.detail ? ' · ' + it.sc.detail : '')) + '" onclick="event.stopPropagation();openStudent(' + js(ss.id) + ',\'meetings\')">' + (UI.calScBr ? '' : '<span class="scbr">' + esc(String(branchOf(ss)).slice(0, 2)) + '</span>') + (schedWho(it.sc) ? schedWho(it.sc) + ' ' : '') + esc(it.sc.startAt.slice(11, 16) + ' ' + ss.name) + '</span>';
   }
   if (it.ev) return '<span class="ev' + (it.cont ? ' cont' : '') + '" style="' + evStyle(it.ev.category) + '" title="' + esc((it.ev.time ? it.ev.time + ' ' : '') + it.ev.title + (it.ev.origTime ? ' (' + it.ev.origTime + ')' : '') + (it.ev.shared === 'TRUE' ? ' · 전체 지점 공유' : '') + (it.ev.memo ? '\n' + it.ev.memo : '')) + '" onclick="event.stopPropagation();openEvent(' + js(it.ev.id) + ')">' + (it.ev.private === 'TRUE' ? '🔒 ' : it.ev.shared === 'TRUE' ? '🌐 ' : '') + esc((it.ev.time && !it.cont ? it.ev.time + ' ' : '') + it.ev.title) + '</span>';
   if (it.nm) {
@@ -2189,7 +2258,13 @@ function calMonth(y, m, by) {
   for (var j = 0; j < tail; j++) h += '<div class="d out"></div>';
   return h + '</div></div>';
 }
+/** 원장님 미팅에 부모님이 오는지: 시트에 적힌 글자 그대로 (부모님·어머님·아버님) */
+function schedWho(x) {
+  var t = (x.title || '') + ' ' + (x.detail || '');
+  return ['부모님', '어머님', '아버님'].filter(function (w) { return t.indexOf(w) >= 0; }).map(function (w) { return '<span class="pwho">' + w + '</span>'; }).join(' ');
+}
 function calendarCard() {
+  if (UI.calScBr === undefined) UI.calScBr = isAllBranch() ? '' : myBranch(); // 처음엔 내 지점 학생의 원장님 미팅만 (전체 지점 계정은 모두)
   UI.calOff = UI.calOff || 0;
   var a = ymOf(UI.calOff), b = ymOf(UI.calOff + 1);
   var by = calItems(isoDate(a.y, a.m, 1), isoDate(b.y, b.m, new Date(b.y, b.m + 1, 0).getDate()));
@@ -2389,8 +2464,9 @@ function moneyByCur(list, fn) {
   return ks.length ? ks.map(function (k) { return money(by[k], k); }).join('<br>') : '<span class="muted">-</span>';
 }
 var STUDENT_COLS_DEFAULT = ['school', 'consult', 'todo', 'contacts', 'nextMeet', 'deadline', 'lastMeet', 'check', 'manager', 'status'];
-function studentCols() {
-  var keys = S.studentCols && S.studentCols.length ? S.studentCols : STUDENT_COLS_DEFAULT;
+function studentCols(common) {
+  var mine = common ? null : prefGet('studentCols', null);
+  var keys = mine && mine.length ? mine : S.studentCols && S.studentCols.length ? S.studentCols : STUDENT_COLS_DEFAULT;
   return keys.map(function (k) { return STUDENT_COLS.filter(function (c) { return c.k === k && !c.hide; })[0]; }).filter(Boolean);
 }
 function studentTable(list, dl) {
@@ -2402,29 +2478,43 @@ function studentTable(list, dl) {
         cols.map(function (c) { return c.cell(s, ctx); }).join('') + '</tr>';
     }).join('') + '</tbody></table>';
 }
-/* ----- 목록 관리 › 학생 목록 칸 ----- */
-function viewStudentCols() {
-  var on = studentCols().map(function (c) { return c.k; });
+/* ----- 학생 목록 칸: 목록 관리 › 학생 목록 칸 = 모두의 기본 (관리자·관리팀), 학생 목록 ⚙ 칸 = 내 것만 ----- */
+function stColRows(common) {
+  var on = studentCols(common).map(function (c) { return c.k; });
   var off = STUDENT_COLS.filter(function (c) { return on.indexOf(c.k) < 0 && !c.hide; });
+  var cm = common ? 'true' : 'false';
   var row = function (c, i, shown) {
-    return '<tr><td class="nw"><label style="display:inline-flex;gap:6px;align-items:center"><input type="checkbox"' + (shown ? ' checked' : '') + ' onchange="stColToggle(' + js(c.k) + ',this.checked)"> <b>' + esc(c.l) + '</b></label></td>' +
-      '<td class="nw">' + (shown ? '<button class="btn ghost sm" title="앞으로"' + (i ? '' : ' disabled') + ' onclick="stColMove(' + js(c.k) + ',-1)">▲</button> <button class="btn ghost sm" title="뒤로"' + (i < on.length - 1 ? '' : ' disabled') + ' onclick="stColMove(' + js(c.k) + ',1)">▼</button>' : '<span class="muted">숨김</span>') + '</td></tr>';
+    return '<tr><td class="nw"><label style="display:inline-flex;gap:6px;align-items:center"><input type="checkbox"' + (shown ? ' checked' : '') + ' onchange="stColToggle(' + js(c.k) + ',this.checked,' + cm + ')"> <b>' + esc(c.l) + '</b></label></td>' +
+      '<td class="nw">' + (shown ? '<button type="button" class="btn ghost sm" title="앞으로"' + (i ? '' : ' disabled') + ' onclick="stColMove(' + js(c.k) + ',-1,' + cm + ')">▲</button> <button type="button" class="btn ghost sm" title="뒤로"' + (i < on.length - 1 ? '' : ' disabled') + ' onclick="stColMove(' + js(c.k) + ',1,' + cm + ')">▼</button>' : '') + '</td></tr>';
   };
-  return '<div class="notice">학생 목록(학생 메뉴) 표에 보일 칸과 순서입니다. <b>모든 선생님에게 똑같이</b> 적용됩니다. 이름 칸은 항상 맨 앞에 있습니다. <b>계약 금액·미수금</b>은 관리자·관리팀에게만 값이 보이고 컨설턴트에게는 “-”로 보입니다.</div>' +
-    '<div class="card tbl-wrap"><table><thead><tr><th>칸</th><th>순서</th></tr></thead><tbody>' +
-    studentCols().map(function (c, i) { return row(c, i, true); }).join('') + off.map(function (c) { return row(c, 0, false); }).join('') + '</tbody></table>' +
+  return '<table><thead><tr><th>칸</th><th>순서</th></tr></thead><tbody>' + studentCols(common).map(function (c, i) { return row(c, i, true); }).join('') + off.map(function (c) { return row(c, 0, false); }).join('') + '</tbody></table>';
+}
+function viewStudentCols() {
+  return '<div class="notice">학생 목록(학생 메뉴) 표에 보일 칸과 순서의 <b>모두의 기본</b>입니다. 각 선생님은 학생 목록의 <b>⚙ 칸</b>에서 자기 화면만 따로 바꿀 수 있고, 따로 바꾸지 않은 선생님에게는 이 기본이 보입니다. 이름 칸은 항상 맨 앞에 있습니다. <b>계약 금액·미수금</b>은 관리자·관리팀에게만 보입니다.</div>' +
+    '<div class="card tbl-wrap">' + stColRows(true) +
     '<div class="toolbar" style="margin-top:8px"><button class="btn ghost sm" onclick="saveStudentCols(null)">처음 상태로 되돌리기</button></div></div>';
 }
-function saveStudentCols(cols) { mutate('saveStudentCols', { cols: cols }, '학생 목록 칸을 저장했습니다.'); }
-function stColToggle(k, on) {
-  var l = studentCols().map(function (c) { return c.k; }).filter(function (x) { return x !== k; });
-  if (on) l.push(k);
-  saveStudentCols(l);
+/** 학생 목록 ⚙ 칸: 내 화면에만 보일 칸 */
+function openMyCols() {
+  var mine = prefGet('studentCols', null);
+  modal('학생 목록 칸 — 내 화면',
+    '<div class="full muted" style="font-size:.82rem">여기서 바꾼 칸·순서는 <b>내 계정에만</b> 적용됩니다.' + (mine ? '' : ' 지금은 모두의 기본 칸이 보이는 중입니다.') + '</div><div class="full tbl-wrap" id="mycols">' + stColRows(false) + '</div>',
+    (mine ? '<button class="btn ghost" style="margin-right:auto" onclick="prefSet(\'studentCols\',null);closeModal(true);render();toast(\'모두의 기본 칸으로 되돌렸습니다.\')">모두의 기본으로 되돌리기</button>' : '') + '<button class="btn" onclick="closeModal(true)">닫기</button>');
 }
-function stColMove(k, d) {
-  var l = studentCols().map(function (c) { return c.k; }), i = l.indexOf(k), j = i + d;
+function saveStudentCols(cols) { mutate('saveStudentCols', { cols: cols }, '모두의 기본 칸을 저장했습니다.'); }
+function stColSave(l, common) {
+  if (common) return saveStudentCols(l);
+  prefSet('studentCols', l); render(); if ($('mycols')) $('mycols').innerHTML = stColRows(false);
+}
+function stColToggle(k, on, common) {
+  var l = studentCols(common).map(function (c) { return c.k; }).filter(function (x) { return x !== k; });
+  if (on) l.push(k);
+  stColSave(l, common);
+}
+function stColMove(k, d, common) {
+  var l = studentCols(common).map(function (c) { return c.k; }), i = l.indexOf(k), j = i + d;
   if (i < 0 || j < 0 || j >= l.length) return;
-  l[i] = l[j]; l[j] = k; saveStudentCols(l);
+  l[i] = l[j]; l[j] = k; stColSave(l, common);
 }
 function unpaidTable(list, compact) {
   return '<table><thead><tr><th>학생</th><th>계약</th>' + (compact ? '' : '<th>계약액</th><th>입금액</th>') + '<th>미수금</th><th>납부 기한</th>' + (compact ? '' : '<th>마지막 입금</th><th></th>') + '</tr></thead><tbody>' +
@@ -2574,6 +2664,7 @@ function viewStudents() {
       S.teachers.map(function (t) { return '<option value="' + esc(t.email) + '"' + (UI.counselor === t.email ? ' selected' : '') + '>' + esc(t.name) + '</option>'; }).join('') +
       '</select>' : '') + '<select onchange="UI.stSort=this.value;render()" title="정렬">' + [['manager', '관리팀 담당순'], ['name', '이름순'], ['deadline', '마감 임박순'], ['meeting', '미팅 오래된 순']].map(function (o) {
         return '<option value="' + o[0] + '"' + (UI.stSort === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select>' +
+      (UI.stView !== 'board' ? '<button class="btn ghost sm" onclick="openMyCols()" title="표에 보일 칸·순서를 내 화면에서만 바꾸기">⚙ 칸</button>' : '') +
       (UI.stView === 'board' ? '<select onchange="UI.stTrack=this.value;render()" title="트랙"><option value="">모든 트랙</option>' + opts(trackList(), UI.stTrack || '').replace('<option value="">—</option>', '') + '</select>' : '') +
       '<button class="btn ' + (stFilterCount() ? '' : 'ghost') + '" onclick="UI.stFOpen=!UI.stFOpen;render()">필터 더 보기' + (stFilterCount() ? ' (' + stFilterCount() + ')' : '') + ' ' + (UI.stFOpen ? '▴' : '▾') + '</button></div>';
   if (UI.stFOpen || stFilterCount()) h += stFilterBar(base);
@@ -2788,9 +2879,7 @@ function tabSummary(s) {
   var done = apps.filter(function (a) { return APP_FINAL.indexOf(a.status) >= 0; });
   var more = function (tab, label) { return '<a class="more-link" href="javascript:void(0)" onclick="UI.tab=' + js(tab) + ';render()">' + label + ' →</a>'; };
   var h = '<div class="grid g2"><div>';
-  h += '<div class="card">' + secHead('남은 팔로업·연락 <span class="muted">' + open.length + '건</span>', '<span class="toolbar" style="margin:0"><button class="btn sm" onclick="openForm(\'contact\',null,' + js(s.id) + ')">📩 받은 연락</button>' + more('followups', '팔로업·연락') + '</span>') +
-    '<div class="quick" style="grid-template-columns:1fr auto"><input type="text" id="fu-title" placeholder="챙길 일을 입력하고 Enter (담당: 나, 기한 없음)" onkeydown="if(event.key===\'Enter\')quickFollowup(' + js(s.id) + ')">' +
-    '<button class="btn" onclick="quickFollowup(' + js(s.id) + ')">추가</button></div>' +
+  h += '<div class="card">' + secHead('남은 팔로업·연락 <span class="muted">' + open.length + '건</span>', more('followups', '팔로업·연락')) +
     (open.length ? open.slice(0, 6).map(function (f) { return fuRow(f, false); }).join('') + (open.length > 6 ? '<div class="muted" style="padding:6px 4px">외 ' + (open.length - 6) + '건 — ' + more('followups', '모두 보기') + '</div>' : '') : '<div class="empty">남은 팔로업이 없습니다.</div>') + '</div>';
   h += '<div class="card">' + secHead('최근 미팅' + (last ? ' <span class="muted">' + esc(fmtD(last.date)) + (dayDiff(last.date) !== null ? ' · ' + (-dayDiff(last.date)) + '일 전' : '') + '</span>' : ''), more('meetings', '회의록 전체')) +
     (last ? '<div style="margin-bottom:6px"><b>' + esc(last.topic || '(안건 없음)') + '</b>' + (last.needsReview === 'TRUE' ? ' <span class="pill rv">확인 필요</span>' : '') + '</div>' +
@@ -2877,6 +2966,7 @@ function fuRow(f, showStudent, inSource, compact) {
   var reps = repliesOf(f.id), last = reps[reps.length - 1];
   var reply = last ? '💬 ' + replyWho(last) + (last.date ? ' ' + fmtD(last.date) : '') + ': ' + last.content : '';
   var shots = contact ? S.files.filter(function (x) { return x.followupId === f.id && /^image\//.test(x.mime); }) : [];
+  var fuFiles = S.files.filter(function (x) { return x.followupId === f.id; }); // 받은 연락 캡처 + 말풍선 첨부
   var dg = UI._dragFu && canDragFu(f);
   return '<div class="fu' + (dg ? ' fdrag' : '') + (compact ? ' cpt' : '') + (done ? ' done' : fuProg(f) ? ' prog' : '') + (!done && f.due && dayDiff(f.due) < 0 ? ' over' : '') + '" id="ref-' + esc(f.id) + '"' + (dg ? ' draggable="true" data-fid="' + esc(f.id) + '"' : '') + '>' + (dg ? '<span class="grip fgrip" title="끌어서 순서 바꾸기">⋮⋮</span>' : UI._dragFu ? '<span class="fgrip"></span>' : '') +
     (done ? '<span class="fu-ok" title="완료">✓</span>' : fuCheck(f)) +
@@ -2890,7 +2980,7 @@ function fuRow(f, showStudent, inSource, compact) {
       (compact || contact ? '' : fuChecklist(f)) +
       (compact ? '' : (contact && f.detail && f.detail.trim() !== f.title ? '<div class="l2">' + detailInline(f) + '</div>' : '') +
       (reply ? '<div class="l2 rp">' + esc(reply) + '</div>' : !contact && f.detail ? '<div class="l2">' + detailInline(f) + '</div>' : '') +
-      (shots.length ? '<div class="fu-shots">' + shots.slice(0, 4).map(function (x) { return '<a href="/api/files/' + esc(x.id) + '" class="lbimg" data-g="fu-' + esc(f.id) + '" title="' + esc(x.name) + '" target="_blank" rel="noopener" onclick="event.stopPropagation()"><img src="/api/files/' + esc(x.id) + '" alt=""></a>'; }).join('') + (shots.length > 4 ? '<span class="muted">+' + (shots.length - 4) + '</span>' : '') + '</div>' : '') +
+      (shots.length || fuFiles.length ? '<div class="fu-shots">' + shots.slice(0, 4).map(function (x) { return '<a href="/api/files/' + esc(x.id) + '" class="lbimg" data-g="fu-' + esc(f.id) + '" title="' + esc(x.name) + '" target="_blank" rel="noopener" onclick="event.stopPropagation()"><img src="/api/files/' + esc(x.id) + '" alt=""></a>'; }).join('') + (shots.length > 4 ? '<span class="muted">+' + (shots.length - 4) + '</span>' : '') + dlBtn(fuFiles, ((studentById(f.studentId) || {}).name || '') + ' ' + String(f.title || '').split('\n')[0].slice(0, 30)) + '</div>' : '') +
       (f.requestNote && !done && f.assignee === S.me.email ? '<div class="l2" style="color:#7a4d00">↪ ' + esc(f.requestNote) + '</div>' : '') +
       (reviewsOf('followups', f.id).some(function (r) { return !r.doneAt; }) ? '<div onclick="event.stopPropagation()">' + reviewBox('followups', f.id, true) + '</div>' : '')) +
     '</div>' + (compact ? '<span class="fu-acts">' + (done ? '' : fuDoneBtn(f.id)) + '</span></div>' : '<span class="fu-acts"><button type="button" class="ibtn rv-b" title="담당은 그대로 — 이 기록을 다른 선생님이 꼭 보도록 알림" onclick="openReview(\'followups\',' + js(f.id) + ')">👀 확인 요청</button>' + (done ? '' : '<button type="button" class="ibtn ho-b" title="이 일을 다른 선생님에게 넘김 — 담당이 그 선생님으로 바뀜 (휴무 등)" onclick="openRequest(' + js(f.id) + ')">↪ 넘기기</button>') +
@@ -3086,7 +3176,7 @@ function threadItems(fid, inline) {
       (mine ? '<button type="button" class="ibtn" title="이 답변 고치기" onclick="editReply(' + js(x.id) + ',' + js(fid) + ')">✏️</button>' +
         '<button type="button" class="ibtn" title="이 답변 지우기 (휴지통)" onclick="removeReply(' + js(x.id) + ',' + js(fid) + ')">✕</button>' : '') + '</span></div>' +
       '<div class="th-b">' + esc(x.content) + '</div>' +
-      (fs.length ? '<div class="th-files">' + fs.map(function (f) { return '<span class="shot-wrap" id="fw-' + esc(f.id) + '">' + fileThumb(f) + (f.createdBy === S.me.email || isAdmin() ? '<button type="button" class="ibtn" title="이 파일 지우기 (휴지통)" onclick="removeFormFile(' + js(f.id) + ')">✕</button>' : '') + '</span>'; }).join('') + '</div>' : '') + '</div>';
+      (fs.length ? '<div class="th-files">' + fs.map(function (f) { return '<span class="shot-wrap" id="fw-' + esc(f.id) + '">' + fileThumb(f) + (f.createdBy === S.me.email || isAdmin() ? '<button type="button" class="ibtn" title="이 파일 지우기 (휴지통)" onclick="removeFormFile(' + js(f.id) + ')">✕</button>' : '') + '</span>'; }).join('') + dlBtn(fs, '답변 첨부 ' + (x.date || '')) + '</div>' : '') + '</div>';
   }).join('') : '<div class="empty" style="padding:10px">아직 답변 기록이 없습니다.</div>';
 }
 /** 팔로업·받은 연락 수정 창 안에서 답변 추가 (창은 그대로, 입력 중인 내용 유지) */
@@ -3143,10 +3233,6 @@ function doneFollowup(id, undo) {
   var f = findRow('followups', id);
   if (!f) return;
   mutate('save', { table: 'followups', obj: { id: f.id, updatedAt: f.updatedAt, status: undo ? '할 일' : '완료' } }, undo ? '다시 할 일로 되돌렸습니다.' : '완료 처리했습니다.');
-}
-function quickFollowup(sid) {
-  var t = $('fu-title'); if (!t || !t.value.trim()) return toast('할 일을 입력하세요.', true);
-  mutate('save', { table: 'followups', obj: { studentId: sid, title: t.value.trim(), assignee: $('fu-who') ? $('fu-who').value : S.me.email, due: $('fu-due') ? $('fu-due').value : '', status: '할 일' } }, '팔로업을 추가했습니다.');
 }
 function tabFollowups(s) {
   UI.fuKind = UI.fuKind || 'all';
@@ -3518,7 +3604,7 @@ function scoreFiles(r) {
   var fs = S.files.filter(function (f) { return f.scoreId === r.id; });
   return fs.length ? '<div class="sc-files" onclick="event.stopPropagation()">' + fs.map(function (f) {
     return '<a href="/api/files/' + esc(f.id) + '" target="_blank" rel="noopener"' + (/^image\//.test(f.mime) ? ' class="lbimg" data-g="sc-' + esc(r.id) + '"' : '') + ' title="' + esc(f.name) + '">📎 ' + esc(f.name.length > 22 ? f.name.slice(0, 20) + '…' : f.name) + '</a>';
-  }).join(' ') + '</div>' : '';
+  }).join(' ') + ' ' + dlBtn(fs, ((studentById(r.studentId) || {}).name || '') + ' ' + [r.kind, r.subject].filter(Boolean).join(' ')) + '</div>' : '';
 }
 function tabScoresOnly(s) {
   var list = childOf('scores', s.id).sort(function (a, b) {
@@ -3588,7 +3674,7 @@ function meetingItem(m, showStudent) {
       '<div class="mfiles dropzone">' + mf.map(function (f) {
         return /^image\//.test(f.mime) ? '<a href="/api/files/' + esc(f.id) + '" class="lbimg" data-g="mt-' + esc(m.id) + '" target="_blank" rel="noopener" title="' + esc(f.name) + '"><img src="/api/files/' + esc(f.id) + '" alt="' + esc(f.name) + '"></a>' :
           '<a class="btn ghost sm" href="/api/files/' + esc(f.id) + '" target="_blank" rel="noopener">📎 ' + esc(f.name) + '</a>';
-      }).join('') +
+      }).join('') + (mf.length ? dlBtn(mf, ((studentById(m.studentId) || {}).name || '') + ' 미팅 ' + m.date) : '') +
       '<label class="btn ghost sm" style="cursor:pointer">📎 파일 첨부<input type="file" multiple hidden accept=".pdf,.png,.jpg,.jpeg,.webp,.heic,.gif,.doc,.docx,.xls,.xlsx,.hwp" onchange="uploadFiles(this,' + js(m.studentId) + ',null,' + js(m.id) + ')"></label></div></div></div>';
 }
 function linkedFuBox(list, title) {
@@ -3753,7 +3839,7 @@ function viewTzList() {
   h += '<div class="card tbl-wrap"><div class="muted" style="margin-bottom:6px">⋮⋮ 를 끌어서 순서를 바꾸면 고르는 목록도 이 순서로 나옵니다.</div><table><thead><tr><th class="gripc"></th><th>이름</th><th>같은 시간을 쓰는 곳</th><th>세계 시간대</th><th>지금 시각</th><th>쓰는 기록</th><th></th></tr></thead><tbody data-order="tz">' +
     list.map(function (o) {
       var fixed = BRANCH_ZONES.indexOf(o.category) >= 0;
-      return '<tr class="drag" draggable="true" data-id="' + esc(o.id) + '" data-grp=""><td class="nw gripc"><span class="grip" title="끌어서 순서 바꾸기">⋮⋮</span></td><td><b>' + esc(o.value) + '</b>' + (fixed ? ' <span class="pill">지점</span>' : '') + '</td>' +
+      return '<tr class="drag" data-id="' + esc(o.id) + '" data-grp=""><td class="nw gripc"><span class="grip" title="끌어서 순서 바꾸기">⋮⋮</span></td><td><b>' + esc(o.value) + '</b>' + (fixed ? ' <span class="pill">지점</span>' : '') + '</td>' +
         '<td>' + esc(o.fullName || '-') + '</td><td class="muted nw">' + esc(o.category) + '</td><td class="nw">' + esc(fmtD(wallNow(o.category).slice(0, 10)) + ' ' + wallNow(o.category).slice(11, 16)) + '</td><td>' + (use[o.category] || 0) + '건</td>' +
         '<td class="nw"><button class="btn ghost sm" onclick="openTzForm(' + js(o.id) + ')">수정</button> ' + (fixed ? '' : '<button class="btn ghost sm" onclick="removeOption(' + js(o.id) + ')">삭제</button>') + '</td></tr>';
     }).join('') + '</tbody></table></div>';
@@ -3836,7 +3922,7 @@ function viewOptionList(kind) {
   h += '<div class="card"><form class="toolbar" style="margin:0" onsubmit="addOption(' + js(kind) + ');return false"><input type="text" id="opt-new" class="grow" placeholder="새 ' + label + ' 이름"><button class="btn" type="submit">+ 추가</button></form></div>';
   h += '<div class="card tbl-wrap"><div class="muted" style="margin-bottom:6px">⋮⋮ 를 끌어서 순서를 바꾸면 바로 저장되고, ' + (dc || pg || fc ? '분류 선택과 묶음' : '학생 정보의 선택 목록') + '도 이 순서로 나옵니다.</div><table><thead><tr><th class="gripc"></th><th>' + label + '</th>' + (kind === 'school' ? '<th>정식 이름 · 나라·도시</th>' : '') + '<th>' + (dc ? '파일·서류 수' : pg ? '대회·프로그램 수' : fc ? '팔로업 수' : '학생 수') + '</th>' + (kind === 'school' ? '<th>방학</th>' : '') + '<th></th></tr></thead><tbody data-order="' + esc(kind) + '">' +
     (list.length ? list.map(function (o) {
-      return '<tr class="drag" draggable="true" data-id="' + esc(o.id) + '" data-grp="">' + '<td class="nw gripc"><span class="grip" title="끌어서 순서 바꾸기">⋮⋮</span></td>' + '<td><b>' + esc(o.value) + '</b></td>' + (kind === 'school' ? '<td>' + (o.fullName ? esc(o.fullName) : '<span class="muted">-</span>') + ([o.country, o.city].filter(Boolean).length ? '<div class="muted" style="font-size:.8rem">' + esc([o.country, o.city].filter(Boolean).join(' · ')) + '</div>' : '') + '</td>' : '') + '<td>' + (dc && used[o.value] ? '<a href="#" onclick="openDocCat(' + js(o.value) + ');return false" title="어떤 서류인지 보기">' + used[o.value] + unit + '</a>' : (used[o.value] || 0) + unit) + '</td>' +
+      return '<tr class="drag" data-id="' + esc(o.id) + '" data-grp="">' + '<td class="nw gripc"><span class="grip" title="끌어서 순서 바꾸기">⋮⋮</span></td>' + '<td><b>' + esc(o.value) + '</b></td>' + (kind === 'school' ? '<td>' + (o.fullName ? esc(o.fullName) : '<span class="muted">-</span>') + ([o.country, o.city].filter(Boolean).length ? '<div class="muted" style="font-size:.8rem">' + esc([o.country, o.city].filter(Boolean).join(' · ')) + '</div>' : '') + '</td>' : '') + '<td>' + (dc && used[o.value] ? '<a href="#" onclick="openDocCat(' + js(o.value) + ');return false" title="어떤 서류인지 보기">' + used[o.value] + unit + '</a>' : (used[o.value] || 0) + unit) + '</td>' +
         (kind === 'school' ? '<td>' + (breaksOf(o.value).filter(function (b) { return b.endDate >= today(); }).slice(0, 2).map(function (b) { return '<div class="nw">' + esc(b.name) + ' ' + esc(fmtD(b.startDate)) + '~' + esc(fmtD(b.endDate)) + '</div>'; }).join('') || '<span class="muted">-</span>') +
           ' <button class="btn ghost sm" onclick="openBreaks(' + js(o.value) + ')">🏫 방학 관리</button></td>' : '') +
         '<td class="nw"><button class="btn ghost sm" onclick="' + (kind === 'school' ? 'openSchoolForm(' + js(o.id) + ')">수정' : 'renameOption(' + js(o.id) + ')">이름 변경') + '</button> ' +
@@ -3912,7 +3998,7 @@ function viewSubjectList() {
   h += '<div class="card tbl-wrap"><div class="muted" style="margin-bottom:6px">⋮⋮ 를 끌어서 순서를 바꾸면 과목 선택 목록도 이 순서로 나옵니다. 쓰는 곳: ' + esc(kinds.map(function (k) { return '점수 ' + k; }).concat(levels.map(function (l) { return '수강 과목 ' + l; })).join(' · ')) + '</div>' +
     '<table><thead><tr><th class="gripc"></th><th>과목</th><th>입력된 기록</th><th></th></tr></thead><tbody data-order="subject">' +
     (list.length ? list.map(function (o) {
-      return '<tr class="drag" draggable="true" data-id="' + esc(o.id) + '" data-grp=""><td class="nw gripc"><span class="grip" title="끌어서 순서 바꾸기">⋮⋮</span></td><td><b>' + esc(o.value) + '</b></td><td class="nw">' + (used[o.value] || 0) + '건</td>' +
+      return '<tr class="drag" data-id="' + esc(o.id) + '" data-grp=""><td class="nw gripc"><span class="grip" title="끌어서 순서 바꾸기">⋮⋮</span></td><td><b>' + esc(o.value) + '</b></td><td class="nw">' + (used[o.value] || 0) + '건</td>' +
         '<td class="nw"><button class="btn ghost sm" onclick="renameOption(' + js(o.id) + ')">이름 변경</button> <button class="btn ghost sm" onclick="removeOption(' + js(o.id) + ')">삭제</button></td></tr>';
     }).join('') : '<tr><td colspan="4" class="empty">아직 없습니다.</td></tr>') + '</tbody></table></div>';
   return h;
@@ -3930,7 +4016,7 @@ function viewSiteList() {
   h += '<div class="toolbar"><span class="grow"></span><button class="btn" onclick="openSiteForm()">+ 사이트 추가</button></div>';
   h += '<div class="card tbl-wrap"><div class="muted" style="margin-bottom:6px">⋮⋮ 를 끌어서 순서를 바꾸면 바로 저장됩니다.</div><table><thead><tr><th class="gripc"></th><th>사이트</th><th>분류</th><th>주소</th><th>계정 수</th><th></th></tr></thead><tbody data-order="site">' +
     (list.length ? list.map(function (o) {
-      return '<tr class="drag" draggable="true" data-id="' + esc(o.id) + '" data-grp="">' + '<td class="nw gripc"><span class="grip" title="끌어서 순서 바꾸기">⋮⋮</span></td>' + '<td><b>' + esc(o.value) + '</b></td><td class="nw">' + esc(o.category) + '</td>' +
+      return '<tr class="drag" data-id="' + esc(o.id) + '" data-grp="">' + '<td class="nw gripc"><span class="grip" title="끌어서 순서 바꾸기">⋮⋮</span></td>' + '<td><b>' + esc(o.value) + '</b></td><td class="nw">' + esc(o.category) + '</td>' +
         '<td>' + (safeUrl(o.url) ? '<a href="' + esc(o.url) + '" target="_blank" rel="noopener">' + esc(o.url) + '</a>' : '<span class="muted">-</span>') + '</td>' +
         '<td class="nw">' + (used[o.value] || 0) + '건</td><td class="nw"><button class="btn ghost sm" onclick="openSiteForm(' + js(o.id) + ')">수정</button> ' +
         '<button class="btn ghost sm" onclick="removeOption(' + js(o.id) + ')">삭제</button></td></tr>';
@@ -3946,7 +4032,7 @@ function viewEvcatList() {
   h += '<div class="toolbar"><span class="grow"></span><button class="btn" onclick="openEvcat()">+ 분류 추가</button></div>';
   h += '<div class="card tbl-wrap"><div class="muted" style="margin-bottom:6px">⋮⋮ 를 끌어서 순서를 바꾸면 바로 저장되고, 달력 범례와 일정 분류 선택도 이 순서로 나옵니다.</div><table><thead><tr><th class="gripc"></th><th>분류</th><th>색</th><th>일정 수</th><th></th></tr></thead><tbody data-order="evcat">' +
     (list.length ? list.map(function (o) {
-      return '<tr class="drag" draggable="true" data-id="' + esc(o.id) + '" data-grp=""><td class="nw gripc"><span class="grip" title="끌어서 순서 바꾸기">⋮⋮</span></td>' +
+      return '<tr class="drag" data-id="' + esc(o.id) + '" data-grp=""><td class="nw gripc"><span class="grip" title="끌어서 순서 바꾸기">⋮⋮</span></td>' +
         '<td><span class="ev" style="display:inline-block;' + evStyle(o.value) + '">' + esc(o.value) + '</span></td><td class="nw"><span class="sw" style="display:inline-block;vertical-align:middle;cursor:default;background:' + evColor(o.value) + '"></span> <span class="muted">' + esc(o.color || '') + '</span></td>' +
         '<td class="nw">' + (used[o.value] || 0) + '건</td><td class="nw"><button class="btn ghost sm" onclick="openEvcat(' + js(o.id) + ')">수정</button> <button class="btn ghost sm" onclick="removeOption(' + js(o.id) + ')">삭제</button></td></tr>';
     }).join('') : '<tr><td colspan="5" class="empty">분류가 없습니다. “+ 분류 추가”로 만드세요.</td></tr>') + '</tbody></table></div>';
@@ -3954,7 +4040,7 @@ function viewEvcatList() {
     '<table><thead><tr><th class="gripc"></th><th>항목</th><th>색</th><th>달력에 보이기</th><th>내용</th></tr></thead><tbody data-order="evauto">' +
     autoCats().map(function (o) {
       var note = { sched: '원장님 스케줄 시트에서 가져온 우리 학생 일정', nextmeet: '회의록에 적은 “다음 미팅 날짜”', deadline: '학생 지원대학 마감일' }[o.value];
-      return '<tr class="drag" draggable="true" data-id="' + esc(o.id) + '" data-grp=""><td class="nw gripc"><span class="grip" title="끌어서 순서 바꾸기">⋮⋮</span></td>' +
+      return '<tr class="drag" data-id="' + esc(o.id) + '" data-grp=""><td class="nw gripc"><span class="grip" title="끌어서 순서 바꾸기">⋮⋮</span></td>' +
         '<td class="nw"><span class="ev" style="display:inline-block;border-left-color:' + o.color + ';background:' + o.color + '1f">' + esc(AUTO_LABEL[o.value]) + '</span></td>' +
         '<td class="nw"><input type="color" value="' + esc(o.color) + '" onchange="saveAutoCat(' + js(o.id) + ',{color:this.value})" title="색 고르기"></td>' +
         '<td class="nw"><label style="display:inline-flex;gap:6px;align-items:center"><input type="checkbox"' + (o.category !== 'off' ? ' checked' : '') + ' onchange="saveAutoCat(' + js(o.id) + ',{hidden:!this.checked})"> 보이기</label></td>' +
@@ -4306,7 +4392,7 @@ function viewUniList() {
     (list.length ? list.map(function (u) {
       var cyc = cyclesOf(u.id).length, ap = S.apps.filter(function (a) { return a.universityId === u.id; });
       var st = {}; ap.forEach(function (a) { st[a.studentId] = 1; });
-      return (canDrag ? '<tr class="drag" draggable="true" data-id="' + esc(u.id) + '" data-grp="' + esc(u.country) + '">' + '<td class="nw gripc"><span class="grip" title="끌어서 순서 바꾸기">⋮⋮</span></td>' : '<tr>') + '<td class="nw">' + esc(u.country) + '</td><td><b>' + esc(u.name) + '</b></td><td>' + esc(u.fullName) + '</td><td class="muted">' + esc(u.aliases) + '</td>' +
+      return (canDrag ? '<tr class="drag" data-id="' + esc(u.id) + '" data-grp="' + esc(u.country) + '">' + '<td class="nw gripc"><span class="grip" title="끌어서 순서 바꾸기">⋮⋮</span></td>' : '<tr>') + '<td class="nw">' + esc(u.country) + '</td><td><b>' + esc(u.name) + '</b></td><td>' + esc(u.fullName) + '</td><td class="muted">' + esc(u.aliases) + '</td>' +
         '<td class="nw">' + cyc + '개</td><td class="nw">' + Object.keys(st).length + '명</td>' +
         '<td class="nw">' + (isMgr() ? '<button class="btn ghost sm" onclick="openForm(\'universities\',' + js(u.id) + ')">수정</button> ' : '') + '<a class="btn ghost sm" href="#/uni/' + esc(u.id) + '">상세 →</a></td></tr>';
     }).join('') : '<tr><td colspan="8" class="empty">해당하는 대학이 없습니다.</td></tr>') + '</tbody></table></div>';
@@ -4401,7 +4487,7 @@ function tabDocs(s) {
           '<td>' + (files.length ? files.map(function (f) {
             return '<div class="dfile' + (UI.fsel[f.id] ? ' sel' : '') + '"><input type="checkbox" title="골라서 한꺼번에 삭제"' + (UI.fsel[f.id] ? ' checked' : '') + ' onchange="UI.fsel[' + js(f.id) + ']=this.checked;render()"> <a href="/api/files/' + esc(f.id) + '" target="_blank" rel="noopener">' + esc(f.name) + '</a> <span class="muted">' + esc(fmtTime(f.createdAt)) + ' · ' + esc(teacherName(f.createdBy)) + '</span></div>';
           }).join('') : '<span class="muted">-</span>') + '</td>' +
-          '<td class="nw">' + dropBox('uploadFiles(this,' + js(s.id) + ',' + js(d.id) + ')', { sm: 1 }) + ' ' +
+          '<td class="nw">' + dlBtn(files, s.name + ' ' + d.name) + ' ' + dropBox('uploadFiles(this,' + js(s.id) + ',' + js(d.id) + ')', { sm: 1 }) + ' ' +
           '<button class="btn ghost sm" onclick="openForm(\'docs\',' + js(d.id) + ')">수정</button></td></tr>';
       }).join(''); }).join('') + '</tbody></table></div>' : '<div class="empty">등록된 서류가 없습니다. 3년특례라면 출입국사실증명서·재학증명서 등을 추가해 두세요.</div>') + '</div>' + looseFiles(s);
 }
@@ -5432,11 +5518,15 @@ function viewTeachers() {
   h += '<div class="card tbl-wrap"><div class="muted" style="margin-bottom:6px">⋮⋮ 를 끌어서 순서를 바꾸면 바로 저장됩니다. 학생 목록 “관리팀 담당순”에서 내 담당 학생 다음에 이 순서(예: 근무 시트 순서)로 나옵니다.</div>' +
     '<table><thead><tr><th class="gripc"></th><th>이름</th><th>이메일</th><th>지점</th><th>역할</th><th>상태</th><th>담당 학생</th><th>메일 알림</th><th></th></tr></thead><tbody data-order="teachers">' +
     S.teachers.map(function (t) {
-      var cnt = S.allStudents.filter(function (s) { return isActive(s) && (String(s.counselor).toLowerCase() === t.email.toLowerCase() || String(s.manager || '').toLowerCase() === t.email.toLowerCase()); }).length;
-      return '<tr class="drag" draggable="true" data-id="' + esc(t.email) + '" data-grp=""><td class="nw gripc"><span class="grip" title="끌어서 순서 바꾸기">⋮⋮</span></td><td><b>' + esc(t.name) + '</b></td><td>' + esc(t.email) + '</td><td class="nw">' + esc(t.branch === ALL_BRANCH ? '전체' : branchOf(t)) + '</td><td>' + esc(ROLE_LABEL[t.role] || t.role) + '</td>' +
-        '<td>' + (t.color && t.role !== 'consultant' ? '<span class="swatch" title="색은 각자 My Page에서 고릅니다" style="background:' + esc(t.color) + '"></span>' : '') + (t.active ? '<span class="pill s-진행중">활성</span>' : '<span class="pill s-종료">비활성</span>') + '</td><td>' + cnt + '명</td><td>' + (t.notify !== false ? '받음' : '<span class="muted">안 받음</span>') + '</td>' +
+      var stu = S.allStudents.filter(function (s) { return isActive(s) && (String(s.counselor).toLowerCase() === t.email.toLowerCase() || String(s.manager || '').toLowerCase() === t.email.toLowerCase()); });
+      return '<tr class="drag" data-id="' + esc(t.email) + '" data-grp=""><td class="nw gripc"><span class="grip" title="끌어서 순서 바꾸기">⋮⋮</span></td><td><b>' + esc(t.name) + '</b></td><td>' + esc(t.email) + '</td><td class="nw">' + esc(t.branch === ALL_BRANCH ? '전체' : branchOf(t)) + '</td><td>' + esc(ROLE_LABEL[t.role] || t.role) + '</td>' +
+        '<td>' + (t.color && t.role !== 'consultant' ? '<span class="swatch" title="색은 각자 My Page에서 고릅니다" style="background:' + esc(t.color) + '"></span>' : '') + (t.active ? '<span class="pill s-진행중">활성</span>' : '<span class="pill s-종료">비활성</span>') + '</td><td>' + (stu.length ? '<a href="javascript:void(0)" title="담당 학생 보기" onclick="UI.tStu=UI.tStu===' + js(t.email) + '?null:' + js(t.email) + ';render()">' + stu.length + '명 ' + (UI.tStu === t.email ? '▴' : '▾') + '</a>' : '0명') + '</td><td>' + (t.notify !== false ? '받음' : '<span class="muted">안 받음</span>') + '</td>' +
         '<td class="nw"><button class="btn ghost sm" onclick="openTeacherForm(' + js(t.email) + ')">수정</button>' +
-        (S.me.dev && t.active && t.email !== S.me.email ? ' <button class="btn ghost sm" title="개발자: 이 계정 화면으로 들어가기" onclick="devLoginAs(' + js(t.email) + ')">이 계정으로 로그인</button>' : '') + '</td></tr>';
+        (S.me.dev && t.active && t.email !== S.me.email ? ' <button class="btn ghost sm" title="개발자: 이 계정 화면으로 들어가기" onclick="devLoginAs(' + js(t.email) + ')">이 계정으로 로그인</button>' : '') + '</td></tr>' +
+        (UI.tStu === t.email && stu.length ? '<tr class="stu-list"><td></td><td colspan="8"><div class="tstu">' + stu.sort(function (a, b) { return a.name.localeCompare(b.name, 'ko'); }).map(function (x) {
+          var r = [String(x.counselor).toLowerCase() === t.email.toLowerCase() ? '컨설턴트' : '', String(x.manager || '').toLowerCase() === t.email.toLowerCase() ? '관리팀' : ''].filter(Boolean).join('·');
+          return '<a href="javascript:void(0)" onclick="openStudent(' + js(x.id) + ')">' + esc(x.name) + '</a> <span class="muted">' + esc(branchOf(x) + ' · ' + r) + '</span>';
+        }).join('') + '</div></td></tr>' : '');
     }).join('') + '</tbody></table></div>';
   return h;
 }
@@ -5572,6 +5662,29 @@ function loadAutomation() {
   }).then(function () { if (route().view === 'settings') render(); }).catch(function (e) { toast(errMsg(e), true); });
 }
 function hourOpts(cur) { var h = ''; for (var i = 0; i < 24; i++) h += '<option value="' + i + '"' + (String(i) === String(cur) ? ' selected' : '') + '>' + i + '시</option>'; return h; }
+var MENU_LABEL = { followups: '팔로업·연락', meetings: '미팅', deadlines: '원서 관리', unis: '대학 정보', programs: '대회·프로그램', results: '합격 실적' };
+/** 사이트 설정 (관리자): 맨 위 🐞 버튼 링크, 지점별로 숨길 메뉴 */
+function siteCard() {
+  var st = S.site || {}, hide = st.hideMenus || {};
+  return '<div class="card"><h3>사이트 설정</h3><div class="form">' +
+    fld('🐞 버그·요청 버튼 링크 (구글 시트나 구글 폼 주소, 비우면 버튼이 숨겨짐)', '<input type="text" id="site-bug" value="' + esc(st.bugUrl || '') + '" placeholder="https://docs.google.com/…">', true) + '</div>' +
+    '<div style="margin-top:10px"><b>지점별로 숨길 메뉴</b> <span class="muted">— 그 지점 계정의 맨 위 메뉴·메인 위젯에서 빠집니다 (전체 지점 계정·개발자는 그대로 보임). 데이터는 지워지지 않고, 체크를 풀면 다시 보입니다.</span></div>' +
+    '<div class="tbl-wrap"><table class="compact"><thead><tr><th>메뉴</th>' + BRANCHES.map(function (b) { return '<th>' + esc(b) + '</th>'; }).join('') + '</tr></thead><tbody>' +
+    (st.hideable || []).map(function (m) {
+      return '<tr><td>' + esc(MENU_LABEL[m] || m) + '</td>' + BRANCHES.map(function (b) {
+        return '<td><label class="muted"><input type="checkbox" class="site-hide" data-b="' + esc(b) + '" data-m="' + esc(m) + '"' + ((hide[b] || []).indexOf(m) >= 0 ? ' checked' : '') + '> 숨김</label></td>';
+      }).join('') + '</tr>';
+    }).join('') + '</tbody></table></div>' +
+    '<div class="toolbar" style="margin-top:8px"><button class="btn" onclick="saveSite()">사이트 설정 저장</button></div></div>';
+}
+function saveSite() {
+  var hide = {};
+  BRANCHES.forEach(function (b) { hide[b] = []; });
+  Array.prototype.forEach.call(document.querySelectorAll('.site-hide'), function (c) { if (c.checked) hide[c.getAttribute('data-b')].push(c.getAttribute('data-m')); });
+  mutate('saveSite', { bugUrl: $('site-bug').value.trim(), hideMenus: hide }, '사이트 설정을 저장했습니다.').then(function (d) {
+    if (!d) return; var bug = $('bug'), bu = safeUrl(S.site.bugUrl); bug.style.display = bu ? '' : 'none'; if (bu) bug.href = bu;
+  });
+}
 function viewSettings() {
   if (!isAdmin()) return '<div class="card empty">관리자만 볼 수 있습니다.</div>';
   if (!UI.auto) { loadAutomation(); return '<div class="card empty">불러오는 중…</div>'; }
@@ -5581,7 +5694,7 @@ function viewSettings() {
     var fail = /^실패/.test(x.result || '');
     return '<div><b>' + label + '</b> <span class="muted">' + (x.at ? esc(fmtTime(x.at)) : '아직 실행 안 됨') + '</span><div style="color:' + (fail ? 'var(--error)' : '#0f7a55') + '">' + esc(x.result || '') + '</div></div>';
   };
-  var h = '<div class="toolbar"><h2 style="margin:0;margin-right:auto">백업·알림</h2></div>';
+  var h = '<div class="toolbar"><h2 style="margin:0;margin-right:auto">백업·알림</h2></div>' + siteCard();
   h += '<div class="grid g2"><div class="card"><h3>상태</h3>' +
     '<div style="display:grid;gap:10px">' +
     '<div>자동 백업: ' + (c.scriptUrl && c.backupOn ? '<span class="pill s-진행중">켜짐</span> 매일 ' + esc(c.backupHour) + '시 (중국 시간)' : '<span class="pill s-종료">꺼짐</span>') + '</div>' +
@@ -5850,7 +5963,7 @@ function field(f, rec) {
   var v = rec[f.k] == null ? '' : rec[f.k], h;
   var ph = f.ph ? ' placeholder="' + esc(f.ph) + '"' : '';
   if (f.t === 'textarea') h = '<textarea name="' + f.k + '"' + ph + (f.big ? ' style="min-height:180px"' : '') + '>' + esc(v) + '</textarea>';
-  else if (f.t === 'select') h = sel(f.k, f.o, v);
+  else if (f.t === 'select') h = sel(f.k, typeof f.o === 'function' ? f.o() : f.o, v);
   else if (f.t === 'list') h = inp(f.k, v, 'text', ' list="dl-' + f.k + '"' + ph) + datalist('dl-' + f.k, f.o);
   else if (f.t === 'teacher') h = '<select name="' + f.k + '">' + teacherOpts(v, f.roles) + '</select>';
   else if (f.t === 'check') h = '<div><label style="display:inline-flex;gap:6px;align-items:center;color:#222"><input type="checkbox" name="' + f.k + '"' + (v === 'TRUE' ? ' checked' : '') + (f.k === 'deadlineManual' ? ' onchange="appFormSync()"' : '') + '> ' + esc(f.cl || '완료') + '</label></div>';
@@ -5991,7 +6104,7 @@ function dropBox(onchange, opt) {
 }
 var ACCEPT_FILES = '.pdf,.png,.jpg,.jpeg,.webp,.heic,.gif,.doc,.docx,.xls,.xlsx,.hwp';
 /** 파일 하나: 이미지는 작은 그림(누르면 팝업), 그 외는 이름 버튼 */
-/* ----- 표 칸 너비: 제목 줄 칸 경계를 끌어서 넓히고 좁힘. 이 브라우저에 표마다 기억, 경계를 두 번 누르면 처음 너비로 ----- */
+/* ----- 표 칸 너비: 제목 줄 칸 경계를 끌어서 넓히고 좁힘. 계정에 표마다 기억, 경계를 두 번 누르면 처음 너비로 ----- */
 function colKey(t) {
   var view = (location.hash || '#/home').replace(/\/[0-9a-f-]{8,}/gi, '/:id');
   return 'colw:' + view + ':' + Array.prototype.map.call(t.tHead.rows[0].cells, function (c) { return c.textContent.trim(); }).join('|');
@@ -6058,6 +6171,13 @@ function removeFormFile(id) {
   api('remove', { table: 'files', id: id }).then(function (d) { S.files = d.files || S.files; var el = $('fw-' + id); if (el) el.remove(); render(); toast('파일을 지웠습니다.'); })
     .catch(function (e) { toast(errMsg(e), true); });
 }
+/** 첨부 파일 받기 버튼: 1개면 그 파일, 여러 개면 ZIP 하나로 (name = ZIP 이름) */
+function dlBtn(files, name) {
+  files = (files || []).filter(Boolean); if (!files.length) return '';
+  var href = files.length === 1 ? '/api/files/' + encodeURIComponent(files[0].id) + '?download=1'
+    : '/api/files-zip?ids=' + files.map(function (f) { return encodeURIComponent(f.id); }).join(',') + '&name=' + encodeURIComponent(name || '첨부파일');
+  return '<a class="btn ghost sm dlb" href="' + esc(href) + '" title="' + esc(files.length === 1 ? files[0].name + ' 다운로드' : files.length + '개 파일을 ZIP 하나로 다운로드') + '" onclick="event.stopPropagation()">⬇ ' + (files.length === 1 ? '받기' : files.length + '개 받기') + '</a>';
+}
 function fileThumb(f) {
   return /^image\//.test(f.mime) ? '<a href="/api/files/' + esc(f.id) + '" target="_blank" rel="noopener" class="shot lbimg" data-g="form" title="' + esc(f.name) + '"><img src="/api/files/' + esc(f.id) + '" alt="' + esc(f.name) + '"></a>'
     : '<a class="btn ghost sm" href="/api/files/' + esc(f.id) + '" target="_blank" rel="noopener">📎 ' + esc(f.name) + '</a>';
@@ -6100,6 +6220,7 @@ function uploadShots(studentId, followupId, param) {
 /* ----- 작은 서식 편집기 (팔로업 할 일·세부 내용, 받은 연락): 굵게·취소선·글자색·형광펜 ----- */
 var MR_COLORS = [['#d9534f', '빨강'], ['#d98a00', '주황'], ['#1d9e75', '초록'], ['#1d4ed8', '파랑']];
 function mrichField(f, rec) {
+  var split = f.split && !rec.id;
   var html = rec[f.hk] ? cleanRich(rec[f.hk]) : esc(rec[f.k] || '').split('\n').join('<br>');
   var b = function (cmd, label, title, val, cls) { return '<button type="button" class="rbtn-t' + (cls ? ' ' + cls : '') + '" title="' + esc(title) + '" onmousedown="event.preventDefault()" onclick="mrCmd(' + js(f.k) + ',' + js(cmd) + ',' + js(val || null) + ')">' + label + '</button>'; };
   return '<div class="full"><label>' + esc(f.l) + (f.req ? ' <b>*</b>' : '') + '</label><div class="mrich">' +
@@ -6107,7 +6228,30 @@ function mrichField(f, rec) {
       '<span class="rsep"></span>' + MR_COLORS.map(function (c) { return '<button type="button" class="sw" title="글자색: ' + c[1] + '" style="background:' + c[0] + '" onmousedown="event.preventDefault()" onclick="mrCmd(' + js(f.k) + ',\'foreColor\',' + js(c[0]) + ')"></button>'; }).join('') +
       '<button type="button" class="sw" title="형광펜 (노랑 배경)" style="background:#fff3a3" onmousedown="event.preventDefault()" onclick="mrCmd(' + js(f.k) + ',\'hiliteColor\',\'#fff3a3\')"></button>' +
       '<span class="rsep"></span>' + b('removeFormat', '서식 지우기', '선택한 글자의 서식 지우기') + '</div>' +
-    '<div class="rich-ed mr-ed' + (f.big ? ' big' : '') + '" id="mr-' + esc(f.k) + '" data-k="' + esc(f.k) + '" data-hk="' + esc(f.hk) + '" data-ph="' + esc(f.ph || '') + '" contenteditable="true" spellcheck="false" onpaste="richPaste(event)" onfocus="richInit()" oninput="modalDirty=true">' + html + '</div></div></div>';
+    '<div class="rich-ed mr-ed' + (f.big ? ' big' : '') + '" id="mr-' + esc(f.k) + '" data-k="' + esc(f.k) + '" data-hk="' + esc(f.hk) + '" data-ph="' + esc(f.ph || '') + '" contenteditable="true" spellcheck="false" onpaste="richPaste(event)" onfocus="richInit()" oninput="modalDirty=true' + (split ? ';fuSplitUpd()' : '') + '">' + html + '</div></div>' +
+    (split ? '<div class="fu-split" id="fu-split" style="display:none"><span class="muted">여러 줄을 어떻게 만들까요?</span>' +
+      '<label><input type="radio" name="fusplit" value="one" checked onchange="fuSplitUpd()"> <span class="fs-t">한 업무의 세부 단계</span> <span class="muted">— 팔로업 1개, 줄마다 체크</span></label>' +
+      '<label><input type="radio" name="fusplit" value="many" onchange="fuSplitUpd()"> <span class="fs-t">서로 다른 일</span> <span class="muted" id="fu-split-n">— 줄마다 팔로업 따로</span></label></div>' : '') + '</div>';
+}
+/** 팔로업 추가 창: 할 일이 두 줄 이상이면 "세부 단계(팔로업 1개)"와 "서로 다른 일(줄마다 따로)" 중 고르기 */
+function fuSplitLines() {
+  var ed = $('mr-title'); if (!ed) return [];
+  return richLines(ed.innerHTML, ed.innerText).map(function (h) {
+    h = h.replace(/^((?:<[^>]+>)*)\s*(?:\d{1,2}[.)]|[-•·])\s+/, '$1'); // 줄 앞 "1." "-" 같은 번호는 뺌
+    return { titleHtml: h, title: htmlText(h).trim() };
+  }).filter(function (x) { return x.title; });
+}
+function fuSplitMode() { var r = document.querySelector('input[name=fusplit]:checked'); return $('fu-split') && $('fu-split').style.display !== 'none' && r ? r.value : 'one'; }
+function fuSplitUpd() {
+  var box = $('fu-split'); if (!box) return;
+  var n = fuSplitLines().length;
+  box.style.display = n >= 2 ? '' : 'none';
+  $('fu-split-n').textContent = '— 줄마다 팔로업 따로 (' + n + '개가 만들어짐, 담당·기한·분류는 같게)';
+  var many = fuSplitMode() === 'many', fr = $('fr-content');
+  if (fr) { var wrap = fr.closest('.full'); wrap.style.display = many ? 'none' : ''; }
+  var note = $('fu-split-note');
+  if (many && !note && fr) fr.closest('.full').insertAdjacentHTML('afterend', '<div class="full muted" id="fu-split-note" style="font-size:.8rem">💬 서로 다른 일로 나눌 때는 대화(말풍선)를 만든 뒤 각 팔로업에서 적어주세요.</div>');
+  if (!many && note) note.remove();
 }
 function mrCmd(k, cmd, val) {
   var ed = $('mr-' + k); if (!ed) return;
@@ -6308,6 +6452,10 @@ function submitForm(key) {
   if (table === 'notes' && !o.content && !o.nextAction && !fus.length) return toast('상담 내용을 입력하거나 팔로업을 추가하세요.', true);
   var rv = reviewData(), rvMsg = rv ? ' 확인 요청 ' + rv.to.length + '명에게 보냈습니다.' : '';
   Object.keys(o).forEach(function (k) { if (/^rv_/.test(k)) delete o[k]; });
+  if (key === 'followups' && !o.id && fuSplitMode() === 'many') {
+    var lines = fuSplitLines(); delete o.title; delete o.titleHtml;
+    return mutate('addFollowupLines', { obj: o, lines: lines }, '팔로업 ' + lines.length + '개를 만들었습니다.');
+  }
   var first = key === 'followups' && !o.id && $('fr-content') && $('fr-content').value.trim() ? { who: $('fr-who').value, date: $('fr-date').value, content: $('fr-content').value.trim(), pend: (UI.replyPend || []).filter(Boolean) } : null;
   (fus ? mutate('saveWithFollowups', { table: table, obj: o, followups: fus, review: rv }, (fus.length ? '저장했습니다. 팔로업 ' + fus.length + '건도 추가했습니다.' : '저장했습니다.') + rvMsg)
     : mutate('save', { table: table, obj: o, review: rv }, '저장했습니다.' + rvMsg)).then(function (d) {
@@ -6337,6 +6485,11 @@ function delItem(table, id) {
 /* ============================== 시작 ============================== */
 // 목록 관리: 줄을 끌어서 순서 바꾸기 (같은 표·같은 묶음 안에서만) → 놓으면 저장
 var drag = null;
+// ⋮⋮ 손잡이를 잡았을 때만 줄이 끌림 — 나머지 칸은 글자(이메일 등)를 긁어서 복사할 수 있게
+document.addEventListener('mousedown', function (e) {
+  var tr = e.target.closest && e.target.closest('tr.drag'); if (!tr) return;
+  tr.draggable = !!e.target.closest('.gripc');
+});
 document.addEventListener('dragstart', function (e) {
   var tr = e.target.closest && e.target.closest('tr.drag'); if (!tr) return;
   drag = { tr: tr, before: rowOrder(tr) };
@@ -6356,7 +6509,7 @@ document.addEventListener('drop', function (e) { if (drag) e.preventDefault(); }
 document.addEventListener('dragend', function () {
   if (!drag) return;
   var d = drag; drag = null;
-  d.tr.classList.remove('dragging');
+  d.tr.classList.remove('dragging'); d.tr.draggable = false;
   var after = rowOrder(d.tr);
   if (after.join() === d.before.join()) return;
   mutate('saveOrder', { kind: d.tr.parentNode.getAttribute('data-order'), ids: after }, '순서를 저장했습니다.');
