@@ -243,6 +243,28 @@ function createApp(store, opts) {
       sendError(res, e);
     }
   });
+  // 원서용 학생 정보 엑셀: /api/student-sheet?ids=a,b&parts=info,parents,… — 학생마다 시트 한 장 (볼 수 있는 학생만, 30명까지)
+  app.get('/api/student-sheet', requireLogin, (req, res) => {
+    let tmp = '';
+    try {
+      const { buildStudentSheet, PARTS } = require('./lib/studentsheet');
+      const ids = [...new Set(String(req.query.ids || '').split(',').map((x) => x.trim()).filter(Boolean))];
+      if (!ids.length || ids.length > 30) return res.status(400).json({ error: '학생은 1~30명까지 고를 수 있습니다.' });
+      const parts = String(req.query.parts || '').split(',').filter((p) => PARTS.includes(p));
+      if (!parts.length) return res.status(400).json({ error: '넣을 항목을 하나 이상 고르세요.' });
+      const today = new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 10); // 상해 날짜
+      const sheets = ids.map((id) => buildStudentSheet(store.studentSheetData(req.me, id), parts, today));
+      tmp = path.join(os.tmpdir(), 'compass-sheet-' + Date.now() + '-' + Math.random().toString(36).slice(2) + '.xlsx');
+      require('./lib/xlsx').writeXlsx(tmp, sheets);
+      const name = (sheets.length === 1 ? sheets[0].name + ' 학생 정보' : '학생 정보 ' + sheets.length + '명') + ' ' + today + '.xlsx';
+      res.set({ 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Content-Disposition': 'attachment; filename="student-info.xlsx"; filename*=UTF-8\'\'' + encodeURIComponent(name.replace(/[\\/:*?"<>|]/g, '_')) });
+      res.sendFile(tmp, () => fs.rm(tmp, { force: true }, () => {}));
+    } catch (e) {
+      if (tmp) fs.rm(tmp, { force: true }, () => {});
+      sendError(res, e);
+    }
+  });
   // 파일 보기/다운로드 (로그인 + 담당 학생 권한 확인)
   app.get('/api/files/:id', requireLogin, (req, res) => {
     try {
