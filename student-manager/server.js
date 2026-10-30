@@ -8,6 +8,7 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 const zlib = require('zlib');
 const { openStore, UserError, MAX_UPLOAD } = require('./lib/store');
 const automation = require('./lib/automation');
@@ -216,6 +217,32 @@ function createApp(store, opts) {
     }
   });
 
+  // 여러 파일 한 번에 받기 (ZIP): /api/files-zip?ids=a,b,c&name=이름 — 파일마다 권한 확인, 50개·300MB까지
+  app.get('/api/files-zip', requireLogin, (req, res) => {
+    let tmp = '';
+    try {
+      const ids = [...new Set(String(req.query.ids || '').split(',').map((x) => x.trim()).filter(Boolean))];
+      if (!ids.length || ids.length > 50) return res.status(400).json({ error: '받을 파일은 1~50개여야 합니다.' });
+      const files = ids.map((id) => store.getFile(req.me, id));
+      let total = 0;
+      files.forEach((f) => { total += fs.statSync(f.path).size; });
+      if (total > 300 * 1024 * 1024) return res.status(400).json({ error: '한 번에 받을 수 있는 크기(300MB)를 넘었습니다. 나눠서 받아주세요.' });
+      const seen = {};
+      const entries = files.map((f) => {
+        let n = String(f.name || 'file').replace(/[\\/:*?"<>|]/g, '_'), dot = n.lastIndexOf('.'), base = dot > 0 ? n.slice(0, dot) : n, ext = dot > 0 ? n.slice(dot) : '';
+        let i = 1; while (seen[n]) n = base + ' (' + (++i) + ')' + ext; seen[n] = 1;
+        return { name: n, path: f.path };
+      });
+      tmp = path.join(os.tmpdir(), 'compass-dl-' + Date.now() + '-' + Math.random().toString(36).slice(2) + '.zip');
+      require('./lib/zip').writeZip(tmp, entries);
+      const name = String(req.query.name || '첨부파일').replace(/[\\/:*?"<>|\r\n]/g, '_').slice(0, 80) + '.zip';
+      res.set({ 'Content-Type': 'application/zip', 'Content-Disposition': 'attachment; filename="' + (name.replace(/[^\x20-\x7e]|"/g, '_')) + "\"; filename*=UTF-8''" + encodeURIComponent(name) });
+      res.sendFile(tmp, () => fs.rm(tmp, { force: true }, () => {}));
+    } catch (e) {
+      if (tmp) fs.rm(tmp, { force: true }, () => {});
+      sendError(res, e);
+    }
+  });
   // 파일 보기/다운로드 (로그인 + 담당 학생 권한 확인)
   app.get('/api/files/:id', requireLogin, (req, res) => {
     try {
@@ -242,7 +269,7 @@ function createApp(store, opts) {
   const restoreDir = () => path.join(path.dirname(store.dbPath), 'restore-backups');
   app.post('/api/restore', requireLogin, express.raw({ type: () => true, limit: '400mb' }), async (req, res) => {
     if (req.me.role !== 'admin') return res.status(403).json({ error: '관리자만 복구할 수 있습니다.' });
-    const os = require('os');
+
     const tmpDb = path.join(os.tmpdir(), 'compass-restore-' + Date.now() + '.db');
     try {
       const { readZip } = require('./lib/zip');

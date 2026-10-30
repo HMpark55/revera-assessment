@@ -2705,3 +2705,26 @@ test('개인 화면 설정: 계정에 저장(다른 계정과 따로), 정해진
   await admin.ok('savePref', { key: 'studentCols', value: ['school', 'status'] });
   assert.strictEqual((await admin.rpc('savePref', { key: 'scFold', value: 'x'.repeat(20001) })).status, 400, '너무 큼');
 });
+
+test('첨부 파일 여러 개 한 번에 받기(ZIP): 권한 있는 파일만, 이름이 같으면 번호 붙임, 개수 제한', async () => {
+  const admin = client(); await admin.login('admin@revera.test', 'admin-pass-1');
+  const sid = (await admin.saveOk('students', { name: '받기학생' })).savedId;
+  const pdf = (t) => Buffer.from('%PDF-1.4 ' + t);
+  const ids = async () => (await admin.ok('getAll')).files.filter((f) => f.studentId === sid).map((f) => f.id);
+  await admin.upload(sid, '증명서.pdf', pdf('a'));
+  const [a] = await ids();
+  await admin.upload(sid, '증명서.pdf', pdf('b'));
+  const b = (await ids()).find((x) => x !== a);
+  assert.ok(a && b);
+  const r = await admin.req('GET', '/api/files-zip?ids=' + a + ',' + b + '&name=' + encodeURIComponent('받기학생 서류'));
+  assert.strictEqual(r.status, 200);
+  assert.strictEqual(r.headers.get('content-type'), 'application/zip');
+  assert.ok(/attachment/.test(r.headers.get('content-disposition')) && r.headers.get('content-disposition').includes(encodeURIComponent('받기학생 서류.zip')));
+  const { readZip } = require('../lib/zip');
+  const names = readZip(r.data).map((e) => e.name).sort();
+  assert.deepStrictEqual(names, ['증명서 (2).pdf', '증명서.pdf']);
+  assert.strictEqual((await admin.req('GET', '/api/files-zip?ids=')).status, 400);
+  assert.strictEqual((await admin.req('GET', '/api/files-zip?ids=nope')).status, 404);
+  const kim = await newUser(admin, 'zipkim@revera.test', 'consultant');
+  assert.strictEqual((await kim.req('GET', '/api/files-zip?ids=' + a)).status, 403, '담당 아닌 학생 파일은 못 받음');
+});

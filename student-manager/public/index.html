@@ -364,6 +364,7 @@
   .fu-split { display:flex; flex-wrap:wrap; gap:6px 16px; align-items:center; margin-top:6px; padding:8px 10px; background:#f5f7fb; border-radius:8px; font-size:.85rem; }
   .fu-split .fs-t { font-weight:600; }
   .fu-split label { display:inline-flex; align-items:center; gap:4px; color:#222; cursor:pointer; }
+  .dlb { text-decoration:none; padding:2px 7px; font-size:.75rem; vertical-align:middle; }
   .bugbtn { margin-left:8px; text-decoration:none; }
   .bell { position:relative; margin-right:8px; } .bell .hbtn { position:relative; font-size:.95rem; padding:4px 10px; }
   .bell .hbtn b { position:absolute; top:-6px; right:-6px; background:#d9534f; color:#fff; border-radius:9px; font-size:.68rem; padding:1px 5px; }
@@ -2965,6 +2966,7 @@ function fuRow(f, showStudent, inSource, compact) {
   var reps = repliesOf(f.id), last = reps[reps.length - 1];
   var reply = last ? '💬 ' + replyWho(last) + (last.date ? ' ' + fmtD(last.date) : '') + ': ' + last.content : '';
   var shots = contact ? S.files.filter(function (x) { return x.followupId === f.id && /^image\//.test(x.mime); }) : [];
+  var fuFiles = S.files.filter(function (x) { return x.followupId === f.id; }); // 받은 연락 캡처 + 말풍선 첨부
   var dg = UI._dragFu && canDragFu(f);
   return '<div class="fu' + (dg ? ' fdrag' : '') + (compact ? ' cpt' : '') + (done ? ' done' : fuProg(f) ? ' prog' : '') + (!done && f.due && dayDiff(f.due) < 0 ? ' over' : '') + '" id="ref-' + esc(f.id) + '"' + (dg ? ' draggable="true" data-fid="' + esc(f.id) + '"' : '') + '>' + (dg ? '<span class="grip fgrip" title="끌어서 순서 바꾸기">⋮⋮</span>' : UI._dragFu ? '<span class="fgrip"></span>' : '') +
     (done ? '<span class="fu-ok" title="완료">✓</span>' : fuCheck(f)) +
@@ -2978,7 +2980,7 @@ function fuRow(f, showStudent, inSource, compact) {
       (compact || contact ? '' : fuChecklist(f)) +
       (compact ? '' : (contact && f.detail && f.detail.trim() !== f.title ? '<div class="l2">' + detailInline(f) + '</div>' : '') +
       (reply ? '<div class="l2 rp">' + esc(reply) + '</div>' : !contact && f.detail ? '<div class="l2">' + detailInline(f) + '</div>' : '') +
-      (shots.length ? '<div class="fu-shots">' + shots.slice(0, 4).map(function (x) { return '<a href="/api/files/' + esc(x.id) + '" class="lbimg" data-g="fu-' + esc(f.id) + '" title="' + esc(x.name) + '" target="_blank" rel="noopener" onclick="event.stopPropagation()"><img src="/api/files/' + esc(x.id) + '" alt=""></a>'; }).join('') + (shots.length > 4 ? '<span class="muted">+' + (shots.length - 4) + '</span>' : '') + '</div>' : '') +
+      (shots.length || fuFiles.length ? '<div class="fu-shots">' + shots.slice(0, 4).map(function (x) { return '<a href="/api/files/' + esc(x.id) + '" class="lbimg" data-g="fu-' + esc(f.id) + '" title="' + esc(x.name) + '" target="_blank" rel="noopener" onclick="event.stopPropagation()"><img src="/api/files/' + esc(x.id) + '" alt=""></a>'; }).join('') + (shots.length > 4 ? '<span class="muted">+' + (shots.length - 4) + '</span>' : '') + dlBtn(fuFiles, ((studentById(f.studentId) || {}).name || '') + ' ' + String(f.title || '').split('\n')[0].slice(0, 30)) + '</div>' : '') +
       (f.requestNote && !done && f.assignee === S.me.email ? '<div class="l2" style="color:#7a4d00">↪ ' + esc(f.requestNote) + '</div>' : '') +
       (reviewsOf('followups', f.id).some(function (r) { return !r.doneAt; }) ? '<div onclick="event.stopPropagation()">' + reviewBox('followups', f.id, true) + '</div>' : '')) +
     '</div>' + (compact ? '<span class="fu-acts">' + (done ? '' : fuDoneBtn(f.id)) + '</span></div>' : '<span class="fu-acts"><button type="button" class="ibtn rv-b" title="담당은 그대로 — 이 기록을 다른 선생님이 꼭 보도록 알림" onclick="openReview(\'followups\',' + js(f.id) + ')">👀 확인 요청</button>' + (done ? '' : '<button type="button" class="ibtn ho-b" title="이 일을 다른 선생님에게 넘김 — 담당이 그 선생님으로 바뀜 (휴무 등)" onclick="openRequest(' + js(f.id) + ')">↪ 넘기기</button>') +
@@ -3174,7 +3176,7 @@ function threadItems(fid, inline) {
       (mine ? '<button type="button" class="ibtn" title="이 답변 고치기" onclick="editReply(' + js(x.id) + ',' + js(fid) + ')">✏️</button>' +
         '<button type="button" class="ibtn" title="이 답변 지우기 (휴지통)" onclick="removeReply(' + js(x.id) + ',' + js(fid) + ')">✕</button>' : '') + '</span></div>' +
       '<div class="th-b">' + esc(x.content) + '</div>' +
-      (fs.length ? '<div class="th-files">' + fs.map(function (f) { return '<span class="shot-wrap" id="fw-' + esc(f.id) + '">' + fileThumb(f) + (f.createdBy === S.me.email || isAdmin() ? '<button type="button" class="ibtn" title="이 파일 지우기 (휴지통)" onclick="removeFormFile(' + js(f.id) + ')">✕</button>' : '') + '</span>'; }).join('') + '</div>' : '') + '</div>';
+      (fs.length ? '<div class="th-files">' + fs.map(function (f) { return '<span class="shot-wrap" id="fw-' + esc(f.id) + '">' + fileThumb(f) + (f.createdBy === S.me.email || isAdmin() ? '<button type="button" class="ibtn" title="이 파일 지우기 (휴지통)" onclick="removeFormFile(' + js(f.id) + ')">✕</button>' : '') + '</span>'; }).join('') + dlBtn(fs, '답변 첨부 ' + (x.date || '')) + '</div>' : '') + '</div>';
   }).join('') : '<div class="empty" style="padding:10px">아직 답변 기록이 없습니다.</div>';
 }
 /** 팔로업·받은 연락 수정 창 안에서 답변 추가 (창은 그대로, 입력 중인 내용 유지) */
@@ -3602,7 +3604,7 @@ function scoreFiles(r) {
   var fs = S.files.filter(function (f) { return f.scoreId === r.id; });
   return fs.length ? '<div class="sc-files" onclick="event.stopPropagation()">' + fs.map(function (f) {
     return '<a href="/api/files/' + esc(f.id) + '" target="_blank" rel="noopener"' + (/^image\//.test(f.mime) ? ' class="lbimg" data-g="sc-' + esc(r.id) + '"' : '') + ' title="' + esc(f.name) + '">📎 ' + esc(f.name.length > 22 ? f.name.slice(0, 20) + '…' : f.name) + '</a>';
-  }).join(' ') + '</div>' : '';
+  }).join(' ') + ' ' + dlBtn(fs, ((studentById(r.studentId) || {}).name || '') + ' ' + [r.kind, r.subject].filter(Boolean).join(' ')) + '</div>' : '';
 }
 function tabScoresOnly(s) {
   var list = childOf('scores', s.id).sort(function (a, b) {
@@ -3672,7 +3674,7 @@ function meetingItem(m, showStudent) {
       '<div class="mfiles dropzone">' + mf.map(function (f) {
         return /^image\//.test(f.mime) ? '<a href="/api/files/' + esc(f.id) + '" class="lbimg" data-g="mt-' + esc(m.id) + '" target="_blank" rel="noopener" title="' + esc(f.name) + '"><img src="/api/files/' + esc(f.id) + '" alt="' + esc(f.name) + '"></a>' :
           '<a class="btn ghost sm" href="/api/files/' + esc(f.id) + '" target="_blank" rel="noopener">📎 ' + esc(f.name) + '</a>';
-      }).join('') +
+      }).join('') + (mf.length ? dlBtn(mf, ((studentById(m.studentId) || {}).name || '') + ' 미팅 ' + m.date) : '') +
       '<label class="btn ghost sm" style="cursor:pointer">📎 파일 첨부<input type="file" multiple hidden accept=".pdf,.png,.jpg,.jpeg,.webp,.heic,.gif,.doc,.docx,.xls,.xlsx,.hwp" onchange="uploadFiles(this,' + js(m.studentId) + ',null,' + js(m.id) + ')"></label></div></div></div>';
 }
 function linkedFuBox(list, title) {
@@ -4485,7 +4487,7 @@ function tabDocs(s) {
           '<td>' + (files.length ? files.map(function (f) {
             return '<div class="dfile' + (UI.fsel[f.id] ? ' sel' : '') + '"><input type="checkbox" title="골라서 한꺼번에 삭제"' + (UI.fsel[f.id] ? ' checked' : '') + ' onchange="UI.fsel[' + js(f.id) + ']=this.checked;render()"> <a href="/api/files/' + esc(f.id) + '" target="_blank" rel="noopener">' + esc(f.name) + '</a> <span class="muted">' + esc(fmtTime(f.createdAt)) + ' · ' + esc(teacherName(f.createdBy)) + '</span></div>';
           }).join('') : '<span class="muted">-</span>') + '</td>' +
-          '<td class="nw">' + dropBox('uploadFiles(this,' + js(s.id) + ',' + js(d.id) + ')', { sm: 1 }) + ' ' +
+          '<td class="nw">' + dlBtn(files, s.name + ' ' + d.name) + ' ' + dropBox('uploadFiles(this,' + js(s.id) + ',' + js(d.id) + ')', { sm: 1 }) + ' ' +
           '<button class="btn ghost sm" onclick="openForm(\'docs\',' + js(d.id) + ')">수정</button></td></tr>';
       }).join(''); }).join('') + '</tbody></table></div>' : '<div class="empty">등록된 서류가 없습니다. 3년특례라면 출입국사실증명서·재학증명서 등을 추가해 두세요.</div>') + '</div>' + looseFiles(s);
 }
@@ -6168,6 +6170,13 @@ function removeFormFile(id) {
   if (!confirm('이 파일을 지울까요? (휴지통에서 되살릴 수 있습니다)')) return;
   api('remove', { table: 'files', id: id }).then(function (d) { S.files = d.files || S.files; var el = $('fw-' + id); if (el) el.remove(); render(); toast('파일을 지웠습니다.'); })
     .catch(function (e) { toast(errMsg(e), true); });
+}
+/** 첨부 파일 받기 버튼: 1개면 그 파일, 여러 개면 ZIP 하나로 (name = ZIP 이름) */
+function dlBtn(files, name) {
+  files = (files || []).filter(Boolean); if (!files.length) return '';
+  var href = files.length === 1 ? '/api/files/' + encodeURIComponent(files[0].id) + '?download=1'
+    : '/api/files-zip?ids=' + files.map(function (f) { return encodeURIComponent(f.id); }).join(',') + '&name=' + encodeURIComponent(name || '첨부파일');
+  return '<a class="btn ghost sm dlb" href="' + esc(href) + '" title="' + esc(files.length === 1 ? files[0].name + ' 다운로드' : files.length + '개 파일을 ZIP 하나로 다운로드') + '" onclick="event.stopPropagation()">⬇ ' + (files.length === 1 ? '받기' : files.length + '개 받기') + '</a>';
 }
 function fileThumb(f) {
   return /^image\//.test(f.mime) ? '<a href="/api/files/' + esc(f.id) + '" target="_blank" rel="noopener" class="shot lbimg" data-g="form" title="' + esc(f.name) + '"><img src="/api/files/' + esc(f.id) + '" alt="' + esc(f.name) + '"></a>'
