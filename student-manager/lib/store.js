@@ -101,6 +101,11 @@ const TABLES = {
       'remindAt', 'remindTo', 'topic', 'titleHtml', 'detailHtml'], // titleHtml·detailHtml: 할 일·세부(받은) 내용의 서식(글자색·굵게·취소선), 일반 글(title·detail)은 저장할 때 서식에서 다시 만듦 / topic: 주제 한 줄 (같은 학생의 같은 주제끼리 한 사건으로 묶임), remindAt: 알림 시각(한국 시간 'YYYY-MM-DDTHH:MM'), remindTo: 받는 사람 ('@assignee' = 그때의 담당자, 쉼표로 이메일 추가)
     summary: (r) => [r.title, r.status].filter(Boolean).join(' · '),
   },
+  roadmap: { // 연간 로드맵: 학생별 마일스톤 (시험·대회·활동·서머 등), 다가오면 메인 위젯에 보임
+    label: '로드맵',
+    fields: ['studentId', 'date', 'title', 'category', 'memo', 'done'], // done: 'TRUE' = 끝냄
+    summary: (r) => [r.date, r.title].filter(Boolean).join(' '),
+  },
   fureplies: { // 팔로업·받은 연락에 이어지는 답변 (학생 → 우리 → 어머님 …)
     label: '답변',
     fields: ['studentId', 'followupId', 'who', 'date', 'content'],
@@ -203,6 +208,9 @@ const DEFAULT_SITES = [
   ['UCAS', '원서 포털', 'https://www.ucas.com'], ['Schoology', '학교 LMS', 'https://app.schoology.com'],
   ['Microsoft Teams', '학교 LMS', 'https://teams.microsoft.com']];
 const DEFAULT_CURRICULA = ['IB', 'AP', 'A-Level', 'IGCSE', '국내 일반고', '국내 특목고', '기타'];
+const ROADMAP_CATS = ['시험', '학교 성적', '대회·프로그램', '활동·리서치', '서머·방학', '에세이·원서', '상담·미팅', '기타'];
+/** 지점별로 숨길 수 있는 메뉴 (메인 위젯 중 같은 이름도 함께 숨김) */
+const HIDEABLE_MENUS = ['followups', 'meetings', 'deadlines', 'unis', 'programs', 'results', 'roadmap'];
 const CHILD_TABLES = Object.keys(TABLES).filter((t) => t !== 'students');
 
 /** 대학 정보 (학생과 무관한 공용 자료) */
@@ -1081,6 +1089,7 @@ function openStore(dbPath, opts) {
       homeDefault: parseLayout(getMeta('homeLayoutDefault')),
       studentCols: parseCols(getMeta('studentCols')),
       uploadMB: uploadMB(),
+      site: siteSettings(),
       branches: BRANCHES, branchTz: BRANCH_TZ,
       teachers: db.prepare("SELECT email, name, role, active, notify, color, sortOrder, branch, tz FROM teachers ORDER BY CASE WHEN sortOrder = '' OR sortOrder IS NULL THEN 1 ELSE 0 END, CAST(sortOrder AS INTEGER), name").all()
         .map((t) => ({ email: t.email, name: t.name, role: t.role, active: !!t.active, notify: t.notify !== 'off', color: t.color || '', sortOrder: Number(t.sortOrder) || 0, branch: accountBranch(t), tz: accountTz(t) })),
@@ -1181,6 +1190,11 @@ function openStore(dbPath, opts) {
     if (table === 'accounts') { need('site', '사이트 이름을 입력하세요.'); checkUrl(v('url'), '사이트 주소'); }
     if (table === 'followups' && v('replyDate') && !DATE_RE.test(v('replyDate'))) throw new UserError('답변 날짜 형식이 올바르지 않습니다.');
     if (table === 'followups' && String(v('topic') || '').length > 60) throw new UserError('주제는 60자 이내로 적어주세요.');
+    if (table === 'roadmap') {
+      need('title', '할 일·목표를 입력하세요.');
+      if (!DATE_RE.test(v('date'))) throw new UserError('로드맵 날짜를 입력하세요. (YYYY-MM-DD)');
+      if (v('category') && !ROADMAP_CATS.includes(v('category'))) throw new UserError('로드맵 분류가 올바르지 않습니다.');
+    }
     if (table === 'fureplies') {
       const f = getRow('followups', v('followupId'));
       if (!f || f.deletedAt || f.studentId !== v('studentId')) throw new UserError('팔로업을 찾을 수 없습니다. 새로고침 해주세요.', 404);
@@ -2705,6 +2719,47 @@ function openStore(dbPath, opts) {
     db.prepare("SELECT key, value FROM meta WHERE key LIKE 'cfg.%'").all().forEach((r) => { out[r.key.slice(4)] = r.value; });
     return out;
   }
+  /** 모든 계정에 보이는 사이트 설정: 버그·요청 링크, 지점별 숨긴 메뉴 */
+  function siteSettings() {
+    let hide = {};
+    try { hide = JSON.parse(getMeta('site.hideMenus') || '{}') || {}; } catch (e) { hide = {}; }
+    const hideMenus = {};
+    BRANCHES.forEach((b) => { hideMenus[b] = Array.isArray(hide[b]) ? hide[b].filter((m) => HIDEABLE_MENUS.includes(m)) : []; });
+    return { bugUrl: getMeta('site.bugUrl'), hideMenus, roadmapCats: ROADMAP_CATS, hideable: HIDEABLE_MENUS };
+  }
+  function saveSite(me, arg) {
+    requireAdmin(me, '사이트 설정');
+    arg = arg || {};
+    if ('bugUrl' in arg) {
+      const u = clean(arg.bugUrl).trim();
+      if (u && !/^https:\/\/\S+$/.test(u)) throw new UserError('링크는 https:// 로 시작해야 합니다.');
+      setMeta('site.bugUrl', u);
+    }
+    if ('hideMenus' in arg) {
+      const src = arg.hideMenus || {}, out = {};
+      BRANCHES.forEach((b) => { out[b] = [...new Set((Array.isArray(src[b]) ? src[b] : []).map(String))].filter((m) => HIDEABLE_MENUS.includes(m)); });
+      setMeta('site.hideMenus', JSON.stringify(out));
+    }
+    return getAll(me);
+  }
+  /** 팔로업 추가 창에서 여러 줄을 "줄마다 따로" 만들 때: 같은 담당·기한·분류로 줄마다 팔로업 하나씩 */
+  function addFollowupLines(me, arg) {
+    arg = arg || {};
+    const base = arg.obj || {}, lines = Array.isArray(arg.lines) ? arg.lines : [];
+    if (base.id) throw new UserError('새 팔로업에서만 여러 개로 나눌 수 있습니다.');
+    if (lines.length < 2) throw new UserError('두 줄 이상일 때 여러 개로 나눌 수 있습니다.');
+    if (lines.length > 30) throw new UserError('한 번에 30개까지 만들 수 있습니다.');
+    const ids = [];
+    tx(() => {
+      for (const l of lines) {
+        const obj = Object.assign({}, base, { title: clean(l && l.title).trim(), titleHtml: clean(l && l.titleHtml) });
+        if (!obj.title) continue;
+        ids.push(save(me, { table: 'followups', obj, noData: true }).savedId);
+      }
+    });
+    if (!ids.length) throw new UserError('할 일을 입력하세요.');
+    return Object.assign(getAll(me), { savedIds: ids });
+  }
   function uploadMB() { const n = Number(getConfig().uploadMB); return Number.isFinite(n) && n >= 1 && n <= UPLOAD_MB_MAX ? n : UPLOAD_MB_DEFAULT; }
   function uploadLimit() { return Math.round(uploadMB() * 1024 * 1024); }
   function setMeta(key, value) {
@@ -2859,7 +2914,7 @@ function openStore(dbPath, opts) {
     db, filesDir, dbPath, listFiles, pendingSync, markSync, replaceSchedule, restoreFromDb, countTeachers, upsertAdmin, login, loginAs, logout, authenticate, addFile, getFile, addUniFile, getUniFile,
     rpc: { getAll: (me) => getAll(me), save, remove, restore, purge, getTrash, getLog, saveTeacher, changePassword, importData, copyCycle, getActivity, saveMany, updateMe,
       saveOption, removeOption, deleteTeacher, getAutomation, saveAutomation, saveEvent, removeEvent,
-      saveWithFollowups, requestFollowup, saveOrder, saveUniFile, removeUniFile, saveProgram, removeProgram, getStorage, retrySync, saveHomeLayout, saveStudentCols, saveBreak, removeBreak, requestReview, doneReview, cancelReview, excludeSched, unexcludeSched, saveAutoCat, getNotices, noticeAct, fixSubjects, saveViewPref, removeMany, restoreMany, purgeMany, addFollowupMany, addMajorsMany, renameFaculty },
+      saveWithFollowups, requestFollowup, saveOrder, saveUniFile, removeUniFile, saveProgram, removeProgram, getStorage, retrySync, saveHomeLayout, saveStudentCols, saveBreak, removeBreak, requestReview, doneReview, cancelReview, excludeSched, unexcludeSched, saveAutoCat, getNotices, noticeAct, fixSubjects, saveViewPref, removeMany, restoreMany, purgeMany, addFollowupMany, addFollowupLines, saveSite, addMajorsMany, renameFaculty },
     backup, getConfig, getMeta, recordRun, listTeachers, close: () => db.close(),
   };
 }

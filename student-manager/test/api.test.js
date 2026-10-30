@@ -2641,3 +2641,25 @@ test('팔로업 서식(할 일·세부·받은 내용): 허용한 서식만, 일
   assert.deepStrictEqual((await other.ok('getAll')).me.fuOrder, [], '다른 계정의 순서는 따로');
   assert.strictEqual((await admin.rpc('saveOrder', { kind: 'followups', ids: ['nope'] })).status, 404);
 });
+
+test('로드맵·사이트 설정(🐞 링크, 지점별 숨긴 메뉴)·팔로업 여러 줄을 따로 만들기', async () => {
+  const admin = client(); await admin.login('admin@revera.test', 'admin-pass-1');
+  const sid = (await admin.saveOk('students', { name: '로드맵학생' })).savedId;
+  let d = await admin.saveOk('roadmap', { studentId: sid, date: '2026-12-05', title: 'SAT 응시', category: '시험' });
+  assert.strictEqual(d.roadmap.find((x) => x.id === d.savedId).title, 'SAT 응시');
+  assert.strictEqual((await admin.rpc('save', { table: 'roadmap', obj: { studentId: sid, title: '날짜 없음' } })).status, 400);
+  assert.strictEqual((await admin.rpc('save', { table: 'roadmap', obj: { studentId: sid, date: '2026-12-01', title: 'x', category: '없는분류' } })).status, 400);
+  d = await admin.ok('saveSite', { bugUrl: 'https://docs.google.com/spreadsheets/d/x/edit', hideMenus: { '압구정': ['deadlines', 'nope'], '상해': [] } });
+  assert.strictEqual(d.site.bugUrl, 'https://docs.google.com/spreadsheets/d/x/edit');
+  assert.deepStrictEqual(d.site.hideMenus['압구정'], ['deadlines'], '정해진 메뉴만');
+  assert.strictEqual((await admin.rpc('saveSite', { bugUrl: 'javascript:alert(1)' })).status, 400);
+  await admin.ok('saveTeacher', { email: 'site2@revera.test', name: '사이트', role: 'staff', password: 'pass-4901' });
+  const staff = client(); await staff.login('site2@revera.test', 'pass-4901');
+  assert.strictEqual((await staff.ok('getAll')).site.bugUrl, 'https://docs.google.com/spreadsheets/d/x/edit', '모든 계정에 링크가 보임');
+  assert.strictEqual((await staff.rpc('saveSite', { bugUrl: '' })).status, 403);
+  d = await admin.ok('addFollowupLines', { obj: { studentId: sid, category: '서류', due: '2026-11-20', status: '할 일', assignee: 'admin@revera.test' },
+    lines: [{ title: '성적표 받기' }, { title: '추천서', titleHtml: '<b>추천서</b>' }] });
+  const made = d.followups.filter((x) => d.savedIds.includes(x.id));
+  assert.deepStrictEqual(made.map((x) => [x.title, x.category, x.due]).sort(), [['성적표 받기', '서류', '2026-11-20'], ['추천서', '서류', '2026-11-20']]);
+  assert.strictEqual((await admin.rpc('addFollowupLines', { obj: { studentId: sid }, lines: [{ title: '하나' }] })).status, 400);
+});
