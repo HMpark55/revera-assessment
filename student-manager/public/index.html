@@ -3723,7 +3723,7 @@ var CT_FIELDS = [
   ['계약일', function (x) { return korDate(x.c.signedDate || today()); }],
   ['시작일', function (x) { return korDate(contractStart(x.c)); }], ['종료일', function (x) { return korDate(contractEndDate(x.c)); }],
   ['담당 컨설턴트', function (x) { return teacherName(x.s.counselor); }], ['오늘', function () { return korDate(today()); }],
-  ['비용 표', null], ['지도 횟수 안내', null]];
+  ['비용 표', null], ['지도 횟수 안내', null], ['특약 입력', null]];
 /** 제3조 비용 표: 선택 프로그램 한 줄(금액 = 계약 금액, 작성 화면에서 나눠 적기) + 총 계약 금액 */
 function costTableHtml(c) {
   var p = contractPay(c), cur = p.cur || c.currency || 'RMB', tot = p.total ? Math.round(p.total).toLocaleString('ko-KR') : '', its = cItems(c), n = function (v) { return Math.round(v).toLocaleString('ko-KR'); };
@@ -3744,10 +3744,20 @@ function costTableHtml(c) {
 }
 function fillTemplate(body, s, c, g) {
   var x = { s: s, c: c, g: g }, map = {};
-  CT_FIELDS.forEach(function (f) { map[f[0]] = f[1] ? esc(String(f[1](x) || '')).split('\n').join('<br>') : costTableHtml(c); });
+  CT_FIELDS.forEach(function (f) { if (f[0] !== '특약 입력') map[f[0]] = f[1] ? esc(String(f[1](x) || '')).split('\n').join('<br>') : costTableHtml(c); });
   map['지도 횟수 안내'] = guideHtml(c);
-  return fillClean(String(body || '').replace(/<div>\{비용 표\}<\/div>/g, map['비용 표']).replace(/<div>\{지도 횟수 안내\}<\/div>/g, map['지도 횟수 안내']).replace(/\{([^{}<>]{1,20})\}/g, function (all, k) { return Object.prototype.hasOwnProperty.call(map, k) ? map[k] : all; }));
+  var out = fillClean(String(body || '').replace(/<div>\{비용 표\}<\/div>/g, map['비용 표']).replace(/<div>\{지도 횟수 안내\}<\/div>/g, map['지도 횟수 안내']).replace(/\{([^{}<>]{1,20})\}/g, function (all, k) { return Object.prototype.hasOwnProperty.call(map, k) ? map[k] : all; }));
+  return out.replace(/<div>\{특약 입력\}<\/div>/g, '<div data-ct="special">' + specialHtml(defaultSpecial(c)) + '</div>');
 }
+/** 특약사항 입력 칸: 처음 글 = 계약의 포함 범위(특약) + 할인 문구 (+ 연간이면 상하이 수업 10% 할인) */
+function defaultSpecial(c) {
+  var d = discountOf(c), p = contractPay(c), lines = String(c.scope || '').split('\n').map(function (x) { return x.trim(); }).filter(Boolean);
+  if (d) lines.push('가격표 기준 정가 ' + money(amt(c.listPrice), p.cur) + '에서 ' + money(d, p.cur) + '을 할인하여 최종 계약 금액을 ' + money(p.total, p.cur) + '으로 한다.');
+  if (c.kind === '연간') lines.push('연간 컨설팅 계약 기간 동안 REVERA 상하이 수업 수강 시 10% 할인 혜택이 제공되며, 타 할인과 중복 적용은 불가하다.');
+  return lines.join('\n');
+}
+/** 한 줄 = ▸ 한 항목 (비어 있으면 ▸ 한 줄만 — 손으로 적을 자리) */
+function specialHtml(t) { var l = String(t || '').split('\n').map(function (x) { return x.trim(); }).filter(Boolean); return (l.length ? l : ['']).map(function (x) { return '<p>▸ ' + esc(x) + '</p>'; }).join(''); }
 /** 채운 뒤 빈 줄 정리: 내용이 없는 "▸ " 줄·빈 문단·빈 안내 칸 */
 function fillClean(h) { return h.replace(/<p>▸\s*<\/p>/g, '').replace(/<p>\s*<\/p>/g, '').replace(/<div>\s*<\/div>/g, ''); }
 function cdocPill(st) { return '<span class="pill cd-' + (st === '서명 완료' ? 'ok' : st === '보냄' ? 'sent' : 'draft') + '">' + esc(st || '초안') + '</span>'; }
@@ -3781,7 +3791,7 @@ function newCdoc(cid) {
 function cdocDraft(cid) {
   var f = formData($('mf')), c = findRow('contracts', cid), s = studentById(c.studentId), t = S.ctemplates.filter(function (x) { return x.id === f.tpl; })[0];
   if (!t) return;
-  cdocEditor({ studentId: s.id, contractId: cid, templateId: t.id, title: t.name, body: fillTemplate(t.body, s, c, f.g), status: '초안' });
+  cdocEditor({ studentId: s.id, contractId: cid, templateId: t.id, title: t.name, body: fillTemplate(t.body, s, c, f.g), status: '초안', special: defaultSpecial(c) });
 }
 function openCdoc(id) { var d = findRow('cdocs', id); if (d) cdocEditor(d); }
 /** 계약서 편집 창: 위에는 상태·서명 기록, 아래는 문서 (화면에서 바로 고침) */
@@ -3796,6 +3806,7 @@ function cdocEditor(d) {
       fld('보낸 날', inp('sentAt', d.sentAt || '', 'date')) + fld('보낸 방법', inp('sentVia', d.sentVia || '', 'text', ' placeholder="예: 위챗, 이메일, 방문"')) +
       fld('서명 완료일', inp('signedAt', d.signedAt || '', 'date')) + fld('전자서명 링크', inp('signUrl', d.signUrl || '', 'text', ' placeholder="https://…"')) +
       fld('메모', inp('memo', d.memo || '', 'text')) + '</div>' +
+    (/data-ct="special"/.test(d.body) ? fld('특약사항 및 기타 추가 사항 (한 줄 = ▸ 한 항목, 적는 대로 아래 문서에 들어감)', '<textarea name="special" rows="3" oninput="spSync(this.value)">' + esc(d.special != null ? d.special : specialFromBody(d.body)) + '</textarea>', true) : '') +
     '<div class="full"><div class="rich-tb cd-tb">' +
       '<button type="button" class="rbtn-t" onmousedown="event.preventDefault()" onclick="document.execCommand(\'bold\')"><b>B</b></button>' +
       '<button type="button" class="rbtn-t" onmousedown="event.preventDefault()" onclick="document.execCommand(\'underline\')"><u>U</u></button>' +
@@ -3808,6 +3819,12 @@ function cdocEditor(d) {
     '<button class="btn ghost" onclick="closeModal()">닫기</button><button class="btn ghost" onclick="printHtml($(\'mf\').elements.title.value, $(\'cd-ed\').innerHTML)">🖨 인쇄·PDF</button><button class="btn" onclick="saveCdoc()">저장</button>');
   $('modal').querySelector('.modal').classList.add('wide');
   costSum();
+}
+function spSync(t) { var el = $('cd-ed') && $('cd-ed').querySelector('[data-ct="special"]'); if (el) { el.innerHTML = specialHtml(t); modalDirty = true; } }
+/** 예전 계약서(입력 칸 글이 저장되지 않은 것): 문서의 특약 칸 글을 입력 칸으로 */
+function specialFromBody(body) {
+  var b = document.createElement('div'); b.innerHTML = body; var el = b.querySelector('[data-ct="special"]');
+  return el ? Array.prototype.map.call(el.querySelectorAll('p'), function (p) { return p.textContent.replace(/^▸\s*/, ''); }).filter(Boolean).join('\n') : '';
 }
 function costRowAdd() {
   var t = $('cd-ed').querySelector('table[data-ct="cost"]'); if (!t) return toast('문서에 비용 표가 없습니다.', true);
@@ -3830,6 +3847,7 @@ function saveCdoc() {
   var f = formData($('mf')), o = Object.assign({}, UI.cdoc);
   if (!o.id) delete o.id; if (!o.updatedAt) delete o.updatedAt;
   ['title', 'status', 'signMethod', 'sentAt', 'sentVia', 'signedAt', 'signUrl', 'memo'].forEach(function (k) { o[k] = (f[k] || '').trim(); });
+  if ('special' in f) o.special = String(f.special || '');
   if (!o.title) return toast('제목을 입력하세요.', true);
   if (o.status === '서명 완료' && !o.signedAt) o.signedAt = today();
   if (o.status === '보냄' && !o.sentAt) o.sentAt = today();
@@ -3861,15 +3879,28 @@ function docKeepTogether(html) {
     if (n.nodeType === 1 && n.tagName === 'H3') { cur = document.createElement('div'); cur.className = 'art'; out.appendChild(cur); }
     (cur || out).appendChild(n);
   });
-  // 마지막 묶음(특약사항~서명)은 마지막 장에 따로 — 날짜·서명란을 그 장 맨 아래에 붙임
+  // 날짜·서명란은 따로 한 덩어리 (특약사항까지는 앞에 이어서, 서명란만 그 장 맨 아래로 — signToBottom)
   var last = out.lastElementChild, sig = last && last.lastElementChild;
-  if (last && last.className === 'art' && sig && sig.tagName === 'TABLE' && !sig.hasAttribute('data-ct')) {
-    last.className = 'art last';
+  if (last && sig && sig.tagName === 'TABLE' && !sig.hasAttribute('data-ct')) {
     var box = document.createElement('div'); box.className = 'sigbox';
     var date = sig.previousElementSibling && /center/.test(sig.previousElementSibling.getAttribute('style') || '') ? sig.previousElementSibling : null;
-    last.insertBefore(box, date || sig); if (date) box.appendChild(date); box.appendChild(sig);
+    if (date) box.appendChild(date); box.appendChild(sig); out.appendChild(box);
   }
   return out.innerHTML;
+}
+/** 인쇄 창: 날짜·서명란을 그 장 맨 아래로.
+ *  인쇄와 같은 크기(171×259mm)의 다단(column) 상자에 문서를 한 번 흘려 보면, 브라우저가 인쇄할 때와 같은 방식으로 쪽을 나눔
+ *  → 서명란이 놓이는 쪽과 그 쪽의 남는 높이를 그대로 재서, 그만큼 서명란 위를 띄움 */
+function signToBottom(w) {
+  var d = w.document, box = d.querySelector('.sigbox'); if (!box) return;
+  var m = d.createElement('div');
+  m.style.cssText = 'position:absolute;left:-30000px;top:0;width:171mm;height:259mm;column-width:171mm;column-gap:0;column-fill:auto;';
+  m.innerHTML = d.body.innerHTML; d.body.appendChild(m);
+  var mb = m.querySelector('.sigbox'), top = m.getBoundingClientRect().top, H = m.getBoundingClientRect().height;
+  var bottom = mb.getBoundingClientRect().bottom - top;
+  m.remove();
+  var gap = H - bottom - 6;
+  if (gap > 4) box.style.paddingTop = Math.floor(gap) + 'px';
 }
 /** 새 창에 A4 문서로 띄우고 인쇄 창 열기 (인쇄 창에서 "PDF로 저장" 가능) */
 function printHtml(title, html) {
@@ -3878,10 +3909,10 @@ function printHtml(title, html) {
     '@page { size:A4; margin:19mm 19mm 19mm 20mm; } body { margin:0; } ' + docCss('') +
     ' @media screen { body { max-width:171mm; margin:12mm auto; } } * { -webkit-print-color-adjust:exact; print-color-adjust:exact; }' +
     ' .art { break-inside:avoid; page-break-inside:avoid; }' +
-    ' .art.last { break-before:page; page-break-before:always; break-inside:auto; page-break-inside:auto; display:flex; flex-direction:column; min-height:255mm; } .sigbox { margin-top:auto; padding-top:10mm; }' +
+    ' .art, .sigbox { padding:0.5px 0; } .sigbox { break-inside:avoid; page-break-inside:avoid; }' +
     '</style></head><body>' + docKeepTogether(html) + '</body></html>');
   w.document.close(); w.focus();
-  setTimeout(function () { w.print(); }, 300);
+  setTimeout(function () { try { signToBottom(w); } catch (e) { /* 계산이 안 되면 그대로 인쇄 */ } w.print(); }, 300);
 }
 /* ----- 관리 › 계약서: 계약서 없는 계약 + 양식 ----- */
 function viewCtpl() {

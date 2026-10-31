@@ -150,6 +150,7 @@ function sanitizeDoc(html) {
         let extra = '';
         if (tag === 'td' || tag === 'th') ['colspan', 'rowspan'].forEach((a) => { const x = new RegExp('\\b' + a + '\\s*=\\s*["\']?(\\d{1,2})', 'i').exec(m[3] || ''); if (x) extra += ' ' + a + '="' + x[1] + '"'; });
         if (tag === 'table' && /\bdata-ct\s*=\s*["']?cost/i.test(m[3] || '')) extra += ' data-ct="cost"'; // 계약서의 비용 표 (줄 추가 버튼이 찾는 표시)
+        if (tag === 'div' && /\bdata-ct\s*=\s*["']?special/i.test(m[3] || '')) extra += ' data-ct="special"'; // 계약서의 특약사항 (작성 창의 입력 칸이 채움)
         out += '<' + tag + extra + (st ? ' style="' + st + '"' : '') + '>';
         stack.push(tag);
       }

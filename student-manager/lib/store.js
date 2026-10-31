@@ -121,7 +121,7 @@ const TABLES = {
   },
   cdocs: { // 계약서: 양식으로 자동 채운 뒤 고친 본문(HTML) + 보냄·서명 기록. 서명본 파일은 files.contractId 로 계약에 붙음
     label: '계약서',
-    fields: ['studentId', 'contractId', 'templateId', 'title', 'body', 'status', 'signMethod', 'sentAt', 'sentVia', 'signedAt', 'signUrl', 'memo'],
+    fields: ['studentId', 'contractId', 'templateId', 'title', 'body', 'status', 'signMethod', 'sentAt', 'sentVia', 'signedAt', 'signUrl', 'memo', 'special'], // special: 특약사항 입력 칸 글 (한 줄 = 한 항목)
     summary: (r) => [r.title, r.status].filter(Boolean).join(' · '),
   },
   semesters: { // 학기별 재학: 학기 시작일~종료일로 실제 재학 일수를 계산 (3년특례 등 재학기간 증빙)
