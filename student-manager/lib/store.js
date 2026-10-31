@@ -14,6 +14,7 @@ const crypto = require('crypto');
 const { sanitizeRich, richToText, hasFormatting, sanitizeDoc } = require('./rich');
 const { DEFAULT_TEMPLATES } = require('./contract-template');
 const { DEFAULT_PRICES } = require('./pricelist');
+const appforms = require('./appforms');
 const schedule = require('./schedule');
 const fs = require('fs');
 const path = require('path');
@@ -665,6 +666,9 @@ function migrate(db) {
   }
   // 계약서 양식 (학생과 무관, 관리자·관리팀이 고침)
   db.exec("CREATE TABLE IF NOT EXISTS ctemplates (id TEXT PRIMARY KEY, name TEXT NOT NULL DEFAULT '', kind TEXT NOT NULL DEFAULT '', body TEXT NOT NULL DEFAULT '', sortOrder TEXT NOT NULL DEFAULT '', createdAt TEXT NOT NULL DEFAULT '', createdBy TEXT NOT NULL DEFAULT '', updatedAt TEXT NOT NULL DEFAULT '', updatedBy TEXT NOT NULL DEFAULT '', deletedAt TEXT NOT NULL DEFAULT '')");
+  // 원서 연습 초안: 학생 × 양식(대학·입학 연도) 하나, data = 칸 값(JSON), done = 다 쓴 탭(JSON)
+  db.exec("CREATE TABLE IF NOT EXISTS appdrafts (id TEXT PRIMARY KEY, studentId TEXT NOT NULL, formId TEXT NOT NULL, data TEXT NOT NULL DEFAULT '{}', done TEXT NOT NULL DEFAULT '[]', createdAt TEXT NOT NULL DEFAULT '', createdBy TEXT NOT NULL DEFAULT '', updatedAt TEXT NOT NULL DEFAULT '', updatedBy TEXT NOT NULL DEFAULT '')");
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS appdrafts_sf ON appdrafts(studentId, formId)');
   if (!db.prepare("SELECT 1 FROM meta WHERE key = 'v38_ctemplates'").get()) { // 이전에 쓰던 원서 컨설팅 계약서를 기본 양식으로
     const ts = now();
     DEFAULT_TEMPLATES.forEach((t, i) => db.prepare('INSERT INTO ctemplates (id, name, kind, body, sortOrder, createdAt, createdBy, updatedAt, updatedBy) VALUES (?,?,?,?,?,?,?,?,?)')
@@ -1151,6 +1155,8 @@ function openStore(dbPath, opts) {
         .filter((r) => ids.has(r.studentId) && !(t === 'files' && r.contractId && !isManager(me))).map((r) => publicRow(t, r, me)); // 계약서 파일은 관리자·관리팀만
     }
     out.prices = isManager(me) ? getPriceList() : null;
+    out.appforms = appforms.formList();
+    out.appdrafts = db.prepare('SELECT id, studentId, formId, done, updatedAt, updatedBy FROM appdrafts').all().filter((r) => ids.has(r.studentId));
     out.ctemplates = isManager(me) ? db.prepare("SELECT * FROM ctemplates WHERE deletedAt = '' ORDER BY CAST(sortOrder AS INTEGER), name").all() : [];
     out.options = db.prepare('SELECT id, kind, value, sortOrder, url, category, color, fullName, country, city, info FROM options').all();
     out.programs = db.prepare('SELECT * FROM programs ORDER BY name').all();
@@ -2331,6 +2337,37 @@ function openStore(dbPath, opts) {
     db.prepare('UPDATE teachers SET uiPrefs = ? WHERE email = ?').run(json, me.email);
     return { ok: true };
   }
+  /** 원서 연습: 양식 + 이 학생의 초안 */
+  function getAppDraft(me, arg) {
+    const s = requireStudent(me, arg && arg.studentId), form = appforms.getForm(arg && arg.formId);
+    if (!form) throw new UserError('원서 양식을 찾을 수 없습니다.', 404);
+    return { form, draft: db.prepare('SELECT * FROM appdrafts WHERE studentId = ? AND formId = ?').get(s.id, form.id) || null };
+  }
+  /** 원서 연습 저장: 같은 초안을 다른 사람이 먼저 고쳤으면 거부 (updatedAt), 칸 값은 JSON 객체만 */
+  function saveAppDraft(me, arg) {
+    arg = arg || {};
+    const s = requireStudent(me, arg.studentId), form = appforms.getForm(arg.formId);
+    if (!form) throw new UserError('원서 양식을 찾을 수 없습니다.', 404);
+    requireEdit(me, s, 'apps', null);
+    const data = arg.data && typeof arg.data === 'object' && !Array.isArray(arg.data) ? arg.data : null;
+    if (!data) throw new UserError('원서 내용 형식이 올바르지 않습니다.');
+    const json = JSON.stringify(data);
+    if (json.length > 300000) throw new UserError('원서 내용이 너무 깁니다.');
+    const tabs = form.tabs.map((t) => t.key), done = JSON.stringify((Array.isArray(arg.done) ? arg.done : []).filter((k) => tabs.includes(k)));
+    const cur = db.prepare('SELECT * FROM appdrafts WHERE studentId = ? AND formId = ?').get(s.id, form.id), t = now();
+    if (cur) {
+      if (arg.updatedAt !== undefined && arg.updatedAt !== cur.updatedAt) {
+        const who = getTeacher(cur.updatedBy);
+        throw new UserError('그 사이 ' + (who ? who.name : cur.updatedBy) + ' 님이 이 원서를 먼저 고쳤습니다. 새로고침 후 다시 입력해주세요.', 409);
+      }
+      db.prepare('UPDATE appdrafts SET data = ?, done = ?, updatedAt = ?, updatedBy = ? WHERE id = ?').run(json, done, t, me.email, cur.id);
+      return { id: cur.id, updatedAt: t };
+    }
+    const id = newId();
+    db.prepare('INSERT INTO appdrafts (id, studentId, formId, data, done, createdAt, createdBy, updatedAt, updatedBy) VALUES (?,?,?,?,?,?,?,?,?)').run(id, s.id, form.id, json, done, t, me.email, t, me.email);
+    log(me.email, 'create', 'appdrafts', id, s.name + ' · 원서 연습 ' + form.uni + ' ' + form.intake);
+    return { id, updatedAt: t };
+  }
   /** 가격표 (관리자·관리팀이 고침, 처음엔 기본 가격표) */
   function getPriceList() {
     try { const o = JSON.parse(getMeta('site.prices') || 'null'); if (o && Array.isArray(o.rows)) return o; } catch (e) { /* 기본값 */ }
@@ -3071,7 +3108,7 @@ function openStore(dbPath, opts) {
     db, filesDir, dbPath, listFiles, pendingSync, markSync, replaceSchedule, restoreFromDb, countTeachers, upsertAdmin, login, loginAs, logout, authenticate, addFile, getFile, addUniFile, getUniFile,
     rpc: { getAll: (me) => getAll(me), save, remove, restore, purge, getTrash, getLog, saveTeacher, changePassword, importData, copyCycle, getActivity, saveMany, updateMe,
       saveOption, removeOption, deleteTeacher, getAutomation, saveAutomation, saveEvent, removeEvent,
-      saveWithFollowups, requestFollowup, saveOrder, saveUniFile, removeUniFile, saveProgram, removeProgram, getStorage, retrySync, saveHomeLayout, saveStudentCols, saveBreak, removeBreak, requestReview, doneReview, cancelReview, excludeSched, unexcludeSched, saveAutoCat, getNotices, noticeAct, fixSubjects, saveViewPref, savePref, getPrefs, saveCTemplate, removeCTemplate, savePriceList, removeMany, restoreMany, purgeMany, addFollowupMany, addFollowupLines, saveSite, addMajorsMany, renameFaculty },
+      saveWithFollowups, requestFollowup, saveOrder, saveUniFile, removeUniFile, saveProgram, removeProgram, getStorage, retrySync, saveHomeLayout, saveStudentCols, saveBreak, removeBreak, requestReview, doneReview, cancelReview, excludeSched, unexcludeSched, saveAutoCat, getNotices, noticeAct, fixSubjects, saveViewPref, savePref, getPrefs, saveCTemplate, removeCTemplate, savePriceList, getAppDraft, saveAppDraft, removeMany, restoreMany, purgeMany, addFollowupMany, addFollowupLines, saveSite, addMajorsMany, renameFaculty },
     studentSheetData, backup, getConfig, getMeta, recordRun, listTeachers, close: () => db.close(),
   };
 }
