@@ -2756,3 +2756,35 @@ test('원서용 학생 정보 엑셀: 새 칸(여권·부모 영문명·학교 �
   const kim = await newUser(admin, 'sheetkim@revera.test', 'consultant');
   assert.strictEqual((await kim.req('GET', '/api/student-sheet?ids=' + sid + '&parts=info')).status, 403, '담당 아닌 학생');
 });
+
+test('계약서: 기본 양식(이전 원서 계약서), 계약서 저장·검사(본문 정리), 서명본 파일은 관리자·관리팀만, 양식 추가·삭제', async () => {
+  const admin = client(); await admin.login('admin@revera.test', 'admin-pass-1');
+  let d = await admin.ok('getAll');
+  const tpl = d.ctemplates.find((t) => t.name === 'REVERA 원서 컨설팅 계약서');
+  assert.ok(tpl && tpl.body.includes('{비용 표}') && tpl.body.includes('의뢰인이 선택한 항목') && !tpl.body.includes('의외인'), '기본 양식 (오타 고침)');
+  const kim = await newUser(admin, 'cdkim@revera.test', 'consultant');
+  const sid = (await admin.saveOk('students', { name: '계약서학생', counselor: 'cdkim@revera.test' })).savedId;
+  const cid = (await admin.saveOk('contracts', { studentId: sid, kind: '원서', tier: 'Standard', amount: '30000', currency: 'RMB' })).savedId;
+  const body = '<h1 style="text-align: center" onclick="x()">계약서</h1><table data-ct="cost"><tr><td colspan="2">선택</td><td>30,000</td></tr></table><script>alert(1)</script><img src=x onerror=alert(1)>';
+  d = await admin.saveOk('cdocs', { studentId: sid, contractId: cid, templateId: tpl.id, title: '원서 계약서', body, status: '보냄', signMethod: '안내형', sentAt: '2026-10-31', sentVia: '위챗' });
+  const doc = d.cdocs.find((x) => x.id === d.savedId);
+  assert.strictEqual(doc.body, '<h1 style="text-align: center">계약서</h1><table data-ct="cost"><tr><td colspan="2">선택</td><td>30,000</td></tr></table>', '스크립트·이미지·이벤트 지움');
+  assert.strictEqual((await admin.save('cdocs', { studentId: sid, contractId: cid, title: 'x', status: '없는상태' })).status, 400);
+  assert.strictEqual((await admin.save('cdocs', { studentId: sid, contractId: 'nope', title: 'x' })).status, 404);
+  assert.strictEqual((await admin.save('cdocs', { studentId: sid, contractId: cid, title: 'x', signUrl: 'javascript:1' })).status, 400);
+  // 서명본 파일: 계약에 붙고, 컨설턴트에게는 안 보임
+  const up = await admin.req('POST', '/api/files/upload?studentId=' + sid + '&contractId=' + cid, undefined, { 'Content-Type': 'application/octet-stream', 'X-File-Name': encodeURIComponent('서명본.pdf') }, Buffer.from('%PDF-1.4 signed'));
+  assert.strictEqual(up.status, 200, JSON.stringify(up.data));
+  const f = up.data.files.find((x) => x.contractId === cid);
+  assert.ok(f && f.category === '계약서');
+  const kd = await kim.ok('getAll');
+  assert.ok(!kd.files.some((x) => x.id === f.id) && !kd.cdocs.length && !kd.ctemplates.length, '컨설턴트에게는 계약서·양식 안 보임');
+  assert.strictEqual((await kim.req('GET', '/api/files/' + f.id)).status, 403);
+  assert.strictEqual((await kim.req('POST', '/api/files/upload?studentId=' + sid + '&contractId=' + cid, undefined, { 'Content-Type': 'application/octet-stream', 'X-File-Name': encodeURIComponent('a.pdf') }, Buffer.from('%PDF'))).status, 403);
+  assert.strictEqual((await kim.rpc('saveCTemplate', { name: 'x', body: '<p>x</p>' })).status, 403);
+  // 양식 추가·삭제
+  d = await admin.ok('saveCTemplate', { name: '연간 계약서', kind: '연간', body: '<h1>연간</h1><p>{학생 이름}</p><script>x</script>' });
+  assert.strictEqual(d.ctemplates.find((t) => t.id === d.savedId).body, '<h1>연간</h1><p>{학생 이름}</p>');
+  d = await admin.ok('removeCTemplate', { id: d.savedId });
+  assert.ok(!d.ctemplates.some((t) => t.name === '연간 계약서'));
+});

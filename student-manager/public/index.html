@@ -364,6 +364,17 @@
   .sem-d { width:auto; padding:2px 4px; font-size:.82rem; } tr.sem-total td { background:#f6f2e3; }
   .seg-r { display:flex; flex-direction:column; gap:4px; } .seg-r label, .sh-parts label { display:inline-flex; gap:5px; align-items:center; color:#222; cursor:pointer; }
   .sh-parts { display:grid; grid-template-columns:repeat(auto-fill, minmax(170px, 1fr)); gap:4px 12px; }
+  .modal.wide { max-width:900px; }
+  .cdocs { margin-top:10px; padding-top:8px; border-top:1px dashed #d5dbe6; }
+  .cdoc-row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:4px 0; font-size:.88rem; } .cdoc-row .click { cursor:pointer; text-decoration:underline; }
+  .cdoc-files { display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-top:4px; }
+  .pill.cd-ok { background:#dcf3e4; color:#15803d; } .pill.cd-sent { background:#fff1d6; color:#b45309; } .pill.cd-draft { background:#eceef1; color:#4b5563; } .pill.cd-none { background:#fde8e8; color:#b42318; }
+  .cd-meta { display:grid; grid-template-columns:repeat(4, 1fr); gap:6px 10px; } .cd-meta > div:first-child { grid-column:span 2; }
+  @media (max-width: 800px) { .cd-meta { grid-template-columns:1fr 1fr; } }
+  .cd-tb select { font-size:.8rem; padding:3px 6px; }
+  .cdoc-ed { border:1px solid var(--border); border-radius:6px; padding:22px 28px; max-height:62vh; overflow:auto; background:#fff; font-size:.92rem; line-height:1.65; }
+  .cdoc-ed h1 { font-size:1.35rem; margin:0 0 4px; } .cdoc-ed h3 { font-size:1rem; margin:14px 0 4px; } .cdoc-ed p { margin:3px 0; }
+  .cdoc-ed table { width:100%; border-collapse:collapse; margin:8px 0; } .cdoc-ed td, .cdoc-ed th { border:1px solid #9aa3b5; padding:6px 8px; vertical-align:top; } .cdoc-ed th { background:#f1f3f7; }
   .fu-split { display:flex; flex-wrap:wrap; gap:6px 16px; align-items:center; margin-top:6px; padding:8px 10px; background:#f5f7fb; border-radius:8px; font-size:.85rem; }
   .fu-split .fs-t, .seg-r .fs-t { font-weight:600; }
   .fu-split label { display:inline-flex; align-items:center; gap:4px; color:#222; cursor:pointer; }
@@ -716,7 +727,7 @@ var DOC_DONE = ['수합 완료', '해당 없음'];
 /** 서류 탭 서류 이름 예시 */
 var DOC_PRESETS = ['성적증명서', '재학증명서', '졸업증명서', '출입국사실증명서(학생)', '출입국사실증명서(부)', '출입국사실증명서(모)', '여권 사본', '가족관계증명서', '추천서'];
 var STORY_STATUS = ['작성 전', '검토 중', '확정'];
-var CHILD = ['appinfo', 'notes', 'contracts', 'payments', 'apps', 'scores', 'activities', 'docs', 'links', 'files', 'followups', 'fureplies', 'majorplans', 'schools', 'courses', 'accounts', 'meetings', 'semesters',
+var CHILD = ['appinfo', 'notes', 'contracts', 'payments', 'apps', 'scores', 'activities', 'docs', 'links', 'files', 'followups', 'fureplies', 'majorplans', 'schools', 'courses', 'accounts', 'meetings', 'semesters', 'cdocs',
   'universities', 'unicycles', 'unirounds', 'unimajors'];
 var CATALOG_TABLES = ['universities', 'unicycles', 'unirounds', 'unimajors'];
 var FOLLOWUP_STATUS = ['할 일', '진행 중', '대기', '완료'];
@@ -1014,6 +1025,7 @@ function load(data) {
   S.programs = data.programs || [];
   S.homeDefault = data.homeDefault || null;
   S.reviews = data.reviews || [];
+  S.ctemplates = data.ctemplates || [];
   viewPrefsLoad();
   S.site = data.site || { bugUrl: '', hideMenus: {}, hideable: [] };
   if ('devAs' in data) { S.devAs = data.devAs; devBanner(); } // 개발자가 다른 계정으로 보는 중 (화면 전체를 불러올 때만 실려 옴)
@@ -1623,7 +1635,7 @@ function render() {
   var r = route();
   var work = [['students', isMgr() ? '학생' : '담당 학생'], ['followups', '팔로업·연락'], ['meetings', '미팅'], ['deadlines', '원서 관리'], ['unis', '대학 정보'], ['programs', '대회·프로그램'], ['results', '합격 실적']].filter(function (i) { return !menuHidden(i[0]); });
   var admin = [];
-  if (isMgr()) admin.push(['sales', '매출'], ['unilist', '목록 관리']);
+  if (isMgr()) admin.push(['sales', '매출'], ['ctpl', '계약서'], ['unilist', '목록 관리']);
   if (isAdmin()) admin.push(['teachers', '계정 관리'], ['settings', '백업·알림'], ['storage', '저장 공간'], ['log', '변경 기록']);
   if (isMgr()) admin.push(['trash', '휴지통']);
   var cur = r.view === 'student' ? 'students' : r.view === 'uni' || r.view === 'map' ? 'unis' : r.view === 'program' ? 'programs' : r.view;
@@ -1638,7 +1650,7 @@ function render() {
   $('who').classList.remove('open');
   var v = { home: viewHome, students: viewStudents, student: viewStudent, materials: viewMaterials, deadlines: viewDeadlines,
     unis: viewUnis, uni: viewUni, followups: viewFollowups, search: viewSearch,
-    results: viewResults, map: viewMap, sales: viewSales, trash: viewTrash, teachers: viewTeachers, log: viewLog, me: viewMe, unilist: viewLists, programs: viewPrograms, program: viewProgram, meetings: viewMeetings, settings: viewSettings, storage: viewStorage }[r.view] || viewHome;
+    results: viewResults, map: viewMap, sales: viewSales, trash: viewTrash, teachers: viewTeachers, log: viewLog, me: viewMe, unilist: viewLists, programs: viewPrograms, program: viewProgram, meetings: viewMeetings, settings: viewSettings, storage: viewStorage, ctpl: viewCtpl }[r.view] || viewHome;
   UI._view = function () { return v(route().id); };
   UI.brAll = r.view === 'student' || r.view === 'search';
   document.body.classList.toggle('wide', r.view === 'home');
@@ -2895,7 +2907,7 @@ function viewStudent(id) {
       (s.progress ? '<div class="muted" style="font-size:.75rem">' + esc(fmtTime(s.updatedAt)) + ' · ' + esc(teacherName(s.updatedBy)) + ' 마지막 수정</div>' : '') + '</div>' +
     '</div>';
   var tabLink = function (t) {
-    var n = t === 'summary' ? null : t === 'followups' ? openFollowups(id).length : t === 'profile' ? null : t === 'scores' ? childOf('schools', id).length + childOf('courses', id).length + childOf('scores', id).length + childOf('files', id).filter(function (f) { return !f.docId && !f.meetingId && !f.followupId && !f.scoreId; }).length :
+    var n = t === 'summary' ? null : t === 'followups' ? openFollowups(id).length : t === 'profile' ? null : t === 'scores' ? childOf('schools', id).length + childOf('courses', id).length + childOf('scores', id).length + childOf('files', id).filter(function (f) { return !f.docId && !f.meetingId && !f.followupId && !f.scoreId && !f.contractId; }).length :
       t === 'accounts' ? childOf('accounts', id).length : t === 'meetings' ? childOf('meetings', id).length + (isMgr() ? notesOf(id).length : 0) :
       t === 'majors' ? childOf('majorplans', id).filter(function (m) { return m.status !== '제외'; }).length :
       t === 'notes' ? timelineOf(id).length : ['contracts', 'apps', 'docs', 'schools', 'appinfo'].indexOf(t) >= 0 ? childOf(t, id).length : null;
@@ -3631,10 +3643,181 @@ function tabContracts(s) {
             '<td class="nw">' + esc(pm.method) + '</td><td class="muted">' + esc(pm.memo) + '</td><td class="nw muted">' + esc(teacherName(pm.createdBy)) + '</td></tr>';
         }).join('') + '</tbody></table>' : '<div class="muted">입금 기록이 없습니다.</div>') + '</div>';
     }
+    if (isMgr()) x += contractDocsBox(s, c);
     return x + '</div>';
   }).join('') + '</div>';
 }
 
+/* ============================== 계약서: 양식 → 자동 채움 → 고치기 → 인쇄·PDF, 서명 기록·서명본 파일 ============================== */
+var CDOC_STATUS = ['초안', '보냄', '서명 완료'];
+var SIGN_METHODS = ['방문 서명', '안내형', '전자서명'];
+function korDate(d) { return /^\d{4}-\d{2}-\d{2}/.test(d || '') ? Number(d.slice(0, 4)) + '년 ' + Number(d.slice(5, 7)) + '월 ' + Number(d.slice(8, 10)) + '일' : ''; }
+/** 양식의 {칸 이름} → 계약·학생 정보 (g: 보호자 'mother' | 'father') */
+var CT_FIELDS = [
+  ['학생 이름', function (x) { return x.s.name; }], ['학생 영문 이름', function (x) { return x.s.englishName; }], ['학생 생년월일', function (x) { return korDate(x.s.dob); }],
+  ['학교', function (x) { return x.s.school; }], ['학년', function (x) { return x.s.grade; }], ['학생 주소', function (x) { return x.s.address; }],
+  ['보호자 이름', function (x) { return x.g === 'father' ? x.s.fatherName : x.s.motherName || x.s.parentName; }],
+  ['보호자 연락처', function (x) { return x.g === 'father' ? x.s.fatherPhone : x.s.motherPhone || x.s.parentPhone; }],
+  ['계약 종류', function (x) { return x.c.kind; }], ['등급', function (x) { return x.c.tier; }], ['기간', function (x) { return x.c.term; }],
+  ['포함 국가', function (x) { return tags(x.c.packages).join(', '); }],
+  ['계약 금액', function (x) { var p = contractPay(x.c); return p.total ? money(p.total, p.cur) : ''; }],
+  ['잔금 납부 기한', function (x) { return korDate(x.c.payDue); }],
+  ['납부 안내', function (x) { return x.c.payDue ? '잔금 납부 기한: ' + korDate(x.c.payDue) : ''; }],
+  ['특약사항', function (x) { return x.c.scope; }],
+  ['계약일', function (x) { return korDate(x.c.signedDate || today()); }],
+  ['시작일', function (x) { return korDate(contractStart(x.c)); }], ['종료일', function (x) { return korDate(contractEndDate(x.c)); }],
+  ['담당 컨설턴트', function (x) { return teacherName(x.s.counselor); }], ['오늘', function () { return korDate(today()); }],
+  ['비용 표', null]];
+/** 제3조 비용 표: 선택 프로그램 한 줄(금액 = 계약 금액, 작성 화면에서 나눠 적기) + 총 계약 금액 */
+function costTableHtml(c) {
+  var p = contractPay(c), cur = p.cur || c.currency || 'RMB', tot = p.total ? Math.round(p.total).toLocaleString('ko-KR') : '';
+  var what = [c.tier, c.kind && c.kind + ' 컨설팅'].filter(Boolean).join(' ') + (tags(c.packages).length ? ' · ' + tags(c.packages).join(', ') : '');
+  return '<table data-ct="cost"><thead><tr><th style="width: 22%">항목</th><th style="width: 53%">내용</th><th style="width: 25%">금액 (' + esc(cur) + ')</th></tr></thead><tbody>' +
+    '<tr><td>선택 프로그램</td><td>' + esc(what) + '</td><td style="text-align: right">' + esc(tot) + '</td></tr>' +
+    '<tr><th>총 계약 금액</th><td></td><td style="text-align: right"><b>' + esc(cur + ' ' + tot) + '</b></td></tr></tbody></table>';
+}
+function fillTemplate(body, s, c, g) {
+  var x = { s: s, c: c, g: g }, map = {};
+  CT_FIELDS.forEach(function (f) { map[f[0]] = f[1] ? esc(String(f[1](x) || '')).split('\n').join('<br>') : costTableHtml(c); });
+  return String(body || '').replace(/<div>\{비용 표\}<\/div>/g, map['비용 표']).replace(/\{([^{}<>]{1,20})\}/g, function (all, k) { return Object.prototype.hasOwnProperty.call(map, k) ? map[k] : all; });
+}
+function cdocPill(st) { return '<span class="pill cd-' + (st === '서명 완료' ? 'ok' : st === '보냄' ? 'sent' : 'draft') + '">' + esc(st || '초안') + '</span>'; }
+/** 계약 카드 안: 이 계약의 계약서들 + 서명본 파일 + 작성·올리기 */
+function contractDocsBox(s, c) {
+  var docs = childOf('cdocs', s.id).filter(function (d) { return d.contractId === c.id; }).sort(function (a, b) { return a.createdAt.localeCompare(b.createdAt); });
+  var files = childOf('files', s.id).filter(function (f) { return f.contractId === c.id; }).sort(function (a, b) { return b.createdAt.localeCompare(a.createdAt); });
+  var done = docs.some(function (d) { return d.status === '서명 완료'; }) || files.length;
+  return '<div class="cdocs"><div class="sec-h" style="margin:0 0 6px"><span class="muted">📄 계약서 ' + (done ? '<span class="pill cd-ok">있음</span>' : docs.length ? '<span class="pill cd-sent">서명 전</span>' : '<span class="pill cd-none">계약서 없음</span>') + '</span>' +
+    '<span class="toolbar" style="margin:0"><button class="btn ghost sm" onclick="newCdoc(' + js(c.id) + ')">📝 계약서 작성</button>' +
+    dropBox('uploadFiles(this,' + js(s.id) + ',null,null,' + js(c.id) + ')', { sm: 1 }) + '</span></div>' +
+    docs.map(function (d) {
+      var when = d.status === '서명 완료' && d.signedAt ? '서명 ' + fmtD(d.signedAt) : d.sentAt ? '보냄 ' + fmtD(d.sentAt) + (d.sentVia ? ' · ' + d.sentVia : '') : '고침 ' + fmtTime(d.updatedAt).slice(0, 10);
+      return '<div class="cdoc-row"><b class="click" onclick="openCdoc(' + js(d.id) + ')">' + esc(d.title) + '</b> ' + cdocPill(d.status) + (d.signMethod ? ' <span class="muted">' + esc(d.signMethod) + '</span>' : '') +
+        ' <span class="muted">' + esc(when) + '</span><span style="margin-left:auto" class="nw"><button class="btn ghost sm" onclick="openCdoc(' + js(d.id) + ')">열기·고치기</button> <button class="btn ghost sm" onclick="printCdoc(' + js(d.id) + ')">🖨 인쇄·PDF</button></span></div>';
+    }).join('') +
+    (files.length ? '<div class="cdoc-files">' + files.map(function (f) { return '<span class="shot-wrap" id="fw-' + esc(f.id) + '">' + fileThumb(f) + '<button type="button" class="ibtn" title="이 파일 지우기 (휴지통)" onclick="removeFormFile(' + js(f.id) + ')">✕</button></span>'; }).join('') + dlBtn(files, s.name + ' 계약서') + '</div>' : '') + '</div>';
+}
+/** 새 계약서: 양식·보호자 고르기 → 자동 채운 초안 */
+function newCdoc(cid) {
+  var c = findRow('contracts', cid), s = c && studentById(c.studentId); if (!s) return;
+  var tp = S.ctemplates.slice().sort(function (a, b) { return (a.kind === c.kind ? 0 : 1) - (b.kind === c.kind ? 0 : 1); });
+  if (!tp.length) return toast('계약서 양식이 없습니다. 관리 › 계약서에서 먼저 양식을 만들어주세요.', true);
+  var g = s.motherName || s.motherPhone || !s.fatherName ? 'mother' : 'father';
+  modal('📝 계약서 작성 — ' + s.name + ' · ' + contractLabel(c),
+    fld('양식', '<select name="tpl">' + tp.map(function (t) { return '<option value="' + esc(t.id) + '">' + esc(t.name) + (t.kind ? ' (' + esc(t.kind) + ')' : '') + '</option>'; }).join('') + '</select>', true) +
+    fld('보호자 (성명·전화에 들어갈 분)', '<select name="g"><option value="mother"' + (g === 'mother' ? ' selected' : '') + '>어머님 ' + esc(s.motherName || '') + '</option><option value="father"' + (g === 'father' ? ' selected' : '') + '>아버님 ' + esc(s.fatherName || '') + '</option></select>', true) +
+    '<div class="full muted" style="font-size:.82rem">계약 정보(종류·등급·포함 국가·금액·잔금 기한·특약)와 학생·보호자 정보로 양식을 채운 초안이 열립니다. 비어 있는 정보는 빈칸으로 남으니 초안에서 바로 적으면 됩니다.</div>',
+    '<button class="btn ghost" onclick="closeModal()">취소</button><button class="btn" onclick="cdocDraft(' + js(cid) + ')">초안 만들기</button>');
+}
+function cdocDraft(cid) {
+  var f = formData($('mf')), c = findRow('contracts', cid), s = studentById(c.studentId), t = S.ctemplates.filter(function (x) { return x.id === f.tpl; })[0];
+  if (!t) return;
+  cdocEditor({ studentId: s.id, contractId: cid, templateId: t.id, title: t.name, body: fillTemplate(t.body, s, c, f.g), status: '초안' });
+}
+function openCdoc(id) { var d = findRow('cdocs', id); if (d) cdocEditor(d); }
+/** 계약서 편집 창: 위에는 상태·서명 기록, 아래는 문서 (화면에서 바로 고침) */
+function cdocEditor(d) {
+  var c = findRow('contracts', d.contractId), s = studentById(d.studentId);
+  UI.cdoc = { id: d.id || '', studentId: d.studentId, contractId: d.contractId, templateId: d.templateId || '', updatedAt: d.updatedAt || '' };
+  var o = function (list, v) { return list.map(function (x) { return '<option' + (x === v ? ' selected' : '') + '>' + esc(x) + '</option>'; }).join(''); };
+  modal((d.id ? '계약서 — ' : '새 계약서 — ') + s.name + ' · ' + contractLabel(c),
+    '<div class="full cd-meta">' +
+      fld('제목', inp('title', d.title || '', 'text')) + fld('상태', '<select name="status">' + o(CDOC_STATUS, d.status || '초안') + '</select>') +
+      fld('서명 방식', '<select name="signMethod"><option value="">— 고르기 —</option>' + o(SIGN_METHODS, d.signMethod) + '</select>') +
+      fld('보낸 날', inp('sentAt', d.sentAt || '', 'date')) + fld('보낸 방법', inp('sentVia', d.sentVia || '', 'text', ' placeholder="예: 위챗, 이메일, 방문"')) +
+      fld('서명 완료일', inp('signedAt', d.signedAt || '', 'date')) + fld('전자서명 링크', inp('signUrl', d.signUrl || '', 'text', ' placeholder="https://…"')) +
+      fld('메모', inp('memo', d.memo || '', 'text')) + '</div>' +
+    '<div class="full"><div class="rich-tb cd-tb">' +
+      '<button type="button" class="rbtn-t" onmousedown="event.preventDefault()" onclick="document.execCommand(\'bold\')"><b>B</b></button>' +
+      '<button type="button" class="rbtn-t" onmousedown="event.preventDefault()" onclick="document.execCommand(\'underline\')"><u>U</u></button>' +
+      '<span class="rsep"></span><button type="button" class="rbtn-t" onmousedown="event.preventDefault()" onclick="document.execCommand(\'justifyLeft\')">왼쪽</button>' +
+      '<button type="button" class="rbtn-t" onmousedown="event.preventDefault()" onclick="document.execCommand(\'justifyCenter\')">가운데</button>' +
+      '<span class="rsep"></span><button type="button" class="rbtn-t" onclick="costRowAdd()">＋ 비용 표 줄</button><span class="muted" id="cd-sum" style="margin-left:8px;font-size:.8rem"></span></div>' +
+      '<div class="cdoc-ed" id="cd-ed" contenteditable="true" spellcheck="false" oninput="modalDirty=true;costSum()">' + d.body + '</div>' +
+      '<div class="muted" style="font-size:.78rem;margin-top:4px">문서를 눌러 바로 고치세요. 비용 표는 칸을 눌러 항목·금액을 나눠 적고, 「＋ 비용 표 줄」로 줄을 늘립니다. 서명본 스캔·회신 캡처는 계약 카드의 📎 칸에 올리세요.</div></div>',
+    (d.id ? '<button class="btn danger" style="margin-right:auto" onclick="delCdoc(' + js(d.id) + ')">삭제</button>' : '') +
+    '<button class="btn ghost" onclick="closeModal()">닫기</button><button class="btn ghost" onclick="printHtml($(\'mf\').elements.title.value, $(\'cd-ed\').innerHTML)">🖨 인쇄·PDF</button><button class="btn" onclick="saveCdoc()">저장</button>');
+  $('modal').querySelector('.modal').classList.add('wide');
+  costSum();
+}
+function costRowAdd() {
+  var t = $('cd-ed').querySelector('table[data-ct="cost"]'); if (!t) return toast('문서에 비용 표가 없습니다.', true);
+  var rows = t.querySelectorAll('tr'), last = rows[rows.length - 1], tr = document.createElement('tr');
+  tr.innerHTML = '<td>항목</td><td></td><td style="text-align: right"></td>';
+  last.parentNode.insertBefore(tr, last); modalDirty = true; costSum();
+}
+/** 비용 표 항목 금액 합계 ↔ 계약 금액 (다르면 알려줌) */
+function costSum() {
+  var el = $('cd-sum'), t = $('cd-ed') && $('cd-ed').querySelector('table[data-ct="cost"]'); if (!el) return;
+  if (!t) { el.textContent = ''; return; }
+  var c = findRow('contracts', UI.cdoc.contractId), p = c ? contractPay(c) : { total: 0, cur: '' }, sum = 0;
+  Array.prototype.forEach.call(t.querySelectorAll('tbody tr'), function (tr) { if (tr.querySelector('th')) return; var td = tr.cells[tr.cells.length - 1]; sum += amt(td && td.textContent); });
+  el.innerHTML = '항목 합계 ' + money(sum, p.cur) + (p.total && Math.round(sum) !== Math.round(p.total) ? ' <b style="color:var(--error)">≠ 계약 금액 ' + money(p.total, p.cur) + '</b>' : p.total ? ' ✓' : '');
+}
+function saveCdoc() {
+  var f = formData($('mf')), o = Object.assign({}, UI.cdoc);
+  if (!o.id) delete o.id; if (!o.updatedAt) delete o.updatedAt;
+  ['title', 'status', 'signMethod', 'sentAt', 'sentVia', 'signedAt', 'signUrl', 'memo'].forEach(function (k) { o[k] = (f[k] || '').trim(); });
+  if (!o.title) return toast('제목을 입력하세요.', true);
+  if (o.status === '서명 완료' && !o.signedAt) o.signedAt = today();
+  if (o.status === '보냄' && !o.sentAt) o.sentAt = today();
+  o.body = $('cd-ed').innerHTML;
+  mutate('save', { table: 'cdocs', obj: o }, '계약서를 저장했습니다.');
+}
+function delCdoc(id) { if (!confirm('이 계약서를 휴지통으로 옮길까요?')) return; mutate('remove', { table: 'cdocs', id: id }, '휴지통으로 옮겼습니다.'); }
+function printCdoc(id) { var d = findRow('cdocs', id); if (d) printHtml(d.title, d.body); }
+/** 새 창에 A4 문서로 띄우고 인쇄 창 열기 (인쇄 창에서 "PDF로 저장" 가능) */
+function printHtml(title, html) {
+  var w = window.open('', '_blank'); if (!w) return toast('팝업이 막혀 있습니다. 이 사이트의 팝업을 허용해주세요.', true);
+  w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>' + esc(title || '계약서') + '</title><style>' +
+    '@page { size:A4; margin:18mm 16mm; } body { font-family:"Malgun Gothic","Apple SD Gothic Neo",sans-serif; font-size:10.5pt; line-height:1.65; color:#111; margin:0; }' +
+    'h1 { font-size:17pt; margin:0 0 4px; } h3 { font-size:11pt; margin:14px 0 4px; } p { margin:3px 0; }' +
+    'table { width:100%; border-collapse:collapse; margin:8px 0; page-break-inside:avoid; } td, th { border:1px solid #444; padding:6px 8px; vertical-align:top; } th { background:#f1f3f7; }' +
+    '</style></head><body>' + html + '</body></html>');
+  w.document.close(); w.focus(); setTimeout(function () { w.print(); }, 300);
+}
+/* ----- 관리 › 계약서: 계약서 없는 계약 + 양식 ----- */
+function viewCtpl() {
+  if (!isMgr()) return '<div class="card empty">관리자·관리팀만 볼 수 있습니다.</div>';
+  var miss = (S.contracts || []).filter(function (c) {
+    var s = studentById(c.studentId); if (!s || !isActive(s)) return false;
+    return !childOf('cdocs', s.id).some(function (d) { return d.contractId === c.id && d.status === '서명 완료'; }) && !childOf('files', s.id).some(function (f) { return f.contractId === c.id; });
+  }).sort(function (a, b) { return studentById(a.studentId).name.localeCompare(studentById(b.studentId).name, 'ko'); });
+  var h = '<div class="toolbar"><h2 style="margin:0;margin-right:auto">계약서</h2><button class="btn" onclick="editCtpl()">+ 새 양식</button></div>';
+  h += '<div class="card">' + secHead('계약서 없는 계약 <span class="muted">' + miss.length + '건 · 서명 완료된 계약서나 올린 계약서 파일이 없는 계약 (진행 중 학생, 지금 보는 지점)</span>') +
+    (miss.length ? '<div class="tbl-wrap"><table class="compact"><thead><tr><th>학생</th><th>계약</th><th>기간</th><th>작성 중</th><th></th></tr></thead><tbody>' + miss.map(function (c) {
+      var s = studentById(c.studentId), st = contractStart(c), end = contractEndDate(c), dr = childOf('cdocs', s.id).filter(function (d) { return d.contractId === c.id; });
+      return '<tr><td><a href="javascript:void(0)" onclick="openStudent(' + js(s.id) + ',\'contracts\')"><b>' + esc(s.name) + '</b></a></td><td>' + esc(contractLabel(c)) + '</td><td class="nw">' + esc([st && fmtD(st), end && fmtD(end)].filter(Boolean).join(' ~ ')) + '</td>' +
+        '<td>' + dr.map(function (d) { return cdocPill(d.status); }).join(' ') + '</td><td class="nw"><button class="btn ghost sm" onclick="newCdoc(' + js(c.id) + ')">📝 작성</button> <button class="btn ghost sm" onclick="openStudent(' + js(s.id) + ',\'contracts\')">파일 올리기 →</button></td></tr>';
+    }).join('') + '</tbody></table></div>' : '<div class="empty">모든 계약에 계약서가 있습니다. 👍</div>') + '</div>';
+  h += '<div class="card">' + secHead('양식 <span class="muted">{학생 이름} 같은 칸은 계약서를 만들 때 계약·학생 정보로 채워집니다</span>') +
+    (S.ctemplates.length ? '<table class="compact"><tbody>' + S.ctemplates.map(function (t) {
+      return '<tr><td><b>' + esc(t.name) + '</b>' + (t.kind ? ' <span class="pill">' + esc(t.kind) + '</span>' : '') + '</td><td class="muted nw">' + esc(fmtTime(t.updatedAt)) + ' · ' + esc(t.updatedBy === 'system' ? '기본 양식' : teacherName(t.updatedBy) || t.updatedBy) + '</td>' +
+        '<td class="nw"><button class="btn ghost sm" onclick="editCtpl(' + js(t.id) + ')">수정</button> <button class="btn ghost sm" onclick="editCtpl(' + js(t.id) + ',1)">복사해서 새 양식</button> <button class="btn ghost sm" onclick="printHtml(' + js(t.name) + ',ctplById(' + js(t.id) + ').body)">🖨 미리보기</button> <button class="btn ghost sm" onclick="delCtpl(' + js(t.id) + ')">삭제</button></td></tr>';
+    }).join('') + '</tbody></table>' : '<div class="empty">양식이 없습니다.</div>') + '</div>';
+  return h;
+}
+function ctplById(id) { return S.ctemplates.filter(function (t) { return t.id === id; })[0]; }
+function editCtpl(id, copy) {
+  var t = id ? ctplById(id) : { name: '', kind: '원서', body: '<h1 style="text-align: center">계약서 제목</h1><p>본문</p>' };
+  if (!t) return;
+  UI.ctpl = { id: copy ? '' : t.id || '', updatedAt: copy ? '' : t.updatedAt || '' };
+  modal(copy ? '양식 복사' : id ? '양식 수정' : '새 양식',
+    fld('양식 이름', inp('name', copy ? t.name + ' (복사)' : t.name, 'text'), false, true) + fld('계약 종류', '<select name="kind">' + CONTRACT_KINDS.concat(['기타']).map(function (k) { return '<option' + (k === t.kind ? ' selected' : '') + '>' + esc(k) + '</option>'; }).join('') + '</select>') +
+    '<div class="full"><div class="rich-tb cd-tb"><select onchange="if(this.value){document.getElementById(\'cd-ed\').focus();document.execCommand(\'insertText\',false,\'{\'+this.value+\'}\');this.value=\'\'}" style="width:auto"><option value="">＋ 칸 넣기 (자동 채움)</option>' +
+      CT_FIELDS.map(function (f) { return '<option value="' + esc(f[0]) + '">{' + esc(f[0]) + '}</option>'; }).join('') + '</select>' +
+      '<button type="button" class="rbtn-t" onmousedown="event.preventDefault()" onclick="document.execCommand(\'bold\')"><b>B</b></button>' +
+      '<button type="button" class="rbtn-t" onmousedown="event.preventDefault()" onclick="document.execCommand(\'justifyLeft\')">왼쪽</button><button type="button" class="rbtn-t" onmousedown="event.preventDefault()" onclick="document.execCommand(\'justifyCenter\')">가운데</button></div>' +
+      '<div class="cdoc-ed" id="cd-ed" contenteditable="true" spellcheck="false" oninput="modalDirty=true">' + t.body + '</div>' +
+      '<div class="muted" style="font-size:.78rem;margin-top:4px">{비용 표}는 따로 한 줄에 두면 항목·내용·금액 표로 바뀝니다. 대표자·주소처럼 바뀌지 않는 글은 그대로 적어두세요.</div></div>',
+    '<button class="btn ghost" onclick="closeModal()">취소</button><button class="btn" onclick="saveCtpl()">저장</button>');
+  $('modal').querySelector('.modal').classList.add('wide');
+}
+function saveCtpl() {
+  var f = formData($('mf'));
+  mutate('saveCTemplate', Object.assign({ name: (f.name || '').trim(), kind: f.kind, body: $('cd-ed').innerHTML }, UI.ctpl.id ? { id: UI.ctpl.id, updatedAt: UI.ctpl.updatedAt } : {}), '양식을 저장했습니다.');
+}
+function delCtpl(id) { var t = ctplById(id); if (t && confirm('「' + t.name + '」 양식을 지울까요? (이미 만든 계약서는 그대로 남습니다)')) mutate('removeCTemplate', { id: id }, '양식을 지웠습니다.'); }
 var SCORE_ORDER = SCORE_KINDS;
 /** 성적·학력 탭: 자주 쓰는 점수가 위(증명서는 서류 탭), 학력·수강 과목은 아래에 접어 둠 (펼침 상태는 이 브라우저에 기억) */
 function tabScores(s) { return tabScoresOnly(s) + foldSection('schools', s) + foldSection('courses', s); }
@@ -3680,7 +3863,7 @@ function tabScoresOnly(s) {
 }
 /** 서류 줄에 안 묶인 학생 파일 (예전 자료·휴지통에서 되살린 파일) — 있을 때만 서류 탭 아래에 표시 */
 function looseFiles(s) {
-  var files = childOf('files', s.id).filter(function (f) { return !f.docId && !f.meetingId && !f.followupId && !f.scoreId; }).sort(function (a, b) { return b.createdAt.localeCompare(a.createdAt); });
+  var files = childOf('files', s.id).filter(function (f) { return !f.docId && !f.meetingId && !f.followupId && !f.scoreId && !f.contractId; }).sort(function (a, b) { return b.createdAt.localeCompare(a.createdAt); });
   if (!files.length) return '';
   return '<div class="card"><h3>서류 줄에 안 묶인 파일 <span class="muted">' + files.length + '개</span></h3>' +
     '<div class="muted" style="margin-bottom:8px">예전에 올렸거나 휴지통에서 되살린 파일입니다. 받아서 알맞은 서류 줄에 다시 올리고 여기 파일은 지워주세요.</div>' +
@@ -4515,7 +4698,7 @@ function viewUniList() {
   return h;
 }
 
-function uploadFiles(input, studentId, docId, meetingId) {
+function uploadFiles(input, studentId, docId, meetingId, contractId) {
   var files = Array.prototype.slice.call(input.files);
   var cat = ($('upcat') || {}).value || '성적증명서';
   input.value = '';
@@ -4524,7 +4707,7 @@ function uploadFiles(input, studentId, docId, meetingId) {
     chain = chain.then(function () {
       if (f.size > upMax()) { toast(f.name + ': ' + upMB() + 'MB를 넘는 파일은 올릴 수 없습니다.', true); return; }
       busy(true);
-      return fetch('/api/files/upload?studentId=' + encodeURIComponent(studentId) + '&category=' + encodeURIComponent(cat) + (docId ? '&docId=' + encodeURIComponent(docId) : '') + (meetingId ? '&meetingId=' + encodeURIComponent(meetingId) : ''), {
+      return fetch('/api/files/upload?studentId=' + encodeURIComponent(studentId) + '&category=' + encodeURIComponent(cat) + (docId ? '&docId=' + encodeURIComponent(docId) : '') + (meetingId ? '&meetingId=' + encodeURIComponent(meetingId) : '') + (contractId ? '&contractId=' + encodeURIComponent(contractId) : ''), {
         method: 'POST', credentials: 'same-origin', body: f,
         headers: { 'X-Requested-With': 'revera', 'X-File-Name': encodeURIComponent(f.name), 'Content-Type': f.type || 'application/octet-stream' }
       }).then(handle, function () { busy(false); throw new Error('서버에 연결할 수 없습니다.'); })
