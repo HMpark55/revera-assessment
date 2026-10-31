@@ -53,7 +53,8 @@ const TABLES = {
       'hopeUnis', 'focusArea', 'recommenders', 'onlineCourse', 'meetingUrl',
       'fatherName', 'fatherPhone', 'fatherWechat', 'fatherEmail', 'motherName', 'motherPhone', 'motherWechat', 'motherEmail',
       'storyTrigger', 'storyProcess', 'storyLink', 'storyConclusion', 'storyStatus', 'branch', // branch: 지점 (상해·압구정)
-      'passportNo', 'fatherNameEn', 'motherNameEn', 'fatherWork', 'motherWork'], // 원서용: 여권 번호(여러 개면 줄바꿈), 부모 영문명·근무 기간
+      'passportNo', 'fatherNameEn', 'motherNameEn', 'fatherWork', 'motherWork', // 원서용: 여권 번호(여러 개면 줄바꿈), 부모 영문명·근무 기간
+      'nickname', 'preIb', 'gradDate', 'gradeAt'], // 영어 이름(닉네임), IB 이전 과정, 졸업(예정) 연월 YYYY-MM, 학년을 마지막으로 정한 날 (자동 올림 기준 — 서버가 씀)
     summary: (r) => r.name,
   },
   notes: {
@@ -257,7 +258,7 @@ const FIELD_LABELS = {
   storyLink: '스토리③연결', storyConclusion: '스토리④결론', storyStatus: '스토리 상태', date: '날짜', time: '시간',
   place: '장소', attendees: '참석자', type: '유형', content: '내용', nextAction: '다음 할 일', nextDue: '할 일 기한',
   done: '할 일 완료', kind: '종류', tier: '등급', term: '기간', packages: '패키지', startMonth: '시작 연월',
-  signedDate: '계약일', amount: '금액', paid: '납부 상태', scope: '포함 범위', university: '대학', major: '전공',
+  signedDate: '계약일', amount: '금액', paid: '납부 상태', scope: '비용 특약 사항', university: '대학', major: '전공',
   round: '전형', deadline: '마감일', essay: '에세이', subject: '과목', score: '점수', detail: '세부 점수',
   category: '분류', role: '역할', period: '기간', due: '기한', label: '이름', url: '주소', studentId: '학생',
   resumeUrl: 'Resume 링크', fatherName: '부 이름', fatherPhone: '부 연락처', fatherWechat: '부 WeChat', fatherEmail: '부 이메일',
@@ -277,6 +278,7 @@ const FIELD_LABELS = {
   parentConfirmedBy: '부모님 확정 기록자', city: '도시', gradeFrom: '시작 학년', gradeTo: '마지막 학년', startDate: '시작일',
   endDate: '종료일', schoolYear: '학년도', level: '레벨', termType: '학기 구분', g1: '1학기/T1 성적', g2: '2학기/T2 성적',
   g3: 'T3 성적', final: '최종 성적',
+  nickname: '영어 이름(닉네임)', preIb: 'IB 이전 과정', gradDate: '졸업(예정) 연월', gradeAt: '학년 기준일',
   passportNo: '여권 번호', fatherNameEn: '부 영문명', motherNameEn: '모 영문명', fatherWork: '부 근무 기간', motherWork: '모 근무 기간',
   recName: '추천인 이름', recTitle: '추천인 직책', recSubject: '추천인 과목', recEmail: '추천인 이메일',
   nextDate: '다음 미팅 날짜', meetingId: '미팅', noteId: '상담기록', contentHtml: '내용 서식', item: '항목',
@@ -316,6 +318,35 @@ function now() {
   return s;
 }
 const newId = () => crypto.randomBytes(6).toString('hex');
+
+/* ----- 학년 자동 올림: 학교 학제(새 학년 시작 달)에 맞춰 해가 바뀌면 한 학년씩 ----- */
+const KOR_GRADES = ['초1', '초2', '초3', '초4', '초5', '초6', '중1', '중2', '중3', '고1', '고2', '고3'];
+/** 학년을 n칸 올림 (G12·Y13·고3이 끝) */
+function nextGrade(g, n) {
+  g = String(g || '').trim(); if (!n) return g;
+  let m = /^G(\d+)$/.exec(g); if (m) return 'G' + Math.min(12, Number(m[1]) + n);
+  m = /^Y(\d+)$/.exec(g); if (m) return 'Y' + Math.min(13, Number(m[1]) + n);
+  if (g === 'K') return 'G' + Math.min(12, n);
+  const i = KOR_GRADES.indexOf(g); if (i >= 0) return KOR_GRADES[Math.min(KOR_GRADES.length - 1, i + n)];
+  return g;
+}
+/** 새 학년이 시작하는 달: 학교 학제에 적힌 "8월"·"3월", 없으면 학년 표기로 (G·Y·K = 국제학교 8월, 초·중·고 = 한국 3월) */
+function gradeMonth(grade, system) {
+  const m = /(\d{1,2})월/.exec(system || ''); if (m) return Number(m[1]);
+  if (/^(G\d|Y\d|K$)/.test(grade || '')) return 8;
+  if (/^[초중고]\d/.test(grade || '')) return 3;
+  return 0;
+}
+/** from(YYYY-MM-DD) 다음 날부터 to까지 지난 새 학년 시작일(그 달 1일) 수 */
+function yearsPassed(from, to, month) {
+  if (!month || !/^\d{4}-\d{2}-\d{2}/.test(from || '') || !/^\d{4}-\d{2}-\d{2}/.test(to || '')) return 0;
+  let n = 0;
+  for (let y = Number(from.slice(0, 4)); y <= Number(to.slice(0, 4)); y++) {
+    const d = y + '-' + String(month).padStart(2, '0') + '-01';
+    if (d > from.slice(0, 10) && d <= to.slice(0, 10)) n++;
+  }
+  return n;
+}
 const lower = (s) => String(s || '').trim().toLowerCase();
 const isEmail = (s) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s);
 const isManager = (me) => me.role === 'admin' || me.role === 'staff' || me.role === 'developer';
@@ -690,6 +721,11 @@ function migrate(db) {
     const ts = now();
     DEFAULT_TEMPLATES.forEach((t) => db.prepare("UPDATE ctemplates SET body = ? WHERE name = ? AND createdBy = 'system' AND updatedBy = 'system' AND deletedAt = ''").run(sanitizeDoc(t.body), t.name));
     db.prepare("INSERT INTO meta VALUES ('v40_ctemplate_indent', ?)").run(ts);
+  }
+  if (!db.prepare("SELECT 1 FROM meta WHERE key = 'v41_grade_at'").get()) { // 학년 자동 올림 시작: 지금 적힌 학년은 오늘 기준으로 맞다고 봄
+    const ts = now();
+    db.prepare("UPDATE students SET gradeAt = ? WHERE grade != '' AND gradeAt = ''").run(ts.slice(0, 10));
+    db.prepare("INSERT INTO meta VALUES ('v41_grade_at', ?)").run(ts);
   }
   ensureColumns(db, 'programs', ['name', 'category', 'target', 'schedule', 'deadline', 'url', 'memo', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy']);
   // v23: "성적·재학·졸업 증명서" 칸을 서류 목록으로 합침 — 서류 줄에 안 묶인 학생 파일을 학생·분류별 서류 줄(수합 완료)로.
@@ -1126,7 +1162,23 @@ function openStore(dbPath, opts) {
     return o;
   }
 
+  /** 하루 한 번: 새 학년 시작일이 지난 학생은 학년을 올림 (졸업 연월이 지난 학생은 그대로) */
+  function advanceGrades() {
+    const day = now().slice(0, 10);
+    if (getMeta('grades.day') === day) return;
+    setMeta('grades.day', day);
+    const sys = {};
+    db.prepare("SELECT value, info FROM options WHERE kind = 'school'").all().forEach((o) => { try { sys[o.value] = (JSON.parse(o.info || '{}') || {}).system || ''; } catch (e) { /* 예전 형식 */ } });
+    db.prepare("SELECT id, name, school, grade, gradeAt, gradDate FROM students WHERE deletedAt = '' AND grade != '' AND gradeAt != ''").all().forEach((s) => {
+      if (s.gradDate && s.gradDate < day.slice(0, 7)) return;
+      const n = yearsPassed(s.gradeAt, day, gradeMonth(s.grade, sys[s.school])), g = nextGrade(s.grade, n);
+      if (!n) return;
+      db.prepare('UPDATE students SET grade = ?, gradeAt = ? WHERE id = ?').run(g, day, s.id);
+      if (g !== s.grade) log('system', 'update', 'students', s.id, s.name + ' — 새 학년 자동 반영: ' + s.grade + ' → ' + g);
+    });
+  }
   function getAll(me) {
+    advanceGrades();
     const students = db.prepare("SELECT * FROM students WHERE deletedAt = ''").all().filter((s) => canSeeStudent(me, s));
     const ids = new Set(students.map((s) => s.id));
     const meRow = getTeacher(me.email) || me; // 화면 시간은 저장된 계정 정보로 (방금 바꾼 값 포함)
@@ -1304,6 +1356,7 @@ function openStore(dbPath, opts) {
       }
     }
     if (table === 'students') { checkUrl(v('driveUrl'), 'Drive 폴더 링크'); checkUrl(v('resumeUrl'), 'Resume 링크'); }
+    if (table === 'students' && v('gradDate') && !/^\d{4}-(0[1-9]|1[0-2])$/.test(v('gradDate'))) throw new UserError('졸업(예정) 연월은 2027-06 처럼 입력하세요.');
     if (table === 'contracts' && v('currency') && !CURRENCIES.includes(v('currency'))) throw new UserError('통화는 RMB 또는 KRW만 가능합니다.');
     if (table === 'payments') {
       need('date', '입금일을 입력하세요.');
@@ -1361,6 +1414,7 @@ function openStore(dbPath, opts) {
           rec[hk] = hasFormatting(html) ? html : '';
         } else if (hk !== 'contentHtml' && tk in obj) rec[hk] = ''; // 일반 글만 고치면(빠른 추가·체크 등) 예전 서식은 버림
       }
+      if (table === 'students') delete rec.gradeAt; // 학년 기준일은 서버가 정함
       if (table === 'cdocs' && 'body' in obj) rec.body = sanitizeDoc(String(obj.body || '')); // 계약서 본문: 표·제목·정렬까지 허용 (clean 의 2만 자 제한 대신)
       if ('counselor' in rec) rec.counselor = lower(rec.counselor);
       // 컨설턴트에게 숨겨진 칸은 새로 쓰거나 고칠 수도 없음
@@ -1384,6 +1438,7 @@ function openStore(dbPath, opts) {
             '새로고침 후 다시 입력해주세요.', 409);
         }
         if (table === 'payments' && 'amount' in rec) rec.amount = String(parseAmount(rec.amount));
+        if (table === 'students' && 'grade' in rec && rec.grade !== cur.grade) rec.gradeAt = t.slice(0, 10);
         if (table === 'apps') resolveApp(rec, cur);
         if ((table === 'majorplans' || table === 'apps') && 'parentConfirmed' in rec && (rec.parentConfirmed === 'TRUE') !== (cur.parentConfirmed === 'TRUE')) {
           rec.parentConfirmedAt = rec.parentConfirmed === 'TRUE' ? t : '';
@@ -1418,6 +1473,7 @@ function openStore(dbPath, opts) {
         if (table === 'students') {
           requireManager(me, '학생 등록');
           if (!rec.branch) rec.branch = branchOf(me); // 전체 계정이면 첫 지점(상해) — 등록 창에서 고름
+          if (rec.grade) rec.gradeAt = t.slice(0, 10);
           if (me.role === 'staff' && me.branch !== ALL_BRANCH && rec.branch !== branchOf(me)) throw new UserError('다른 지점 학생은 그 지점 관리팀·관리자가 등록합니다.', 403);
         } else {
           if (!rec.studentId) throw new UserError('학생이 지정되지 않았습니다.');
@@ -2406,7 +2462,7 @@ function openStore(dbPath, opts) {
     if (!Array.isArray(src.rows) || src.rows.length > 200) throw new UserError('가격표 형식이 올바르지 않습니다.');
     const s = (v, n) => clean(v).trim().slice(0, n || 200);
     const rows = src.rows.map((r) => ({ id: s(r.id, 40) || newId(), region: s(r.region, 40), kind: s(r.kind, 40), name: s(r.name), sessions: s(r.sessions, 60), schools: s(r.schools, 40),
-      price: String(Number(String(r.price || '').replace(/[^\d.]/g, '')) || 0), notice: s(r.notice, 1000) })).filter((r) => r.name);
+      price: String(Number(String(r.price || '').replace(/[^\d.]/g, '')) || 0), priceKrw: String(Number(String(r.priceKrw || '').replace(/[^\d.]/g, '')) || ''), notice: s(r.notice, 1000) })).filter((r) => r.name);
     const notes = (Array.isArray(src.notes) ? src.notes : []).map((x) => s(x, 500)).filter(Boolean).slice(0, 30);
     setMeta('site.prices', JSON.stringify({ rows, notes, limitedNotice: s(src.limitedNotice, 500) }));
     log(me.email, 'update', 'settings', 'prices', '가격표 수정 (' + rows.length + '개 항목)');
@@ -3140,4 +3196,4 @@ function openStore(dbPath, opts) {
   };
 }
 
-module.exports = { openStore, UserError, MAX_UPLOAD };
+module.exports = { openStore, UserError, MAX_UPLOAD, nextGrade, gradeMonth, yearsPassed };
