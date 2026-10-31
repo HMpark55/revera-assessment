@@ -47,7 +47,7 @@ save('payments', { studentId: b, contractId: cb, date: d(-10), amount: '40000', 
 
 save('notes', { studentId: a, date: d(-5), time: 'PM 1:00', place: '상담실', attendees: '원장님, 학생, 어머님, 김컨설턴트',
   type: '대면상담', content: '1. HKU 심리학 단독 지원 확정\n2. 추천서 3인 확정', nextAction: '출입국사실증명서 수합 안내', nextDue: d(-1) });
-save('notes', { studentId: b, date: d(-2), type: '위챗·문자', content: '어머님 일정 문의 대응', nextAction: '에세이 타임라인 공유', nextDue: d(5) });
+save('notes', { studentId: b, date: d(-2), type: '위챗', content: '어머님 일정 문의 대응', nextAction: '에세이 타임라인 공유', nextDue: d(5) });
 
 const fuDoc = save('followups', { studentId: a, title: '출입국사실증명서 받기', assignee: 'staff@demo.test', due: d(-1), category: '서류', detail: '위챗: 출입국사실증명서 이번 주 안에 받아서 스캔해 줄래?' });
 save('fureplies', { studentId: a, followupId: fuDoc, who: '학생', date: d(0), content: '금요일에 어머니가 발급받아 주신대요' });

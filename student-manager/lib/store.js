@@ -722,6 +722,10 @@ function migrate(db) {
     DEFAULT_TEMPLATES.forEach((t) => db.prepare("UPDATE ctemplates SET body = ? WHERE name = ? AND createdBy = 'system' AND updatedBy = 'system' AND deletedAt = ''").run(sanitizeDoc(t.body), t.name));
     db.prepare("INSERT INTO meta VALUES ('v40_ctemplate_indent', ?)").run(ts);
   }
+  if (!db.prepare("SELECT 1 FROM meta WHERE key = 'v42_note_types'").get()) { // 상담 유형: 「위챗·문자」 → 「위챗」 (문자는 거의 안 씀, 카카오톡·보이스톡·위챗 전화는 새 유형)
+    db.prepare("UPDATE notes SET type = '위챗' WHERE type = '위챗·문자'").run();
+    db.prepare("INSERT INTO meta VALUES ('v42_note_types', ?)").run(now());
+  }
   if (!db.prepare("SELECT 1 FROM meta WHERE key = 'v41_grade_at'").get()) { // 학년 자동 올림 시작: 지금 적힌 학년은 오늘 기준으로 맞다고 봄
     const ts = now();
     db.prepare("UPDATE students SET gradeAt = ? WHERE grade != '' AND gradeAt = ''").run(ts.slice(0, 10));

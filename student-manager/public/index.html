@@ -737,7 +737,7 @@ var PACKAGES = TRACKS; // 실제 목록은 trackList() (목록 관리 › 트랙
 var CURRENCIES = ['RMB', 'KRW'];
 var PAY_METHODS = ['위챗페이', '알리페이', '계좌이체', '현금', '카드', '기타'];
 var COUNTRIES = ['한국', '홍콩', '싱가폴', '중국', '미국', '캐나다', '영국', '일본', '호주', '기타'];
-var NOTE_TYPES = ['대면상담', '학부모상담', '전화', '위챗·문자', '수업', '기타'];
+var NOTE_TYPES = ['대면상담', '학부모상담', '온라인 (Zoom 등)', '전화', '카카오톡 보이스톡', '위챗 전화', '카카오톡', '위챗', '수업', '기타']; // 상담 방식 — 예전 「장소」 칸은 유형에 합침
 var PLACES = ['상담실', '온라인', '전화'];
 var APP_ROUNDS = ['ED', 'ED2', 'EA', 'REA', 'RD', 'Rolling', 'UCAS', '홍콩 얼리', '수시', '정시', '3년특례', '12년특례', '기타'];
 /** 원서 진행 상태 — 보류: 준비하다가 마음이 바뀌어 안 낼 수도 있음(아직 제출 전이라 마감 알림은 계속), 대기: 제출 후 결과 기다림 */
@@ -891,13 +891,13 @@ var FORMS = {
     defaults: function () { return { status: '할 일', assignee: S.me.email }; } },
   notes: { title: '상담 기록', fields: [
     { k: 'date', l: '날짜', t: 'date', req: 1 }, { k: 'time', l: '시간', ph: '예: PM 1:00' }, { k: 'tz', l: '시간 기준', t: 'tz' },
-    { k: 'place', l: '장소', t: 'list', o: PLACES }, { k: 'type', l: '유형', t: 'select', o: NOTE_TYPES },
+    { k: 'type', l: '유형 (상담 방식)', t: 'select', o: NOTE_TYPES }, { k: 'place', l: '장소 (예전 기록)', t: 'list', o: PLACES, ifSet: 1 },
     { k: 'attendees', l: '참석자', full: 1, ph: '예: 원장님, 학생, 어머님, 담당 선생님' },
     { k: 'content', l: '상담 내용', t: 'rich', full: 1 },
     { t: 'furows', full: 1 },
     { k: 'nextAction', l: '다음 할 일 (예전 기록)', legacy: 1 }, { k: 'nextDue', l: '할 일 기한 (예전 기록)', t: 'date', legacy: 1 },
     { k: 'done', l: '예전 기록의 할 일 완료', t: 'check', editOnly: 1 }, { t: 'review', full: 1 }],
-    defaults: function () { return { date: today(), type: '대면상담', place: '상담실' }; } },
+    defaults: function () { return { date: today(), type: '대면상담' }; } },
   contracts: { title: '계약', fields: [
     { k: 'kind', l: '종류', t: 'select', o: CONTRACT_KINDS, req: 1 }, { k: 'tier', l: '등급', t: 'select', o: TIERS },
     { k: 'term', l: '기간 (연간 컨설팅)', t: 'select', o: TERMS }, { k: 'signedDate', l: '계약일', t: 'date' },
