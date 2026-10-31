@@ -832,7 +832,7 @@ function termCols(t) {
 }
 var FORMS = {
   students: { title: '학생 정보', fields: [
-    { k: 'kind', l: '구분', t: 'skind', care: 1 }, { t: 'careblank', care: 1 },
+    { k: 'kind', l: '구분', t: 'skind', care: 1 }, { k: 'trackId', l: 'track 학생 번호', care: 1, ph: 'track 학생 화면 주소 끝 숫자 (예: …/students/4542)' },
     { k: 'name', l: '이름', req: 1 }, { k: 'nickname', l: '영어 이름 (닉네임)', ph: '예: Jason — 여권 영문 이름은 원서 정보 탭' },
     { k: 'dob', l: '생년월일', t: 'date' }, { t: 'age' }, { k: 'studentPhone', l: '학생 연락처' },
     { k: 'email', l: '학생 이메일', t: 'email' },
@@ -3838,7 +3838,7 @@ function kindBadge(s) { return !S.me.care || !s.kind ? '' : ' <span class="pill"
 function careStudents() { return S.students.filter(function (s) { return s.kind === '수강생' || s.kind === '둘 다'; }); }
 function careSessions(sid, lid) { return childOf('care_sessions', sid).filter(function (x) { return !lid || x.lessonId === lid; }).sort(function (a, b) { return (b.date || '').localeCompare(a.date || '') || String(b.time).localeCompare(String(a.time)); }); }
 function careNext(sid) { return childOf('care_sessions', sid).filter(function (x) { return x.status === '예정' && x.date >= today(); }).sort(function (a, b) { return a.date.localeCompare(b.date); })[0]; }
-function careSat(sid) { return childOf('care_exams', sid).filter(function (x) { return /^SAT/.test(x.kind) && amt(x.total) > 0; }).sort(function (a, b) { return (a.date || '').localeCompare(b.date || ''); }); }
+function careSat(sid) { return childOf('care_exams', sid).filter(function (x) { return /^SAT/.test(x.kind) && (amt(x.total) > 0 || amt(x.rw) > 0 || amt(x.math) > 0); }).sort(function (a, b) { return (a.date || '').localeCompare(b.date || ''); }); }
 function careUpcoming(sid) { return childOf('care_exams', sid).filter(function (x) { return x.status === '예정' && x.date && x.date >= today(); }).sort(function (a, b) { return a.date.localeCompare(b.date); }); }
 function careLessonName(id) { var l = findRow('care_lessons', id); return l ? l.subject : ''; }
 function attPill(x) {
@@ -3857,6 +3857,7 @@ function viewCare() {
   var wk = []; list.forEach(function (s) { childOf('care_sessions', s.id).forEach(function (x) { var d = dayDiff(x.date); if (x.status !== '취소' && d !== null && d >= 0 && d <= 7) wk.push({ s: s, x: x }); }); });
   wk.sort(function (a, b) { return (a.x.date + a.x.time).localeCompare(b.x.date + b.x.time); });
   var h = '<div class="toolbar"><h2 style="margin:0;margin-right:auto">수업 케어 <span class="pill" style="background:#fef3c7;color:#92400e">시험 중</span></h2>' +
+    '<label class="btn ghost" title="roster에서 옮긴 수강생 가져오기 파일(.json)">📥 수강생 가져오기<input type="file" accept=".json,application/json" hidden onchange="careImport(this.files[0]);this.value=\'\'"></label> ' +
     '<button class="btn" onclick="openForm(\'students\',null,null,{kind:\'수강생\',status:\'진행중\'})">+ 수강생 등록</button></div>' +
     '<div class="muted" style="margin:-4px 0 10px">학원 수업을 듣는 학생의 개인 수업·출결·숙제·리마인드·시험 점수. 팔로업·받은 연락·상담 기록·확인 요청은 Compass 학생 화면 그대로 씁니다. 지금은 박현모·김초영 계정에만 보입니다.</div>';
   h += '<div class="card">' + secHead('7일 안 수업 · 리마인드 <span class="muted">' + wk.length + '회 · 리마인드를 보냈으면 체크</span>') +
@@ -3870,8 +3871,9 @@ function viewCare() {
   h += '<div class="card">' + secHead('수강생 <span class="muted">' + list.length + '명</span>') +
     (list.length ? '<div class="tbl-wrap"><table><thead><tr><th>학생</th><th>학교 / 학년</th><th>수업</th><th>다음 수업</th><th>최근 출결</th><th>숙제</th><th>다음 시험·과제</th><th>SAT 최근</th><th>할 일</th><th>답 안 한 연락</th></tr></thead><tbody>' + list.map(function (s) {
       var ls = childOf('care_lessons', s.id).filter(function (l) { return l.status !== '종료'; }), nx = careNext(s.id), done = careSessions(s.id).filter(function (x) { return x.status !== '예정'; }).slice(0, 4);
-      var miss = childOf('care_sessions', s.id).filter(function (x) { return x.hwStatus === '미제출'; }).length, up = careUpcoming(s.id)[0], sat = careSat(s.id), last = sat[sat.length - 1], prev = sat[sat.length - 2];
-      var w = studentWork(s.id), delta = last && prev ? amt(last.total) - amt(prev.total) : 0;
+      var miss = childOf('care_sessions', s.id).filter(function (x) { return x.hwStatus === '미제출'; }).length, up = careUpcoming(s.id)[0], sat = careSat(s.id), last = sat[sat.length - 1];
+      var w = studentWork(s.id), sc = function (x) { return x ? amt(x.total) || amt(x.rw) || amt(x.math) : 0; }, lk = last ? (amt(last.total) ? 'total' : amt(last.rw) ? 'rw' : 'math') : '';
+      var prev = sat.slice(0, -1).filter(function (x) { return amt(x[lk]) > 0; }).pop(), delta = last && prev ? amt(last[lk]) - amt(prev[lk]) : 0;
       return '<tr class="click" onclick="openStudent(' + js(s.id) + ',\'care\')"><td class="nw"><b>' + esc(s.name) + '</b>' + (s.nickname ? ' <span class="muted">' + esc(s.nickname) + '</span>' : '') + kindBadge(s) + '</td>' +
         '<td class="nw">' + esc(s.school || '') + ' <span class="muted">' + esc(s.grade || '') + '</span></td>' +
         '<td>' + (ls.length ? ls.map(function (l) { return '<div><b>' + esc(l.subject) + '</b> <span class="muted">' + esc([l.teacher, l.schedule].filter(Boolean).join(' · ')) + '</span></div>'; }).join('') : '<span class="muted">수업 없음</span>') + '</td>' +
@@ -3879,13 +3881,24 @@ function viewCare() {
         '<td class="nw">' + (done.length ? done.map(attPill).join(' ') : '<span class="muted">-</span>') + '</td>' +
         '<td class="nw">' + (miss ? '<span class="dday over">미제출 ' + miss + '</span>' : '<span class="muted">-</span>') + '</td>' +
         '<td>' + (up ? esc(up.title || up.kind) + ' ' + dday(up.date) : '<span class="muted">-</span>') + '</td>' +
-        '<td class="nw">' + (last ? '<b>' + esc(last.total) + '</b>' + (delta ? ' <span style="color:' + (delta > 0 ? '#15803d' : '#b91c1c') + '">' + (delta > 0 ? '▲' : '▼') + Math.abs(delta) + '</span>' : '') : '<span class="muted">-</span>') + '</td>' +
+        '<td class="nw">' + (last ? '<b>' + esc(String(sc(last))) + '</b> <span class="muted" style="font-size:.75rem">' + { total: '총점', rw: 'RW', math: 'Math' }[lk] + '</span>' + (delta ? ' <span style="color:' + (delta > 0 ? '#15803d' : '#b91c1c') + '">' + (delta > 0 ? '▲' : '▼') + Math.abs(delta) + '</span>' : '') : '<span class="muted">-</span>') + '</td>' +
         '<td class="nw">' + (w.todo ? w.todo + (w.over ? ' <span class="dday over">지남 ' + w.over + '</span>' : '') : '<span class="muted">-</span>') + '</td>' +
         '<td class="nw">' + (w.contacts ? '<span class="dday soon">📩 ' + w.contacts + '</span>' : '<span class="muted">-</span>') + '</td></tr>';
     }).join('') + '</tbody></table></div>' : '<div class="empty">수강생이 없습니다. 「+ 수강생 등록」 또는 학생 정보 수정에서 구분을 「수강생」으로 바꾸세요.</div>') + '</div>';
   return h;
 }
 
+function careImport(file) {
+  if (!file) return;
+  var rd = new FileReader();
+  rd.onload = function () {
+    var o; try { o = JSON.parse(rd.result); } catch (e) { return toast('JSON 파일이 아닙니다.', true); }
+    var names = (o.students || []).map(function (x) { return x.student && x.student.name; }).filter(Boolean);
+    if (!names.length || !confirm('수강생 ' + names.length + '명(' + names.join(', ') + ')과 개인 수업·수업 기록을 가져올까요?\n같은 이름의 수강생이 이미 있으면 건너뜁니다.')) return;
+    api('importCare', o).then(function (d) { load(d); render(); toast('가져옴: ' + (d.imported.added.join(', ') || '없음') + (d.imported.skipped.length ? ' · 이미 있어서 건너뜀: ' + d.imported.skipped.join(', ') : '')); }).catch(function (e) { toast(errMsg(e), true); });
+  };
+  rd.readAsText(file);
+}
 /* ----- 학생 탭 「수업·출결」: 개인 수업마다 수업 기록 ----- */
 function tabCare(s) {
   var ls = childOf('care_lessons', s.id).sort(function (a, b) { return (a.status === '종료') - (b.status === '종료') || String(b.startDate).localeCompare(String(a.startDate)); });
@@ -3918,15 +3931,16 @@ function tzLabel(tz) { return TZ_NAME[tz] ? TZ_NAME[tz] + ' 시간' : tz; }
 /* ----- 학생 탭 「시험·점수」: 다가오는 시험·과제, SAT 점수 추세·약한 유형, 학교 시험·과제, 단어 시험 ----- */
 function tabCareScore(s) {
   var ex = childOf('care_exams', s.id), up = careUpcoming(s.id), sat = careSat(s.id);
+  var satAll = ex.filter(function (x) { return /^SAT/.test(x.kind) && x.status !== '예정' && (amt(x.total) || amt(x.rw) || amt(x.math) || x.score); }).sort(function (a, b) { return (a.date || '').localeCompare(b.date || ''); }); // 1모듈짜리(Remix 등)도 표·약한 유형에는 넣음
   var h = '<div class="card">' + secHead('다가오는 시험·과제', addBtn('care_exams', s.id, '+ 시험·점수 추가')) +
     (up.length ? up.map(function (x) { return '<div class="todo click" onclick="openForm(\'care_exams\',' + js(x.id) + ')"><div class="t"><b>' + esc(x.title || x.kind) + '</b> <span class="pill">' + esc(x.kind) + '</span>' + (x.lessonId ? ' <span class="muted">' + esc(careLessonName(x.lessonId)) + '</span>' : '') + '</div><div>' + esc(fmtD(x.date)) + ' ' + dday(x.date) + '</div></div>'; }).join('')
       : '<div class="muted">예정된 시험·과제가 없습니다. SAT 시험일, 학교 시험, 과제 마감을 「+ 시험·점수 추가」로 넣어두면 메인 목록에 D-day가 나옵니다.</div>') + '</div>';
-  var satRel = sat.length || ex.some(function (x) { return /^SAT/.test(x.kind); }) || childOf('care_lessons', s.id).some(function (l) { return l.category === 'SAT'; });
-  if (satRel) h += '<div class="card">' + secHead('SAT 점수 추세 <span class="muted">모의고사·공식 시험 ' + sat.length + '회</span>', '<button class="btn ghost sm" disabled title="track 연동은 확인 중 — 지금은 직접 입력">track에서 가져오기 (준비 중)</button>') +
-    (sat.length ? careChart(sat) + careWeak(sat) +
-      '<div class="tbl-wrap" style="margin-top:8px"><table class="compact"><thead><tr><th>날짜</th><th>종류</th><th>이름</th><th>총점</th><th>RW</th><th>Math</th><th>틀린 유형 (많은 순)</th></tr></thead><tbody>' + sat.slice().reverse().map(function (x) {
+  var satRel = satAll.length || ex.some(function (x) { return /^SAT/.test(x.kind); }) || childOf('care_lessons', s.id).some(function (l) { return l.category === 'SAT'; });
+  if (satRel) h += '<div class="card">' + secHead('SAT 점수 추세 <span class="muted">모의고사·공식 시험 ' + satAll.length + '회</span>', (s.trackId ? '<button class="btn ghost sm" onclick="careTrack(' + js(s.id) + ')">📥 track에서 가져오기</button>' : '<button class="btn ghost sm" onclick="openForm(\'students\',' + js(s.id) + ')" title="학생 정보 수정에서 track 학생 번호를 넣으면 가져올 수 있습니다">track 번호 넣기</button>')) +
+    (satAll.length ? careCharts(sat) + careWeak(satAll) +
+      '<div class="tbl-wrap" style="margin-top:8px"><table class="compact"><thead><tr><th>날짜</th><th>종류</th><th>이름</th><th>총점</th><th>RW</th><th>Math</th><th>모듈 점수</th><th>틀린 유형 (많은 순)</th></tr></thead><tbody>' + satAll.slice().reverse().map(function (x) {
         var sk = careSkills(x), top = Object.keys(sk).sort(function (a, b) { return sk[b] - sk[a]; }).slice(0, 3);
-        return '<tr class="click" onclick="openForm(\'care_exams\',' + js(x.id) + ')"><td class="nw">' + esc(fmtD(x.date)) + '</td><td class="nw">' + esc(x.kind) + '</td><td>' + esc(x.title) + '</td><td class="nw"><b>' + esc(x.total) + '</b></td><td class="nw">' + esc(x.rw) + '</td><td class="nw">' + esc(x.math) + '</td>' +
+        return '<tr class="click" onclick="openForm(\'care_exams\',' + js(x.id) + ')"><td class="nw">' + esc(fmtD(x.date)) + '</td><td class="nw">' + esc(x.kind) + '</td><td>' + esc(x.title) + '</td><td class="nw"><b>' + esc(x.total) + '</b></td><td class="nw">' + esc(x.rw) + '</td><td class="nw">' + esc(x.math) + '</td><td class="nw">' + esc(x.score ? x.score + (x.maxScore ? ' / ' + x.maxScore : '') : '') + '</td>' +
           '<td style="font-size:.8rem">' + top.map(function (k) { return esc(k) + ' ' + sk[k]; }).join(' · ') + '</td></tr>';
       }).join('') + '</tbody></table></div>'
       : '<div class="muted">아직 SAT 점수가 없습니다. 모의고사를 볼 때마다 총점·RW·Math와 유형별 틀린 개수를 넣으면 추세와 약한 유형이 나옵니다.</div>') + '</div>';
@@ -3941,6 +3955,50 @@ function tabCareScore(s) {
     rest(['단어 시험'], '단어 시험', '단어 시험 범위와 점수(통과 기준)를 넣으면 여기에 모입니다.');
 }
 function careSkills(x) { try { var o = JSON.parse(x.skills || '{}'); return o && typeof o === 'object' ? o : {}; } catch (e) { return {}; } }
+/** 총점이 있으면 총점 그래프, RW·Math 영역 점수 그래프 (track은 영역별로 따로 봄) */
+function careCharts(sat) {
+  var tot = sat.filter(function (x) { return amt(x.total) > 0; }), sec = sat.filter(function (x) { return amt(x.rw) > 0 || amt(x.math) > 0; });
+  return (tot.length ? '<div class="muted" style="font-size:.8rem;margin-top:4px">총점</div>' + careChart(tot) : '') + (sec.length ? '<div class="muted" style="font-size:.8rem;margin-top:8px">영역 점수 (각 200–800)</div>' + careSecChart(sec) : '');
+}
+function careSecChart(list) {
+  var W = 640, H = 190, L = 44, R = 34, T = 18, B = 30, n = list.length, xs = function (i) { return L + (n === 1 ? (W - L - R) / 2 : i * (W - L - R) / (n - 1)); }, ys = function (v) { return T + (800 - v) * (H - T - B) / 600; };
+  var g = [800, 700, 600, 500, 400, 300, 200].map(function (v) { return '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + ys(v) + '" y2="' + ys(v) + '" stroke="#eee"/><text x="' + (L - 6) + '" y="' + (ys(v) + 4) + '" text-anchor="end" font-size="10" fill="#888">' + v + '</text>'; }).join('');
+  var line = function (k, color) {
+    var pts = []; list.forEach(function (x, i) { if (amt(x[k]) > 0) pts.push([xs(i), ys(amt(x[k])), x]); });
+    return (pts.length > 1 ? '<polyline points="' + pts.map(function (p) { return p[0] + ',' + p[1]; }).join(' ') + '" fill="none" stroke="' + color + '" stroke-width="2"/>' : '') +
+      pts.map(function (p) { return '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="4" fill="' + color + '"><title>' + esc((p[2].title || '') + ' ' + p[2][k]) + '</title></circle><text x="' + p[0] + '" y="' + (p[1] - 8) + '" text-anchor="middle" font-size="10" font-weight="700" fill="' + color + '">' + esc(p[2][k]) + '</text>'; }).join('');
+  };
+  var every = Math.ceil(n / 12); // 점이 많으면 날짜는 몇 개 건너 하나씩
+  var lab = list.map(function (x, i) { if (i % every && i !== n - 1) return ''; return '<text x="' + xs(i) + '" y="' + (H - B + 14) + '" text-anchor="middle" font-size="10" fill="#666">' + esc(String(x.date || '').slice(5).replace('-', '/')) + '</text>'; }).join('');
+  return '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;max-width:720px;height:auto">' + g + lab + line('rw', '#2563eb') + line('math', '#d97706') + '</svg>' +
+    '<div class="muted" style="font-size:.78rem"><span style="color:#2563eb">● Reading & Writing</span> · <span style="color:#d97706">● Math</span></div>';
+}
+/** track 모의고사 결과 미리 보기 → 고른 것만 저장 */
+function careTrack(sid) {
+  modal('📥 track에서 가져오기 — ' + studentById(sid).name, '<div class="full muted" id="trk-box">track에 로그인해서 최근 시험 결과를 읽는 중… (시험이 많으면 20~30초)</div>', '<button class="btn ghost" onclick="closeModal()">닫기</button>');
+  api('trackPreview', { studentId: sid }).then(function (r) {
+    var box = $('trk-box'); if (!box) return;
+    UI.trk = r.items;
+    if (!r.items.length) { box.innerHTML = 'track에 제출한 시험이 없습니다.'; return; }
+    box.className = 'full';
+    box.innerHTML = '<div class="muted" style="margin-bottom:6px">최근 30개 묶음 (모듈 1·2 = 한 영역). 이미 가져온 시험은 회색, 진행 중이던 시험은 다시 가져오면 갱신됩니다.</div><div class="tbl-wrap" style="max-height:55vh"><table class="compact"><thead><tr><th><input type="checkbox" checked onchange="Array.prototype.forEach.call(document.querySelectorAll(\'#trk-box input[data-k]:not([disabled])\'),function(c,i){c.checked=this.checked}.bind(this))"></th><th>날짜</th><th>시험</th><th>영역</th><th>점수</th><th>모듈</th><th>많이 틀린 유형</th></tr></thead><tbody>' +
+      r.items.map(function (x) {
+        var dis = x.skipped, w = x.wrong || {}, top = Object.keys(w).sort(function (a, b) { return w[b] - w[a]; }).slice(0, 3);
+        return '<tr' + (dis ? ' style="color:#999"' : '') + '><td><input type="checkbox" data-k="' + esc(x.key) + '"' + (dis ? ' disabled' : ' checked') + '></td><td class="nw">' + esc(fmtD(x.date)) + '</td>' +
+          '<td>' + esc(x.title) + '<div class="muted" style="font-size:.75rem">' + esc(x.trackTitle) + '</div></td><td class="nw">' + esc({ rw: 'RW', math: 'Math' }[x.section] || x.testType) + '</td>' +
+          '<td class="nw"><b>' + (dis ? '가져옴' : esc(x.score != null ? (x.full && x.complete ? x.score : x.score + ' / ' + 400 * x.modules.length) : x.perc + '%')) + '</b>' + (!dis && !x.complete ? ' <span class="pill">진행 중</span>' : '') + (x.exists && !dis ? ' <span class="pill">갱신</span>' : '') + '</td>' +
+          '<td class="nw muted" style="font-size:.8rem">' + (x.modules || []).map(function (m) { return 'M' + m.n + ' ' + (m.score != null ? m.score : '-') + ' (✕' + (m.inc + m.omit) + ')'; }).join(' · ') + '</td>' +
+          '<td style="font-size:.78rem">' + top.map(function (k) { return esc(k) + ' ' + w[k]; }).join(' · ') + '</td></tr>';
+      }).join('') + '</tbody></table></div>';
+    $('modal').querySelector('.foot').innerHTML = '<button class="btn ghost" onclick="closeModal()">취소</button><button class="btn" onclick="careTrackSave(' + js(sid) + ')">고른 시험 저장</button>';
+    $('modal').querySelector('.modal').classList.add('wide');
+  }).catch(function (e) { var box = $('trk-box'); if (box) box.innerHTML = '<span style="color:var(--error)">' + esc(errMsg(e)) + '</span>'; });
+}
+function careTrackSave(sid) {
+  var keys = Array.prototype.filter.call(document.querySelectorAll('#trk-box input[data-k]'), function (c) { return c.checked && !c.disabled; }).map(function (c) { return c.getAttribute('data-k'); });
+  if (!keys.length) return toast('저장할 시험을 고르세요.', true);
+  api('trackImport', { studentId: sid, keys: keys }).then(function (d) { load(d); closeModal(true); render(); toast('track 시험 ' + d.trackSaved + '건을 시험·점수에 저장했습니다.'); }).catch(function (e) { toast(errMsg(e), true); });
+}
 /** 총점 꺾은선 + RW·Math 막대 (SVG) */
 function careChart(sat) {
   var W = 640, H = 200, L = 44, R = 34, T = 18, B = 34, n = sat.length, xs = function (i) { return L + (n === 1 ? (W - L - R) / 2 : i * (W - L - R) / (n - 1)); };

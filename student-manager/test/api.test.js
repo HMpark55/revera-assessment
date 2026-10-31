@@ -2896,3 +2896,42 @@ test('수업 케어(시험 중): 테스터만 수강생·수업 기록을 보고
   assert.strictEqual(d.students.find((s) => s.id === cs).kind, '');
   delete process.env.CARE_EMAILS;
 });
+
+test('수업 케어 × track: 미리 보기 → 고른 시험만 저장(영역 점수·틀린 유형·수업 연결), 다시 가져오면 갱신, roster 가져오기', async () => {
+  process.env.CARE_EMAILS = 'trk@revera.test';
+  const track = require('../lib/track');
+  const real = track.studentSummary;
+  const calls = [];
+  track.studentSummary = async (sid, opts) => { calls.push([sid, opts.skipKeys]); return [
+    { key: 'track:g1', title: 'CBRT 24 Nov US A', trackTitle: 'Math Test 2', testType: 'SAT Math - Digital', section: 'math', date: '2026-10-31', modulesTotal: 2, full: true, complete: true, score: 720, perc: 90.9,
+      modules: [{ n: 1, score: 360, cor: 20, inc: 2, omit: 0 }, { n: 2, score: 360, cor: 20, inc: 2, omit: 0 }], wrong: { 'Advanced- Rational expressions and polynomials': 2 } },
+    { key: 'track:g2', title: 'Killing Remix 5', trackTitle: 'Remix', testType: 'SAT RW - Digital', section: 'rw', date: '2026-10-30', modulesTotal: 1, full: false, complete: true, score: 350, perc: 90,
+      modules: [{ n: 1, score: 350, cor: 27, inc: 3, omit: 0 }], wrong: { '[W] Transition': 2 } },
+    { key: 'track:g3', title: 'CBBP Sep A', trackTitle: 'Math Test 1', testType: 'SAT Math - Digital', section: 'math', date: '2026-11-01', modulesTotal: 2, full: true, complete: false, score: 380, perc: 95,
+      modules: [{ n: 1, score: 380, cor: 21, inc: 1, omit: 0 }], wrong: {} }]; };
+  try {
+    const admin = client(); await admin.login('admin@revera.test', 'admin-pass-1');
+    const t = await newUser(admin, 'trk@revera.test', 'staff');
+    let d = await t.ok('importCare', { students: [{ student: { name: '트랙학생', trackId: 'https://www.revera-track.com/tower/m/students/4542' }, lessons: [{ subject: 'Digital SAT Math', category: 'SAT', teacher: '허인행 선생님', sessions: [{ date: '2026-10-25', status: '완료', attend: '출석' }] }] }] });
+    assert.deepStrictEqual(d.imported, { added: ['트랙학생'], skipped: [] });
+    const s = d.students.find((x) => x.name === '트랙학생');
+    assert.deepStrictEqual([s.kind, s.trackId, s.branch], ['수강생', '4542', '압구정']);
+    assert.strictEqual(d.care_sessions.filter((x) => x.studentId === s.id).length, 1);
+    assert.deepStrictEqual((await t.ok('importCare', { students: [{ student: { name: '트랙학생' } }] })).imported.skipped, ['트랙학생']);
+    assert.strictEqual((await admin.rpc('trackPreview', { studentId: s.id })).status, 403);
+    const p = await t.ok('trackPreview', { studentId: s.id });
+    assert.strictEqual(p.items.length, 3);
+    d = await t.ok('trackImport', { studentId: s.id, keys: ['track:g1', 'track:g2', 'track:g3'] });
+    assert.strictEqual(d.trackSaved, 3);
+    const ex = d.care_exams.filter((x) => x.studentId === s.id), g1 = ex.find((x) => x.src === 'track:g1'), g2 = ex.find((x) => x.src === 'track:g2'), g3 = ex.find((x) => x.src === 'track:g3');
+    const lid = d.care_lessons.find((l) => l.studentId === s.id).id;
+    assert.deepStrictEqual([g1.math, g1.kind, g1.lessonId, JSON.parse(g1.skills)['Advanced- Rational expressions and polynomials']], ['720', 'SAT 모의고사', lid, 2]);
+    assert.deepStrictEqual([g2.rw, g2.score, g2.maxScore, g2.title], ['', '350', '400', 'Killing Remix 5 (1모듈)']);
+    assert.ok(g3.math === '' && /진행 중: 1\/2/.test(g3.memo), '모듈이 덜 끝난 시험은 영역 점수 없이 진행 중');
+    await t.ok('trackPreview', { studentId: s.id });
+    assert.deepStrictEqual(calls[1][1].sort(), ['track:g1', 'track:g2'], '끝까지 가져온 시험은 다시 받지 않고, 진행 중이던 것만 다시');
+    d = await t.ok('trackImport', { studentId: s.id, keys: ['track:g3'] });
+    assert.strictEqual(d.care_exams.filter((x) => x.studentId === s.id && x.src === 'track:g3').length, 1, '같은 시험은 한 줄로 갱신');
+    assert.strictEqual((await t.rpc('trackPreview', { studentId: (await t.saveOk('students', { name: '번호없음', kind: '수강생' })).savedId })).status, 400);
+  } finally { track.studentSummary = real; delete process.env.CARE_EMAILS; }
+});

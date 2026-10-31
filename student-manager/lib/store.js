@@ -15,6 +15,7 @@ const { sanitizeRich, richToText, hasFormatting, sanitizeDoc } = require('./rich
 const { DEFAULT_TEMPLATES } = require('./contract-template');
 const { DEFAULT_PRICES } = require('./pricelist');
 const appforms = require('./appforms');
+const track = require('./track');
 const schedule = require('./schedule');
 const fs = require('fs');
 const path = require('path');
@@ -55,7 +56,7 @@ const TABLES = {
       'storyTrigger', 'storyProcess', 'storyLink', 'storyConclusion', 'storyStatus', 'branch', // branch: 지점 (상해·압구정)
       'passportNo', 'fatherNameEn', 'motherNameEn', 'fatherWork', 'motherWork', // 원서용: 여권 번호(여러 개면 줄바꿈), 부모 영문명·근무 기간
       'nickname', 'preIb', 'gradDate', 'gradeAt', // 영어 이름(닉네임), IB 이전 과정, 졸업(예정) 연월, 학년 기준일
-      'kind'], // 구분: '' = 컨설팅, '수강생' = 학원 수업만 (수업 케어 테스터만 보임), '둘 다' // 영어 이름(닉네임), IB 이전 과정, 졸업(예정) 연월 YYYY-MM, 학년을 마지막으로 정한 날 (자동 올림 기준 — 서버가 씀)
+      'kind', 'trackId'], // 구분: '' = 컨설팅, '수강생' = 학원 수업만 (수업 케어 테스터만 보임), '둘 다' / trackId: REVERA-TRACK 학생 번호 // 영어 이름(닉네임), IB 이전 과정, 졸업(예정) 연월 YYYY-MM, 학년을 마지막으로 정한 날 (자동 올림 기준 — 서버가 씀)
     summary: (r) => r.name,
   },
   notes: {
@@ -1466,7 +1467,8 @@ function openStore(dbPath, opts) {
         } else if (hk !== 'contentHtml' && tk in obj) rec[hk] = ''; // 일반 글만 고치면(빠른 추가·체크 등) 예전 서식은 버림
       }
       if (table === 'students') delete rec.gradeAt; // 학년 기준일은 서버가 정함
-      if (table === 'students' && 'kind' in rec && !isCareTester(me)) delete rec.kind; // 구분은 수업 케어 테스터만
+      if (table === 'students' && !isCareTester(me)) { delete rec.kind; delete rec.trackId; } // 구분·track 번호는 수업 케어 테스터만
+      if (table === 'students' && rec.trackId) { const m = /(\d+)\D*$/.exec(rec.trackId); rec.trackId = m ? m[1] : ''; } // track 학생 화면 주소를 붙여도 끝 번호만
       if (table === 'cdocs' && 'body' in obj) rec.body = sanitizeDoc(String(obj.body || '')); // 계약서 본문: 표·제목·정렬까지 허용 (clean 의 2만 자 제한 대신)
       if ('counselor' in rec) rec.counselor = lower(rec.counselor);
       // 컨설턴트에게 숨겨진 칸은 새로 쓰거나 고칠 수도 없음
@@ -1526,7 +1528,7 @@ function openStore(dbPath, opts) {
           requireManager(me, '학생 등록');
           if (!rec.branch) rec.branch = branchOf(me); // 전체 계정이면 첫 지점(상해) — 등록 창에서 고름
           if (rec.grade) rec.gradeAt = t.slice(0, 10);
-          if (me.role === 'staff' && me.branch !== ALL_BRANCH && rec.branch !== branchOf(me)) throw new UserError('다른 지점 학생은 그 지점 관리팀·관리자가 등록합니다.', 403);
+          if (me.role === 'staff' && me.branch !== ALL_BRANCH && rec.branch !== branchOf(me) && !(rec.kind && isCareTester(me))) throw new UserError('다른 지점 학생은 그 지점 관리팀·관리자가 등록합니다.', 403); // 수업 케어 테스터는 수강생을 지점과 상관없이
         } else {
           if (!rec.studentId) throw new UserError('학생이 지정되지 않았습니다.');
           requireEdit(me, requireStudent(me, rec.studentId), table, null);
@@ -2459,6 +2461,64 @@ function openStore(dbPath, opts) {
   function appDraftEditable(me, r) {
     if (r.studentId) requireEdit(me, requireStudent(me, r.studentId), 'apps', null);
   }
+  /* ----- 수업 케어 × REVERA-TRACK: 학생의 track 모의고사 결과를 미리 보고 → 고른 것만 시험·점수로 저장 ----- */
+  const trackCache = new Map(); // email|studentId → { items, at }
+  function careStudent(me, studentId) {
+    if (!isCareTester(me)) throw new UserError('수업 케어는 아직 시험 중이라 정해진 계정만 쓸 수 있습니다.', 403);
+    const s = requireStudent(me, studentId);
+    return s;
+  }
+  async function trackPreview(me, arg) {
+    const s = careStudent(me, arg && arg.studentId);
+    if (!s.trackId) throw new UserError('학생 정보에 track 학생 번호를 먼저 넣어주세요.');
+    const have = db.prepare("SELECT src, memo FROM care_exams WHERE studentId = ? AND deletedAt = '' AND src LIKE 'track:%'").all(s.id);
+    const done = have.filter((r) => !/진행 중/.test(r.memo || '')).map((r) => r.src);
+    const items = (await track.studentSummary(s.trackId, { skipKeys: done, limit: 30 })).filter((x) => x.skipped || x.modules.length);
+    trackCache.set(me.email + '|' + s.id, { items, at: Date.now() });
+    return { items: items.map((x) => Object.assign({}, x, { exists: have.some((r) => r.src === x.key) })) };
+  }
+  function trackImport(me, arg) {
+    arg = arg || {};
+    const s = careStudent(me, arg.studentId), c = trackCache.get(me.email + '|' + s.id);
+    if (!c || Date.now() - c.at > 30 * 60000) throw new UserError('미리 보기가 오래됐습니다. 「track에서 가져오기」를 다시 눌러주세요.');
+    const keys = new Set(Array.isArray(arg.keys) ? arg.keys : []), lessons = db.prepare("SELECT * FROM care_lessons WHERE studentId = ? AND deletedAt = ''").all(s.id);
+    let n = 0;
+    c.items.filter((x) => keys.has(x.key) && !x.skipped && x.modules.length).forEach((x) => {
+      const lesson = lessons.find((l) => l.category === 'SAT' && (x.section === 'rw' ? /RW|Reading|Writing|영어/i : /Math|수학/i).test(l.subject)) || null;
+      const mods = x.modules.map((m) => 'M' + m.n + ' ' + (m.score != null ? m.score : '-') + ' (맞음 ' + m.cor + ', 틀림 ' + m.inc + (m.omit ? ', 안 품 ' + m.omit : '') + ')').join(' · ');
+      const obj = { studentId: s.id, lessonId: lesson ? lesson.id : '', kind: x.section ? 'SAT 모의고사' : '기타 시험', title: x.title + (x.full ? '' : ' (1모듈)'), date: x.date, status: '완료',
+        rw: '', math: '', score: '', maxScore: '', skills: JSON.stringify(x.wrong || {}), src: x.key,
+        memo: ['track: ' + x.trackTitle, x.testType, '정답률 ' + x.perc + '%', mods, x.complete ? '' : '진행 중: ' + x.modules.length + '/' + x.modulesTotal + ' 모듈'].filter(Boolean).join('\n') };
+      if (x.section && x.full && x.complete && x.score != null) obj[x.section] = String(x.score);
+      else if (x.score != null) { obj.score = String(x.score); obj.maxScore = String(400 * x.modules.length); }
+      else obj.score = x.perc + '%';
+      const cur = db.prepare("SELECT id FROM care_exams WHERE studentId = ? AND src = ? AND deletedAt = ''").get(s.id, x.key);
+      if (cur) obj.id = cur.id;
+      save(me, { table: 'care_exams', obj }); n++;
+    });
+    return Object.assign(getAll(me), { trackSaved: n });
+  }
+  /** roster(엑셀)에서 옮긴 수강생·개인 수업·수업 기록을 한 번에 (같은 이름의 수강생이 있으면 건너뜀) */
+  function importCare(me, arg) {
+    if (!isCareTester(me)) throw new UserError('수업 케어는 아직 시험 중이라 정해진 계정만 쓸 수 있습니다.', 403);
+    const list = arg && Array.isArray(arg.students) ? arg.students : null;
+    if (!list || list.length > 50) throw new UserError('가져오기 파일 형식이 올바르지 않습니다.');
+    const out = { added: [], skipped: [] };
+    list.forEach((x) => {
+      const st = x && x.student || {};
+      if (!String(st.name || '').trim()) return;
+      if (db.prepare("SELECT 1 FROM students WHERE name = ? AND kind != '' AND deletedAt = ''").get(String(st.name).trim())) { out.skipped.push(st.name); return; }
+      const sid = save(me, { table: 'students', obj: { name: st.name, nickname: st.nickname || '', school: st.school || '', grade: st.grade || '', email: st.email || '', memo: st.memo || '',
+        trackId: st.trackId || '', kind: '수강생', branch: st.branch || '압구정', status: '진행중' } }).savedId;
+      (Array.isArray(x.lessons) ? x.lessons : []).forEach((l) => {
+        const lid = save(me, { table: 'care_lessons', obj: { studentId: sid, subject: l.subject, category: l.category || 'SAT', teacher: l.teacher || '', mode: l.mode || '', schedule: l.schedule || '', tz: l.tz || '',
+          rate: l.rate || '', currency: l.currency || 'KRW', startDate: l.startDate || '', endDate: l.endDate || '', status: l.status || '진행 중', goal: l.goal || '', traits: l.traits || '', memo: l.memo || '' } }).savedId;
+        (Array.isArray(l.sessions) ? l.sessions : []).forEach((x2) => save(me, { table: 'care_sessions', obj: Object.assign({ studentId: sid, lessonId: lid }, x2) }));
+      });
+      out.added.push(st.name);
+    });
+    return Object.assign(getAll(me), { imported: out });
+  }
   function getAppDraft(me, arg) {
     const r = appDraftRow(me, arg && arg.id);
     return { form: appforms.getForm(r.formId), draft: r };
@@ -3243,7 +3303,7 @@ function openStore(dbPath, opts) {
     db, filesDir, dbPath, listFiles, pendingSync, markSync, replaceSchedule, restoreFromDb, countTeachers, upsertAdmin, login, loginAs, logout, authenticate, addFile, getFile, addUniFile, getUniFile,
     rpc: { getAll: (me) => getAll(me), save, remove, restore, purge, getTrash, getLog, saveTeacher, changePassword, importData, copyCycle, getActivity, saveMany, updateMe,
       saveOption, removeOption, deleteTeacher, getAutomation, saveAutomation, saveEvent, removeEvent,
-      saveWithFollowups, requestFollowup, saveOrder, saveUniFile, removeUniFile, saveProgram, removeProgram, getStorage, retrySync, saveHomeLayout, saveStudentCols, saveBreak, removeBreak, requestReview, doneReview, cancelReview, excludeSched, unexcludeSched, saveAutoCat, getNotices, noticeAct, fixSubjects, saveViewPref, savePref, getPrefs, saveCTemplate, removeCTemplate, savePriceList, getAppDraft, saveAppDraft, removeAppDraft, removeMany, restoreMany, purgeMany, addFollowupMany, addFollowupLines, saveSite, addMajorsMany, renameFaculty },
+      saveWithFollowups, requestFollowup, saveOrder, saveUniFile, removeUniFile, saveProgram, removeProgram, getStorage, retrySync, saveHomeLayout, saveStudentCols, saveBreak, removeBreak, requestReview, doneReview, cancelReview, excludeSched, unexcludeSched, saveAutoCat, getNotices, noticeAct, fixSubjects, saveViewPref, savePref, getPrefs, saveCTemplate, removeCTemplate, savePriceList, getAppDraft, saveAppDraft, removeAppDraft, trackPreview, trackImport, importCare, removeMany, restoreMany, purgeMany, addFollowupMany, addFollowupLines, saveSite, addMajorsMany, renameFaculty },
     studentSheetData, backup, getConfig, getMeta, recordRun, listTeachers, close: () => db.close(),
   };
 }

@@ -150,7 +150,7 @@ function createApp(store, opts) {
   });
 
   // 화면에서 호출하는 기능들: POST /api/rpc/<기능이름>  { arg: ... }
-  app.post('/api/rpc/:fn', requireLogin, (req, res) => {
+  app.post('/api/rpc/:fn', requireLogin, async (req, res) => {
     const fn = store.rpc[req.params.fn];
     if (!Object.prototype.hasOwnProperty.call(store.rpc, req.params.fn)) return res.status(404).json({ error: '없는 기능입니다.' });
     // 임시 비밀번호 상태에서는 비밀번호 변경과 조회만 허용
@@ -158,7 +158,7 @@ function createApp(store, opts) {
       return res.status(403).json({ error: '먼저 비밀번호를 변경해주세요.' });
     }
     try {
-      const out = fn(req.me, (req.body || {}).arg);
+      const out = await fn(req.me, (req.body || {}).arg); // 대부분 바로 결과, track 가져오기처럼 밖에 다녀오는 것만 Promise
       if (req.params.fn === 'getAll' && readCookie(req, DEV_COOKIE)) { // 개발자가 다른 계정으로 보는 중
         const devMe = store.authenticate(readCookie(req, DEV_COOKIE));
         if (devMe && devMe.dev) out.devAs = { name: devMe.name, email: devMe.email };
