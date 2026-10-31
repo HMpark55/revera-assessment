@@ -49,7 +49,8 @@ const TABLES = {
       'parentName', 'parentPhone', 'email', 'tags', 'memo', 'driveUrl', 'resumeUrl', 'englishName', 'address', 'addressEn',
       'hopeUnis', 'focusArea', 'recommenders', 'onlineCourse', 'meetingUrl',
       'fatherName', 'fatherPhone', 'fatherWechat', 'fatherEmail', 'motherName', 'motherPhone', 'motherWechat', 'motherEmail',
-      'storyTrigger', 'storyProcess', 'storyLink', 'storyConclusion', 'storyStatus', 'branch'], // branch: 지점 (상해·압구정)
+      'storyTrigger', 'storyProcess', 'storyLink', 'storyConclusion', 'storyStatus', 'branch', // branch: 지점 (상해·압구정)
+      'passportNo', 'fatherNameEn', 'motherNameEn', 'fatherWork', 'motherWork'], // 원서용: 여권 번호(여러 개면 줄바꿈), 부모 영문명·근무 기간
     summary: (r) => r.name,
   },
   notes: {
@@ -116,6 +117,11 @@ const TABLES = {
     fields: ['studentId', 'school', 'country', 'city', 'gradeFrom', 'termFrom', 'gradeTo', 'termTo', 'startDate', 'endDate', 'memo'],
     summary: (r) => [r.school, [[r.gradeFrom, r.termFrom].filter(Boolean).join(' '), [r.gradeTo, r.termTo].filter(Boolean).join(' ')].filter(Boolean).join('~'), [r.startDate, r.endDate || '재학 중'].join('~')].filter(Boolean).join(' '),
   },
+  semesters: { // 학기별 재학: 학기 시작일~종료일로 실제 재학 일수를 계산 (3년특례 등 재학기간 증빙)
+    label: '학기별 재학',
+    fields: ['studentId', 'school', 'grade', 'term', 'startDate', 'endDate', 'memo'],
+    summary: (r) => [r.school, r.grade, r.term && r.term + '학기', [r.startDate, r.endDate].filter(Boolean).join('~')].filter(Boolean).join(' '),
+  },
   courses: {
     label: '수강 과목',
     fields: ['studentId', 'grade', 'schoolYear', 'subject', 'level', 'termType', 'g1', 'g2', 'g3', 'final', 'memo'],
@@ -133,7 +139,7 @@ const TABLES = {
   },
   appinfo: {
     label: '원서 정보',
-    fields: ['studentId', 'universityId', 'item', 'content', 'sent'], // sent: 추천인에게 질문지 맞춰 이메일 보냄
+    fields: ['studentId', 'universityId', 'item', 'content', 'sent', 'recName', 'recTitle', 'recSubject', 'recEmail'], // sent: 추천인에게 질문지 맞춰 이메일 보냄 / rec*: 추천인·카운슬러 이름·직책·과목·공식 이메일
     summary: (r) => r.item,
   },
   payments: {
@@ -207,6 +213,8 @@ const DEFAULT_CURRICULA = ['IB', 'AP', 'A-Level', 'IGCSE', '국내 일반고', '
 const HIDEABLE_MENUS = ['followups', 'meetings', 'deadlines', 'unis', 'programs', 'results'];
 /** 맨 위 🐞 버그·요청 버튼의 처음 링크 (사이트 설정에서 바꾸거나 비울 수 있음) */
 const DEFAULT_BUG_URL = 'https://docs.google.com/spreadsheets/d/1kc0zuaz4AxdTnXXskaM_-mxggxhPW_B1oh7pEFQ3SC4/edit?usp=sharing';
+/** 학교 상세 칸: 주소, 홈페이지, 학년제·학기제, 대표 이메일, 전화 */
+const SCHOOL_INFO = ['address', 'homepage', 'system', 'email', 'phone'];
 const CHILD_TABLES = Object.keys(TABLES).filter((t) => t !== 'students');
 
 /** 대학 정보 (학생과 무관한 공용 자료) */
@@ -261,6 +269,8 @@ const FIELD_LABELS = {
   parentConfirmedBy: '부모님 확정 기록자', city: '도시', gradeFrom: '시작 학년', gradeTo: '마지막 학년', startDate: '시작일',
   endDate: '종료일', schoolYear: '학년도', level: '레벨', termType: '학기 구분', g1: '1학기/T1 성적', g2: '2학기/T2 성적',
   g3: 'T3 성적', final: '최종 성적',
+  passportNo: '여권 번호', fatherNameEn: '부 영문명', motherNameEn: '모 영문명', fatherWork: '부 근무 기간', motherWork: '모 근무 기간',
+  recName: '추천인 이름', recTitle: '추천인 직책', recSubject: '추천인 과목', recEmail: '추천인 이메일',
   nextDate: '다음 미팅 날짜', meetingId: '미팅', noteId: '상담기록', contentHtml: '내용 서식', item: '항목',
 };
 /** 관리자/관리팀만 다룰 수 있는 테이블 */
@@ -450,7 +460,8 @@ function migrate(db) {
   for (const t of ['apps']) db.prepare(`UPDATE ${t} SET createdBy = updatedBy WHERE createdBy = ''`).run();
   db.exec('CREATE TABLE IF NOT EXISTS options (id TEXT PRIMARY KEY)');
   ensureColumns(db, 'options', ['kind', 'value', 'sortOrder', 'url', 'category', 'color', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy']);
-  ensureColumns(db, 'options', ['fullName', 'country', 'city']); // 학교: 정식 이름·나라·도시 (화면에는 짧은 이름 value)
+  ensureColumns(db, 'options', ['fullName', 'country', 'city']);
+  ensureColumns(db, 'options', ['info']); // 학교 상세(JSON): 주소·홈페이지·학년제/학기제·대표 이메일·전화 — 원서용 학생 정보 엑셀에 씀 // 학교: 정식 이름·나라·도시 (화면에는 짧은 이름 value)
   // v11: 달력 일정 분류·색을 목록으로 / 대회·프로그램 정보 (모두가 함께 쓰는 자료)
   if (!db.prepare("SELECT 1 FROM meta WHERE key = 'v11_evcats'").get()) {
     const ts = now();
@@ -1106,7 +1117,7 @@ function openStore(dbPath, opts) {
       out[t] = db.prepare(`SELECT * FROM ${t} WHERE deletedAt = ''`).all()
         .filter((r) => ids.has(r.studentId)).map((r) => publicRow(t, r, me));
     }
-    out.options = db.prepare('SELECT id, kind, value, sortOrder, url, category, color, fullName, country, city FROM options').all();
+    out.options = db.prepare('SELECT id, kind, value, sortOrder, url, category, color, fullName, country, city, info FROM options').all();
     out.programs = db.prepare('SELECT * FROM programs ORDER BY name').all();
     out.breaks = db.prepare('SELECT id, school, name, startDate, endDate FROM schoolbreaks ORDER BY startDate').all();
     out.events = db.prepare("SELECT * FROM events WHERE private != 'TRUE' OR createdBy = ? ORDER BY date, title").all(me.email); // 나만 보기 일정은 등록한 사람에게만
@@ -1163,7 +1174,16 @@ function openStore(dbPath, opts) {
     if (table === 'docs') need('name', '서류 이름을 입력하세요.');
     if (table === 'links') { need('url', '링크 주소를 입력하세요.'); checkUrl(v('url')); }
     if (table === 'files') need('name', '파일 이름을 입력하세요.');
-    if (table === 'appinfo') { need('item', '항목 이름을 입력하세요. (예: 추천인 1)'); need('content', '내용을 입력하세요.'); }
+    if (table === 'appinfo') {
+      need('item', '항목 이름을 입력하세요. (예: 추천인 1)');
+      if (!['content', 'recName', 'recTitle', 'recSubject', 'recEmail'].some((k) => String(v(k) || '').trim())) throw new UserError('내용을 입력하세요.');
+      if (v('recEmail') && !isEmail(String(v('recEmail')).trim())) throw new UserError('추천인 이메일 형식이 올바르지 않습니다.');
+    }
+    if (table === 'semesters') {
+      for (const k of ['startDate', 'endDate']) if (v(k) && !DATE_RE.test(v(k))) throw new UserError('학기 날짜 형식이 올바르지 않습니다. (YYYY-MM-DD)');
+      if (v('startDate') && v('endDate') && v('endDate') < v('startDate')) throw new UserError('학기 종료일이 시작일보다 빠릅니다.');
+      if (!String(v('grade') || '').trim() && !v('startDate')) throw new UserError('학년이나 학기 시작일을 입력하세요.');
+    }
     if (table === 'followups') {
       need('title', '할 일을 입력하세요.');
       if (v('status') && !FOLLOWUP_STATUS.includes(v('status'))) throw new UserError('상태가 올바르지 않습니다.');
@@ -1678,6 +1698,11 @@ function openStore(dbPath, opts) {
           .run(id, kind, value, so, url, category, color, ...detail(null), t, me.email, t, me.email);
         log(me.email, 'create', 'options', id, OPTION_KINDS[kind] + ' ' + value);
       }
+      if (kind === 'school' && arg.info !== undefined) { // 학교 상세: 정해진 칸만, 글자 수 제한
+        const src = arg.info && typeof arg.info === 'object' ? arg.info : {}, info = {};
+        SCHOOL_INFO.forEach((k) => { const x = clean(src[k]).trim().slice(0, 500); if (x) info[k] = x; });
+        db.prepare('UPDATE options SET info = ? WHERE id = ?').run(Object.keys(info).length ? JSON.stringify(info) : '', id);
+      }
     });
     if (kind === 'tz') refreshTz();
     return Object.assign(getAll(me), { savedId: id });
@@ -2182,7 +2207,7 @@ function openStore(dbPath, opts) {
   function saveMany(me, arg) {
     const table = arg && arg.table;
     const objs = (arg && arg.objs) || [];
-    if (!['courses'].includes(table)) throw new UserError('여러 건 저장을 지원하지 않는 항목입니다.');
+    if (!['courses', 'semesters'].includes(table)) throw new UserError('여러 건 저장을 지원하지 않는 항목입니다.');
     if (!Array.isArray(objs) || !objs.length) throw new UserError('저장할 항목이 없습니다.');
     if (objs.length > 60) throw new UserError('한 번에 60건까지만 저장할 수 있습니다.');
     const ids = [];
@@ -2249,6 +2274,15 @@ function openStore(dbPath, opts) {
     if (json.length > 300000) throw new UserError('저장한 화면 설정이 너무 많습니다. 표 칸 너비를 몇 개 처음 상태로 되돌려 주세요.');
     db.prepare('UPDATE teachers SET uiPrefs = ? WHERE email = ?').run(json, me.email);
     return { ok: true };
+  }
+  /** 원서용 학생 정보 엑셀에 들어갈 한 학생의 기록 (볼 수 있는 학생만) */
+  function studentSheetData(me, id) {
+    const st = requireStudent(me, id);
+    const rows = (t) => db.prepare(`SELECT * FROM ${t} WHERE studentId = ? AND deletedAt = ''`).all(st.id).map((r) => publicRow(t, r, me));
+    const schoolOpts = {};
+    db.prepare("SELECT value, fullName, country, city, info FROM options WHERE kind = 'school'").all().forEach((o) => { schoolOpts[o.value] = o; });
+    return { student: publicRow('students', st, me), schools: rows('schools'), semesters: rows('semesters'), courses: rows('courses'), scores: rows('scores'),
+      appinfo: rows('appinfo'), accounts: rows('accounts'), apps: rows('apps'), schoolOpts };
   }
   const getPrefs = (me) => parsePrefs((db.prepare('SELECT uiPrefs FROM teachers WHERE email = ?').get(me.email) || {}).uiPrefs);
   function parseFuOrder(v) { try { const a = JSON.parse(v || '[]'); return Array.isArray(a) ? a.filter((x) => typeof x === 'string').slice(0, 1000) : []; } catch (e) { return []; } }
@@ -2927,7 +2961,7 @@ function openStore(dbPath, opts) {
     rpc: { getAll: (me) => getAll(me), save, remove, restore, purge, getTrash, getLog, saveTeacher, changePassword, importData, copyCycle, getActivity, saveMany, updateMe,
       saveOption, removeOption, deleteTeacher, getAutomation, saveAutomation, saveEvent, removeEvent,
       saveWithFollowups, requestFollowup, saveOrder, saveUniFile, removeUniFile, saveProgram, removeProgram, getStorage, retrySync, saveHomeLayout, saveStudentCols, saveBreak, removeBreak, requestReview, doneReview, cancelReview, excludeSched, unexcludeSched, saveAutoCat, getNotices, noticeAct, fixSubjects, saveViewPref, savePref, getPrefs, removeMany, restoreMany, purgeMany, addFollowupMany, addFollowupLines, saveSite, addMajorsMany, renameFaculty },
-    backup, getConfig, getMeta, recordRun, listTeachers, close: () => db.close(),
+    studentSheetData, backup, getConfig, getMeta, recordRun, listTeachers, close: () => db.close(),
   };
 }
 

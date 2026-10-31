@@ -2728,3 +2728,31 @@ test('첨부 파일 여러 개 한 번에 받기(ZIP): 권한 있는 파일만, 
   const kim = await newUser(admin, 'zipkim@revera.test', 'consultant');
   assert.strictEqual((await kim.req('GET', '/api/files-zip?ids=' + a)).status, 403, '담당 아닌 학생 파일은 못 받음');
 });
+
+test('원서용 학생 정보 엑셀: 새 칸(여권·부모 영문명·학교 상세·추천인 칸·학기별 재학) 저장·검사, 학생마다 시트, 권한', async () => {
+  const admin = client(); await admin.login('admin@revera.test', 'admin-pass-1');
+  const sid = (await admin.saveOk('students', { name: '시트학생', school: 'SHT', passportNo: 'M1234\nE5678', fatherNameEn: 'KIM A', fatherWork: '2015.03 – 현재' })).savedId;
+  let d = await admin.ok('saveOption', { kind: 'school', value: 'SHT', fullName: 'Sheet High School', country: '중국', city: '상하이', info: { system: '12학년제 / 2학기제', address: 'No. 1 Road', homepage: 'www.sht.org', nope: 'x' } });
+  const opt = d.options.find((o) => o.kind === 'school' && o.value === 'SHT');
+  assert.deepStrictEqual(JSON.parse(opt.info), { address: 'No. 1 Road', homepage: 'www.sht.org', system: '12학년제 / 2학기제' }, '정해진 칸만');
+  await admin.saveOk('semesters', { studentId: sid, school: 'SHT', grade: 'G9', term: '1', startDate: '2024-09-01', endDate: '2024-09-10' });
+  assert.strictEqual((await admin.save('semesters', { studentId: sid, school: 'SHT', grade: 'G9', term: '2', startDate: '2025-03-01', endDate: '2025-02-01' })).status, 400, '종료일이 시작일보다 빠름');
+  d = await admin.ok('saveMany', { table: 'semesters', objs: [{ studentId: sid, school: 'SHT', grade: 'G10', term: '1' }, { studentId: sid, school: 'SHT', grade: 'G10', term: '2' }] });
+  assert.strictEqual(d.semesters.filter((x) => x.studentId === sid).length, 3);
+  assert.strictEqual((await admin.save('appinfo', { studentId: sid, item: '추천인 1' })).status, 400, '내용·추천인 칸 모두 비면 안 됨');
+  assert.strictEqual((await admin.save('appinfo', { studentId: sid, item: '추천인 1', recName: 'A', recEmail: 'not-email' })).status, 400);
+  await admin.saveOk('appinfo', { studentId: sid, item: '추천인 1', recName: 'Jingjing Wang', recTitle: 'teacher', recEmail: 'w@sht.org' });
+  const r = await admin.req('GET', '/api/student-sheet?ids=' + sid + '&parts=info,passport,parents,schools,semesters,recs');
+  assert.strictEqual(r.status, 200, String(r.data));
+  assert.ok(/spreadsheetml/.test(r.headers.get('content-type')));
+  const { readZip } = require('../lib/zip');
+  const files = Object.fromEntries(readZip(r.data).map((e) => [e.name, e.read().toString('utf8')]));
+  const xml = files['xl/worksheets/sheet1.xml'];
+  assert.ok(/<sheet name="시트학생"/.test(files['xl/workbook.xml']));
+  for (const t of ['M1234\nE5678', 'KIM A', 'Sheet High School', '12학년제 / 2학기제', '10일', 'Jingjing Wang', 'w@sht.org']) assert.ok(xml.includes(t), t);
+  const noPass = await admin.req('GET', '/api/student-sheet?ids=' + sid + '&parts=info,parents');
+  assert.ok(!Object.fromEntries(readZip(noPass.data).map((e) => [e.name, e.read().toString('utf8')]))['xl/worksheets/sheet1.xml'].includes('M1234'), '여권 칸을 빼면 안 들어감');
+  assert.strictEqual((await admin.req('GET', '/api/student-sheet?ids=' + sid + '&parts=nope')).status, 400);
+  const kim = await newUser(admin, 'sheetkim@revera.test', 'consultant');
+  assert.strictEqual((await kim.req('GET', '/api/student-sheet?ids=' + sid + '&parts=info')).status, 403, '담당 아닌 학생');
+});
