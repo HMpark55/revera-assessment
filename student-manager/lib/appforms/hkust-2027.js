@@ -34,7 +34,7 @@ module.exports = {
   checkedAt: '2026-10-31',
   notes: [
     'International Qualifications 원서. 정부 지원 과정(International / Gaokao / SNDAS)은 그중 한 곳에만 1번 지원할 수 있습니다.',
-    '원서를 처음 만들 때 최고 학력(예: SAT + AP Subjects/Subject Tests, IB Diploma, A-Level)을 고르고, 그에 따라 고를 수 있는 학과 목록이 달라집니다 (아래 학과 목록은 SAT + AP 기준).',
+    '원서를 처음 만들 때 최고 학력(예: SAT + AP Subjects/Subject Tests, IB Diploma, A-Level)을 고르고, 그에 따라 고를 수 있는 학과 목록이 달라질 수 있습니다. SAT + AP와 IB Diploma는 학과 목록(40개)과 나머지 칸이 모두 같았습니다 (2026-10-31 두 가지로 바꿔 보며 확인, 다른 학력은 확인 안 함).',
     'Personal Statement·성적표·시험 성적·여권 사본은 Step 2 Upload Documents에서 파일로 올립니다 (전체 6MB까지). 제출 후에는 고치거나 지울 수 없습니다.',
     'Priority Round 마감 2026년 11월 25일. 추천인 정보는 제출하면 바꿀 수 없고, 제출 때 추천인에게 이메일이 갑니다.',
   ],
@@ -92,7 +92,7 @@ module.exports = {
     ] },
     { key: 'program', title: '2. Program Choice', intro: ['You can select up to two choices. The first choice will be considered as your highest priority. Please note that the available list of programs is based on the highest qualification which you have declared.'], sections: [
       { title: 'Program Choice', fields: [
-        { k: 'highest', l: 'Self-declared Highest Qualification', help: '원서를 처음 만들 때 고름 (Modify Qualification으로 바꿀 수 있음)', ph: 'e.g. SAT + AP Subjects/Subject Tests', full: 1 },
+        { k: 'highest', l: 'Self-declared Highest Qualification', t: 'select', list: 'highest', pre: 'highestHk', help: '원서를 처음 만들 때 고름 (Program Choice 화면의 Modify Qualification으로 바꿀 수 있음). 대학 과정이 있으면 Post-secondary Qualifications 목록에서 고름', full: 1 },
         { k: 'choice1', l: 'First Choice', req: 1, t: 'select', list: 'programmes', full: 1 },
         { k: 'choice2', l: 'Second Choice', t: 'select', list: 'programmes', full: 1 },
       ] },
@@ -139,9 +139,11 @@ module.exports = {
           subj: subjList({ 'ACT': 'usSubj.ACT', 'Advanced Placement': 'usSubj.Advanced Placement', 'SAT': 'usSubj.SAT', 'SAT Reasoning Test (Pre-March 2016)': 'usSubj.SAT Reasoning Test (Pre-March 2016)', 'SAT Subject Tests': 'usSubj.SAT Subject Tests' }),
           grades: { by: 'exam', map: { 'Advanced Placement': 'apGrades' } } },
       ] },
-      { title: 'International Baccalaureate', note: 'School Code 6자리 숫자, Personal Code 6자(소문자 3 + 숫자 3). IBO에서 HKUST(Institute Code 000252)로 성적 공개 허락. 예상 점수는 넣지 않음.', fields: [
-        { k: 'ib', t: 'exams', add: 'Attempt', exam: { l: 'Examination', list: 'ibExams' },
-          cols: [{ k: 'school', l: 'School Code', req: 1, max: 6 }, { k: 'pcode', l: 'Personal Code', max: 6 }, { k: 'mon', l: 'Exam Month', req: 1, t: 'select', list: 'ibMonths' }, { k: 'yr', l: 'Year', req: 1, max: 4 }],
+      { title: 'International Baccalaureate', note: 'School Code 6자리 숫자, Personal Code 6자(소문자 3 + 숫자 3, 아직 없으면 나중에). IBO에서 HKUST(Institute Code 000252)로 성적 공개 허락. 예상(predicted) 점수는 넣지 않음 — 시험 전이면 Results 비움. 포털 순서: Examination → School Code → Exam Month·Year를 넣어야 과목 줄이 열리고, Level(HL/SL) → Subject를 골라야 Results가 열림. IB Diploma는 과목 6줄 + Extended Essay·Theory of Knowledge·Combined Grade(보너스 점수) + Total(자동 합계) + 추가 과목 1줄.', fields: [
+        { k: 'ib', t: 'exams', add: 'Attempt', pre: 'ibExams', exam: { l: 'Examination', list: 'ibExams' },
+          cols: [{ k: 'school', l: 'School Code', req: 1, max: 6 }, { k: 'pcode', l: 'Personal Code', max: 6 }, { k: 'mon', l: 'Exam Month', req: 1, t: 'select', list: 'ibMonths' }, { k: 'yr', l: 'Year', req: 1, max: 4 },
+            { k: 'ee', l: 'Extended Essay (IB Diploma)', t: 'select', list: 'ibGrades2' }, { k: 'tok', l: 'Theory of Knowledge (IB Diploma)', t: 'select', list: 'ibGrades2' },
+            { k: 'bonus', l: 'Combined Grade (IB Diploma)', t: 'select', list: 'ibGrades3', help: 'EE·TOK 보너스 점수 0–3' }, { k: 'total', l: 'Total', help: '포털에서는 자동 합계 — 맞는지 확인용', max: 2 }],
           level: ['HL', 'SL'], subj: { by: 'level', map: { HL: 'ibHL', SL: 'ibSL' } }, grades: 'ibGrades' },
       ] },
       { title: 'British Qual (GCE AL / IAL / BTEC)', fields: [

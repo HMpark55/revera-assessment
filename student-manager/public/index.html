@@ -3991,6 +3991,12 @@ var APF_PREFILL = {
     });
     return out;
   },
+  highestHk: function (s) { var c = String(s.curriculum || ''); return /\bIB\b|바칼로레아/i.test(c) ? 'International Baccalaureate Diploma' : /A-?Level|영국/i.test(c) ? 'GCE Advanced Level/International Advanced Level' : /\bAP\b|미국|American/i.test(c) ? 'SAT + AP Subjects/Subject Tests' : ''; },
+  ibExams: function (s) {
+    var l = childOf('scores', s.id).filter(function (r) { return r.kind === 'IB'; }); if (!l.length) return [];
+    var d = l.map(function (r) { return r.date || ''; }).sort().pop();
+    return [{ exam: 'IB Diploma', mon: /^\d{4}-(0[1-6])/.test(d) ? 'May' : /^\d{4}-/.test(d) ? 'November' : '', yr: d.slice(0, 4), subjects: l.map(function (r) { var lv = /HL|SL/i.exec([r.level, r.subject].join(' ')); return { level: lv ? lv[0].toUpperCase() : '', subject: String(r.subject || '').replace(/\s*\b(HL|SL)\b/i, '').trim(), result: r.score }; }) }];
+  },
   ielts: function (s) { return childOf('scores', s.id).filter(function (r) { return r.kind === 'IELTS'; }).map(function (r) { return { date: apfDate(r.date), o: r.score }; }); },
   toefl: function (s) { return childOf('scores', s.id).filter(function (r) { return r.kind === 'TOEFL' && Number(r.score) <= 6; }).map(function (r) { return { date: apfDate(r.date), t: r.score }; }); },
   toeflOld: function (s) { return childOf('scores', s.id).filter(function (r) { return r.kind === 'TOEFL' && Number(r.score) > 6; }).map(function (r) { return { date: apfDate(r.date), t: r.score }; }); },
