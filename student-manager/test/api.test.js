@@ -2868,3 +2868,31 @@ test('학년 자동 올림·졸업 연월·닉네임, 가격표 KRW', async () =
   d = await admin.ok('savePriceList', { rows: [{ name: 'HKU', price: '10,000', priceKrw: '1,900,000' }, { name: 'NUS', price: '12000', priceKrw: '' }] });
   assert.deepStrictEqual(d.prices.rows.map((r) => [r.price, r.priceKrw]), [['10000', '1900000'], ['12000', '']]);
 });
+
+test('수업 케어(시험 중): 테스터만 수강생·수업 기록을 보고 씀, 시험 종류·틀린 유형·수업 연결 검증', async () => {
+  process.env.CARE_EMAILS = 'caretest@revera.test';
+  const admin = client(); await admin.login('admin@revera.test', 'admin-pass-1');
+  const ct = await newUser(admin, 'caretest@revera.test', 'staff');
+  const other = await newUser(admin, 'carenot@revera.test', 'staff');
+  assert.strictEqual((await ct.ok('getAll')).me.care, true);
+  assert.strictEqual((await admin.ok('getAll')).me.care, false);
+  let d = await ct.saveOk('students', { name: '수강생테스트', kind: '수강생' });
+  const sid = d.savedId;
+  assert.ok(!(await admin.ok('getAll')).students.some((s) => s.id === sid), '수강생은 테스터가 아니면 관리자에게도 안 보임');
+  assert.strictEqual((await other.rpc('save', { table: 'followups', obj: { studentId: sid, title: 'x' } })).status, 403);
+  const lid = (await ct.saveOk('care_lessons', { studentId: sid, subject: 'Digital SAT RW', category: 'SAT', rate: '300000' })).savedId;
+  await ct.saveOk('care_sessions', { studentId: sid, lessonId: lid, date: '2026-11-03', status: '완료', attend: '지각', late: '10', remind: true });
+  assert.strictEqual((await ct.save('care_exams', { studentId: sid, kind: '모름', title: 'x' })).status, 400);
+  assert.strictEqual((await ct.save('care_exams', { studentId: sid, kind: 'SAT 모의고사', skills: '[1]' })).status, 400);
+  d = await ct.saveOk('care_exams', { studentId: sid, lessonId: lid, kind: 'SAT 모의고사', title: 'Form A', total: '1300', skills: JSON.stringify({ Inferences: 2 }) });
+  assert.strictEqual(d.care_exams.find((x) => x.id === d.savedId).total, '1300');
+  const sid2 = (await ct.saveOk('students', { name: '다른 수강생', kind: '수강생' })).savedId;
+  assert.strictEqual((await ct.save('care_sessions', { studentId: sid2, lessonId: lid, date: '2026-11-03' })).status, 400, '다른 학생의 수업에는 연결 못 함');
+  assert.strictEqual((await admin.rpc('save', { table: 'care_lessons', obj: { studentId: sid, subject: 'x' } })).status, 403);
+  assert.deepStrictEqual((await admin.ok('getAll')).care_lessons, []);
+  // 테스터가 아니면 구분을 못 바꿈
+  const cs = (await admin.saveOk('students', { name: '컨설팅학생' })).savedId;
+  d = await admin.saveOk('students', { id: cs, kind: '수강생' });
+  assert.strictEqual(d.students.find((s) => s.id === cs).kind, '');
+  delete process.env.CARE_EMAILS;
+});

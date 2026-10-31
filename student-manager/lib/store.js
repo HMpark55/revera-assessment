@@ -54,7 +54,8 @@ const TABLES = {
       'fatherName', 'fatherPhone', 'fatherWechat', 'fatherEmail', 'motherName', 'motherPhone', 'motherWechat', 'motherEmail',
       'storyTrigger', 'storyProcess', 'storyLink', 'storyConclusion', 'storyStatus', 'branch', // branch: 지점 (상해·압구정)
       'passportNo', 'fatherNameEn', 'motherNameEn', 'fatherWork', 'motherWork', // 원서용: 여권 번호(여러 개면 줄바꿈), 부모 영문명·근무 기간
-      'nickname', 'preIb', 'gradDate', 'gradeAt'], // 영어 이름(닉네임), IB 이전 과정, 졸업(예정) 연월 YYYY-MM, 학년을 마지막으로 정한 날 (자동 올림 기준 — 서버가 씀)
+      'nickname', 'preIb', 'gradDate', 'gradeAt', // 영어 이름(닉네임), IB 이전 과정, 졸업(예정) 연월, 학년 기준일
+      'kind'], // 구분: '' = 컨설팅, '수강생' = 학원 수업만 (수업 케어 테스터만 보임), '둘 다' // 영어 이름(닉네임), IB 이전 과정, 졸업(예정) 연월 YYYY-MM, 학년을 마지막으로 정한 날 (자동 올림 기준 — 서버가 씀)
     summary: (r) => r.name,
   },
   notes: {
@@ -156,7 +157,28 @@ const TABLES = {
     fields: ['studentId', 'contractId', 'date', 'amount', 'currency', 'method', 'memo'],
     summary: (r) => [r.date, r.currency, r.amount].filter(Boolean).join(' '),
   },
+  /* ----- 수업 케어 (시험 중 — CARE_NAMES 계정만): 개인 수업 · 수업 기록 · 시험·점수 ----- */
+  care_lessons: { // 개인 수업 하나 (과목·선생님·요일 시간·회당 금액)
+    label: '개인 수업',
+    fields: ['studentId', 'subject', 'category', 'teacher', 'mode', 'schedule', 'tz', 'rate', 'currency', 'startDate', 'endDate', 'status', 'goal', 'traits', 'memo'],
+    summary: (r) => [r.subject, r.teacher].filter(Boolean).join(' · '),
+  },
+  care_sessions: { // 수업 한 번: 출결·지각·취소/보충·이월, 숙제, 리마인드, 수업 내용
+    label: '수업 기록',
+    fields: ['studentId', 'lessonId', 'date', 'time', 'status', 'attend', 'late', 'fee', 'carry', 'homework', 'hwStatus', 'remind', 'note'],
+    summary: (r) => [r.date, r.status, r.attend].filter(Boolean).join(' · '),
+  },
+  care_exams: { // 시험 일정·점수: SAT 공식 시험·모의고사(영역별 틀린 유형)·단어 시험·학교 시험·과제
+    label: '시험·점수',
+    fields: ['studentId', 'lessonId', 'kind', 'title', 'date', 'status', 'total', 'rw', 'math', 'score', 'maxScore', 'skills', 'memo', 'src'], // skills: {유형: 틀린 개수} JSON, src 'track' = track에서 가져옴(예정)
+    summary: (r) => [r.kind, r.title, r.date].filter(Boolean).join(' · '),
+  },
 };
+const CARE_TABLES = ['care_lessons', 'care_sessions', 'care_exams'];
+/** 수업 케어 테스트 계정 (이름) — 환경변수 CARE_EMAILS(쉼표)로 더할 수 있음 */
+const CARE_NAMES = ['박현모', '김초영'];
+const STUDENT_KINDS = ['', '수강생', '둘 다'];
+const CARE_EXAM_KINDS = ['SAT 공식 시험', 'SAT 모의고사', '단어 시험', '학교 시험', '과제', '기타 시험'];
 const CURRENCIES = ['RMB', 'KRW'];
 const FOLLOWUP_STATUS = ['할 일', '진행 중', '대기', '완료'];
 /** 팔로업 종류: '' = 우리가 챙길 할 일, 'contact' = 학생·학부모에게 받은 연락(질문·확인 요청) */
@@ -1061,7 +1083,16 @@ function openStore(dbPath, opts) {
   /* ----- 권한 ----- */
 
   function canSeeStudent(me, s) {
+    if (s && s.kind === '수강생' && !isCareTester(me)) return false; // 학원 수업만 듣는 학생은 수업 케어 테스터만
     return !!s && !s.deletedAt && (isManager(me) || lower(s.counselor) === me.email);
+  }
+  /** 수업 케어(시험 중)를 볼 수 있는 계정 */
+  function isCareTester(me) {
+    if (!me || !me.email) return false;
+    const extra = String(process.env.CARE_EMAILS || '').split(',').map((x) => x.trim().toLowerCase()).filter(Boolean);
+    if (extra.includes(lower(me.email))) return true;
+    const t = getTeacher(me.email);
+    return !!t && CARE_NAMES.includes(String(t.name || '').trim());
   }
   function requireStudent(me, id) {
     const s = getRow('students', id);
@@ -1072,6 +1103,7 @@ function openStore(dbPath, opts) {
   /** 학생 자료를 고칠 수 있는지: 관리자 = 전부, 관리팀 = 같은 지점 학생 (다른 지점은 팔로업·상담기록 추가와 내가 쓴·내 담당 것만), 컨설턴트 = 담당 학생 */
   function requireEdit(me, s, table, cur) {
     if (me.role !== 'staff' || me.branch === ALL_BRANCH || branchOf(me) === branchOf(s)) return;
+    if ((CARE_TABLES.includes(table) || (table === 'students' && s.kind)) && isCareTester(me)) return; // 수업 케어 테스터는 지점과 상관없이
     if (CROSS_BRANCH_TABLES.includes(table) && (!cur || cur.createdBy === me.email || cur.assignee === me.email)) return;
     throw new UserError(branchOf(s) + ' 지점 학생입니다. 다른 지점 학생은 보기와 팔로업·상담기록 추가만 할 수 있습니다 (수정은 ' + branchOf(s) + ' 관리팀·관리자).', 403);
   }
@@ -1082,6 +1114,7 @@ function openStore(dbPath, opts) {
     if (me.role !== 'admin') throw new UserError((what || '이 작업') + '은(는) 관리자만 할 수 있습니다.', 403);
   }
   function requireTableAccess(me, table) {
+    if (CARE_TABLES.includes(table) && !isCareTester(me)) throw new UserError('수업 케어는 아직 시험 중이라 정해진 계정만 쓸 수 있습니다.', 403);
     if (MANAGER_ONLY.includes(table)) requireManager(me, TABLES[table].label + ' 관리');
   }
 
@@ -1207,8 +1240,10 @@ function openStore(dbPath, opts) {
       const failed = ['backup', 'filesync'].filter((k) => /^실패/.test(getMeta('run.' + k + '.result')));
       if (failed.length) out.backupAlert = failed.map((k) => ({ kind: k, at: getMeta('run.' + k + '.at'), result: getMeta('run.' + k + '.result') }));
     }
+    out.me.care = isCareTester(me);
     for (const t of CHILD_TABLES) {
       if (MANAGER_ONLY.includes(t) && t !== 'contracts' && !isManager(me)) { out[t] = []; continue; }
+      if (CARE_TABLES.includes(t) && !out.me.care) { out[t] = []; continue; }
       out[t] = db.prepare(`SELECT * FROM ${t} WHERE deletedAt = ''`).all()
         .filter((r) => ids.has(r.studentId) && !(t === 'files' && r.contractId && !isManager(me))).map((r) => publicRow(t, r, me)); // 계약서 파일은 관리자·관리팀만
     }
@@ -1361,6 +1396,18 @@ function openStore(dbPath, opts) {
     }
     if (table === 'students') { checkUrl(v('driveUrl'), 'Drive 폴더 링크'); checkUrl(v('resumeUrl'), 'Resume 링크'); }
     if (table === 'students' && v('gradDate') && !/^\d{4}-(0[1-9]|1[0-2])$/.test(v('gradDate'))) throw new UserError('졸업(예정) 연월은 2027-06 처럼 입력하세요.');
+    if (table === 'students' && !STUDENT_KINDS.includes(v('kind') || '')) throw new UserError('학생 구분이 올바르지 않습니다.');
+    if (table === 'care_lessons') need('subject', '수업 과목을 입력하세요.');
+    if (table === 'care_sessions') need('date', '수업 날짜를 입력하세요.');
+    if (table === 'care_exams') {
+      if (!CARE_EXAM_KINDS.includes(v('kind'))) throw new UserError('시험 종류가 올바르지 않습니다.');
+      if (v('skills')) { let o; try { o = JSON.parse(v('skills')); } catch (e) { o = null; } if (!o || typeof o !== 'object' || Array.isArray(o) || v('skills').length > 5000) throw new UserError('틀린 유형 형식이 올바르지 않습니다.'); }
+    }
+    if ((table === 'care_sessions' || table === 'care_exams') && v('lessonId')) {
+      const l = getRow('care_lessons', v('lessonId'));
+      if (!l || l.deletedAt || l.studentId !== v('studentId')) throw new UserError('이 학생의 수업이 아닙니다.');
+    }
+    if (CARE_TABLES.includes(table)) for (const k of ['date', 'startDate', 'endDate']) if (v(k) && !/^\d{4}-\d{2}-\d{2}$/.test(v(k))) throw new UserError('날짜 형식이 올바르지 않습니다.');
     if (table === 'contracts' && v('currency') && !CURRENCIES.includes(v('currency'))) throw new UserError('통화는 RMB 또는 KRW만 가능합니다.');
     if (table === 'payments') {
       need('date', '입금일을 입력하세요.');
@@ -1419,6 +1466,7 @@ function openStore(dbPath, opts) {
         } else if (hk !== 'contentHtml' && tk in obj) rec[hk] = ''; // 일반 글만 고치면(빠른 추가·체크 등) 예전 서식은 버림
       }
       if (table === 'students') delete rec.gradeAt; // 학년 기준일은 서버가 정함
+      if (table === 'students' && 'kind' in rec && !isCareTester(me)) delete rec.kind; // 구분은 수업 케어 테스터만
       if (table === 'cdocs' && 'body' in obj) rec.body = sanitizeDoc(String(obj.body || '')); // 계약서 본문: 표·제목·정렬까지 허용 (clean 의 2만 자 제한 대신)
       if ('counselor' in rec) rec.counselor = lower(rec.counselor);
       // 컨설턴트에게 숨겨진 칸은 새로 쓰거나 고칠 수도 없음

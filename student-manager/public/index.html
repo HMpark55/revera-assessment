@@ -380,6 +380,7 @@
   .cd-tb select { font-size:.8rem; padding:3px 6px; }
   .cdoc-wrap { background:#e9ecf1; border-radius:6px; padding:16px 0; max-height:64vh; overflow:auto; }
   .cdoc-ed { width:794px; max-width:calc(100% - 24px); box-sizing:border-box; margin:0 auto; padding:72px 72px 72px 76px; background:#fff; box-shadow:0 1px 6px rgba(0,0,0,.18); outline:none; }
+  .sk-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:8px; } .sk-g { border:1px solid #eee; border-radius:6px; padding:6px 8px; display:grid; gap:3px; font-size:.82rem; } .form .sk-r, .sk-r { display:grid; grid-template-columns:1fr 60px; gap:6px; align-items:center; font-weight:400; margin:0; } .form .sk-r input { width:60px; padding:2px 4px; }
   .apf { background:#fff; border:1px solid var(--border); border-radius:8px; padding:16px 18px 20px; }
   .apf-top { display:flex; gap:12px; align-items:flex-start; flex-wrap:wrap; } .apf-sys { color:#c9a227; font-size:.9rem; } .apf-meta2 { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:4px; font-size:.85rem; } .apf-title { width:220px; padding:3px 6px; font-size:.85rem; }
   .apf-notes { background:#fff8e6; border:1px solid #f0dca2; border-radius:6px; padding:8px 12px; margin:10px 0; font-size:.84rem; display:grid; gap:2px; }
@@ -746,6 +747,25 @@ var APP_FINAL = ['제출완료', '대기', '합격', '불합격', '철회'];
 var ESSAY_STATUS = ['', '미착수', '브레인스토밍', '초안', '수정중', '완료'];
 var GRADES = ['G9', 'G10', 'G11', 'G12', 'Y10', 'Y11', 'Y12', 'Y13', '중1', '중2', '중3', '고1', '고2', '고3']; // 해가 바뀌면 학교 학제(새 학년 시작 달)에 맞춰 서버가 자동으로 올림
 var PRE_IB = ['MYP', 'IGCSE', '학교 자체 과정', '기타'];
+/* 수업 케어 (시험 중 — 서버가 정한 계정만 S.me.care) */
+var STUDENT_KIND = [['', '컨설팅'], ['수강생', '수강생 (학원 수업만)'], ['둘 다', '컨설팅 + 수업']];
+var CARE_CATS = ['SAT', '영어', '학교 과목', 'AP', 'IB', '기타'];
+var CARE_SUBJECTS = ['Digital SAT RW', 'Digital SAT Math', 'English GPA', 'English Program', 'Algebra 1', 'Algebra 2', 'Geometry', 'Pre-Calculus', 'Calculus', 'Biology', 'Chemistry', 'Physics', 'AP Chemistry', 'AP Biology', 'AP Calculus AB', 'AP Calculus BC', 'IB Math AA', 'IB Chemistry'];
+var CARE_SESSION_ST = ['예정', '완료', '취소', '보충', '일정 변경'];
+var CARE_ATTEND = ['', '출석', '지각', '결석'];
+var CARE_HW = ['', '내줌', '제출', '미제출'];
+var CARE_EXAM_KINDS = ['SAT 공식 시험', 'SAT 모의고사', '단어 시험', '학교 시험', '과제', '기타 시험'];
+var CARE_EXAM_ST = ['예정', '완료', '제출', '미제출'];
+/** Digital SAT 영역·유형 (College Board 공식 분류) — 모의고사에서 틀린 개수를 유형별로 */
+var SAT_SKILLS = [
+  ['RW · Information and Ideas', ['Central Ideas and Details', 'Command of Evidence', 'Inferences']],
+  ['RW · Craft and Structure', ['Words in Context', 'Text Structure and Purpose', 'Cross-Text Connections']],
+  ['RW · Expression of Ideas', ['Rhetorical Synthesis', 'Transitions']],
+  ['RW · Standard English Conventions', ['Boundaries', 'Form, Structure, and Sense']],
+  ['Math · Algebra', ['Linear equations in one variable', 'Linear functions', 'Linear equations in two variables', 'Systems of two linear equations', 'Linear inequalities']],
+  ['Math · Advanced Math', ['Nonlinear functions', 'Nonlinear equations and systems', 'Equivalent expressions']],
+  ['Math · Problem-Solving and Data Analysis', ['Ratios, rates, proportions, and units', 'Percentages', 'One-variable data', 'Two-variable data', 'Probability and conditional probability', 'Inference from sample statistics', 'Evaluating statistical claims']],
+  ['Math · Geometry and Trigonometry', ['Area and volume', 'Lines, angles, and triangles', 'Right triangles and trigonometry', 'Circles']]];
 var CURRICULA = ['IB', 'AP', 'A-Level', 'IGCSE', '국내 일반고', '국내 특목고', '기타'];
 var SCORE_KINDS = ['SAT', 'ACT', 'TOEFL', 'IELTS', 'AP', 'IB', 'IB Predicted', 'MYP', 'IGCSE', 'A-Level', 'GPA', 'TOPIK', 'HSK', '기타'];
 /* 과목 목록 (목록 관리 › 과목): 성적 종류·수강 과목 레벨 → 고를 커리큘럼 목록 (lib/subjects.js 와 같게) */
@@ -760,7 +780,7 @@ var DOC_DONE = ['수합 완료', '해당 없음'];
 /** 서류 탭 서류 이름 예시 */
 var DOC_PRESETS = ['성적증명서', '재학증명서', '졸업증명서', '출입국사실증명서(학생)', '출입국사실증명서(부)', '출입국사실증명서(모)', '여권 사본', '가족관계증명서', '추천서'];
 var STORY_STATUS = ['작성 전', '검토 중', '확정'];
-var CHILD = ['appinfo', 'notes', 'contracts', 'payments', 'apps', 'scores', 'activities', 'docs', 'links', 'files', 'followups', 'fureplies', 'majorplans', 'schools', 'courses', 'accounts', 'meetings', 'semesters', 'cdocs',
+var CHILD = ['care_lessons', 'care_sessions', 'care_exams', 'appinfo', 'notes', 'contracts', 'payments', 'apps', 'scores', 'activities', 'docs', 'links', 'files', 'followups', 'fureplies', 'majorplans', 'schools', 'courses', 'accounts', 'meetings', 'semesters', 'cdocs',
   'universities', 'unicycles', 'unirounds', 'unimajors'];
 var CATALOG_TABLES = ['universities', 'unicycles', 'unirounds', 'unimajors'];
 var FOLLOWUP_STATUS = ['할 일', '진행 중', '대기', '완료'];
@@ -812,6 +832,7 @@ function termCols(t) {
 }
 var FORMS = {
   students: { title: '학생 정보', fields: [
+    { k: 'kind', l: '구분', t: 'skind', care: 1 }, { t: 'careblank', care: 1 },
     { k: 'name', l: '이름', req: 1 }, { k: 'nickname', l: '영어 이름 (닉네임)', ph: '예: Jason — 여권 영문 이름은 원서 정보 탭' },
     { k: 'dob', l: '생년월일', t: 'date' }, { t: 'age' }, { k: 'studentPhone', l: '학생 연락처' },
     { k: 'email', l: '학생 이메일', t: 'email' },
@@ -834,6 +855,35 @@ var FORMS = {
     { k: 'motherWork', l: '근무 기간 (해외 근무 등)', ph: '예: 2015.03 – 현재' },
     { h: '' }, { k: 'memo', l: '메모', t: 'textarea', full: 1 }],
     defaults: function () { return { status: '상담중', counselor: '', manager: isMgr() && S.me.role === 'staff' ? S.me.email : '' }; } },
+  care_lessons: { title: '개인 수업', fields: [
+    { k: 'subject', l: '과목·프로그램', t: 'list', o: CARE_SUBJECTS, req: 1, ph: '예: Digital SAT RW, AP Chemistry, English GPA' },
+    { k: 'category', l: '분류', t: 'select', o: CARE_CATS },
+    { k: 'teacher', l: '담당 선생님', ph: '예: Sarah 선생님' }, { k: 'mode', l: '방식', t: 'select', o: ['대면', 'ZOOM'] },
+    { k: 'schedule', l: '요일·시간', ph: '예: 화·목 PM 1:00 - 3:00 (서울)' }, { k: 'tz', l: '학생 현지 시간대', t: 'ctz' },
+    { k: 'rate', l: '회당 수업료', ph: '예: 340,000' }, { k: 'currency', l: '통화', t: 'select', o: ['KRW', 'RMB'] },
+    { k: 'startDate', l: '시작일', t: 'date' }, { k: 'endDate', l: '종료일 (예정)', t: 'date' },
+    { k: 'status', l: '상태', t: 'select', o: ['진행 중', '일시 중단', '종료'] }, { k: 'goal', l: '목표', ph: '예: SAT 1500 / 기말 A / AP 5' },
+    { k: 'traits', l: '과목 특성·진도 메모', t: 'textarea', full: 1, ph: '커리큘럼(AP·IB·Honors), 교재, 진도, 학교 선생님 스타일, 시험 범위 등' },
+    { k: 'memo', l: '메모 (결제·인보이스 등)', t: 'textarea', full: 1 }],
+    defaults: function () { return { category: 'SAT', mode: '대면', currency: 'KRW', status: '진행 중', startDate: today() }; } },
+  care_sessions: { title: '수업 기록', fields: [
+    { k: 'lessonId', l: '수업', t: 'clesson', req: 1 }, { k: 'date', l: '날짜', t: 'date', req: 1 },
+    { k: 'time', l: '시간', ph: '예: PM 1:00 - 3:00' }, { k: 'status', l: '수업', t: 'select', o: CARE_SESSION_ST },
+    { k: 'attend', l: '출결', t: 'select', o: CARE_ATTEND }, { k: 'late', l: '지각 (분)', ph: '예: 10' },
+    { k: 'fee', l: '수업료 (이번 회)', ph: '비우면 회당 수업료' }, { k: 'carry', l: '이월·보충 메모', ph: '예: 12/24 취소분 → 1/7 보충, 이월 75,000원' },
+    { k: 'homework', l: '숙제', t: 'textarea', full: 1, ph: '예: Vocab #2 61-120, CBBP Form A M1' }, { k: 'hwStatus', l: '숙제 상태', t: 'select', o: CARE_HW },
+    { k: 'remind', l: '리마인드', t: 'check', cl: '수업 전 리마인드 보냄 (학생·학부모)' },
+    { k: 'note', l: '수업 내용·피드백', t: 'textarea', full: 1, ph: '오늘 한 것, 잘한 점·약한 부분, 다음 수업 계획' }],
+    defaults: function () { return { date: today(), status: '예정', attend: '' }; } },
+  care_exams: { title: '시험·점수', fields: [
+    { k: 'kind', l: '종류', t: 'select', o: CARE_EXAM_KINDS, req: 1 }, { k: 'lessonId', l: '관련 수업', t: 'clesson' },
+    { k: 'title', l: '이름', full: 1, ph: '예: 11월 SAT / CBBP Form A / Vocab 61-120 / Chem Unit 3 Test / Lab Report' },
+    { k: 'date', l: '날짜 (시험일·마감일)', t: 'date' }, { k: 'status', l: '상태', t: 'select', o: CARE_EXAM_ST },
+    { k: 'total', l: 'SAT 총점', ph: '400–1600' }, { k: 'rw', l: 'Reading & Writing', ph: '200–800' }, { k: 'math', l: 'Math', ph: '200–800' }, { h: '' },
+    { k: 'score', l: '점수 (학교 시험·단어 시험·과제)', ph: '예: 92 / A- / 55' }, { k: 'maxScore', l: '만점·통과 기준', ph: '예: 100 / 60 (cutline 85%)' },
+    { k: 'skills', t: 'satskills', full: 1 },
+    { k: 'memo', l: '메모', t: 'textarea', full: 1, ph: '시험 범위, 틀린 이유, 다음 대비' }],
+    defaults: function () { return { kind: 'SAT 모의고사', status: '완료', date: today() }; } },
   appbasic: { table: 'students', title: '원서용 기본 정보 (여권 기준)', noDelete: 1, fields: [
     { k: 'englishName', l: '영문 이름 (여권과 똑같이)', full: 1, ph: '예: HONG GILDONG' },
     { k: 'passportNo', l: '여권 번호 (여러 개면 줄을 나눠서)', t: 'textarea', full: 1, ph: '예: 한국 여권 M12345678\n중국 여권 E12345678' },
@@ -1455,7 +1505,7 @@ function setBranch(b) { UI.br = b; UI.calScBr = BRANCHES.indexOf(b) >= 0 ? b : '
 function clearSession() { try { sessionStorage.clear(); } catch (e) {} } // 로그인·로그아웃 때 이번 접속 동안의 선택(지점 등)을 비움
 function branchPill(s) { return (isMgr() || isAllBranch()) && (viewBranch() === '전체' || branchOf(s) !== myBranch()) ? '<span class="pill br br-' + (BRANCHES.indexOf(branchOf(s)) + 1) + '" title="' + esc(branchOf(s)) + ' 지점 학생">' + esc(branchOf(s)) + '</span>' : ''; }
 /** 관리팀이 다른 지점 학생을 볼 때: 보기와 팔로업·상담기록 추가만 */
-function otherBranch(s) { return !!s && S.me.role === 'staff' && !isAllBranch() && branchOf(s) !== myBranch(); }
+function otherBranch(s) { return !!s && S.me.role === 'staff' && !isAllBranch() && branchOf(s) !== myBranch() && !(S.me.care && s.kind); } // 수업 케어 테스터는 수강생을 지점과 상관없이 고침
 function dayDiff(dateStr) {
   if (!/^\d{4}-\d{2}-\d{2}/.test(dateStr || '')) return null;
   var a = new Date(dateStr.slice(0, 10) + 'T00:00:00'), b = new Date(today() + 'T00:00:00');
@@ -1696,7 +1746,7 @@ function openStudent(id, tab) { UI.tab = tab || ''; go('#/student/' + id); }
 function render() {
   if (!S.me) return;
   var r = route();
-  var work = [['students', isMgr() ? '학생' : '담당 학생'], ['followups', '팔로업·연락'], ['meetings', '미팅'], ['deadlines', '원서 관리'], ['apply', '원서 연습'], ['unis', '대학 정보'], ['programs', '대회·프로그램'], ['results', '합격 실적']].filter(function (i) { return !menuHidden(i[0]); });
+  var work = [['students', isMgr() ? '학생' : '담당 학생'], ['followups', '팔로업·연락'], ['meetings', '미팅'], ['deadlines', '원서 관리'], ['apply', '원서 연습'], ['care', '수업 케어'], ['unis', '대학 정보'], ['programs', '대회·프로그램'], ['results', '합격 실적']].filter(function (i) { return !menuHidden(i[0]) && (i[0] !== 'care' || S.me.care); });
   var admin = [];
   if (isMgr()) admin.push(['sales', '매출'], ['ctpl', '계약서'], ['unilist', '목록 관리']);
   if (isAdmin()) admin.push(['teachers', '계정 관리'], ['settings', '백업·알림'], ['storage', '저장 공간'], ['log', '변경 기록']);
@@ -1713,7 +1763,7 @@ function render() {
   $('who').classList.remove('open');
   var v = { home: viewHome, students: viewStudents, student: viewStudent, materials: viewMaterials, deadlines: viewDeadlines,
     unis: viewUnis, uni: viewUni, followups: viewFollowups, search: viewSearch,
-    results: viewResults, map: viewMap, sales: viewSales, trash: viewTrash, teachers: viewTeachers, log: viewLog, me: viewMe, unilist: viewLists, programs: viewPrograms, program: viewProgram, meetings: viewMeetings, settings: viewSettings, storage: viewStorage, ctpl: viewCtpl, apply: viewApply }[r.view] || viewHome;
+    results: viewResults, map: viewMap, sales: viewSales, trash: viewTrash, teachers: viewTeachers, log: viewLog, me: viewMe, unilist: viewLists, programs: viewPrograms, program: viewProgram, meetings: viewMeetings, settings: viewSettings, storage: viewStorage, ctpl: viewCtpl, apply: viewApply, care: viewCare }[r.view] || viewHome;
   UI._view = function () { return v(route().id); };
   UI.brAll = r.view === 'student' || r.view === 'search';
   document.body.classList.toggle('wide', r.view === 'home');
@@ -2573,7 +2623,7 @@ function studentTable(list, dl) {
   return '<table class="stl"><thead><tr><th>이름</th>' + cols.map(function (c) { return '<th>' + esc(c.l) + '</th>'; }).join('') + '</tr></thead><tbody>' +
     list.map(function (s) {
       var ctx = { next: dl.filter(function (i) { return i.studentId === s.id; })[0], w: studentWork(s.id) }, pr = String(s.progress || '');
-      return '<tr class="click"' + rowColor(s) + ' onclick="openStudent(' + js(s.id) + ')"><td class="nw" title="' + esc(pr ? '현재 진행 상황: ' + pr : '') + '"><b>' + esc(s.name) + '</b> ' + branchPill(s) + '</td>' +
+      return '<tr class="click"' + rowColor(s) + ' onclick="openStudent(' + js(s.id) + ')"><td class="nw" title="' + esc(pr ? '현재 진행 상황: ' + pr : '') + '"><b>' + esc(s.name) + '</b> ' + branchPill(s) + kindBadge(s) + '</td>' +
         cols.map(function (c) { return c.cell(s, ctx); }).join('') + '</tr>';
     }).join('') + '</tbody></table>';
 }
@@ -2701,6 +2751,7 @@ var ST_FILTERS = [
   { k: 'pkg', l: '컨설팅 국가', vals: function (s) { return consultPackages(s.id); } },
   { k: 'track', l: '트랙', vals: function (s) { return tags(s.tracks); } },
   { k: 'grade', l: '학년', vals: function (s) { return s.grade ? [s.grade] : []; } },
+  { k: 'kind', l: '구분 (수업 케어)', vals: function (s) { return [kindLabel(s)]; } },
   { k: 'curr', l: '커리큘럼', vals: function (s) { return s.curriculum ? [s.curriculum] : []; } },
   { k: 'country', l: '지원 국가', vals: function (s) { var o = []; childOf('apps', s.id).forEach(function (a) { if (a.country && o.indexOf(a.country) < 0) o.push(a.country); }); return o; } },
   { k: 'mgr', l: '관리팀', vals: function (s) { return s.manager ? [teacherName(s.manager)] : ['미정']; } },
@@ -2939,18 +2990,20 @@ function downloadBoard() {
 }
 
 /* ============================== 학생 상세 ============================== */
-var TAB_LABEL = { appinfo: '원서 정보', summary: '요약', meetings: '미팅·상담', accounts: '계정', followups: '팔로업·연락', notes: '전체 기록', contracts: '계약', majors: '전공', apps: '지원대학', scores: '성적·학력', schools: '학력', docs: '서류', profile: '학생 정보' };
+var TAB_LABEL = { care: '수업·출결', carescore: '시험·점수', appinfo: '원서 정보', summary: '요약', meetings: '미팅·상담', accounts: '계정', followups: '팔로업·연락', notes: '전체 기록', contracts: '계약', majors: '전공', apps: '지원대학', scores: '성적·학력', schools: '학력', docs: '서류', profile: '학생 정보' };
 /** 학생 화면 탭 묶음: 요약 | 진행 | 입시 | 행정 */
-function tabGroups() {
-  return [['', ['summary']], ['진행', ['followups', 'meetings'].concat(isMgr() ? ['notes'] : [])],
-    ['입시', ['apps', 'appinfo', 'scores', 'docs']], ['행정', ['contracts', 'profile']]];
+function tabGroups(s) {
+  var care = S.me.care && s && s.kind, only = care && s.kind === '수강생'; // 수강생: 입시·계약 탭 대신 수업 탭
+  return [['', ['summary']], ['진행', ['followups', 'meetings'].concat(isMgr() ? ['notes'] : [])]]
+    .concat(care ? [['수업', ['care', 'carescore']]] : [])
+    .concat(only ? [['기본', ['profile']]] : [['입시', ['apps', 'appinfo', 'scores', 'docs']], ['행정', ['contracts', 'profile']]]);
 }
-function tabsForRole() { return [].concat.apply([], tabGroups().map(function (g) { return g[1]; })); }
+function tabsForRole(s) { return [].concat.apply([], tabGroups(s).map(function (g) { return g[1]; })); }
 
 function viewStudent(id) {
   var s = studentById(id);
   if (!s) return '<div class="card empty">학생을 찾을 수 없습니다. 삭제되었거나 담당 학생이 아닐 수 있습니다. <a href="#/students">목록으로</a></div>';
-  var tabs = tabsForRole();
+  var tabs = tabsForRole(s);
   if (UI.tab === 'schools') UI.tab = 'scores'; // 학력은 성적·학력 탭 안으로
   if (UI.tab === 'accounts') UI.tab = 'apps'; // 계정(ID/PW)은 지원대학 탭으로
   if (UI.tab === 'consults') UI.tab = 'meetings'; // 상담기록은 미팅·상담 탭 안으로
@@ -2960,7 +3013,7 @@ function viewStudent(id) {
   if (otherBranch(s)) h += '<div class="notice">📍 <b>' + esc(branchOf(s)) + ' 지점 학생</b>입니다. 내용은 모두 볼 수 있고, <b>팔로업·상담기록 추가</b>만 할 수 있습니다. 학생 정보 수정은 ' + esc(branchOf(s)) + ' 관리팀·관리자가 합니다.</div>';
   h += '<div class="card"><div class="toolbar" style="margin:0"><div style="margin-right:auto"><h2 style="margin:0">' + esc(s.name) +
     (s.nickname ? ' <span class="muted" style="font-size:.9rem;font-weight:400">' + esc(s.nickname) + '</span>' : '') +
-    ' <span class="pill s-' + esc(s.status) + '" title="컨설팅 상태">' + esc(s.status || '-') + '</span>' + gradBadge(s) + ' ' + programBadge(s.id) + ' ' + branchPill(s) + '</h2>' +
+    (s.kind === '수강생' ? '' : ' <span class="pill s-' + esc(s.status) + '" title="컨설팅 상태">' + esc(s.status || '-') + '</span>') + kindBadge(s) + gradBadge(s) + (s.kind === '수강생' ? '' : ' ' + programBadge(s.id)) + ' ' + branchPill(s) + '</h2>' +
     '<div class="muted" style="margin-top:4px">' + [s.school, s.grade, s.curriculum, s.dob && ageText(s.dob)].filter(Boolean).map(esc).join(' · ') + ' <span class="owners"' + (teacherColor(s.manager) ? ' style="background:' + teacherColor(s.manager) + '"' : '') + '>' + esc(ownersText(s)) + '</span></div>' +
     '<div style="margin-top:6px">' + tagHtml(trackTags(s)) + (countrySummary(s.id) ? ' <span class="muted">지원: ' + esc(countrySummary(s.id)) + '</span>' : '') + majorChip(s) + meetingLine(s) + breakChip(s) + '</div>' + hopeLine(s) + '</div>' +
     (resume ? '<a class="btn ghost" href="' + esc(resume) + '" target="_blank" rel="noopener">📄 Resume</a>' : '') +
@@ -2976,14 +3029,15 @@ function viewStudent(id) {
     var n = t === 'summary' ? null : t === 'followups' ? openFollowups(id).length : t === 'profile' ? null : t === 'scores' ? childOf('schools', id).length + childOf('courses', id).length + childOf('scores', id).length + childOf('files', id).filter(function (f) { return !f.docId && !f.meetingId && !f.followupId && !f.scoreId && !f.contractId; }).length :
       t === 'accounts' ? childOf('accounts', id).length : t === 'meetings' ? childOf('meetings', id).length + (isMgr() ? notesOf(id).length : 0) :
       t === 'majors' ? childOf('majorplans', id).filter(function (m) { return m.status !== '제외'; }).length :
+      t === 'care' ? childOf('care_lessons', id).length : t === 'carescore' ? childOf('care_exams', id).length :
       t === 'notes' ? timelineOf(id).length : ['contracts', 'apps', 'docs', 'schools', 'appinfo'].indexOf(t) >= 0 ? childOf(t, id).length : null;
     return '<a class="' + (UI.tab === t ? 'on' : '') + '" onclick="UI.tab=' + js(t) + ';render()">' + TAB_LABEL[t] + (n ? ' (' + n + ')' : '') + '</a>';
   };
-  h += '<div class="tabs">' + tabGroups().map(function (g, i) {
+  h += '<div class="tabs">' + tabGroups(s).map(function (g, i) {
     return (i ? '<span class="tsep"></span>' : '') + (g[0] ? '<span class="tg">' + g[0] + '</span>' : '') + g[1].map(tabLink).join('');
   }).join('') + '</div>';
   return h + { appinfo: tabAppinfo, summary: tabSummary, followups: tabFollowups, notes: tabNotes, contracts: tabContracts, scores: tabScores, apps: tabApps,
-    docs: tabDocs, profile: tabProfile, majors: tabMajors, schools: tabSchools, accounts: tabAccounts, meetings: tabMeetings }[UI.tab](s);
+    docs: tabDocs, profile: tabProfile, majors: tabMajors, schools: tabSchools, accounts: tabAccounts, meetings: tabMeetings, care: tabCare, carescore: tabCareScore }[UI.tab](s);
 }
 function addBtn(table, sid, label) { return '<button class="btn" onclick="openForm(' + js(table) + ',null,' + js(sid) + ')">' + label + '</button>'; }
 function secHead(title, btn) { return '<div class="sec-h"><h3>' + title + '</h3>' + (btn || '') + '</div>'; }
@@ -3778,6 +3832,147 @@ function guideHtml(c) {
     notes.map(function (n) { return '<p>※ ' + esc(n) + '</p>'; }).join('');
 }
 function discountOf(c) { var lp = amt(c.listPrice), p = contractPay(c); return lp && p.total && p.total < lp ? lp - p.total : 0; }
+/* ============================== 수업 케어 (시험 중): 학원 수강생 개인 수업·출결·숙제·리마인드·시험 점수 ============================== */
+function kindLabel(s) { return s.kind === '수강생' ? '수강생' : s.kind === '둘 다' ? '컨설팅 + 수업' : '컨설팅'; }
+function kindBadge(s) { return !S.me.care || !s.kind ? '' : ' <span class="pill" style="background:#e0f2fe;color:#075985" title="수업 케어 (시험 중)">📘 ' + esc(s.kind === '수강생' ? '수강생' : '수업') + '</span>'; }
+function careStudents() { return S.students.filter(function (s) { return s.kind === '수강생' || s.kind === '둘 다'; }); }
+function careSessions(sid, lid) { return childOf('care_sessions', sid).filter(function (x) { return !lid || x.lessonId === lid; }).sort(function (a, b) { return (b.date || '').localeCompare(a.date || '') || String(b.time).localeCompare(String(a.time)); }); }
+function careNext(sid) { return childOf('care_sessions', sid).filter(function (x) { return x.status === '예정' && x.date >= today(); }).sort(function (a, b) { return a.date.localeCompare(b.date); })[0]; }
+function careSat(sid) { return childOf('care_exams', sid).filter(function (x) { return /^SAT/.test(x.kind) && amt(x.total) > 0; }).sort(function (a, b) { return (a.date || '').localeCompare(b.date || ''); }); }
+function careUpcoming(sid) { return childOf('care_exams', sid).filter(function (x) { return x.status === '예정' && x.date && x.date >= today(); }).sort(function (a, b) { return a.date.localeCompare(b.date); }); }
+function careLessonName(id) { var l = findRow('care_lessons', id); return l ? l.subject : ''; }
+function attPill(x) {
+  if (x.status === '취소') return '<span class="pill" style="background:#f3f4f6;color:#6b7280">취소</span>';
+  if (x.status === '예정' || x.status === '일정 변경') return '<span class="pill" style="background:#eef2ff;color:#3b4aa0">' + esc(x.status) + '</span>';
+  var c = x.attend === '결석' ? '#fee2e2;color:#b91c1c' : x.attend === '지각' ? '#fef3c7;color:#92400e' : '#dcfce7;color:#166534';
+  return '<span class="pill" style="background:' + c + '">' + esc(x.attend || x.status) + (x.attend === '지각' && x.late ? ' ' + esc(x.late) + '분' : '') + '</span>' + (x.status === '보충' ? ' <span class="pill">보충</span>' : '');
+}
+/** 리마인드 보냄·숙제 상태는 목록에서 바로 바꿈 */
+function careQuick(id, k, v) { var x = findRow('care_sessions', id); if (!x) return; var o = { id: id, updatedAt: x.updatedAt }; o[k] = v; mutate('save', { table: 'care_sessions', obj: o }, '저장했습니다.'); }
+
+/* ----- 메뉴 「수업 케어」: 수강생 목록 + 이번 주 수업 리마인드 ----- */
+function viewCare() {
+  if (!S.me.care) return '<div class="card empty">수업 케어는 시험 중이라 정해진 계정만 볼 수 있습니다.</div>';
+  var list = careStudents().sort(function (a, b) { return String(a.name).localeCompare(String(b.name), 'ko'); });
+  var wk = []; list.forEach(function (s) { childOf('care_sessions', s.id).forEach(function (x) { var d = dayDiff(x.date); if (x.status !== '취소' && d !== null && d >= 0 && d <= 7) wk.push({ s: s, x: x }); }); });
+  wk.sort(function (a, b) { return (a.x.date + a.x.time).localeCompare(b.x.date + b.x.time); });
+  var h = '<div class="toolbar"><h2 style="margin:0;margin-right:auto">수업 케어 <span class="pill" style="background:#fef3c7;color:#92400e">시험 중</span></h2>' +
+    '<button class="btn" onclick="openForm(\'students\',null,null,{kind:\'수강생\',status:\'진행중\'})">+ 수강생 등록</button></div>' +
+    '<div class="muted" style="margin:-4px 0 10px">학원 수업을 듣는 학생의 개인 수업·출결·숙제·리마인드·시험 점수. 팔로업·받은 연락·상담 기록·확인 요청은 Compass 학생 화면 그대로 씁니다. 지금은 박현모·김초영 계정에만 보입니다.</div>';
+  h += '<div class="card">' + secHead('7일 안 수업 · 리마인드 <span class="muted">' + wk.length + '회 · 리마인드를 보냈으면 체크</span>') +
+    (wk.length ? '<div class="tbl-wrap"><table class="compact"><thead><tr><th>날짜</th><th>시간</th><th>학생</th><th>수업</th><th>선생님</th><th>리마인드</th><th>숙제</th></tr></thead><tbody>' + wk.map(function (w) {
+      var l = findRow('care_lessons', w.x.lessonId) || {};
+      return '<tr><td class="nw">' + esc(fmtD(w.x.date)) + ' ' + dday(w.x.date) + '</td><td class="nw">' + esc(w.x.time || l.schedule || '') + '</td>' +
+        '<td class="nw"><a href="#/student/' + esc(w.s.id) + '/care"><b>' + esc(w.s.name) + '</b></a></td><td>' + esc(l.subject || '') + (l.mode ? ' <span class="muted">' + esc(l.mode) + '</span>' : '') + '</td><td class="nw">' + esc(l.teacher || '') + '</td>' +
+        '<td class="nw"><label><input type="checkbox"' + (w.x.remind === 'TRUE' ? ' checked' : '') + ' onchange="careQuick(' + js(w.x.id) + ',\'remind\',this.checked)"> 보냄</label></td>' +
+        '<td class="muted" style="font-size:.82rem">' + esc(w.x.homework || '') + '</td></tr>';
+    }).join('') + '</tbody></table></div>' : '<div class="empty">7일 안에 잡힌 수업이 없습니다.</div>') + '</div>';
+  h += '<div class="card">' + secHead('수강생 <span class="muted">' + list.length + '명</span>') +
+    (list.length ? '<div class="tbl-wrap"><table><thead><tr><th>학생</th><th>학교 / 학년</th><th>수업</th><th>다음 수업</th><th>최근 출결</th><th>숙제</th><th>다음 시험·과제</th><th>SAT 최근</th><th>할 일</th><th>답 안 한 연락</th></tr></thead><tbody>' + list.map(function (s) {
+      var ls = childOf('care_lessons', s.id).filter(function (l) { return l.status !== '종료'; }), nx = careNext(s.id), done = careSessions(s.id).filter(function (x) { return x.status !== '예정'; }).slice(0, 4);
+      var miss = childOf('care_sessions', s.id).filter(function (x) { return x.hwStatus === '미제출'; }).length, up = careUpcoming(s.id)[0], sat = careSat(s.id), last = sat[sat.length - 1], prev = sat[sat.length - 2];
+      var w = studentWork(s.id), delta = last && prev ? amt(last.total) - amt(prev.total) : 0;
+      return '<tr class="click" onclick="openStudent(' + js(s.id) + ',\'care\')"><td class="nw"><b>' + esc(s.name) + '</b>' + (s.nickname ? ' <span class="muted">' + esc(s.nickname) + '</span>' : '') + kindBadge(s) + '</td>' +
+        '<td class="nw">' + esc(s.school || '') + ' <span class="muted">' + esc(s.grade || '') + '</span></td>' +
+        '<td>' + (ls.length ? ls.map(function (l) { return '<div><b>' + esc(l.subject) + '</b> <span class="muted">' + esc([l.teacher, l.schedule].filter(Boolean).join(' · ')) + '</span></div>'; }).join('') : '<span class="muted">수업 없음</span>') + '</td>' +
+        '<td class="nw">' + (nx ? esc(fmtD(nx.date)) + ' ' + dday(nx.date) : '<span class="muted">-</span>') + '</td>' +
+        '<td class="nw">' + (done.length ? done.map(attPill).join(' ') : '<span class="muted">-</span>') + '</td>' +
+        '<td class="nw">' + (miss ? '<span class="dday over">미제출 ' + miss + '</span>' : '<span class="muted">-</span>') + '</td>' +
+        '<td>' + (up ? esc(up.title || up.kind) + ' ' + dday(up.date) : '<span class="muted">-</span>') + '</td>' +
+        '<td class="nw">' + (last ? '<b>' + esc(last.total) + '</b>' + (delta ? ' <span style="color:' + (delta > 0 ? '#15803d' : '#b91c1c') + '">' + (delta > 0 ? '▲' : '▼') + Math.abs(delta) + '</span>' : '') : '<span class="muted">-</span>') + '</td>' +
+        '<td class="nw">' + (w.todo ? w.todo + (w.over ? ' <span class="dday over">지남 ' + w.over + '</span>' : '') : '<span class="muted">-</span>') + '</td>' +
+        '<td class="nw">' + (w.contacts ? '<span class="dday soon">📩 ' + w.contacts + '</span>' : '<span class="muted">-</span>') + '</td></tr>';
+    }).join('') + '</tbody></table></div>' : '<div class="empty">수강생이 없습니다. 「+ 수강생 등록」 또는 학생 정보 수정에서 구분을 「수강생」으로 바꾸세요.</div>') + '</div>';
+  return h;
+}
+
+/* ----- 학생 탭 「수업·출결」: 개인 수업마다 수업 기록 ----- */
+function tabCare(s) {
+  var ls = childOf('care_lessons', s.id).sort(function (a, b) { return (a.status === '종료') - (b.status === '종료') || String(b.startDate).localeCompare(String(a.startDate)); });
+  var h = '<div class="card">' + secHead('개인 수업 <span class="muted">수업마다 날짜별 출결·숙제·리마인드·수업 내용</span>', addBtn('care_lessons', s.id, '+ 수업 추가'));
+  if (!ls.length) return h + '<div class="empty">등록된 수업이 없습니다. 「+ 수업 추가」로 과목·선생님·요일 시간을 넣어주세요.</div></div>';
+  h += ls.map(function (l) {
+    var ss = careSessions(s.id, l.id), done = ss.filter(function (x) { return x.status === '완료' || x.status === '보충'; });
+    var cancel = ss.filter(function (x) { return x.status === '취소'; }).length, late = done.filter(function (x) { return x.attend === '지각'; }).length;
+    var fee = done.reduce(function (t, x) { return t + amt(x.fee || l.rate); }, 0);
+    return '<div class="contract"><div class="h"><b>' + esc(l.subject) + '</b>' + (l.category ? '<span class="pill">' + esc(l.category) + '</span>' : '') + (l.status && l.status !== '진행 중' ? '<span class="pill">' + esc(l.status) + '</span>' : '') +
+      '<span class="muted">' + esc([l.teacher, l.mode, l.schedule, l.tz && '학생 시간 ' + tzLabel(l.tz)].filter(Boolean).join(' · ')) + '</span>' +
+      '<span class="nw" style="margin-left:auto"><button class="btn ghost sm" onclick="openForm(\'care_sessions\',null,' + js(s.id) + ',{lessonId:' + js(l.id) + ',time:' + js(careTimeOf(l.schedule)) + '})">+ 수업 기록</button> <button class="btn ghost sm" onclick="openForm(\'care_lessons\',' + js(l.id) + ')">✏ 수정</button></span></div>' +
+      '<div class="muted" style="margin-top:4px">' + [l.startDate && esc(fmtD(l.startDate)) + (l.endDate ? ' ~ ' + esc(fmtD(l.endDate)) : ' ~'), l.rate && '회당 ' + esc(comma(l.rate)) + ' ' + esc(l.currency || ''), '진행 ' + done.length + '회', cancel && '취소 ' + cancel, late && '지각 ' + late, fee && '수업료 ' + esc(comma(fee)) + ' ' + esc(l.currency || '')].filter(Boolean).join(' · ') + '</div>' +
+      (l.goal ? '<div style="margin-top:4px">🎯 <b>목표</b> ' + esc(l.goal) + '</div>' : '') +
+      (l.traits ? '<div style="margin-top:4px;white-space:pre-wrap;font-size:.86rem">📚 ' + esc(l.traits) + '</div>' : '') +
+      (ss.length ? '<div class="tbl-wrap" style="margin-top:8px"><table class="compact"><thead><tr><th>날짜</th><th>시간</th><th>출결</th><th>숙제</th><th>숙제 상태</th><th>리마인드</th><th>수업 내용·메모</th></tr></thead><tbody>' + ss.map(function (x) {
+        return '<tr class="click" onclick="openForm(\'care_sessions\',' + js(x.id) + ')"><td class="nw">' + esc(fmtD(x.date)) + (x.status === '예정' ? ' ' + dday(x.date) : '') + '</td><td class="nw">' + esc(x.time || '') + '</td><td class="nw">' + attPill(x) + '</td>' +
+          '<td style="font-size:.82rem">' + esc(x.homework || '') + '</td>' +
+          '<td class="nw" onclick="event.stopPropagation()"><select onchange="careQuick(' + js(x.id) + ',\'hwStatus\',this.value)">' + opts(CARE_HW, x.hwStatus || '') + '</select></td>' +
+          '<td class="nw" onclick="event.stopPropagation()"><label><input type="checkbox"' + (x.remind === 'TRUE' ? ' checked' : '') + ' onchange="careQuick(' + js(x.id) + ',\'remind\',this.checked)"> 보냄</label></td>' +
+          '<td style="font-size:.82rem;white-space:pre-wrap">' + esc([x.note, x.carry && '↪ ' + x.carry].filter(Boolean).join('\n')) + '</td></tr>';
+      }).join('') + '</tbody></table></div>' : '<div class="muted" style="margin-top:6px">아직 수업 기록이 없습니다.</div>') + '</div>';
+  }).join('');
+  return h + '</div>';
+}
+/** 요일·시간 글에서 시간 부분만 (예: "화·목 PM 1:00 - 3:00" → "PM 1:00 - 3:00") */
+function careTimeOf(t) { var m = /((AM|PM)\s*)?\d{1,2}:\d{2}.*$/i.exec(t || ''); return m ? m[0].replace(/\s*\([^)]*\)\s*$/, '').trim() : ''; }
+function tzLabel(tz) { return TZ_NAME[tz] ? TZ_NAME[tz] + ' 시간' : tz; }
+
+/* ----- 학생 탭 「시험·점수」: 다가오는 시험·과제, SAT 점수 추세·약한 유형, 학교 시험·과제, 단어 시험 ----- */
+function tabCareScore(s) {
+  var ex = childOf('care_exams', s.id), up = careUpcoming(s.id), sat = careSat(s.id);
+  var h = '<div class="card">' + secHead('다가오는 시험·과제', addBtn('care_exams', s.id, '+ 시험·점수 추가')) +
+    (up.length ? up.map(function (x) { return '<div class="todo click" onclick="openForm(\'care_exams\',' + js(x.id) + ')"><div class="t"><b>' + esc(x.title || x.kind) + '</b> <span class="pill">' + esc(x.kind) + '</span>' + (x.lessonId ? ' <span class="muted">' + esc(careLessonName(x.lessonId)) + '</span>' : '') + '</div><div>' + esc(fmtD(x.date)) + ' ' + dday(x.date) + '</div></div>'; }).join('')
+      : '<div class="muted">예정된 시험·과제가 없습니다. SAT 시험일, 학교 시험, 과제 마감을 「+ 시험·점수 추가」로 넣어두면 메인 목록에 D-day가 나옵니다.</div>') + '</div>';
+  var satRel = sat.length || ex.some(function (x) { return /^SAT/.test(x.kind); }) || childOf('care_lessons', s.id).some(function (l) { return l.category === 'SAT'; });
+  if (satRel) h += '<div class="card">' + secHead('SAT 점수 추세 <span class="muted">모의고사·공식 시험 ' + sat.length + '회</span>', '<button class="btn ghost sm" disabled title="track 연동은 확인 중 — 지금은 직접 입력">track에서 가져오기 (준비 중)</button>') +
+    (sat.length ? careChart(sat) + careWeak(sat) +
+      '<div class="tbl-wrap" style="margin-top:8px"><table class="compact"><thead><tr><th>날짜</th><th>종류</th><th>이름</th><th>총점</th><th>RW</th><th>Math</th><th>틀린 유형 (많은 순)</th></tr></thead><tbody>' + sat.slice().reverse().map(function (x) {
+        var sk = careSkills(x), top = Object.keys(sk).sort(function (a, b) { return sk[b] - sk[a]; }).slice(0, 3);
+        return '<tr class="click" onclick="openForm(\'care_exams\',' + js(x.id) + ')"><td class="nw">' + esc(fmtD(x.date)) + '</td><td class="nw">' + esc(x.kind) + '</td><td>' + esc(x.title) + '</td><td class="nw"><b>' + esc(x.total) + '</b></td><td class="nw">' + esc(x.rw) + '</td><td class="nw">' + esc(x.math) + '</td>' +
+          '<td style="font-size:.8rem">' + top.map(function (k) { return esc(k) + ' ' + sk[k]; }).join(' · ') + '</td></tr>';
+      }).join('') + '</tbody></table></div>'
+      : '<div class="muted">아직 SAT 점수가 없습니다. 모의고사를 볼 때마다 총점·RW·Math와 유형별 틀린 개수를 넣으면 추세와 약한 유형이 나옵니다.</div>') + '</div>';
+  var rest = function (kinds, title, empty) {
+    var l = ex.filter(function (x) { return kinds.indexOf(x.kind) >= 0; }).sort(function (a, b) { return (b.date || '').localeCompare(a.date || ''); });
+    return '<div class="card">' + secHead(title + ' <span class="muted">' + l.length + '건</span>') + (l.length ? '<div class="tbl-wrap"><table class="compact"><thead><tr><th>날짜</th><th>종류</th><th>수업</th><th>이름</th><th>점수</th><th>상태</th><th>메모</th></tr></thead><tbody>' + l.map(function (x) {
+      return '<tr class="click" onclick="openForm(\'care_exams\',' + js(x.id) + ')"><td class="nw">' + esc(fmtD(x.date)) + (x.status === '예정' ? ' ' + dday(x.date) : '') + '</td><td class="nw">' + esc(x.kind) + '</td><td class="nw">' + esc(careLessonName(x.lessonId)) + '</td><td>' + esc(x.title) + '</td>' +
+        '<td class="nw"><b>' + esc(x.score || '') + '</b>' + (x.maxScore ? ' <span class="muted">/ ' + esc(x.maxScore) + '</span>' : '') + '</td><td class="nw">' + (x.status === '미제출' ? '<span class="dday over">미제출</span>' : esc(x.status || '')) + '</td><td class="muted" style="font-size:.8rem">' + esc(x.memo || '') + '</td></tr>';
+    }).join('') + '</tbody></table></div>' : '<div class="muted">' + empty + '</div>') + '</div>';
+  };
+  return h + rest(['학교 시험', '과제', '기타 시험'], '학교 시험·과제', '학교 시험(퀴즈·중간·기말)과 과제 마감·점수를 넣으면 여기에 모입니다.') +
+    rest(['단어 시험'], '단어 시험', '단어 시험 범위와 점수(통과 기준)를 넣으면 여기에 모입니다.');
+}
+function careSkills(x) { try { var o = JSON.parse(x.skills || '{}'); return o && typeof o === 'object' ? o : {}; } catch (e) { return {}; } }
+/** 총점 꺾은선 + RW·Math 막대 (SVG) */
+function careChart(sat) {
+  var W = 640, H = 200, L = 44, R = 34, T = 18, B = 34, n = sat.length, xs = function (i) { return L + (n === 1 ? (W - L - R) / 2 : i * (W - L - R) / (n - 1)); };
+  var ys = function (v) { return T + (1600 - v) * (H - T - B) / 1200; }, ym = function (v) { return T + (800 - v) * (H - T - B) / 600; };
+  var g = [1600, 1400, 1200, 1000, 800, 600, 400].map(function (v) { return '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + ys(v) + '" y2="' + ys(v) + '" stroke="#eee"/><text x="' + (L - 6) + '" y="' + (ys(v) + 4) + '" text-anchor="end" font-size="10" fill="#888">' + v + '</text>'; }).join('');
+  var pts = sat.map(function (x, i) { return xs(i) + ',' + ys(amt(x.total)); }).join(' ');
+  var bars = sat.map(function (x, i) { var bw = Math.min(14, (W - L - R) / n / 3); return (amt(x.rw) ? '<rect x="' + (xs(i) - bw - 1) + '" y="' + ym(amt(x.rw)) + '" width="' + bw + '" height="' + (H - B - ym(amt(x.rw))) + '" fill="#93c5fd" opacity=".7"><title>RW ' + esc(x.rw) + '</title></rect>' : '') +
+    (amt(x.math) ? '<rect x="' + (xs(i) + 1) + '" y="' + ym(amt(x.math)) + '" width="' + bw + '" height="' + (H - B - ym(amt(x.math))) + '" fill="#fcd34d" opacity=".7"><title>Math ' + esc(x.math) + '</title></rect>' : '') +
+    '<text x="' + xs(i) + '" y="' + (H - B + 14) + '" text-anchor="middle" font-size="10" fill="#666">' + esc(String(x.date || '').slice(5).replace('-', '/')) + '</text>'; }).join('');
+  var dots = sat.map(function (x, i) { return '<circle cx="' + xs(i) + '" cy="' + ys(amt(x.total)) + '" r="4" fill="#1e3a8a"><title>' + esc((x.title || x.kind) + ' ' + x.total) + '</title></circle><text x="' + xs(i) + '" y="' + (ys(amt(x.total)) - 8) + '" text-anchor="middle" font-size="11" font-weight="700" fill="#1e3a8a">' + esc(x.total) + '</text>'; }).join('');
+  return '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;max-width:720px;height:auto">' + g + bars + '<polyline points="' + pts + '" fill="none" stroke="#1e3a8a" stroke-width="2"/>' + dots + '</svg>' +
+    '<div class="muted" style="font-size:.78rem">● 총점(왼쪽 눈금) · <span style="color:#3b82f6">■ RW</span> · <span style="color:#d97706">■ Math</span> (각 200–800, 막대 높이)</div>';
+}
+/** 최근 5회 모의고사에서 많이 틀린 유형 */
+function careWeak(sat) {
+  var sum = {}; sat.slice(-5).forEach(function (x) { var sk = careSkills(x); Object.keys(sk).forEach(function (k) { sum[k] = (sum[k] || 0) + (Number(sk[k]) || 0); }); });
+  var ks = Object.keys(sum).filter(function (k) { return sum[k] > 0; }).sort(function (a, b) { return sum[b] - sum[a]; }).slice(0, 8), mx = ks.length ? sum[ks[0]] : 0;
+  if (!ks.length) return '';
+  return '<div style="margin-top:10px"><b>최근 ' + Math.min(5, sat.length) + '회 많이 틀린 유형</b><div style="display:grid;gap:3px;margin-top:6px">' + ks.map(function (k) {
+    return '<div style="display:grid;grid-template-columns:260px 1fr 30px;gap:8px;align-items:center;font-size:.82rem"><span>' + esc(k) + '</span><span style="background:#fee2e2;height:10px;border-radius:5px;width:' + Math.round(sum[k] / mx * 100) + '%"></span><b>' + sum[k] + '</b></div>';
+  }).join('') + '</div></div>';
+}
+/** 시험·점수 창: SAT 유형별 틀린 개수 */
+function careSkillBox(rec) {
+  var sk = careSkills(rec), show = /^SAT/.test(rec.kind || '');
+  return '<div class="full" id="sk-box"' + (show ? '' : ' style="display:none"') + '><label>틀린 개수 — 유형별 (Digital SAT 공식 분류, 비우면 0)</label>' +
+    '<div class="sk-grid">' + SAT_SKILLS.map(function (g) {
+      return '<div class="sk-g"><b>' + esc(g[0]) + '</b>' + g[1].map(function (k) { return '<label class="sk-r"><span>' + esc(k) + '</span><input type="number" min="0" max="60" data-skill="' + esc(k) + '" value="' + esc(sk[k] || '') + '"></label>'; }).join('') + '</div>';
+    }).join('') + '</div></div>';
+}
+function careSkillRead() { var o = {}; Array.prototype.forEach.call(document.querySelectorAll('#sk-box [data-skill]'), function (el) { var n = parseInt(el.value, 10); if (n > 0) o[el.getAttribute('data-skill')] = n; }); return JSON.stringify(o); }
+document.addEventListener('change', function (e) { if (e.target && e.target.name === 'kind' && $('sk-box')) $('sk-box').style.display = /^SAT/.test(e.target.value) ? '' : 'none'; });
 /* ============================== 원서 연습: 대학 포털과 같은 순서·칸·제한으로 미리 써 두고, 칸마다 복사해서 실제 포털에 붙여넣기 ============================== */
 /** 지원대학 탭: 원서 연습 양식 목록 (지원하는 대학이 먼저) */
 /* ============================== 원서 연습: 대학 포털과 같은 칸으로 미리 쓰고 칸마다 복사 ============================== */
@@ -6788,6 +6983,11 @@ function readAppChoices() {
 function field(f, rec) {
   if ('h' in f) return '<div class="full fh">' + esc(f.h) + '</div>';
   if (f.ifSet && f.t !== 'mrich' && !String(rec[f.k] || '').trim()) return ''; // 예전 기록에 값이 있을 때만 보이는 칸
+  if (f.t === 'skind') { var kv0 = rec.kind || ''; return '<div><label>' + esc(f.l) + '</label><select name="kind">' + STUDENT_KIND.map(function (x) { return '<option value="' + esc(x[0]) + '"' + (x[0] === kv0 ? ' selected' : '') + '>' + esc(x[1]) + '</option>'; }).join('') + '</select><div class="muted" style="font-size:.75rem;margin-top:2px">수강생은 수업 케어(시험 중) 계정에만 보입니다</div></div>'; }
+  if (f.t === 'careblank') return '<div></div>';
+  if (f.t === 'ctz') return fld(f.l, '<select name="tz"><option value="">— (서울·상해와 같음)</option>' + tzOptions(rec.tz || '') + '</select>');
+  if (f.t === 'clesson') { var ls = childOf('care_lessons', rec.studentId), lv = rec.lessonId || (ls.length === 1 ? ls[0].id : ''); return fld(f.l, '<select name="lessonId"><option value="">—</option>' + ls.map(function (l) { return '<option value="' + esc(l.id) + '"' + (l.id === lv ? ' selected' : '') + '>' + esc(l.subject + (l.teacher ? ' · ' + l.teacher : '')) + '</option>'; }).join('') + '</select>', f.full, f.req); }
+  if (f.t === 'satskills') return careSkillBox(rec);
   if (f.t === 'age') return '<div><label>나이 (자동)</label><div id="f-age" style="padding:7px 0">' + (ageText(rec.dob) || '<span class="muted">생년월일을 넣으면 계산</span>') + '</div></div>';
   if (f.t === 'preib') { var pv = rec[f.k] || ''; return '<div data-ifib="1"' + (/\bIB\b/i.test(rec.curriculum || '') ? '' : ' style="display:none"') + '><label>' + esc(f.l) + '</label><select name="' + f.k + '">' + opts([''].concat(PRE_IB, pv && PRE_IB.indexOf(pv) < 0 ? [pv] : []), pv) + '</select></div>'; }
   if (f.t === 'month') return fld(f.l, inp(f.k, rec[f.k] || '', 'month', ' placeholder="2027-06"') + '<div class="muted" style="font-size:.75rem;margin-top:2px">이 달이 지나면 「졸업」으로 표시 (컨설팅 상태는 그대로)</div>', f.full, f.req);
@@ -6911,7 +7111,7 @@ function openForm(key, id, studentId, extra) {
     (cat && table !== 'universities' && !id ? hidden('universityId', rec.universityId) : '') +
     (table === 'unirounds' && !id ? hidden('cycleId', rec.cycleId) : '');
   body += F.fields.filter(function (f) {
-    return !(f.mgr && !isMgr()) && !(f.adm && !isAdmin()) && !(f.editOnly && !(id && rec.nextAction)) && !(f.legacy && !(id && rec[f.k] && rec[f.k] !== 'FALSE'));
+    return !(f.care && !(S.me && S.me.care)) && !(f.mgr && !isMgr()) && !(f.adm && !isAdmin()) && !(f.editOnly && !(id && rec.nextAction)) && !(f.legacy && !(id && rec[f.k] && rec[f.k] !== 'FALSE'));
   }).map(function (f) { return f.t === 'furows' ? furowsField(table, rec) : field(f, rec); }).join('');
   if (id && table !== 'students') body += '<div class="full muted">마지막 수정: ' + esc(fmtTime(rec.updatedAt)) + ' · ' + esc(teacherName(rec.updatedBy)) + '</div>';
   var st = table === 'students' ? (id ? rec : null) : cat ? null : studentById(rec.studentId);
@@ -7282,6 +7482,7 @@ function submitForm(key) {
   var miss = F.fields.filter(function (f) { return f.req && f.t !== 'uni' && !(f.mgr && !isMgr()) && !String(o[f.k] || '').trim(); })[0];
   if (table === 'apps' && !o.universityId && !(o.id && o.university)) return toast('대학을 목록에서 선택하세요.', true);
   if (table === 'payments' && !(amt(o.amount) > 0)) return toast('입금액을 숫자로 입력하세요.', true);
+  if (table === 'care_exams' && $('sk-box')) o.skills = careSkillRead();
   if (table === 'apps' && $('f-choices')) o.majorChoices = JSON.stringify(readAppChoices().filter(function (c) { return c.major; }));
   if (key === 'universities' && $('cps')) {
     var cps = [], bad = '';
