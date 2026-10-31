@@ -112,6 +112,8 @@ const DOC_TAGS = new Set(['div', 'p', 'h1', 'h2', 'h3', 'b', 'strong', 'u', 's',
 const DOC_STYLE = Object.assign({}, STYLE_OK, {
   'text-align': (v) => /^(left|center|right|justify)$/i.test(v),
   width: (v) => /^\d{1,3}(\.\d+)?%$/.test(v),
+  'padding-left': (v) => /^\d{1,2}(\.\d+)?em$/.test(v), // 번호 항목 들여쓰기 (1. 다음 줄이 글자에 맞춰지게)
+  'text-indent': (v) => /^-?\d{1,2}(\.\d+)?em$/.test(v),
 });
 function cleanDocStyle(attrs) {
   const m = /\bstyle\s*=\s*("([^"]*)"|'([^']*)')/i.exec(attrs || '');
@@ -148,6 +150,7 @@ function sanitizeDoc(html) {
         let extra = '';
         if (tag === 'td' || tag === 'th') ['colspan', 'rowspan'].forEach((a) => { const x = new RegExp('\\b' + a + '\\s*=\\s*["\']?(\\d{1,2})', 'i').exec(m[3] || ''); if (x) extra += ' ' + a + '="' + x[1] + '"'; });
         if (tag === 'table' && /\bdata-ct\s*=\s*["']?cost/i.test(m[3] || '')) extra += ' data-ct="cost"'; // 계약서의 비용 표 (줄 추가 버튼이 찾는 표시)
+        if (tag === 'div' && /\bdata-ct\s*=\s*["']?special/i.test(m[3] || '')) extra += ' data-ct="special"'; // 계약서의 특약사항 (작성 창의 입력 칸이 채움)
         out += '<' + tag + extra + (st ? ' style="' + st + '"' : '') + '>';
         stack.push(tag);
       }

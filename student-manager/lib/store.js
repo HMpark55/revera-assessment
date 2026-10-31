@@ -121,7 +121,7 @@ const TABLES = {
   },
   cdocs: { // 계약서: 양식으로 자동 채운 뒤 고친 본문(HTML) + 보냄·서명 기록. 서명본 파일은 files.contractId 로 계약에 붙음
     label: '계약서',
-    fields: ['studentId', 'contractId', 'templateId', 'title', 'body', 'status', 'signMethod', 'sentAt', 'sentVia', 'signedAt', 'signUrl', 'memo'],
+    fields: ['studentId', 'contractId', 'templateId', 'title', 'body', 'status', 'signMethod', 'sentAt', 'sentVia', 'signedAt', 'signUrl', 'memo', 'special'], // special: 특약사항 입력 칸 글 (한 줄 = 한 항목)
     summary: (r) => [r.title, r.status].filter(Boolean).join(' · '),
   },
   semesters: { // 학기별 재학: 학기 시작일~종료일로 실제 재학 일수를 계산 (3년특례 등 재학기간 증빙)
@@ -679,6 +679,11 @@ function migrate(db) {
         .run(crypto.randomUUID(), t.name, t.kind, sanitizeDoc(t.body), String(i + 1), ts, 'system', ts, 'system');
     });
     db.prepare("INSERT INTO meta VALUES ('v39_annual_ctemplate', ?)").run(ts);
+  }
+  if (!db.prepare("SELECT 1 FROM meta WHERE key = 'v40_ctemplate_indent'").get()) { // 기본 양식의 번호 항목에 들여쓰기 — 아무도 고치지 않은 기본 양식만 새 내용으로
+    const ts = now();
+    DEFAULT_TEMPLATES.forEach((t) => db.prepare("UPDATE ctemplates SET body = ? WHERE name = ? AND createdBy = 'system' AND updatedBy = 'system' AND deletedAt = ''").run(sanitizeDoc(t.body), t.name));
+    db.prepare("INSERT INTO meta VALUES ('v40_ctemplate_indent', ?)").run(ts);
   }
   ensureColumns(db, 'programs', ['name', 'category', 'target', 'schedule', 'deadline', 'url', 'memo', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy']);
   // v23: "성적·재학·졸업 증명서" 칸을 서류 목록으로 합침 — 서류 줄에 안 묶인 학생 파일을 학생·분류별 서류 줄(수합 완료)로.

@@ -2794,7 +2794,7 @@ test('가격표·계약 패키지: 기본 가격표, 패키지 고르면 정가 
   let d = await admin.ok('getAll');
   const hku = d.prices.rows.find((r) => /HKU\)/.test(r.name)), nus = d.prices.rows.find((r) => /NUS/.test(r.name));
   assert.deepStrictEqual([hku.price, hku.sessions, nus.price], ['10000', '6회 (회당 1시간)', '12000']);
-  assert.ok(d.ctemplates.some((t) => t.name === 'REVERA 연간 컨설팅 계약서' && t.body.includes('전략을') && t.body.includes('{기간}') && t.body.includes('10% 할인')));
+  assert.ok(d.ctemplates.some((t) => t.name === 'REVERA 연간 컨설팅 계약서' && t.body.includes('전략을') && t.body.includes('{기간}') && t.body.includes('{특약 입력}')));
   const sid = (await admin.saveOk('students', { name: '패키지학생' })).savedId;
   d = await admin.saveOk('contracts', { studentId: sid, kind: '원서', amount: '20000', currency: 'RMB', items: JSON.stringify([Object.assign({ pid: hku.id, qty: 1 }, hku), Object.assign({ pid: nus.id, qty: '3' }, nus, { price: '12,000' })]) });
   let c = d.contracts.find((x) => x.id === d.savedId);
