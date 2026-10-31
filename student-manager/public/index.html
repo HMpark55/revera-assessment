@@ -380,6 +380,33 @@
   .cd-tb select { font-size:.8rem; padding:3px 6px; }
   .cdoc-wrap { background:#e9ecf1; border-radius:6px; padding:16px 0; max-height:64vh; overflow:auto; }
   .cdoc-ed { width:794px; max-width:calc(100% - 24px); box-sizing:border-box; margin:0 auto; padding:72px 72px 72px 76px; background:#fff; box-shadow:0 1px 6px rgba(0,0,0,.18); outline:none; }
+  .apf { background:#fff; border:1px solid var(--border); border-radius:8px; padding:16px 18px 20px; }
+  .apf-top { display:flex; gap:12px; align-items:flex-start; flex-wrap:wrap; } .apf-sys { color:#c9a227; font-size:.9rem; } .apf-meta2 { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:4px; font-size:.85rem; } .apf-title { width:220px; padding:3px 6px; font-size:.85rem; }
+  .apf-notes { background:#fff8e6; border:1px solid #f0dca2; border-radius:6px; padding:8px 12px; margin:10px 0; font-size:.84rem; display:grid; gap:2px; }
+  .apf-tabs { display:flex; flex-wrap:wrap; gap:3px; background:#ececec; padding:4px 4px 0; border-radius:4px 4px 0 0; margin-top:10px; }
+  .apf-tabs a { padding:9px 14px; background:#dedede; color:#555; cursor:pointer; font-size:.88rem; border-radius:3px 3px 0 0; } .apf-tabs a.on { background:#fff; color:#222; } .apf-tabs a.pr { background:#e8eef7; }
+  .apf-tabs a i { font-style:normal; background:#c4093f; color:#fff; border-radius:9px; padding:0 6px; font-size:.72rem; margin-left:3px; }
+  .apf-body { border:1px solid #e3e3e3; border-top:0; padding:12px 10px 16px; }
+  .apf-intro { font-size:.86rem; color:#333; margin:4px 4px 8px; }
+  .apf-sec { background:#c4093f; color:#fff; padding:7px 10px; margin-top:14px; font-size:.92rem; } .apf-note { font-size:.82rem; color:#444; padding:6px 6px 0; }
+  .apf-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px 18px; padding:10px 6px; }
+  .apf-row { display:grid; grid-template-columns:170px 1fr 30px; gap:8px; align-items:start; } .apf-row.full { grid-column:1 / -1; }
+  .apf-row > label { font-weight:700; color:#444; font-size:.84rem; text-align:right; padding-top:7px; } .apf-row > label b, .apf-chk b { color:#d00; }
+  .apf-row.full > label { text-align:left; } .apf-row.full { grid-template-columns:170px 1fr 30px; }
+  .apf-grid > .full { grid-column:1 / -1; } .apf-row.apf-chk { display:block; }
+  .apf-ctl input:not([type=checkbox]):not([type=radio]), .apf-ctl select { min-height:34px; }
+  .apf-ctl input, .apf-ctl select, .apf-ctl textarea { width:100%; } .apf-meta { display:flex; gap:10px; font-size:.74rem; color:#777; min-height:14px; } .apf-cnt { margin-left:auto; order:2; }
+  .apf-radio { display:flex; gap:16px; padding-top:6px; } .apf-radio label { display:inline-flex; gap:4px; align-items:center; } .apf-radio input { width:auto; }
+  .apf-chk label { display:flex; gap:8px; align-items:flex-start; font-size:.86rem; cursor:pointer; } .apf-chk input { width:auto; margin-top:3px; }
+  .apf-cp { border:1px solid var(--border); background:#fff; border-radius:5px; cursor:pointer; padding:4px 5px; font-size:.8rem; } .apf-cp:hover { background:#f2f6fb; }
+  .apf-info { font-size:.82rem; color:#333; background:#fafafa; border-left:3px solid #ddd; padding:6px 10px; } .apf-info ol { margin:0; padding-left:18px; display:grid; gap:4px; }
+  .apf-rep { display:grid; gap:10px; } .apf-item { border:1px solid #e3e3e3; border-radius:6px; padding:6px 8px; } .apf-item-h { display:flex; justify-content:space-between; align-items:center; background:#f3f3f3; margin:-6px -8px 4px; padding:6px 10px; }
+  .apf-add { background:#2ec4a0; border-color:#2ec4a0; justify-self:start; } .apf-add2 { margin-top:6px; }
+  .apf-sub { width:100%; font-size:.84rem; } .apf-sub input, .apf-sub select { width:100%; padding:3px 5px; } .apf-sub input[type=checkbox] { width:auto; }
+  .apf-foot { display:flex; gap:8px; align-items:center; margin-top:16px; padding-top:12px; border-top:1px solid #eee; } .apf-done { margin-right:auto; display:inline-flex; gap:6px; align-items:center; font-weight:600; } .apf-done input { width:auto; }
+  .apf-next { background:#0e7c74; border-color:#0e7c74; }
+  .apf-list { display:flex; gap:10px; flex-wrap:wrap; } .apf-card { border:1px solid var(--border); border-radius:8px; padding:10px 14px; text-decoration:none; color:inherit; min-width:200px; } .apf-card:hover { border-color:var(--navy); }
+  @media (max-width: 800px) { .apf-grid { grid-template-columns:1fr; } .apf-row, .apf-row.full { grid-template-columns:1fr 30px; } .apf-row > label { grid-column:1 / -1; text-align:left; padding:0; } }
   .fu-split { display:flex; flex-wrap:wrap; gap:6px 16px; align-items:center; margin-top:6px; padding:8px 10px; background:#f5f7fb; border-radius:8px; font-size:.85rem; }
   .fu-split .fs-t, .seg-r .fs-t { font-weight:600; }
   .fu-split label { display:inline-flex; align-items:center; gap:4px; color:#222; cursor:pointer; }
@@ -1033,6 +1060,7 @@ function load(data) {
   S.reviews = data.reviews || [];
   S.ctemplates = data.ctemplates || [];
   S.prices = data.prices || null;
+  S.appforms = data.appforms || []; S.appdrafts = data.appdrafts || [];
   viewPrefsLoad();
   S.site = data.site || { bugUrl: '', hideMenus: {}, hideable: [] };
   if ('devAs' in data) { S.devAs = data.devAs; devBanner(); } // 개발자가 다른 계정으로 보는 중 (화면 전체를 불러올 때만 실려 옴)
@@ -1633,14 +1661,14 @@ function pendingTodos() {
 
 /* ============================== 라우팅 ============================== */
 function route() { var h = location.hash.replace(/^#\/?/, '').split('/'); return { view: h[0] === 'dashboard' ? 'home' : h[0] || 'home', id: h[1] }; }
-window.addEventListener('hashchange', function () { render(); window.scrollTo(0, 0); });
+window.addEventListener('hashchange', function () { if (UI.apf && UI.apf.dirty) apfSave(); render(); window.scrollTo(0, 0); });
 function go(hash) { if (location.hash === hash) render(); else location.hash = hash; }
 function openStudent(id, tab) { UI.tab = tab || ''; go('#/student/' + id); }
 
 function render() {
   if (!S.me) return;
   var r = route();
-  var work = [['students', isMgr() ? '학생' : '담당 학생'], ['followups', '팔로업·연락'], ['meetings', '미팅'], ['deadlines', '원서 관리'], ['unis', '대학 정보'], ['programs', '대회·프로그램'], ['results', '합격 실적']].filter(function (i) { return !menuHidden(i[0]); });
+  var work = [['students', isMgr() ? '학생' : '담당 학생'], ['followups', '팔로업·연락'], ['meetings', '미팅'], ['deadlines', '원서 관리'], ['apply', '원서 연습'], ['unis', '대학 정보'], ['programs', '대회·프로그램'], ['results', '합격 실적']].filter(function (i) { return !menuHidden(i[0]); });
   var admin = [];
   if (isMgr()) admin.push(['sales', '매출'], ['ctpl', '계약서'], ['unilist', '목록 관리']);
   if (isAdmin()) admin.push(['teachers', '계정 관리'], ['settings', '백업·알림'], ['storage', '저장 공간'], ['log', '변경 기록']);
@@ -1657,7 +1685,7 @@ function render() {
   $('who').classList.remove('open');
   var v = { home: viewHome, students: viewStudents, student: viewStudent, materials: viewMaterials, deadlines: viewDeadlines,
     unis: viewUnis, uni: viewUni, followups: viewFollowups, search: viewSearch,
-    results: viewResults, map: viewMap, sales: viewSales, trash: viewTrash, teachers: viewTeachers, log: viewLog, me: viewMe, unilist: viewLists, programs: viewPrograms, program: viewProgram, meetings: viewMeetings, settings: viewSettings, storage: viewStorage, ctpl: viewCtpl }[r.view] || viewHome;
+    results: viewResults, map: viewMap, sales: viewSales, trash: viewTrash, teachers: viewTeachers, log: viewLog, me: viewMe, unilist: viewLists, programs: viewPrograms, program: viewProgram, meetings: viewMeetings, settings: viewSettings, storage: viewStorage, ctpl: viewCtpl, apply: viewApply }[r.view] || viewHome;
   UI._view = function () { return v(route().id); };
   UI.brAll = r.view === 'student' || r.view === 'search';
   document.body.classList.toggle('wide', r.view === 'home');
@@ -3702,6 +3730,264 @@ function guideHtml(c) {
     notes.map(function (n) { return '<p>※ ' + esc(n) + '</p>'; }).join('');
 }
 function discountOf(c) { var lp = amt(c.listPrice), p = contractPay(c); return lp && p.total && p.total < lp ? lp - p.total : 0; }
+/* ============================== 원서 연습: 대학 포털과 같은 순서·칸·제한으로 미리 써 두고, 칸마다 복사해서 실제 포털에 붙여넣기 ============================== */
+/** 지원대학 탭: 원서 연습 양식 목록 (지원하는 대학이 먼저) */
+/* ============================== 원서 연습: 대학 포털과 같은 칸으로 미리 쓰고 칸마다 복사 ============================== */
+function apfDraftWho(d) { var s = d.studentId && studentById(d.studentId); return s ? s.name : d.studentId ? '(볼 수 없는 학생)' : '개인 연습'; }
+function apfHome() {
+  var forms = S.appforms || [], list = (S.appdrafts || []).slice(), fl = UI.apfFilter || '';
+  if (fl === 'mine') list = list.filter(function (d) { return !d.studentId; }); else if (fl === 'stu') list = list.filter(function (d) { return d.studentId; });
+  var form = function (id) { return forms.filter(function (f) { return f.id === id; })[0] || { uni: id, intake: '', tabs: [] }; };
+  var h = '<div class="toolbar"><h2 style="margin:0;margin-right:auto">원서 연습</h2></div>' +
+    '<div class="card"><div class="muted" style="margin-bottom:8px">대학 지원 포털과 같은 탭·칸·선택지로 미리 써 보고, 실제 입력할 때는 칸마다 📋 복사해서 붙여넣기. 학생 없이 혼자 연습해도 되고, 지금까지 정리된 학생 정보를 바로 불러올 수도 있습니다.</div>' +
+    '<div class="apf-list">' + forms.map(function (f) {
+      return '<div class="apf-card"><b>' + esc(f.uni) + '</b> <span class="muted">' + esc(f.intake) + ' 입학</span><div class="muted" style="font-size:.8rem;margin:2px 0 8px">' + esc(f.title) + '</div>' +
+        '<button class="btn sm" onclick="apfNew(' + js(f.id) + ')">＋ 새로 연습하기</button></div>';
+    }).join('') + '</div></div>' +
+    '<div class="card">' + secHead('연습 목록 <span class="muted">개인 연습은 나만, 학생에 연결한 연습은 그 학생을 볼 수 있는 선생님 모두 봅니다</span>') +
+    '<div class="seg" style="margin-bottom:8px">' + [['', '전체'], ['mine', '개인 연습'], ['stu', '학생 원서']].map(function (x) { return '<a class="' + (fl === x[0] ? 'on' : '') + '" onclick="UI.apfFilter=' + js(x[0]) + ';render()">' + x[1] + '</a>'; }).join('') + '</div>' +
+    (list.length ? '<div class="tbl-wrap"><table><thead><tr><th>제목</th><th>대학</th><th>학생</th><th>다 쓴 탭</th><th>마지막 수정</th><th></th></tr></thead><tbody>' + list.map(function (d) {
+      var f = form(d.formId), done = JSON.parse(d.done || '[]').length;
+      return '<tr class="click" onclick="go(\'#/apply/' + esc(d.id) + '\')"><td><b>' + esc(d.title || '(제목 없음)') + '</b></td><td>' + esc(f.uni + ' ' + f.intake) + '</td><td>' + (d.studentId ? esc(apfDraftWho(d)) : '<span class="muted">개인 연습 · ' + esc(teacherName(d.createdBy)) + '</span>') + '</td>' +
+        '<td>' + done + ' / ' + f.tabs.length + '</td><td class="nw">' + esc(fmtTime(d.updatedAt).slice(0, 16)) + ' ' + esc(teacherName(d.updatedBy)) + '</td>' +
+        '<td class="nw"><button class="ibtn" title="삭제" onclick="event.stopPropagation();apfRemove(' + js(d.id) + ')">🗑</button></td></tr>';
+    }).join('') + '</tbody></table></div>' : '<div class="muted">아직 연습한 원서가 없습니다. 위에서 「새로 연습하기」를 눌러 시작하세요.</div>') + '</div>';
+  return h;
+}
+/** 학생 고르기 (내가 볼 수 있는 학생) */
+function apfStuOpts(sel) {
+  return '<option value="">— 불러오지 않음 (빈 원서) —</option>' + S.students.slice().sort(function (a, b) { return String(a.name).localeCompare(String(b.name), 'ko'); }).map(function (s) {
+    return '<option value="' + esc(s.id) + '"' + (s.id === sel ? ' selected' : '') + '>' + esc(s.name + (s.englishName ? ' · ' + s.englishName : '') + (s.school ? ' · ' + s.school : '') + (s.grade ? ' ' + s.grade : '')) + '</option>';
+  }).join('');
+}
+function apfNew(formId) {
+  var f = S.appforms.filter(function (x) { return x.id === formId; })[0], n = (S.appdrafts || []).filter(function (d) { return d.formId === formId && d.createdBy === S.me.email; }).length + 1;
+  modal('새 원서 연습 — ' + f.uni + ' ' + f.intake,
+    '<label class="full">제목<input id="apn-title" value="' + esc(f.uni + ' 연습 ' + n) + '" maxlength="100"></label>' +
+    '<label class="full">학생 정보 불러오기 (선택)<select id="apn-stu" onchange="$(\'apn-link-w\').style.display=this.value?\'\':\'none\'">' + apfStuOpts('') + '</select></label>' +
+    '<label class="full" id="apn-link-w" style="display:none;font-weight:400"><span style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="apn-link" checked style="width:auto"> 이 학생의 원서로 저장 (그 학생을 볼 수 있는 선생님도 함께 보고 고침)</span><span class="muted" style="font-size:.78rem">체크를 끄면 정보만 복사한 개인 연습이 됩니다.</span></label>',
+    '<button class="btn ghost" onclick="closeModal()">취소</button><button class="btn" onclick="apfCreate(' + js(formId) + ')">시작</button>');
+}
+function apfCreate(formId) {
+  var sid = $('apn-stu').value, link = sid && $('apn-link').checked;
+  api('saveAppDraft', { formId: formId, title: $('apn-title').value, studentId: link ? sid : '' }).then(function (r) {
+    closeModal(true);
+    S.appdrafts.unshift({ id: r.id, formId: formId, studentId: r.studentId, title: r.title, done: '[]', createdBy: S.me.email, updatedAt: r.updatedAt, updatedBy: S.me.email });
+    UI.apfPre = sid ? { id: r.id, sid: sid } : null;
+    go('#/apply/' + r.id);
+  }).catch(function (e) { toast(errMsg(e), true); });
+}
+function apfRemove(id) {
+  var d = (S.appdrafts || []).filter(function (x) { return x.id === id; })[0];
+  if (!d || !confirm('「' + (d.title || '제목 없음') + '」 원서 연습을 지울까요? 되돌릴 수 없습니다.')) return;
+  api('removeAppDraft', { id: id }).then(function () { S.appdrafts = S.appdrafts.filter(function (x) { return x.id !== id; }); if (UI.apf && UI.apf.id === id) UI.apf = null; toast('지웠습니다.'); go('#/apply'); render(); }).catch(function (e) { toast(errMsg(e), true); });
+}
+function viewApply(id) {
+  if (!id) return apfHome();
+  var A = UI.apf;
+  if (!A || A.id !== id) {
+    UI.apf = A = { id: id, loading: true, tab: 0 };
+    api('getAppDraft', { id: id }).then(function (r) {
+      if (UI.apf !== A) return;
+      A.form = r.form; A.loading = false; A.sid = r.draft.studentId; A.title = r.draft.title; A.owner = r.draft.createdBy;
+      A.data = JSON.parse(r.draft.data || '{}'); A.done = JSON.parse(r.draft.done || '[]'); A.updatedAt = A.savedAt = r.draft.updatedAt;
+      if (UI.apfPre && UI.apfPre.id === id) { var sid = UI.apfPre.sid; UI.apfPre = null; render(); apfPrefill(sid); return; }
+      render();
+    }).catch(function (e) { A.loading = false; A.err = errMsg(e); render(); });
+  }
+  var s = A.sid && studentById(A.sid);
+  var h = '<div class="toolbar"><a href="#/apply">← 원서 연습 목록</a>' + (s ? ' <a href="javascript:void 0" onclick="openStudent(' + js(s.id) + ')" style="margin-left:10px">' + esc(s.name) + ' 학생 화면</a>' : '') + '</div>';
+  if (A.err) return h + '<div class="card empty">' + esc(A.err) + '</div>';
+  if (A.loading || !A.form) return h + '<div class="card empty">불러오는 중…</div>';
+  var F = A.form, t = F.tabs[A.tab];
+  h += '<div class="apf"><div class="apf-top"><div><div class="apf-sys">' + esc(F.title) + '</div><h2 style="margin:2px 0 0">My Application (' + esc(F.intake) + ')</h2>' +
+      '<div class="apf-meta2"><input class="apf-title" value="' + esc(A.title || '') + '" placeholder="연습 제목" maxlength="100" oninput="UI.apf.title=this.value;apfTouch()"> ' +
+      '<span class="apf-link">' + (A.sid ? '🎓 ' + esc(s ? s.name : '(볼 수 없는 학생)') + ' 원서 <span class="muted">· 그 학생을 볼 수 있는 선생님과 함께</span>' : '🔒 개인 연습 <span class="muted">· ' + esc(teacherName(A.owner)) + ' 님만 보임</span>') + '</span></div></div>' +
+    '<div class="toolbar" style="margin:0;margin-left:auto"><span class="muted" id="apf-st">' + apfStatus() + '</span>' +
+    '<button class="btn ghost sm" onclick="apfLoadStu()" title="지금까지 Compass에 정리된 학생 정보로 칸 채우기">🎓 학생 정보 불러오기</button>' +
+    '<button class="btn ghost sm" onclick="apfCopyAll()">📋 전체 복사</button>' +
+    (F.portal ? '<a class="btn ghost sm" href="' + esc(F.portal) + '" target="_blank" rel="noopener">실제 포털 열기 ↗</a>' : '') +
+    '<button class="btn ghost sm" onclick="apfRemove(' + js(A.id) + ')" title="이 연습 지우기">🗑</button></div></div>' +
+    '<div class="apf-notes">' + (F.notes || []).map(function (n) { return '<div>• ' + esc(n) + '</div>'; }).join('') +
+      '<div class="muted" style="font-size:.76rem">포털 구조 확인: ' + esc(F.checkedAt || '') + ' — 포털이 바뀌면 칸이 다를 수 있습니다.</div></div>' +
+    '<div class="apf-tabs">' + F.tabs.map(function (x, i) {
+      var miss = apfMissing(x).length, ok = A.done.indexOf(x.key) >= 0;
+      return '<a class="' + (i === A.tab ? 'on' : '') + (x.practice ? ' pr' : '') + '" onclick="UI.apf.tab=' + i + ';render();window.scrollTo(0,0)">' + (ok ? '✓ ' : '') + esc(x.title) + (miss && !ok ? ' <i title="비어 있는 필수 칸">' + miss + '</i>' : '') + '</a>';
+    }).join('') + '</div>' +
+    '<div class="apf-body">' + (t.intro || []).map(function (x) { return '<p class="apf-intro">' + esc(x) + '</p>'; }).join('') +
+    t.sections.map(function (sec) {
+      return '<div class="apf-sec">' + esc(sec.title) + '</div>' + (sec.note ? '<div class="apf-note">' + esc(sec.note) + '</div>' : '') +
+        '<div class="apf-grid">' + sec.fields.map(function (f) { return apfField(f); }).join('') + '</div>';
+    }).join('') +
+    '<div class="apf-foot"><label class="apf-done"><input type="checkbox"' + (A.done.indexOf(t.key) >= 0 ? ' checked' : '') + ' onchange="apfDone(' + js(t.key) + ',this.checked)"> 이 탭 다 씀</label>' +
+      (A.tab ? '<button class="btn ghost" onclick="UI.apf.tab--;render();window.scrollTo(0,0)">← ' + esc(F.tabs[A.tab - 1].title) + '</button>' : '') +
+      (A.tab < F.tabs.length - 1 ? '<button class="btn apf-next" onclick="UI.apf.tab++;render();window.scrollTo(0,0)">' + esc(F.tabs[A.tab + 1].title) + ' →</button>' : '') + '</div></div></div>';
+  return h;
+}
+function apfStatus() { var A = UI.apf; return A.saving ? '저장 중…' : A.dirty ? '저장 전' : A.savedAt ? '저장됨 ' + fmtTime(A.savedAt).slice(5) : ''; }
+function apfList(f) { return f.o || (f.list && UI.apf.form.lists[f.list]) || []; }
+function apfGet(path) { var v = UI.apf.data; String(path).split('.').forEach(function (k) { v = v == null ? undefined : v[k]; }); return v; }
+function apfPut(path, val) { var ks = String(path).split('.'), o = UI.apf.data; ks.slice(0, -1).forEach(function (k, i) { if (o[k] == null) o[k] = /^\d+$/.test(ks[i + 1]) ? [] : {}; o = o[k]; }); o[ks[ks.length - 1]] = val; }
+/** 칸 하나: 포털과 같은 칸 이름·필수 표시·글자 수 + 📋 복사 */
+function apfField(f, path) {
+  var k = path || f.k;
+  if (f.t === 'info') return '<div class="apf-info full">' + (f.list ? '<ol>' + f.list.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ol>' : esc(f.text)) + '</div>';
+  if (f.t === 'repeat') return apfRepeat(f);
+  if (f.t === 'quals') return apfQuals();
+  var v = apfGet(k), val = v == null ? '' : String(v), id = 'apf-' + k.replace(/\./g, '_'), lab = '<label for="' + esc(id) + '">' + esc(f.l || '') + (f.req ? ' <b>*</b>' : '') + '</label>';
+  var on = ' oninput="apfIn(this)" onchange="apfIn(this)" data-k="' + esc(k) + '"' + (f.max ? ' data-max="' + f.max + '"' : '') + (f.words ? ' data-words="1"' : '');
+  var c;
+  if (f.t === 'check') return '<div class="apf-row full apf-chk"><label><input type="checkbox" id="' + esc(id) + '"' + (v ? ' checked' : '') + on + '> ' + esc(f.l) + (f.req ? ' <b>*</b>' : '') + '</label></div>';
+  if (f.t === 'radio') c = '<div class="apf-radio">' + f.o.map(function (o) { return '<label><input type="radio" name="' + esc(id) + '" value="' + esc(o) + '"' + (val === o ? ' checked' : '') + on + '> ' + esc(o) + '</label>'; }).join('') + '</div>';
+  else if (f.t === 'select') c = '<select id="' + esc(id) + '"' + on + '><option value="">- Select -</option>' + apfList(f).map(function (o) { return '<option' + (o === val ? ' selected' : '') + '>' + esc(o) + '</option>'; }).join('') + (val && apfList(f).indexOf(val) < 0 ? '<option selected>' + esc(val) + '</option>' : '') + '</select>';
+  else if (f.t === 'list') c = '<input id="' + esc(id) + '" list="' + esc(id) + '-dl" value="' + esc(val) + '" placeholder="목록에서 고르거나 직접 입력"' + on + '><datalist id="' + esc(id) + '-dl">' + apfList(f).map(function (o) { return '<option value="' + esc(o) + '">'; }).join('') + '</datalist>';
+  else if (f.t === 'textarea') c = '<textarea id="' + esc(id) + '" rows="' + (f.big ? 16 : 4) + '"' + on + '>' + esc(val) + '</textarea>';
+  else if (f.t === 'date') c = '<input id="' + esc(id) + '" value="' + esc(val) + '" placeholder="dd-mm-yyyy" maxlength="10"' + on + '>';
+  else if (f.t === 'number') c = '<input id="' + esc(id) + '" type="number" min="0" step="0.5" value="' + esc(val) + '" style="max-width:120px"' + on + '>' + (f.suffix ? ' <span class="muted">' + esc(f.suffix) + '</span>' : '');
+  else c = '<input id="' + esc(id) + '" value="' + esc(val) + '"' + (f.ph ? ' placeholder="' + esc(f.ph) + '"' : '') + on + '>';
+  return '<div class="apf-row' + (f.full || f.t === 'textarea' ? ' full' : '') + '">' + lab + '<div class="apf-ctl">' + c +
+    '<div class="apf-meta"><span class="apf-cnt" id="' + esc(id) + '-n">' + apfCount(val, f) + '</span>' + (f.help ? '<span class="muted">' + esc(f.help) + '</span>' : '') + '</div></div>' +
+    (f.t === 'radio' ? '<span></span>' : '<button type="button" class="apf-cp" title="복사" onclick="apfCopy(' + js(k) + ')">📋</button>') + '</div>';
+}
+function apfCount(v, f) {
+  v = String(v || '');
+  if (f.words) { var w = v.trim() ? v.trim().split(/\s+/).length : 0; return w ? w + ' words · ' + v.length + '자' : ''; }
+  if (!f.max) return '';
+  return '<span' + (v.length > f.max ? ' style="color:var(--error);font-weight:700"' : '') + '>' + v.length + ' / ' + f.max + '</span>';
+}
+/** 반복 칸 (이전 학교, 추천인): 「+ 추가」로 한 줄씩 */
+function apfRepeat(f) {
+  var rows = apfGet(f.k) || [];
+  return '<div class="full apf-rep">' + rows.map(function (r, i) {
+    return '<div class="apf-item"><div class="apf-item-h"><b>' + esc(f.add) + ' ' + (i + 1) + '</b><button type="button" class="btn ghost sm" onclick="apfDel(' + js(f.k) + ',' + i + ')">삭제</button></div><div class="apf-grid">' +
+      f.cols.map(function (c) { return apfField(c, f.k + '.' + i + '.' + c.k); }).join('') + '</div></div>';
+  }).join('') + '<button type="button" class="btn apf-add" onclick="apfAdd(' + js(f.k) + ')">＋ ' + esc(f.add) + '</button></div>';
+}
+var APF_GRADES = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', 'No longer In high school'];
+/** 학력 시험: 시험마다 과목·점수 */
+function apfQuals() {
+  var Q = apfGet('quals') || [], L = UI.apf.form.lists;
+  return '<div class="full apf-rep">' + Q.map(function (q, i) {
+    var p = 'quals.' + i + '.', subs = q.subjects || [];
+    return '<div class="apf-item"><div class="apf-item-h"><b>' + esc(q.exam || q.examType || 'Qualification ' + (i + 1)) + (q.sitting ? ' - (' + esc(q.sitting) + ')' : '') + '</b><button type="button" class="btn ghost sm" onclick="apfDel(\'quals\',' + i + ')">Remove Qualification</button></div><div class="apf-grid">' +
+      apfField({ l: 'Examination Type', t: 'select', o: L.examTypes, req: 1 }, p + 'examType') + apfField({ l: 'Examination', req: 1, ph: 'e.g. Advanced Placement Courses / International Baccalaureate Diploma' }, p + 'exam') +
+      apfField({ l: 'Exam Sitting (Month, Year)', ph: 'e.g. May, 2026' }, p + 'sitting') + apfField({ l: 'Date of Result Release', t: 'date', req: 1 }, p + 'release') +
+      apfField({ l: 'Candidate No. / AP ID', help: 'AP는 AP ID' }, p + 'examId') + '</div>' +
+      '<table class="apf-sub"><thead><tr><th>Grade *</th><th>Subject *</th><th>Predicted</th><th>Achieved Grade/Score</th><th>Pending</th><th></th></tr></thead><tbody>' + subs.map(function (x, j) {
+        var sp = p + 'subjects.' + j + '.', inp2 = function (k, ph) { return '<input value="' + esc(x[k] || '') + '" data-k="' + esc(sp + k) + '" oninput="apfIn(this)"' + (ph ? ' placeholder="' + esc(ph) + '"' : '') + '>'; };
+        return '<tr><td><select data-k="' + esc(sp + 'grade') + '" onchange="apfIn(this)"><option value="">- Select -</option>' + APF_GRADES.map(function (g) { return '<option' + (x.grade === g ? ' selected' : '') + '>' + esc(g) + '</option>'; }).join('') + '</select></td>' +
+          '<td>' + inp2('subject', 'e.g. Chemistry') + '</td><td>' + inp2('predicted') + '</td><td>' + inp2('achieved') + '</td>' +
+          '<td style="text-align:center"><input type="checkbox" data-k="' + esc(sp + 'pending') + '" onchange="apfIn(this)"' + (x.pending ? ' checked' : '') + '></td>' +
+          '<td class="nw"><button type="button" class="apf-cp" title="과목·점수 복사" onclick="apfCopyText(' + js([x.subject, x.grade && 'Grade ' + x.grade, x.predicted && 'Predicted ' + x.predicted, x.achieved && 'Achieved ' + x.achieved].filter(Boolean).join(' · ')) + ')">📋</button><button type="button" class="ibtn" onclick="apfDel(' + js(p + 'subjects') + ',' + j + ')">✕</button></td></tr>';
+      }).join('') + '</tbody></table><button type="button" class="btn ghost sm apf-add2" onclick="apfAdd(' + js(p + 'subjects') + ')">＋ Subject</button></div>';
+  }).join('') + '<button type="button" class="btn apf-add" onclick="apfAdd(\'quals\')">＋ Qualification</button></div>';
+}
+function apfIn(el) {
+  var k = el.getAttribute('data-k'), v = el.type === 'checkbox' ? el.checked : el.value;
+  if (el.type === 'radio' && !el.checked) return;
+  apfPut(k, v);
+  var n = document.getElementById('apf-' + k.replace(/\./g, '_') + '-n');
+  if (n) n.innerHTML = apfCount(v, { max: Number(el.getAttribute('data-max')) || 0, words: el.getAttribute('data-words') });
+  apfTouch();
+}
+function apfTouch() { var A = UI.apf; A.dirty = true; clearTimeout(A.t); A.t = setTimeout(apfSave, 1200); var st = $('apf-st'); if (st) st.textContent = apfStatus(); }
+function apfAdd(path) { var a = apfGet(path) || []; a.push({}); apfPut(path, a); apfTouch(); render(); }
+function apfDel(path, i) { if (!confirm('이 항목을 지울까요?')) return; var a = apfGet(path) || []; a.splice(i, 1); apfPut(path, a); apfTouch(); render(); }
+function apfDone(key, on) { var A = UI.apf; A.done = A.done.filter(function (k) { return k !== key; }); if (on) A.done.push(key); apfTouch(); render(); }
+function apfSave() {
+  var A = UI.apf; if (!A || !A.dirty || A.saving) return;
+  clearTimeout(A.t); A.saving = true; A.dirty = false;
+  var st = $('apf-st'); if (st) st.textContent = apfStatus();
+  var arg = { id: A.id, title: A.title || '', data: A.data, done: A.done, updatedAt: A.updatedAt };
+  if (A.linkTo !== undefined) { arg.studentId = A.linkTo; delete A.linkTo; }
+  api('saveAppDraft', arg).then(function (r) {
+    A.saving = false; A.updatedAt = r.updatedAt; A.savedAt = r.updatedAt;
+    var d = (S.appdrafts || []).filter(function (x) { return x.id === A.id; })[0];
+    if (d) { d.updatedAt = r.updatedAt; d.done = JSON.stringify(A.done); d.updatedBy = S.me.email; d.title = r.title; d.studentId = r.studentId; }
+    if (r.studentId !== A.sid) { A.sid = r.studentId; render(); }
+    if (A.dirty) apfTouch(); var st2 = $('apf-st'); if (st2) st2.textContent = apfStatus();
+  }).catch(function (e) { A.saving = false; A.dirty = true; toast(errMsg(e), true); var st3 = $('apf-st'); if (st3) st3.textContent = '저장 안 됨'; });
+}
+/** 비어 있는 필수 칸 (반복·시험 칸은 제외) */
+function apfMissing(tab) {
+  var out = [];
+  tab.sections.forEach(function (sec) { sec.fields.forEach(function (f) { if (f.req && f.k && ['repeat', 'quals'].indexOf(f.t) < 0 && !String(apfGet(f.k) == null ? '' : apfGet(f.k)).trim()) out.push(f.l); }); });
+  return out;
+}
+function apfCopy(k) { var v = apfGet(k); if (v == null || String(v) === '') return toast('비어 있는 칸입니다.', true); copyText(String(v)); }
+function apfCopyText(t) { if (!t) return toast('비어 있습니다.', true); copyText(t); }
+/** 전체를 "칸 이름: 값" 글로 (학생·학부모 확인용, 메모용) */
+function apfCopyAll() {
+  var A = UI.apf, s = A.sid && studentById(A.sid), out = [A.form.title + ' (' + A.form.intake + ')' + (s ? ' — ' + s.name : A.title ? ' — ' + A.title : ''), ''];
+  A.form.tabs.forEach(function (t) {
+    out.push('■ ' + t.title);
+    t.sections.forEach(function (sec) { sec.fields.forEach(function (f) {
+      if (f.t === 'info' || !f.k && f.t !== 'quals') return;
+      if (f.t === 'repeat') { (apfGet(f.k) || []).forEach(function (r, i) { out.push('- ' + f.add + ' ' + (i + 1) + ': ' + f.cols.map(function (c) { return r[c.k] ? c.l + ' ' + r[c.k] : ''; }).filter(Boolean).join(' / ')); }); return; }
+      if (f.t === 'quals') { (apfGet('quals') || []).forEach(function (q) { out.push('- ' + [q.examType, q.exam, q.sitting].filter(Boolean).join(' · ') + ': ' + (q.subjects || []).map(function (x) { return [x.subject, x.achieved || x.predicted || (x.pending ? 'Pending' : '')].filter(Boolean).join(' '); }).join(', ')); }); return; }
+      var v = apfGet(f.k); if (v === true) v = '✓'; if (v == null || v === '' || v === false) return;
+      out.push('- ' + f.l + ': ' + v);
+    }); });
+    out.push('');
+  });
+  copyText(out.join('\n'));
+}
+/** Compass 학생 정보 → 원서 칸 (비어 있는 칸만) */
+function apfDate(d) { return /^\d{4}-\d{2}-\d{2}/.test(d || '') ? d.slice(8, 10) + '-' + d.slice(5, 7) + '-' + d.slice(0, 4) : ''; }
+var APF_PREFILL = {
+  familyName: function (s) { var n = String(s.englishName || '').trim(); return n.indexOf(',') > 0 ? n.split(',')[0].trim() : n.split(/\s+/)[0] || ''; },
+  givenName: function (s) { var n = String(s.englishName || '').trim(); return n.indexOf(',') > 0 ? n.split(',').slice(1).join(' ').trim() : n.split(/\s+/).slice(1).join(' '); },
+  dob: function (s) { return apfDate(s.dob); },
+  email: function (s) { return s.email; },
+  passport: function (s) { var m = String(s.passportNo || '').match(/[A-Z0-9]{6,}/i); return m ? m[0] : ''; },
+  phone: function (s) { return s.studentPhone; },
+  addressEn: function (s) { return s.addressEn; },
+  schoolFull: function (s) { var o = (S.options || []).filter(function (x) { return x.kind === 'school' && x.value === s.school; })[0]; return (o && o.fullName) || s.school; },
+  gradeEn: function (s) { var m = String(s.grade || '').match(/\d+/); return m ? 'Grade ' + m[0] : ''; },
+  prevSchools: function (s) { return childOf('schools', s.id).filter(function (r) { return r.endDate; }).sort(byDate('startDate')).map(function (r) { var o = (S.options || []).filter(function (x) { return x.kind === 'school' && x.value === r.school; })[0]; return { school: (o && o.fullName) || r.school, country: '', from: apfDate(r.startDate), to: apfDate(r.endDate) }; }); },
+  quals: function (s) {
+    var by = {}, out = [];
+    childOf('scores', s.id).forEach(function (r) { (by[r.kind] = by[r.kind] || []).push(r); });
+    var mk = function (kind, type, exam) { var l = by[kind]; if (!l) return; var d = l.map(function (r) { return r.date || ''; }).sort().pop(); out.push({ examType: type, exam: exam, sitting: /^\d{4}-\d{2}/.test(d) ? ['January','February','March','April','May','June','July','August','September','October','November','December'][Number(d.slice(5, 7)) - 1] + ', ' + d.slice(0, 4) : '', subjects: l.map(function (r) { return { subject: [r.subject, r.level].filter(Boolean).join(' ') || kind, achieved: r.score }; }) }); };
+    mk('AP', 'ACT/SAT/AP', 'Advanced Placement Courses'); mk('SAT', 'ACT/SAT/AP', 'SAT'); mk('ACT', 'ACT/SAT/AP', 'ACT');
+    mk('IB', 'International Baccalaureate', 'International Baccalaureate Diploma'); mk('TOEFL', 'IELTS/TOEFL', 'TOEFL'); mk('IELTS', 'IELTS/TOEFL', 'IELTS');
+    return out;
+  },
+  refs: function (s) { return childOf('appinfo', s.id).filter(function (r) { return REC_ITEM.test(r.item || '') && (r.recName || r.recEmail); }).map(function (r) { var c = /카운|counsel/i.test(r.item); return { rel: c ? 'School Counselor' : 'Referee', name: r.recName || '', email: r.recEmail || '', desc: c ? '' : [r.recTitle, r.recSubject].filter(Boolean).join(', ') }; }); },
+};
+/** 학생 정보 → 원서 칸. over: 이미 쓴 칸도 학생 정보로 바꿈 */
+function apfPrefill(sid, over) {
+  var A = UI.apf, s = studentById(sid), n = 0;
+  if (!s) return;
+  A.form.tabs.forEach(function (t) { t.sections.forEach(function (sec) { sec.fields.forEach(function (f) {
+    if (!f.pre || !APF_PREFILL[f.pre]) return;
+    var cur = apfGet(f.k), v = APF_PREFILL[f.pre](s);
+    if (Array.isArray(v)) { if (!v.length || (cur || []).length && !over) return; apfPut(f.k, v); n += v.length; return; }
+    if (!v || cur != null && String(cur).trim() && !over || String(cur) === String(v)) return;
+    apfPut(f.k, v); n++;
+  }); }); });
+  if (!n) return toast(s.name + ' — 채울 칸이 없습니다. (이미 채워졌거나 Compass에 정보가 없음)');
+  apfTouch(); render(); toast(s.name + ' 정보로 ' + n + '개 칸을 채웠습니다. 확인하고 고쳐주세요.');
+}
+function apfLoadStu() {
+  var A = UI.apf, own = !A.sid && A.owner === S.me.email;
+  modal('🎓 학생 정보 불러오기',
+    '<label class="full">학생<select id="apl-stu">' + apfStuOpts(A.sid).replace('— 불러오지 않음 (빈 원서) —', '— 학생 고르기 —') + '</select></label>' +
+    '<div class="full" style="display:grid;gap:6px;font-size:.88rem">' +
+      '<label style="display:flex;gap:6px;align-items:center;font-weight:400"><input type="radio" name="apl-mode" value="" checked style="width:auto"> 비어 있는 칸만 채우기</label>' +
+      '<label style="display:flex;gap:6px;align-items:center;font-weight:400"><input type="radio" name="apl-mode" value="1" style="width:auto"> 이미 쓴 칸도 학생 정보로 바꾸기 (이전 학교·시험·추천인 목록 포함)</label>' +
+      (own ? '<label style="display:flex;gap:6px;align-items:center;font-weight:400"><input type="checkbox" id="apl-link" style="width:auto"> 이 연습을 그 학생의 원서로 저장 (그 학생을 볼 수 있는 선생님도 함께 봄)</label>' : '') + '</div>' +
+    '<div class="full muted" style="font-size:.8rem">영문 이름·생년월일·이메일·여권·연락처·영문 주소·학교·학년·이전 학교·시험 점수(AP/SAT/ACT/IB/TOEFL/IELTS)·추천인이 들어갑니다.</div>',
+    '<button class="btn ghost" onclick="closeModal()">취소</button><button class="btn" onclick="apfLoadGo()">불러오기</button>');
+}
+function apfLoadGo() {
+  var sid = $('apl-stu').value; if (!sid) return toast('학생을 골라주세요.', true);
+  var over = !!(document.querySelector('input[name=apl-mode]:checked') || {}).value, link = $('apl-link') && $('apl-link').checked;
+  if (over && !confirm('이미 쓴 칸을 학생 정보로 바꿉니다. 계속할까요?')) return;
+  closeModal(true);
+  if (link) { UI.apf.linkTo = sid; apfTouch(); }
+  apfPrefill(sid, over);
+}
 /* ============================== 계약서: 양식 → 자동 채움 → 고치기 → 인쇄·PDF, 서명 기록·서명본 파일 ============================== */
 var CDOC_STATUS = ['초안', '보냄', '서명 완료'];
 var SIGN_METHODS = ['방문 서명', '안내형', '전자서명'];
@@ -6125,7 +6411,7 @@ function loadAutomation() {
   }).then(function () { if (route().view === 'settings') render(); }).catch(function (e) { toast(errMsg(e), true); });
 }
 function hourOpts(cur) { var h = ''; for (var i = 0; i < 24; i++) h += '<option value="' + i + '"' + (String(i) === String(cur) ? ' selected' : '') + '>' + i + '시</option>'; return h; }
-var MENU_LABEL = { followups: '팔로업·연락', meetings: '미팅', deadlines: '원서 관리', unis: '대학 정보', programs: '대회·프로그램', results: '합격 실적' };
+var MENU_LABEL = { followups: '팔로업·연락', meetings: '미팅', deadlines: '원서 관리', apply: '원서 연습', unis: '대학 정보', programs: '대회·프로그램', results: '합격 실적' };
 /** 사이트 설정 (관리자): 맨 위 🐞 버튼 링크, 지점별로 숨길 메뉴 */
 function siteCard() {
   var st = S.site || {}, hide = st.hideMenus || {};

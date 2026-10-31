@@ -2811,3 +2811,41 @@ test('가격표·계약 패키지: 기본 가격표, 패키지 고르면 정가 
   d = await admin.ok('savePriceList', { rows: [{ region: '홍콩', kind: '원서컨설팅', name: 'HKU', sessions: '6회', price: 'RMB 11,000', bad: 'x' }, { name: '' }], notes: ['a', ''], limitedNotice: '횟수 제한' });
   assert.deepStrictEqual([d.prices.rows.length, d.prices.rows[0].price, d.prices.rows[0].bad, d.prices.notes, d.prices.limitedNotice], [1, '11000', undefined, ['a'], '횟수 제한']);
 });
+
+test('원서 연습(HKU 2027): 개인 연습은 만든 사람만, 학생에 연결하면 그 학생을 보는 사람 모두 · 권한 · 동시 수정 충돌', async () => {
+  const admin = client(); await admin.login('admin@revera.test', 'admin-pass-1');
+  const kim = await newUser(admin, 'apfkim@revera.test', 'consultant');
+  const lee = await newUser(admin, 'apflee@revera.test', 'consultant');
+  const sid = (await admin.saveOk('students', { name: '원서연습학생', counselor: 'apfkim@revera.test' })).savedId;
+  let d = await kim.ok('getAll');
+  const f = d.appforms.find((x) => x.id === 'hku-2027');
+  assert.ok(f && f.tabs.length === 7 && f.tabs[0].key === 'personal');
+  assert.strictEqual((await kim.rpc('saveAppDraft', { formId: 'nope' })).status, 404);
+  // 개인 연습: 학생 없이
+  const mine = await lee.ok('saveAppDraft', { formId: 'hku-2027', title: '혼자 연습', data: { familyName: 'LEE' } });
+  assert.strictEqual(mine.studentId, '');
+  assert.ok((await lee.ok('getAll')).appdrafts.some((x) => x.id === mine.id && x.title === '혼자 연습'));
+  assert.ok(!(await admin.ok('getAll')).appdrafts.some((x) => x.id === mine.id), '개인 연습은 관리자 목록에도 안 보임');
+  assert.strictEqual((await admin.rpc('getAppDraft', { id: mine.id })).status, 403);
+  let r = await lee.ok('getAppDraft', { id: mine.id });
+  assert.ok(r.form.lists.programmes.length > 50 && JSON.parse(r.draft.data).familyName === 'LEE');
+  assert.strictEqual((await lee.rpc('saveAppDraft', { id: mine.id, studentId: sid })).status, 403, '담당 아닌 학생에는 연결 못 함');
+  // 학생 연결 연습
+  const s1 = await kim.ok('saveAppDraft', { formId: 'hku-2027', studentId: sid, data: { familyName: 'KIM' }, done: ['personal', 'bogus'] });
+  assert.strictEqual((await lee.rpc('getAppDraft', { id: s1.id })).status, 403, '담당 아닌 컨설턴트는 못 봄');
+  assert.strictEqual((await kim.rpc('saveAppDraft', { id: s1.id, data: [1] })).status, 400);
+  assert.strictEqual((await kim.rpc('saveAppDraft', { id: s1.id, data: { a: 'x'.repeat(300001) } })).status, 400);
+  r = await admin.ok('getAppDraft', { id: s1.id });
+  assert.deepStrictEqual([JSON.parse(r.draft.data).familyName, r.draft.done, r.draft.studentId], ['KIM', '["personal"]', sid]);
+  const s2 = await admin.ok('saveAppDraft', { id: s1.id, data: { familyName: 'PARK' }, updatedAt: s1.updatedAt });
+  assert.strictEqual((await kim.rpc('saveAppDraft', { id: s1.id, data: { familyName: 'X' }, updatedAt: s1.updatedAt })).status, 409);
+  r = await kim.ok('getAppDraft', { id: s1.id });
+  assert.deepStrictEqual([JSON.parse(r.draft.data).familyName, r.draft.done, r.draft.updatedAt], ['PARK', '["personal"]', s2.updatedAt], 'data만 보내면 done은 그대로');
+  d = await kim.ok('getAll');
+  const row = d.appdrafts.find((x) => x.id === s1.id);
+  assert.ok(row && row.studentId === sid && row.data === undefined, '목록에는 내용 없이 요약만');
+  assert.ok(!d.appdrafts.some((x) => x.id === mine.id));
+  assert.strictEqual((await kim.rpc('removeAppDraft', { id: mine.id })).status, 403);
+  await lee.ok('removeAppDraft', { id: mine.id });
+  assert.strictEqual((await lee.rpc('getAppDraft', { id: mine.id })).status, 404);
+});
