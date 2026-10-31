@@ -3729,10 +3729,10 @@ function costTableHtml(c) {
   var p = contractPay(c), cur = p.cur || c.currency || 'RMB', tot = p.total ? Math.round(p.total).toLocaleString('ko-KR') : '', its = cItems(c), n = function (v) { return Math.round(v).toLocaleString('ko-KR'); };
   if (its.length) { // 가격표 패키지: 항목마다 정가, 할인이 있으면 정가 합계·할인 줄
     var list = its.reduce(function (t, x) { return t + amt(x.price) * Number(x.qty || 1); }, 0), d = p.total && p.total < list ? list - p.total : 0;
-    return '<table data-ct="cost"><thead><tr><th style="width: 24%">항목</th><th style="width: 51%">내용</th><th style="width: 25%">금액 (' + esc(cur) + ')</th></tr></thead><tbody>' +
+    return '<table data-ct="cost"><thead><tr><th style="width: 26%">항목</th><th style="width: 56%">내용</th><th style="width: 18%">금액 (' + esc(cur) + ')</th></tr></thead><tbody>' +
       its.map(function (x) {
         var q = Number(x.qty || 1);
-        return '<tr><td>' + esc([x.region, x.kind].filter(Boolean).join(' ')) + '</td><td>' + esc(x.name) + (q > 1 ? ' × ' + q : '') + (x.sessions || x.schools ? '<br>' + esc([x.sessions, x.schools && x.schools !== 'N/A' ? x.schools : ''].filter(Boolean).join(' · ')) : '') + '</td><td style="text-align: right">' + n(amt(x.price) * q) + '</td></tr>';
+        return '<tr><td>' + esc([x.region, x.kind].filter(Boolean).join(' ')) + '</td><td>' + esc(x.name) + (q > 1 ? ' × ' + q : '') + (x.sessions || x.schools ? ' · ' + esc([x.sessions, x.schools && x.schools !== 'N/A' ? x.schools : ''].filter(Boolean).join(' · ')) : '') + '</td><td style="text-align: right">' + n(amt(x.price) * q) + '</td></tr>';
       }).join('') +
       (d ? '<tr><th>정가 합계</th><td></td><td style="text-align: right">' + n(list) + '</td></tr><tr><th>할인</th><td></td><td style="text-align: right">-' + n(d) + '</td></tr>' : '') +
       '<tr><th>총 계약 금액</th><td></td><td style="text-align: right"><b>' + esc(cur + ' ' + (tot || n(list))) + '</b></td></tr></tbody></table>';
@@ -3861,6 +3861,14 @@ function docKeepTogether(html) {
     if (n.nodeType === 1 && n.tagName === 'H3') { cur = document.createElement('div'); cur.className = 'art'; out.appendChild(cur); }
     (cur || out).appendChild(n);
   });
+  // 마지막 묶음(특약사항~서명)은 마지막 장에 따로 — 날짜·서명란을 그 장 맨 아래에 붙임
+  var last = out.lastElementChild, sig = last && last.lastElementChild;
+  if (last && last.className === 'art' && sig && sig.tagName === 'TABLE' && !sig.hasAttribute('data-ct')) {
+    last.className = 'art last';
+    var box = document.createElement('div'); box.className = 'sigbox';
+    var date = sig.previousElementSibling && /center/.test(sig.previousElementSibling.getAttribute('style') || '') ? sig.previousElementSibling : null;
+    last.insertBefore(box, date || sig); if (date) box.appendChild(date); box.appendChild(sig);
+  }
   return out.innerHTML;
 }
 /** 새 창에 A4 문서로 띄우고 인쇄 창 열기 (인쇄 창에서 "PDF로 저장" 가능) */
@@ -3870,8 +3878,10 @@ function printHtml(title, html) {
     '@page { size:A4; margin:19mm 19mm 19mm 20mm; } body { margin:0; } ' + docCss('') +
     ' @media screen { body { max-width:171mm; margin:12mm auto; } } * { -webkit-print-color-adjust:exact; print-color-adjust:exact; }' +
     ' .art { break-inside:avoid; page-break-inside:avoid; }' +
+    ' .art.last { break-before:page; page-break-before:always; break-inside:auto; page-break-inside:auto; display:flex; flex-direction:column; min-height:255mm; } .sigbox { margin-top:auto; padding-top:10mm; }' +
     '</style></head><body>' + docKeepTogether(html) + '</body></html>');
-  w.document.close(); w.focus(); setTimeout(function () { w.print(); }, 300);
+  w.document.close(); w.focus();
+  setTimeout(function () { w.print(); }, 300);
 }
 /* ----- 관리 › 계약서: 계약서 없는 계약 + 양식 ----- */
 function viewCtpl() {
