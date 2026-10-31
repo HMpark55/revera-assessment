@@ -378,9 +378,8 @@
   .cd-meta { display:grid; grid-template-columns:repeat(4, 1fr); gap:6px 10px; } .cd-meta > div:first-child { grid-column:span 2; }
   @media (max-width: 800px) { .cd-meta { grid-template-columns:1fr 1fr; } }
   .cd-tb select { font-size:.8rem; padding:3px 6px; }
-  .cdoc-ed { border:1px solid var(--border); border-radius:6px; padding:22px 28px; max-height:62vh; overflow:auto; background:#fff; font-size:.92rem; line-height:1.65; }
-  .cdoc-ed h1 { font-size:1.35rem; margin:0 0 4px; } .cdoc-ed h3 { font-size:1rem; margin:14px 0 4px; } .cdoc-ed p { margin:3px 0; }
-  .cdoc-ed table { width:100%; border-collapse:collapse; margin:8px 0; } .cdoc-ed td, .cdoc-ed th { border:1px solid #9aa3b5; padding:6px 8px; vertical-align:top; } .cdoc-ed th { background:#f1f3f7; }
+  .cdoc-wrap { background:#e9ecf1; border-radius:6px; padding:16px 0; max-height:64vh; overflow:auto; }
+  .cdoc-ed { width:794px; max-width:calc(100% - 24px); box-sizing:border-box; margin:0 auto; padding:72px 72px 72px 76px; background:#fff; box-shadow:0 1px 6px rgba(0,0,0,.18); outline:none; }
   .fu-split { display:flex; flex-wrap:wrap; gap:6px 16px; align-items:center; margin-top:6px; padding:8px 10px; background:#f5f7fb; border-radius:8px; font-size:.85rem; }
   .fu-split .fs-t, .seg-r .fs-t { font-weight:600; }
   .fu-split label { display:inline-flex; align-items:center; gap:4px; color:#222; cursor:pointer; }
@@ -3803,7 +3802,7 @@ function cdocEditor(d) {
       '<span class="rsep"></span><button type="button" class="rbtn-t" onmousedown="event.preventDefault()" onclick="document.execCommand(\'justifyLeft\')">왼쪽</button>' +
       '<button type="button" class="rbtn-t" onmousedown="event.preventDefault()" onclick="document.execCommand(\'justifyCenter\')">가운데</button>' +
       '<span class="rsep"></span><button type="button" class="rbtn-t" onclick="costRowAdd()">＋ 비용 표 줄</button><span class="muted" id="cd-sum" style="margin-left:8px;font-size:.8rem"></span></div>' +
-      '<div class="cdoc-ed" id="cd-ed" contenteditable="true" spellcheck="false" oninput="modalDirty=true;costSum()">' + d.body + '</div>' +
+      '<div class="cdoc-wrap"><div class="cdoc-ed" id="cd-ed" contenteditable="true" spellcheck="false" oninput="modalDirty=true;costSum()">' + d.body + '</div></div>' +
       '<div class="muted" style="font-size:.78rem;margin-top:4px">문서를 눌러 바로 고치세요. 비용 표는 칸을 눌러 항목·금액을 나눠 적고, 「＋ 비용 표 줄」로 줄을 늘립니다. 서명본 스캔·회신 캡처는 계약 카드의 📎 칸에 올리세요.</div></div>',
     (d.id ? '<button class="btn danger" style="margin-right:auto" onclick="delCdoc(' + js(d.id) + ')">삭제</button>' : '') +
     '<button class="btn ghost" onclick="closeModal()">닫기</button><button class="btn ghost" onclick="printHtml($(\'mf\').elements.title.value, $(\'cd-ed\').innerHTML)">🖨 인쇄·PDF</button><button class="btn" onclick="saveCdoc()">저장</button>');
@@ -3839,13 +3838,27 @@ function saveCdoc() {
 }
 function delCdoc(id) { if (!confirm('이 계약서를 휴지통으로 옮길까요?')) return; mutate('remove', { table: 'cdocs', id: id }, '휴지통으로 옮겼습니다.'); }
 function printCdoc(id) { var d = findRow('cdocs', id); if (d) printHtml(d.title, d.body); }
+/** 계약서 모양 (보내주신 Word 양식 기준): A4·여백 19/20mm, 제목 18pt+굵은 밑줄, 부제 9.5pt 회색, 조항 제목 12pt+밑줄, 본문 11pt 양쪽 정렬
+ *  sc = 앞에 붙일 범위 ('' = 인쇄 창 전체, '.cdoc-ed' = 화면의 편집 칸) */
+function docCss(sc) {
+  var p = sc ? sc + ' ' : '';
+  return (sc ? sc : 'body') + ' { font-family:"Malgun Gothic","맑은 고딕","Apple SD Gothic Neo",sans-serif; font-size:11pt; line-height:1.62; color:#000; word-break:keep-all; }' +
+    p + 'h1 { color:#000; font-size:18pt; font-weight:700; text-align:center; border-bottom:1.5pt solid #000; padding-bottom:5pt; margin:0 0 6pt; }' +
+    p + 'h1 + p { font-size:9.5pt; color:#595959; text-align:center; margin:0 0 14pt; }' +
+    p + 'h3 { color:#000; font-size:12pt; font-weight:700; border-bottom:1pt solid #000; padding-bottom:3pt; margin:16pt 0 7pt; page-break-after:avoid; }' +
+    p + 'p { margin:2pt 0 4pt; text-align:justify; }' +
+    p + 'table { width:100%; border-collapse:collapse; margin:6pt 0 9pt; font-size:10pt; line-height:1.5; page-break-inside:avoid; }' +
+    p + 'td, ' + p + 'th { border:0.75pt solid #808080; padding:5pt 7pt; vertical-align:middle; text-align:left; }' +
+    p + 'th { background:#f2f2f2; font-weight:700; text-align:center; }' +
+    p + 'table:last-child td { vertical-align:top; padding:10pt 12pt; line-height:1.9; }'; // 맨 끝 서명 칸
+}
+(function () { var st = document.createElement('style'); st.textContent = docCss('.cdoc-ed'); document.head.appendChild(st); })();
 /** 새 창에 A4 문서로 띄우고 인쇄 창 열기 (인쇄 창에서 "PDF로 저장" 가능) */
 function printHtml(title, html) {
   var w = window.open('', '_blank'); if (!w) return toast('팝업이 막혀 있습니다. 이 사이트의 팝업을 허용해주세요.', true);
   w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>' + esc(title || '계약서') + '</title><style>' +
-    '@page { size:A4; margin:18mm 16mm; } body { font-family:"Malgun Gothic","Apple SD Gothic Neo",sans-serif; font-size:10.5pt; line-height:1.65; color:#111; margin:0; }' +
-    'h1 { font-size:17pt; margin:0 0 4px; } h3 { font-size:11pt; margin:14px 0 4px; } p { margin:3px 0; }' +
-    'table { width:100%; border-collapse:collapse; margin:8px 0; page-break-inside:avoid; } td, th { border:1px solid #444; padding:6px 8px; vertical-align:top; } th { background:#f1f3f7; }' +
+    '@page { size:A4; margin:19mm 19mm 19mm 20mm; } body { margin:0; } ' + docCss('') +
+    ' @media screen { body { max-width:171mm; margin:12mm auto; } } th { -webkit-print-color-adjust:exact; print-color-adjust:exact; }' +
     '</style></head><body>' + html + '</body></html>');
   w.document.close(); w.focus(); setTimeout(function () { w.print(); }, 300);
 }
@@ -3906,7 +3919,7 @@ function editCtpl(id, copy) {
       CT_FIELDS.map(function (f) { return '<option value="' + esc(f[0]) + '">{' + esc(f[0]) + '}</option>'; }).join('') + '</select>' +
       '<button type="button" class="rbtn-t" onmousedown="event.preventDefault()" onclick="document.execCommand(\'bold\')"><b>B</b></button>' +
       '<button type="button" class="rbtn-t" onmousedown="event.preventDefault()" onclick="document.execCommand(\'justifyLeft\')">왼쪽</button><button type="button" class="rbtn-t" onmousedown="event.preventDefault()" onclick="document.execCommand(\'justifyCenter\')">가운데</button></div>' +
-      '<div class="cdoc-ed" id="cd-ed" contenteditable="true" spellcheck="false" oninput="modalDirty=true">' + t.body + '</div>' +
+      '<div class="cdoc-wrap"><div class="cdoc-ed" id="cd-ed" contenteditable="true" spellcheck="false" oninput="modalDirty=true">' + t.body + '</div></div>' +
       '<div class="muted" style="font-size:.78rem;margin-top:4px">{비용 표}는 따로 한 줄에 두면 항목·내용·금액 표로 바뀝니다. 대표자·주소처럼 바뀌지 않는 글은 그대로 적어두세요.</div></div>',
     '<button class="btn ghost" onclick="closeModal()">취소</button><button class="btn" onclick="saveCtpl()">저장</button>');
   $('modal').querySelector('.modal').classList.add('wide');

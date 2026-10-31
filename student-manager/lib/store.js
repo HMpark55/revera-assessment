@@ -680,6 +680,11 @@ function migrate(db) {
     });
     db.prepare("INSERT INTO meta VALUES ('v39_annual_ctemplate', ?)").run(ts);
   }
+  if (!db.prepare("SELECT 1 FROM meta WHERE key = 'v40_ctemplate_indent'").get()) { // 기본 양식의 번호 항목에 들여쓰기 — 아무도 고치지 않은 기본 양식만 새 내용으로
+    const ts = now();
+    DEFAULT_TEMPLATES.forEach((t) => db.prepare("UPDATE ctemplates SET body = ? WHERE name = ? AND createdBy = 'system' AND updatedBy = 'system' AND deletedAt = ''").run(sanitizeDoc(t.body), t.name));
+    db.prepare("INSERT INTO meta VALUES ('v40_ctemplate_indent', ?)").run(ts);
+  }
   ensureColumns(db, 'programs', ['name', 'category', 'target', 'schedule', 'deadline', 'url', 'memo', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy']);
   // v23: "성적·재학·졸업 증명서" 칸을 서류 목록으로 합침 — 서류 줄에 안 묶인 학생 파일을 학생·분류별 서류 줄(수합 완료)로.
   // 휴지통 파일은 같은 분류 줄이 생길 때만 붙임 (휴지통 파일만 있는 분류는 줄을 만들지 않음)

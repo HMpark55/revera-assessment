@@ -112,6 +112,8 @@ const DOC_TAGS = new Set(['div', 'p', 'h1', 'h2', 'h3', 'b', 'strong', 'u', 's',
 const DOC_STYLE = Object.assign({}, STYLE_OK, {
   'text-align': (v) => /^(left|center|right|justify)$/i.test(v),
   width: (v) => /^\d{1,3}(\.\d+)?%$/.test(v),
+  'padding-left': (v) => /^\d{1,2}(\.\d+)?em$/.test(v), // 번호 항목 들여쓰기 (1. 다음 줄이 글자에 맞춰지게)
+  'text-indent': (v) => /^-?\d{1,2}(\.\d+)?em$/.test(v),
 });
 function cleanDocStyle(attrs) {
   const m = /\bstyle\s*=\s*("([^"]*)"|'([^']*)')/i.exec(attrs || '');

@@ -9,7 +9,7 @@ const ENDING = '<p>본 계약의 내용을 증명하기 위하여 계약서 2부
   '<table><tr><td style="width: 50%"><b>리베라유학원</b><br>대표자 성명: 김 범 준<br>주 소: 서울시 강남구 논현로 168길 18<br>전 화: 02-6959-9991<br><br>서 명:</td>' +
   '<td style="width: 50%"><b>의뢰인</b><br>학생 성명: {학생 이름}<br>보호자 성명: {보호자 이름}<br>주 소: {학생 주소}<br>전 화: {보호자 연락처}<br><br>서 명:</td></tr></table>';
 const art = (n, title, items) => '<h3>제 ' + n + ' 조 [' + title + ']</h3>' +
-  (Array.isArray(items) ? items.map((t, i) => '<p><b>' + (i + 1) + '.</b> ' + t + '</p>').join('') : '<p>' + items + '</p>');
+  (Array.isArray(items) ? items.map((t, i) => '<p style="padding-left: 1.4em; text-indent: -1.4em"><b>' + (i + 1) + '.</b> ' + t + '</p>').join('') : '<p>' + items + '</p>');
 
 const APP_CONTRACT = '<h1 style="text-align: center">REVERA 원서 컨설팅 계약서</h1>' +
   '<p style="text-align: center">REVERA University Application Consulting Contract</p>' +
