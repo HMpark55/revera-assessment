@@ -3849,17 +3849,28 @@ function docCss(sc) {
     p + 'p { margin:2pt 0 4pt; text-align:justify; }' +
     p + 'table { width:100%; border-collapse:collapse; margin:6pt 0 9pt; font-size:10pt; line-height:1.5; page-break-inside:avoid; }' +
     p + 'td, ' + p + 'th { border:0.75pt solid #808080; padding:5pt 7pt; vertical-align:middle; text-align:left; }' +
-    p + 'th { background:#f2f2f2; font-weight:700; text-align:center; }' +
-    p + 'table:last-child td { vertical-align:top; padding:10pt 12pt; line-height:1.9; }'; // 맨 끝 서명 칸
+    p + 'th { font-weight:700; text-align:center; }' + // Word 양식처럼 머리 칸도 흰 바탕
+    p + 'table:last-child:not([data-ct]) td { vertical-align:top; padding:10pt 12pt; line-height:1.9; }'; // 맨 끝 서명 칸 (비용 표 제외)
 }
 (function () { var st = document.createElement('style'); st.textContent = docCss('.cdoc-ed'); document.head.appendChild(st); })();
+/** 인쇄용: 조항 제목(h3)부터 다음 조항 전까지를 한 덩어리로 묶어 한 조항이 두 페이지로 갈라지지 않게 (Word 양식처럼) */
+function docKeepTogether(html) {
+  var box = document.createElement('div'); box.innerHTML = html;
+  var out = document.createElement('div'), cur = null;
+  Array.prototype.slice.call(box.childNodes).forEach(function (n) {
+    if (n.nodeType === 1 && n.tagName === 'H3') { cur = document.createElement('div'); cur.className = 'art'; out.appendChild(cur); }
+    (cur || out).appendChild(n);
+  });
+  return out.innerHTML;
+}
 /** 새 창에 A4 문서로 띄우고 인쇄 창 열기 (인쇄 창에서 "PDF로 저장" 가능) */
 function printHtml(title, html) {
   var w = window.open('', '_blank'); if (!w) return toast('팝업이 막혀 있습니다. 이 사이트의 팝업을 허용해주세요.', true);
   w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>' + esc(title || '계약서') + '</title><style>' +
     '@page { size:A4; margin:19mm 19mm 19mm 20mm; } body { margin:0; } ' + docCss('') +
-    ' @media screen { body { max-width:171mm; margin:12mm auto; } } th { -webkit-print-color-adjust:exact; print-color-adjust:exact; }' +
-    '</style></head><body>' + html + '</body></html>');
+    ' @media screen { body { max-width:171mm; margin:12mm auto; } } * { -webkit-print-color-adjust:exact; print-color-adjust:exact; }' +
+    ' .art { break-inside:avoid; page-break-inside:avoid; }' +
+    '</style></head><body>' + docKeepTogether(html) + '</body></html>');
   w.document.close(); w.focus(); setTimeout(function () { w.print(); }, 300);
 }
 /* ----- 관리 › 계약서: 계약서 없는 계약 + 양식 ----- */
