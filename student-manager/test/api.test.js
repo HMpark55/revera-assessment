@@ -2788,3 +2788,26 @@ test('계약서: 기본 양식(이전 원서 계약서), 계약서 저장·검�
   d = await admin.ok('removeCTemplate', { id: d.savedId });
   assert.ok(!d.ctemplates.some((t) => t.name === '연간 계약서'));
 });
+
+test('가격표·계약 패키지: 기본 가격표, 패키지 고르면 정가 합계 계산(실제 계약 금액은 따로), 가격표 고치기는 관리자·관리팀만, 연간 계약서 양식', async () => {
+  const admin = client(); await admin.login('admin@revera.test', 'admin-pass-1');
+  let d = await admin.ok('getAll');
+  const hku = d.prices.rows.find((r) => /HKU\)/.test(r.name)), nus = d.prices.rows.find((r) => /NUS/.test(r.name));
+  assert.deepStrictEqual([hku.price, hku.sessions, nus.price], ['10000', '6회 (회당 1시간)', '12000']);
+  assert.ok(d.ctemplates.some((t) => t.name === 'REVERA 연간 컨설팅 계약서' && t.body.includes('전략을') && t.body.includes('{기간}') && t.body.includes('10% 할인')));
+  const sid = (await admin.saveOk('students', { name: '패키지학생' })).savedId;
+  d = await admin.saveOk('contracts', { studentId: sid, kind: '원서', amount: '20000', currency: 'RMB', items: JSON.stringify([Object.assign({ pid: hku.id, qty: 1 }, hku), Object.assign({ pid: nus.id, qty: '3' }, nus, { price: '12,000' })]) });
+  let c = d.contracts.find((x) => x.id === d.savedId);
+  assert.strictEqual(c.listPrice, String(10000 + 12000 * 3), '정가 합계 = 가격 × 수량');
+  assert.strictEqual(c.amount, '20000', '계약 금액은 보낸 그대로');
+  assert.strictEqual(JSON.parse(c.items)[1].price, '12000');
+  assert.strictEqual((await admin.save('contracts', { id: c.id, items: 'not json' })).status, 400);
+  d = await admin.saveOk('contracts', { id: c.id, items: '[]' });
+  c = d.contracts.find((x) => x.id === c.id);
+  assert.deepStrictEqual([c.items, c.listPrice], ['', '']);
+  const kim = await newUser(admin, 'pricekim@revera.test', 'consultant');
+  assert.strictEqual((await kim.ok('getAll')).prices, null, '컨설턴트에게는 가격표 안 보임');
+  assert.strictEqual((await kim.rpc('savePriceList', { rows: [] })).status, 403);
+  d = await admin.ok('savePriceList', { rows: [{ region: '홍콩', kind: '원서컨설팅', name: 'HKU', sessions: '6회', price: 'RMB 11,000', bad: 'x' }, { name: '' }], notes: ['a', ''], limitedNotice: '횟수 제한' });
+  assert.deepStrictEqual([d.prices.rows.length, d.prices.rows[0].price, d.prices.rows[0].bad, d.prices.notes, d.prices.limitedNotice], [1, '11000', undefined, ['a'], '횟수 제한']);
+});

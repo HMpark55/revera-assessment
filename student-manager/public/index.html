@@ -364,7 +364,13 @@
   .sem-d { width:auto; padding:2px 4px; font-size:.82rem; } tr.sem-total td { background:#f6f2e3; }
   .seg-r { display:flex; flex-direction:column; gap:4px; } .seg-r label, .sh-parts label { display:inline-flex; gap:5px; align-items:center; color:#222; cursor:pointer; }
   .sh-parts { display:grid; grid-template-columns:repeat(auto-fill, minmax(170px, 1fr)); gap:4px 12px; }
-  .modal.wide { max-width:900px; }
+  .modal.wide { max-width:1000px; }
+  .pp-box { border:1px solid var(--border); border-radius:8px; padding:8px 10px; max-height:280px; overflow:auto; display:grid; gap:6px; }
+  .pp-g { display:grid; gap:2px; } .pp-box label.pp-r { display:flex; width:100%; gap:6px; align-items:center; color:#222; cursor:pointer; font-size:.86rem; margin:0; } .pp-r input[type=checkbox] { width:auto; }
+  .pp-r .pp-p { margin-left:auto; white-space:nowrap; font-variant-numeric:tabular-nums; } .pp-q { width:52px !important; padding:1px 4px; }
+  .pp-sum { margin-top:6px; font-size:.88rem; }
+  .c-items { display:flex; flex-wrap:wrap; gap:4px 14px; margin-top:6px; font-size:.84rem; } .c-disc { color:#b45309; font-weight:600; }
+  .pr-ed input, .pr-ed textarea { width:100%; min-width:60px; padding:3px 5px; font-size:.8rem; } .pr-ed textarea { min-width:200px; }
   .cdocs { margin-top:10px; padding-top:8px; border-top:1px dashed #d5dbe6; }
   .cdoc-row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:4px 0; font-size:.88rem; } .cdoc-row .click { cursor:pointer; text-decoration:underline; }
   .cdoc-files { display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-top:4px; }
@@ -866,7 +872,8 @@ var FORMS = {
     { k: 'term', l: '기간 (연간 컨설팅)', t: 'select', o: TERMS }, { k: 'signedDate', l: '계약일', t: 'date' },
     { k: 'startDate', l: '시작일', t: 'date' }, { k: 'endDate', l: '종료일 (비우면 1학기 6개월·1년 12개월로 자동 계산)', t: 'date' },
     { k: 'packages', l: '포함 국가·패키지 (원서 컨설팅 — 목록 관리 › 트랙)', t: 'multi', o: PACKAGES, full: 1 },
-    { k: 'currency', l: '통화', t: 'select', o: CURRENCIES, mgr: 1 }, { k: 'amount', l: '계약 금액', mgr: 1, ph: '예: 30000' },
+    { t: 'pricepick', full: 1, mgr: 1 },
+    { k: 'currency', l: '통화', t: 'select', o: CURRENCIES, mgr: 1 }, { k: 'amount', l: '계약 금액 (할인 반영한 실제 금액, 비우면 정가 합계)', mgr: 1, ph: '예: 20000' },
     { k: 'payDue', l: '잔금 납부 기한', t: 'date', mgr: 1 },
     { k: 'scope', l: '포함 범위 / 특약사항', t: 'textarea', full: 1, ph: '예: HKU+SMU+캐나다 3개 대학. 미국 에세이는 미포함(별도 계약)' },
     { k: 'memo', l: '메모', t: 'textarea', full: 1 }],
@@ -1026,6 +1033,7 @@ function load(data) {
   S.homeDefault = data.homeDefault || null;
   S.reviews = data.reviews || [];
   S.ctemplates = data.ctemplates || [];
+  S.prices = data.prices || null;
   viewPrefsLoad();
   S.site = data.site || { bugUrl: '', hideMenus: {}, hideable: [] };
   if ('devAs' in data) { S.devAs = data.devAs; devBanner(); } // 개발자가 다른 계정으로 보는 중 (화면 전체를 불러올 때만 실려 옴)
@@ -3631,6 +3639,8 @@ function tabContracts(s) {
       (c.signedDate ? '<span class="muted">계약일 ' + esc(c.signedDate) + '</span>' : '') +
       (p && p.total ? '<span style="margin-left:auto"><span class="money">' + money(p.total, p.cur) + '</span> ' + payPill(p.status) + '</span>' : '') + '</div>' +
       (c.packages ? '<div style="margin-top:6px">' + tagHtml(tags(c.packages)) + '</div>' : '') +
+      (isMgr() && cItems(c).length ? '<div class="c-items">' + cItems(c).map(function (x) { return '<span>' + esc(x.name) + (Number(x.qty) > 1 ? ' ×' + esc(x.qty) : '') + ' <span class="muted">' + esc(x.sessions || '') + ' · ' + Math.round(amt(x.price) * Number(x.qty || 1)).toLocaleString('ko-KR') + '</span></span>'; }).join('') +
+        (discountOf(c) ? '<span class="c-disc">정가 ' + money(amt(c.listPrice), contractPay(c).cur) + ' → 할인 ' + money(discountOf(c), contractPay(c).cur) + '</span>' : '') + '</div>' : '') +
       (c.scope ? '<div style="margin-top:6px;white-space:pre-wrap;font-size:.88rem">' + esc(c.scope) + '</div>' : '') +
       (c.memo ? '<div class="muted" style="margin-top:4px;white-space:pre-wrap">' + esc(c.memo) + '</div>' : '');
     if (p) {
@@ -3648,6 +3658,51 @@ function tabContracts(s) {
   }).join('') + '</div>';
 }
 
+/* ----- 가격표 패키지: 계약 창에서 고르기 → 정가 합계·할인 → 계약서 비용 표·지도 횟수 안내 ----- */
+function cItems(c) { try { var a = JSON.parse((c && c.items) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+function priceRows() { return (S.prices && S.prices.rows) || []; }
+function pricePick(rec) {
+  var cur = cItems(rec), by = {}; cur.forEach(function (x) { by[x.pid || x.name] = x; });
+  var rows = priceRows(), groups = [], gk = {};
+  rows.forEach(function (r) { var k = r.region + ' · ' + r.kind; if (!gk[k]) { gk[k] = []; groups.push(k); } gk[k].push(r); });
+  // 가격표에서 빠진 예전 항목도 그대로 보이게
+  cur.forEach(function (x) { if (!rows.some(function (r) { return r.id === x.pid; })) { var k = '예전 가격표'; if (!gk[k]) { gk[k] = []; groups.push(k); } gk[k].push({ id: x.pid || x.name, region: x.region, kind: x.kind, name: x.name, sessions: x.sessions, schools: x.schools, price: x.price, notice: x.notice }); } });
+  UI.ppRows = [].concat.apply([], groups.map(function (k) { return gk[k]; }));
+  setTimeout(ppSum, 0); // 창이 그려진 뒤 합계 표시
+  return '<div class="full"><label>패키지 (가격표에서 고르기 — 계약서 비용 표·지도 횟수 안내에 들어감)</label><div class="pp-box" id="pp-box">' +
+    (groups.length ? groups.map(function (k) {
+      return '<div class="pp-g"><b class="muted">' + esc(k) + '</b>' + gk[k].map(function (r) {
+        var x = by[r.id] || by[r.name];
+        return '<label class="pp-r"><input type="checkbox" data-pid="' + esc(r.id) + '"' + (x ? ' checked' : '') + ' onchange="ppSum()"> <span class="pp-n">' + esc(r.name) + '</span> <span class="muted">' + esc([r.sessions, r.schools && r.schools !== 'N/A' ? r.schools : ''].filter(Boolean).join(' · ')) + '</span>' +
+          '<span class="pp-p">' + Math.round(amt(r.price)).toLocaleString('ko-KR') + (/1명당/.test(r.sessions) ? ' × <input type="number" min="1" max="20" class="pp-q" data-q="' + esc(r.id) + '" value="' + esc(x ? x.qty : '1') + '" onclick="event.stopPropagation()" oninput="ppSum()">명' : '') + '</span></label>';
+      }).join('') + '</div>';
+    }).join('') : '<div class="muted">가격표가 없습니다. 관리 › 계약서 › 가격표에서 넣어주세요.</div>') +
+    '</div><div class="pp-sum" id="pp-sum"></div></div>';
+}
+function ppItems() {
+  return Array.prototype.filter.call(document.querySelectorAll('#pp-box input[data-pid]'), function (c) { return c.checked; }).map(function (c) {
+    var r = UI.ppRows.filter(function (x) { return x.id === c.getAttribute('data-pid'); })[0], q = document.querySelector('#pp-box input[data-q="' + c.getAttribute('data-pid') + '"]');
+    return { pid: r.id, region: r.region, kind: r.kind, name: r.name, sessions: r.sessions, schools: r.schools, price: String(r.price), notice: r.notice || '', qty: q ? String(Math.max(1, parseInt(q.value, 10) || 1)) : '1' };
+  });
+}
+function ppSum() {
+  var el = $('pp-sum'); if (!el) return;
+  var its = ppItems(), list = its.reduce(function (t, x) { return t + amt(x.price) * Number(x.qty); }, 0), a = document.querySelector('#mf [name=amount]'), cur = (document.querySelector('#mf [name=currency]') || {}).value || 'RMB';
+  var real = a && a.value.trim() ? amt(a.value) : list;
+  el.innerHTML = its.length ? '정가 합계 <b>' + money(list, cur) + '</b>' + (real < list ? ' → 계약 금액 ' + money(real, cur) + ' <b style="color:#b45309">(할인 ' + money(list - real, cur) + ')</b>' : real > list ? ' <span style="color:var(--error)">계약 금액이 정가보다 큽니다</span>' : '') : '<span class="muted">고른 패키지 없음 — 계약 금액만 적어도 됩니다</span>';
+}
+document.addEventListener('input', function (e) { if (e.target && e.target.name === 'amount' && $('pp-sum')) ppSum(); });
+/** 계약서 {지도 횟수 안내}: 횟수가 정해진(○회) 항목 + 항목별 안내 (같은 문구는 한 번만) */
+function guideHtml(c) {
+  var its = cItems(c); if (!its.length) return '';
+  var lim = its.filter(function (x) { return /\d+\s*회/.test(x.sessions || ''); }), notes = [];
+  its.forEach(function (x) { String(x.notice || '').split('\n').forEach(function (n) { n = n.trim(); if (n && notes.indexOf(n) < 0) notes.push(n); }); });
+  if (lim.length && S.prices && S.prices.limitedNotice && notes.indexOf(S.prices.limitedNotice) < 0) notes.push(S.prices.limitedNotice);
+  if (!lim.length && !notes.length) return '';
+  return '<p><b>▸ 지도 횟수 및 안내</b></p>' + lim.map(function (x) { return '<p>· ' + esc(x.name) + ': ' + esc(x.sessions) + (x.schools && x.schools !== 'N/A' ? ' · 지원 ' + esc(x.schools) : '') + '</p>'; }).join('') +
+    notes.map(function (n) { return '<p>※ ' + esc(n) + '</p>'; }).join('');
+}
+function discountOf(c) { var lp = amt(c.listPrice), p = contractPay(c); return lp && p.total && p.total < lp ? lp - p.total : 0; }
 /* ============================== 계약서: 양식 → 자동 채움 → 고치기 → 인쇄·PDF, 서명 기록·서명본 파일 ============================== */
 var CDOC_STATUS = ['초안', '보냄', '서명 완료'];
 var SIGN_METHODS = ['방문 서명', '안내형', '전자서명'];
@@ -3664,13 +3719,25 @@ var CT_FIELDS = [
   ['잔금 납부 기한', function (x) { return korDate(x.c.payDue); }],
   ['납부 안내', function (x) { return x.c.payDue ? '잔금 납부 기한: ' + korDate(x.c.payDue) : ''; }],
   ['특약사항', function (x) { return x.c.scope; }],
+  ['정가 합계', function (x) { return amt(x.c.listPrice) ? money(amt(x.c.listPrice), contractPay(x.c).cur) : ''; }],
+  ['할인 안내', function (x) { var d = discountOf(x.c), p = contractPay(x.c); return d ? '가격표 기준 정가 ' + money(amt(x.c.listPrice), p.cur) + '에서 ' + money(d, p.cur) + '을 할인하여 최종 계약 금액을 ' + money(p.total, p.cur) + '으로 한다.' : ''; }],
   ['계약일', function (x) { return korDate(x.c.signedDate || today()); }],
   ['시작일', function (x) { return korDate(contractStart(x.c)); }], ['종료일', function (x) { return korDate(contractEndDate(x.c)); }],
   ['담당 컨설턴트', function (x) { return teacherName(x.s.counselor); }], ['오늘', function () { return korDate(today()); }],
-  ['비용 표', null]];
+  ['비용 표', null], ['지도 횟수 안내', null]];
 /** 제3조 비용 표: 선택 프로그램 한 줄(금액 = 계약 금액, 작성 화면에서 나눠 적기) + 총 계약 금액 */
 function costTableHtml(c) {
-  var p = contractPay(c), cur = p.cur || c.currency || 'RMB', tot = p.total ? Math.round(p.total).toLocaleString('ko-KR') : '';
+  var p = contractPay(c), cur = p.cur || c.currency || 'RMB', tot = p.total ? Math.round(p.total).toLocaleString('ko-KR') : '', its = cItems(c), n = function (v) { return Math.round(v).toLocaleString('ko-KR'); };
+  if (its.length) { // 가격표 패키지: 항목마다 정가, 할인이 있으면 정가 합계·할인 줄
+    var list = its.reduce(function (t, x) { return t + amt(x.price) * Number(x.qty || 1); }, 0), d = p.total && p.total < list ? list - p.total : 0;
+    return '<table data-ct="cost"><thead><tr><th style="width: 24%">항목</th><th style="width: 51%">내용</th><th style="width: 25%">금액 (' + esc(cur) + ')</th></tr></thead><tbody>' +
+      its.map(function (x) {
+        var q = Number(x.qty || 1);
+        return '<tr><td>' + esc([x.region, x.kind].filter(Boolean).join(' ')) + '</td><td>' + esc(x.name) + (q > 1 ? ' × ' + q : '') + (x.sessions || x.schools ? '<br>' + esc([x.sessions, x.schools && x.schools !== 'N/A' ? x.schools : ''].filter(Boolean).join(' · ')) : '') + '</td><td style="text-align: right">' + n(amt(x.price) * q) + '</td></tr>';
+      }).join('') +
+      (d ? '<tr><th>정가 합계</th><td></td><td style="text-align: right">' + n(list) + '</td></tr><tr><th>할인</th><td></td><td style="text-align: right">-' + n(d) + '</td></tr>' : '') +
+      '<tr><th>총 계약 금액</th><td></td><td style="text-align: right"><b>' + esc(cur + ' ' + (tot || n(list))) + '</b></td></tr></tbody></table>';
+  }
   var what = [c.tier, c.kind && c.kind + ' 컨설팅'].filter(Boolean).join(' ') + (tags(c.packages).length ? ' · ' + tags(c.packages).join(', ') : '');
   return '<table data-ct="cost"><thead><tr><th style="width: 22%">항목</th><th style="width: 53%">내용</th><th style="width: 25%">금액 (' + esc(cur) + ')</th></tr></thead><tbody>' +
     '<tr><td>선택 프로그램</td><td>' + esc(what) + '</td><td style="text-align: right">' + esc(tot) + '</td></tr>' +
@@ -3679,8 +3746,11 @@ function costTableHtml(c) {
 function fillTemplate(body, s, c, g) {
   var x = { s: s, c: c, g: g }, map = {};
   CT_FIELDS.forEach(function (f) { map[f[0]] = f[1] ? esc(String(f[1](x) || '')).split('\n').join('<br>') : costTableHtml(c); });
-  return String(body || '').replace(/<div>\{비용 표\}<\/div>/g, map['비용 표']).replace(/\{([^{}<>]{1,20})\}/g, function (all, k) { return Object.prototype.hasOwnProperty.call(map, k) ? map[k] : all; });
+  map['지도 횟수 안내'] = guideHtml(c);
+  return fillClean(String(body || '').replace(/<div>\{비용 표\}<\/div>/g, map['비용 표']).replace(/<div>\{지도 횟수 안내\}<\/div>/g, map['지도 횟수 안내']).replace(/\{([^{}<>]{1,20})\}/g, function (all, k) { return Object.prototype.hasOwnProperty.call(map, k) ? map[k] : all; }));
 }
+/** 채운 뒤 빈 줄 정리: 내용이 없는 "▸ " 줄·빈 문단·빈 안내 칸 */
+function fillClean(h) { return h.replace(/<p>▸\s*<\/p>/g, '').replace(/<p>\s*<\/p>/g, '').replace(/<div>\s*<\/div>/g, ''); }
 function cdocPill(st) { return '<span class="pill cd-' + (st === '서명 완료' ? 'ok' : st === '보냄' ? 'sent' : 'draft') + '">' + esc(st || '초안') + '</span>'; }
 /** 계약 카드 안: 이 계약의 계약서들 + 서명본 파일 + 작성·올리기 */
 function contractDocsBox(s, c) {
@@ -3751,8 +3821,11 @@ function costSum() {
   var el = $('cd-sum'), t = $('cd-ed') && $('cd-ed').querySelector('table[data-ct="cost"]'); if (!el) return;
   if (!t) { el.textContent = ''; return; }
   var c = findRow('contracts', UI.cdoc.contractId), p = c ? contractPay(c) : { total: 0, cur: '' }, sum = 0;
-  Array.prototype.forEach.call(t.querySelectorAll('tbody tr'), function (tr) { if (tr.querySelector('th')) return; var td = tr.cells[tr.cells.length - 1]; sum += amt(td && td.textContent); });
-  el.innerHTML = '항목 합계 ' + money(sum, p.cur) + (p.total && Math.round(sum) !== Math.round(p.total) ? ' <b style="color:var(--error)">≠ 계약 금액 ' + money(p.total, p.cur) + '</b>' : p.total ? ' ✓' : '');
+  Array.prototype.forEach.call(t.querySelectorAll('tbody tr'), function (tr) {
+    var th = tr.querySelector('th'), td = tr.cells[tr.cells.length - 1];
+    if (!th) sum += amt(td && td.textContent); else if (/할인/.test(th.textContent)) sum -= amt(td && td.textContent); // 정가 합계·총 계약 금액 줄은 빼고, 할인 줄은 뺄셈
+  });
+  el.innerHTML = '항목 합계(할인 반영) ' + money(sum, p.cur) + (p.total && Math.round(sum) !== Math.round(p.total) ? ' <b style="color:var(--error)">≠ 계약 금액 ' + money(p.total, p.cur) + '</b>' : p.total ? ' ✓' : '');
 }
 function saveCdoc() {
   var f = formData($('mf')), o = Object.assign({}, UI.cdoc);
@@ -3790,12 +3863,37 @@ function viewCtpl() {
       return '<tr><td><a href="javascript:void(0)" onclick="openStudent(' + js(s.id) + ',\'contracts\')"><b>' + esc(s.name) + '</b></a></td><td>' + esc(contractLabel(c)) + '</td><td class="nw">' + esc([st && fmtD(st), end && fmtD(end)].filter(Boolean).join(' ~ ')) + '</td>' +
         '<td>' + dr.map(function (d) { return cdocPill(d.status); }).join(' ') + '</td><td class="nw"><button class="btn ghost sm" onclick="newCdoc(' + js(c.id) + ')">📝 작성</button> <button class="btn ghost sm" onclick="openStudent(' + js(s.id) + ',\'contracts\')">파일 올리기 →</button></td></tr>';
     }).join('') + '</tbody></table></div>' : '<div class="empty">모든 계약에 계약서가 있습니다. 👍</div>') + '</div>';
+  var pr = priceRows();
+  h += '<div class="card">' + secHead('가격표 <span class="muted">계약 창에서 패키지를 고르면 정가 합계·할인과 계약서 비용 표·지도 횟수 안내가 자동으로</span>', '<button class="btn ghost" onclick="editPrices()">가격표 고치기</button>') +
+    '<div class="tbl-wrap"><table class="compact"><thead><tr><th>지역</th><th>컨설팅 종류</th><th>패키지</th><th>지도 횟수</th><th>학교 개수</th><th>RMB</th><th>계약서 안내</th></tr></thead><tbody>' +
+    pr.map(function (r) { return '<tr><td class="nw">' + esc(r.region) + '</td><td class="nw">' + esc(r.kind) + '</td><td>' + esc(r.name) + '</td><td class="nw">' + esc(r.sessions) + '</td><td class="nw">' + esc(r.schools) + '</td><td class="nw" style="text-align:right">' + Math.round(amt(r.price)).toLocaleString('ko-KR') + '</td><td class="muted" style="font-size:.78rem;white-space:pre-wrap">' + esc(r.notice) + '</td></tr>'; }).join('') +
+    '</tbody></table></div>' + ((S.prices && S.prices.notes || []).length ? '<div class="muted" style="font-size:.8rem;margin-top:8px"><b>주의사항</b><br>' + S.prices.notes.map(function (n, i) { return (i + 1) + '. ' + esc(n); }).join('<br>') + '</div>' : '') + '</div>';
   h += '<div class="card">' + secHead('양식 <span class="muted">{학생 이름} 같은 칸은 계약서를 만들 때 계약·학생 정보로 채워집니다</span>') +
     (S.ctemplates.length ? '<table class="compact"><tbody>' + S.ctemplates.map(function (t) {
       return '<tr><td><b>' + esc(t.name) + '</b>' + (t.kind ? ' <span class="pill">' + esc(t.kind) + '</span>' : '') + '</td><td class="muted nw">' + esc(fmtTime(t.updatedAt)) + ' · ' + esc(t.updatedBy === 'system' ? '기본 양식' : teacherName(t.updatedBy) || t.updatedBy) + '</td>' +
         '<td class="nw"><button class="btn ghost sm" onclick="editCtpl(' + js(t.id) + ')">수정</button> <button class="btn ghost sm" onclick="editCtpl(' + js(t.id) + ',1)">복사해서 새 양식</button> <button class="btn ghost sm" onclick="printHtml(' + js(t.name) + ',ctplById(' + js(t.id) + ').body)">🖨 미리보기</button> <button class="btn ghost sm" onclick="delCtpl(' + js(t.id) + ')">삭제</button></td></tr>';
     }).join('') + '</tbody></table>' : '<div class="empty">양식이 없습니다.</div>') + '</div>';
   return h;
+}
+function editPrices() {
+  var P = S.prices || { rows: [], notes: [], limitedNotice: '' };
+  var row = function (r) { return '<tr class="pr-row">' + ['region', 'kind', 'name', 'sessions', 'schools', 'price'].map(function (k) { return '<td><input data-k="' + k + '" value="' + esc(r[k] || '') + '"' + (k === 'price' ? ' style="text-align:right"' : '') + '></td>'; }).join('') +
+    '<td><textarea data-k="notice" rows="1">' + esc(r.notice || '') + '</textarea><input type="hidden" data-k="id" value="' + esc(r.id || '') + '"></td><td><button type="button" class="ibtn" title="줄 지우기" onclick="this.closest(\'tr\').remove()">✕</button></td></tr>'; };
+  UI.prRow = row;
+  modal('가격표 고치기',
+    '<div class="full tbl-wrap"><table class="compact pr-ed"><thead><tr><th>지역</th><th>컨설팅 종류</th><th>패키지</th><th>지도 횟수</th><th>학교 개수</th><th>RMB</th><th>계약서 안내 (그 항목을 고르면 계약서에 들어감)</th><th></th></tr></thead><tbody id="pr-body">' + P.rows.map(row).join('') + '</tbody></table>' +
+      '<button type="button" class="btn ghost sm" style="margin-top:6px" onclick="$(\'pr-body\').insertAdjacentHTML(\'beforeend\', UI.prRow({}))">+ 줄 추가</button></div>' +
+    fld('횟수 제한 안내 (지도 횟수에 "○회"가 있는 항목을 고르면 계약서에 들어감)', '<textarea name="limitedNotice" rows="2">' + esc(P.limitedNotice || '') + '</textarea>', true) +
+    fld('주의사항 (한 줄에 하나, 가격표 아래 보기용)', '<textarea name="notes" rows="6">' + esc((P.notes || []).join('\n')) + '</textarea>', true) +
+    '<div class="full muted" style="font-size:.8rem">가격표를 바꿔도 이미 만든 계약의 패키지·금액은 그대로 남습니다.</div>',
+    '<button class="btn ghost" onclick="closeModal()">취소</button><button class="btn" onclick="savePrices()">저장</button>');
+  $('modal').querySelector('.modal').classList.add('wide');
+}
+function savePrices() {
+  var rows = Array.prototype.map.call(document.querySelectorAll('#pr-body tr.pr-row'), function (tr) { var o = {}; Array.prototype.forEach.call(tr.querySelectorAll('[data-k]'), function (el) { o[el.getAttribute('data-k')] = el.value; }); return o; })
+    .filter(function (r) { return String(r.name || '').trim(); });
+  var f = formData($('mf'));
+  mutate('savePriceList', { rows: rows, limitedNotice: f.limitedNotice || '', notes: String(f.notes || '').split('\n').map(function (x) { return x.trim(); }).filter(Boolean) }, '가격표를 저장했습니다.');
 }
 function ctplById(id) { return S.ctemplates.filter(function (t) { return t.id === id; })[0]; }
 function editCtpl(id, copy) {
@@ -6247,6 +6345,7 @@ function field(f, rec) {
   if (f.t === 'need') return fld(f.l, '<div class="multi"><label><input type="radio" name="need" value="yes"' + (rec.status !== '완료' ? ' checked' : '') + '> 답변 필요 (팔로업에 남김)</label>' +
     '<label><input type="radio" name="need" value="no"' + (rec.id && rec.status === '완료' ? ' checked' : '') + '> 참고용 (답할 필요 없음 → 완료로 저장)</label></div>', true);
   if (f.t === 'fudone') return fld(f.l, '<div><label style="display:inline-flex;gap:6px;align-items:center;color:#222"><input type="checkbox" name="done"' + (rec.status === '완료' ? ' checked' : ' checked') + '> 처리 완료로 표시</label></div>');
+  if (f.t === 'pricepick') return pricePick(rec);
   if (f.t === 'pw') return fld(f.l, inp('password', rec.password || '', 'text', ' autocomplete="off"'), f.full, f.req);
   var v = rec[f.k] == null ? '' : rec[f.k], h;
   var ph = f.ph ? ' placeholder="' + esc(f.ph) + '"' : '';
@@ -6707,6 +6806,11 @@ function submitForm(key) {
     }).filter(function (x) { return x.item || x.content; }));
   }
   if (miss) return toast(miss.l + ' 항목을 입력하세요.', true);
+  if (table === 'contracts' && $('pp-box')) { // 가격표에서 고른 패키지 → 정가 합계, 계약 금액을 비우면 정가 합계로
+    var its = ppItems(); o.items = JSON.stringify(its);
+    if (its.length && !String(o.amount || '').trim()) o.amount = String(its.reduce(function (t, x) { return t + amt(x.price) * Number(x.qty); }, 0));
+    Object.keys(o).forEach(function (k) { if (/^pp_/.test(k)) delete o[k]; });
+  }
   if (table === 'meetings') o.status = '완료';
   if (table === 'docs' && !o.category) o.category = docCatGuess(o.name);
   if ('subject' in o && o.subject === '__other') o.subject = (o.subjectOther || '').trim();

@@ -13,6 +13,7 @@ const Database = require('better-sqlite3');
 const crypto = require('crypto');
 const { sanitizeRich, richToText, hasFormatting, sanitizeDoc } = require('./rich');
 const { DEFAULT_TEMPLATES } = require('./contract-template');
+const { DEFAULT_PRICES } = require('./pricelist');
 const schedule = require('./schedule');
 const fs = require('fs');
 const path = require('path');
@@ -62,7 +63,7 @@ const TABLES = {
   contracts: {
     label: '계약',
     fields: ['studentId', 'kind', 'tier', 'term', 'packages', 'startDate', 'endDate', 'startMonth', 'endMonth', 'signedDate', 'currency', 'amount',
-      'payDue', 'scope', 'memo'],
+      'payDue', 'scope', 'memo', 'items', 'listPrice'], // items: 가격표에서 고른 패키지(JSON) — listPrice = 정가 합계, amount = 실제 계약 금액(할인 반영)
     summary: (r) => [r.kind, r.tier, r.term, r.packages].filter(Boolean).join(' '),
   },
   apps: {
@@ -670,6 +671,15 @@ function migrate(db) {
       .run(crypto.randomUUID(), t.name, t.kind, sanitizeDoc(t.body), String(i + 1), ts, 'system', ts, 'system'));
     db.prepare("INSERT INTO meta VALUES ('v38_ctemplates', ?)").run(ts);
   }
+  if (!db.prepare("SELECT 1 FROM meta WHERE key = 'v39_annual_ctemplate'").get()) { // 연간 컨설팅 계약서 양식 추가 (같은 이름이 없을 때만)
+    const ts = now();
+    DEFAULT_TEMPLATES.forEach((t, i) => {
+      if (db.prepare("SELECT 1 FROM ctemplates WHERE name = ? AND deletedAt = ''").get(t.name)) return;
+      db.prepare('INSERT INTO ctemplates (id, name, kind, body, sortOrder, createdAt, createdBy, updatedAt, updatedBy) VALUES (?,?,?,?,?,?,?,?,?)')
+        .run(crypto.randomUUID(), t.name, t.kind, sanitizeDoc(t.body), String(i + 1), ts, 'system', ts, 'system');
+    });
+    db.prepare("INSERT INTO meta VALUES ('v39_annual_ctemplate', ?)").run(ts);
+  }
   ensureColumns(db, 'programs', ['name', 'category', 'target', 'schedule', 'deadline', 'url', 'memo', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy']);
   // v23: "성적·재학·졸업 증명서" 칸을 서류 목록으로 합침 — 서류 줄에 안 묶인 학생 파일을 학생·분류별 서류 줄(수합 완료)로.
   // 휴지통 파일은 같은 분류 줄이 생길 때만 붙임 (휴지통 파일만 있는 분류는 줄을 만들지 않음)
@@ -1135,6 +1145,7 @@ function openStore(dbPath, opts) {
       out[t] = db.prepare(`SELECT * FROM ${t} WHERE deletedAt = ''`).all()
         .filter((r) => ids.has(r.studentId) && !(t === 'files' && r.contractId && !isManager(me))).map((r) => publicRow(t, r, me)); // 계약서 파일은 관리자·관리팀만
     }
+    out.prices = isManager(me) ? getPriceList() : null;
     out.ctemplates = isManager(me) ? db.prepare("SELECT * FROM ctemplates WHERE deletedAt = '' ORDER BY CAST(sortOrder AS INTEGER), name").all() : [];
     out.options = db.prepare('SELECT id, kind, value, sortOrder, url, category, color, fullName, country, city, info FROM options').all();
     out.programs = db.prepare('SELECT * FROM programs ORDER BY name').all();
@@ -1170,6 +1181,18 @@ function openStore(dbPath, opts) {
       if (rec.packages) rec.packages = [...new Set(String(rec.packages).split(',').map((x) => x.trim()).filter(Boolean).map((x) => OLD_PACKAGES[x] || x))].join(', ');
       for (const k of ['startDate', 'endDate']) if (v(k) && !DATE_RE.test(v(k))) throw new UserError('계약 날짜 형식이 올바르지 않습니다. (YYYY-MM-DD)');
       if (v('startDate') && v('endDate') && v('endDate') < v('startDate')) throw new UserError('계약 종료일이 시작일보다 빠릅니다.');
+      if ('items' in rec) { // 가격표 패키지: 정해진 칸만, 정가 합계는 여기서 계산
+        let a; try { a = JSON.parse(rec.items || '[]'); } catch (e) { a = null; }
+        if (!Array.isArray(a) || a.length > 40) throw new UserError('패키지 선택이 올바르지 않습니다.');
+        const items = a.map((x) => {
+          const o = {}; ['pid', 'region', 'kind', 'name', 'sessions', 'schools', 'notice'].forEach((k) => { o[k] = clean(x && x[k]).slice(0, 500); });
+          o.price = String(Number(String(x && x.price).replace(/[^\d.]/g, '')) || 0); o.qty = String(Math.max(1, Math.min(20, parseInt(x && x.qty, 10) || 1)));
+          if (!o.name) throw new UserError('패키지 이름이 비어 있습니다.');
+          return o;
+        });
+        rec.items = items.length ? JSON.stringify(items) : '';
+        rec.listPrice = items.length ? String(items.reduce((t, x) => t + Number(x.price) * Number(x.qty), 0)) : '';
+      }
     }
     if (table === 'meetings' && v('nextDate') && !DATE_RE.test(v('nextDate'))) throw new UserError('다음 미팅 날짜 형식이 올바르지 않습니다.');
     if (table === 'followups') {
@@ -2303,6 +2326,23 @@ function openStore(dbPath, opts) {
     db.prepare('UPDATE teachers SET uiPrefs = ? WHERE email = ?').run(json, me.email);
     return { ok: true };
   }
+  /** 가격표 (관리자·관리팀이 고침, 처음엔 기본 가격표) */
+  function getPriceList() {
+    try { const o = JSON.parse(getMeta('site.prices') || 'null'); if (o && Array.isArray(o.rows)) return o; } catch (e) { /* 기본값 */ }
+    return DEFAULT_PRICES;
+  }
+  function savePriceList(me, arg) {
+    requireManager(me, '가격표');
+    const src = arg || {};
+    if (!Array.isArray(src.rows) || src.rows.length > 200) throw new UserError('가격표 형식이 올바르지 않습니다.');
+    const s = (v, n) => clean(v).trim().slice(0, n || 200);
+    const rows = src.rows.map((r) => ({ id: s(r.id, 40) || newId(), region: s(r.region, 40), kind: s(r.kind, 40), name: s(r.name), sessions: s(r.sessions, 60), schools: s(r.schools, 40),
+      price: String(Number(String(r.price || '').replace(/[^\d.]/g, '')) || 0), notice: s(r.notice, 1000) })).filter((r) => r.name);
+    const notes = (Array.isArray(src.notes) ? src.notes : []).map((x) => s(x, 500)).filter(Boolean).slice(0, 30);
+    setMeta('site.prices', JSON.stringify({ rows, notes, limitedNotice: s(src.limitedNotice, 500) }));
+    log(me.email, 'update', 'settings', 'prices', '가격표 수정 (' + rows.length + '개 항목)');
+    return getAll(me);
+  }
   /** 계약서 양식: 추가·고치기 (관리자·관리팀), 지우기는 숨김 처리 */
   function saveCTemplate(me, arg) {
     requireManager(me, '계약서 양식');
@@ -3026,7 +3066,7 @@ function openStore(dbPath, opts) {
     db, filesDir, dbPath, listFiles, pendingSync, markSync, replaceSchedule, restoreFromDb, countTeachers, upsertAdmin, login, loginAs, logout, authenticate, addFile, getFile, addUniFile, getUniFile,
     rpc: { getAll: (me) => getAll(me), save, remove, restore, purge, getTrash, getLog, saveTeacher, changePassword, importData, copyCycle, getActivity, saveMany, updateMe,
       saveOption, removeOption, deleteTeacher, getAutomation, saveAutomation, saveEvent, removeEvent,
-      saveWithFollowups, requestFollowup, saveOrder, saveUniFile, removeUniFile, saveProgram, removeProgram, getStorage, retrySync, saveHomeLayout, saveStudentCols, saveBreak, removeBreak, requestReview, doneReview, cancelReview, excludeSched, unexcludeSched, saveAutoCat, getNotices, noticeAct, fixSubjects, saveViewPref, savePref, getPrefs, saveCTemplate, removeCTemplate, removeMany, restoreMany, purgeMany, addFollowupMany, addFollowupLines, saveSite, addMajorsMany, renameFaculty },
+      saveWithFollowups, requestFollowup, saveOrder, saveUniFile, removeUniFile, saveProgram, removeProgram, getStorage, retrySync, saveHomeLayout, saveStudentCols, saveBreak, removeBreak, requestReview, doneReview, cancelReview, excludeSched, unexcludeSched, saveAutoCat, getNotices, noticeAct, fixSubjects, saveViewPref, savePref, getPrefs, saveCTemplate, removeCTemplate, savePriceList, removeMany, restoreMany, purgeMany, addFollowupMany, addFollowupLines, saveSite, addMajorsMany, renameFaculty },
     studentSheetData, backup, getConfig, getMeta, recordRun, listTeachers, close: () => db.close(),
   };
 }
