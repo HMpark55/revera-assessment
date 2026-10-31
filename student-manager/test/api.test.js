@@ -2820,6 +2820,10 @@ test('원서 연습(HKU 2027): 개인 연습은 만든 사람만, 학생에 연�
   let d = await kim.ok('getAll');
   const f = d.appforms.find((x) => x.id === 'hku-2027');
   assert.ok(f && f.tabs.length === 7 && f.tabs[0].key === 'personal');
+  const ust = d.appforms.find((x) => x.id === 'hkust-2027');
+  assert.ok(ust && ust.uni === 'HKUST' && ust.tabs.length === 13);
+  const u = await kim.ok('getAppDraft', { id: (await kim.ok('saveAppDraft', { formId: 'hkust-2027', title: 'UST' })).id });
+  assert.ok(u.form.lists.programmes.includes('BBA in Finance') && u.form.lists.usSubj['Advanced Placement'].includes('AP Calculus BC'));
   assert.strictEqual((await kim.rpc('saveAppDraft', { formId: 'nope' })).status, 404);
   // 개인 연습: 학생 없이
   const mine = await lee.ok('saveAppDraft', { formId: 'hku-2027', title: '혼자 연습', data: { familyName: 'LEE' } });

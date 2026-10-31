@@ -3825,7 +3825,11 @@ function viewApply(id) {
   return h;
 }
 function apfStatus() { var A = UI.apf; return A.saving ? '저장 중…' : A.dirty ? '저장 전' : A.savedAt ? '저장됨 ' + fmtTime(A.savedAt).slice(5) : ''; }
-function apfList(f) { return f.o || (f.list && UI.apf.form.lists[f.list]) || []; }
+/** 선택 목록: f.o 또는 양식 lists 이름 ('usSubj.SAT'처럼 점으로 한 단계 아래) */
+function apfLookup(key) { if (!key) return []; var L = UI.apf.form.lists, i = key.indexOf('.'); return (i < 0 ? L[key] : (L[key.slice(0, i)] || {})[key.slice(i + 1)]) || []; }
+function apfList(f) { return f.o || apfLookup(f.list); }
+function apfOpt(o, val) { return /^--- /.test(o) ? '<option disabled>' + esc(o) + ' ---</option>' : '<option' + (o === val ? ' selected' : '') + '>' + esc(o) + '</option>'; }
+function apfMonth(d) { return /^\d{4}-\d{2}/.test(d || '') ? d.slice(5, 7) + '/' + d.slice(0, 4) : ''; }
 function apfGet(path) { var v = UI.apf.data; String(path).split('.').forEach(function (k) { v = v == null ? undefined : v[k]; }); return v; }
 function apfPut(path, val) { var ks = String(path).split('.'), o = UI.apf.data; ks.slice(0, -1).forEach(function (k, i) { if (o[k] == null) o[k] = /^\d+$/.test(ks[i + 1]) ? [] : {}; o = o[k]; }); o[ks[ks.length - 1]] = val; }
 /** 칸 하나: 포털과 같은 칸 이름·필수 표시·글자 수 + 📋 복사 */
@@ -3834,14 +3838,16 @@ function apfField(f, path) {
   if (f.t === 'info') return '<div class="apf-info full">' + (f.list ? '<ol>' + f.list.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ol>' : esc(f.text)) + '</div>';
   if (f.t === 'repeat') return apfRepeat(f);
   if (f.t === 'quals') return apfQuals();
+  if (f.t === 'exams') return apfExams(f);
   var v = apfGet(k), val = v == null ? '' : String(v), id = 'apf-' + k.replace(/\./g, '_'), lab = '<label for="' + esc(id) + '">' + esc(f.l || '') + (f.req ? ' <b>*</b>' : '') + '</label>';
   var on = ' oninput="apfIn(this)" onchange="apfIn(this)" data-k="' + esc(k) + '"' + (f.max ? ' data-max="' + f.max + '"' : '') + (f.words ? ' data-words="1"' : '');
   var c;
   if (f.t === 'check') return '<div class="apf-row full apf-chk"><label><input type="checkbox" id="' + esc(id) + '"' + (v ? ' checked' : '') + on + '> ' + esc(f.l) + (f.req ? ' <b>*</b>' : '') + '</label></div>';
   if (f.t === 'radio') c = '<div class="apf-radio">' + f.o.map(function (o) { return '<label><input type="radio" name="' + esc(id) + '" value="' + esc(o) + '"' + (val === o ? ' checked' : '') + on + '> ' + esc(o) + '</label>'; }).join('') + '</div>';
-  else if (f.t === 'select') c = '<select id="' + esc(id) + '"' + on + '><option value="">- Select -</option>' + apfList(f).map(function (o) { return '<option' + (o === val ? ' selected' : '') + '>' + esc(o) + '</option>'; }).join('') + (val && apfList(f).indexOf(val) < 0 ? '<option selected>' + esc(val) + '</option>' : '') + '</select>';
+  else if (f.t === 'select') c = '<select id="' + esc(id) + '"' + on + '><option value="">- Select -</option>' + apfList(f).map(function (o) { return apfOpt(o, val); }).join('') + (val && apfList(f).indexOf(val) < 0 ? '<option selected>' + esc(val) + '</option>' : '') + '</select>';
   else if (f.t === 'list') c = '<input id="' + esc(id) + '" list="' + esc(id) + '-dl" value="' + esc(val) + '" placeholder="목록에서 고르거나 직접 입력"' + on + '><datalist id="' + esc(id) + '-dl">' + apfList(f).map(function (o) { return '<option value="' + esc(o) + '">'; }).join('') + '</datalist>';
   else if (f.t === 'textarea') c = '<textarea id="' + esc(id) + '" rows="' + (f.big ? 16 : 4) + '"' + on + '>' + esc(val) + '</textarea>';
+  else if (f.t === 'month') c = '<input id="' + esc(id) + '" value="' + esc(val) + '" placeholder="mm/yyyy" maxlength="7"' + on + '>';
   else if (f.t === 'date') c = '<input id="' + esc(id) + '" value="' + esc(val) + '" placeholder="dd-mm-yyyy" maxlength="10"' + on + '>';
   else if (f.t === 'number') c = '<input id="' + esc(id) + '" type="number" min="0" step="0.5" value="' + esc(val) + '" style="max-width:120px"' + on + '>' + (f.suffix ? ' <span class="muted">' + esc(f.suffix) + '</span>' : '');
   else c = '<input id="' + esc(id) + '" value="' + esc(val) + '"' + (f.ph ? ' placeholder="' + esc(f.ph) + '"' : '') + on + '>';
@@ -3882,10 +3888,29 @@ function apfQuals() {
       }).join('') + '</tbody></table><button type="button" class="btn ghost sm apf-add2" onclick="apfAdd(' + js(p + 'subjects') + ')">＋ Subject</button></div>';
   }).join('') + '<button type="button" class="btn apf-add" onclick="apfAdd(\'quals\')">＋ Qualification</button></div>';
 }
+/** 시험 카드 (HKUST 등): 시험 고르기 + 칸들 + 과목표(레벨·과목·결과). 과목·결과는 목록에서 고르거나 직접 입력 */
+function apfExams(f) {
+  var Q = apfGet(f.k) || [], dl = {}, lk = function (spec, ex, lv) { if (!spec) return ''; if (typeof spec === 'string') return spec; return spec.map[spec.by === 'level' ? lv : ex] || ''; };
+  var dlId = function (key) { if (!key) return ''; var id = 'apf-dl-' + key.replace(/[^\w]/g, '_'); dl[id] = key; return id; };
+  var h = '<div class="full apf-rep">' + Q.map(function (q, i) {
+    var p = f.k + '.' + i + '.', subs = q.subjects || [];
+    var exF = f.exam.text ? { l: f.exam.l, req: 1, max: f.exam.max } : { l: f.exam.l, t: 'select', list: f.exam.list, req: 1 };
+    return '<div class="apf-item"><div class="apf-item-h"><b>' + esc(q.exam || f.add + ' ' + (i + 1)) + '</b><button type="button" class="btn ghost sm" onclick="apfDel(' + js(f.k) + ',' + i + ')">Clear this entry</button></div><div class="apf-grid">' +
+      apfField(exF, p + 'exam') + f.cols.map(function (c) { return apfField(c, p + c.k); }).join('') + '</div>' +
+      '<table class="apf-sub"><thead><tr>' + (f.level ? '<th>Level</th>' : '') + '<th>Subject</th><th>Results</th><th></th></tr></thead><tbody>' + subs.map(function (x, j) {
+        var sp = p + 'subjects.' + j + '.', inp = function (k, list, ph) { var id = dlId(list); return '<input value="' + esc(x[k] || '') + '" data-k="' + esc(sp + k) + '" oninput="apfIn(this)"' + (id ? ' list="' + id + '"' : '') + (ph ? ' placeholder="' + esc(ph) + '"' : '') + '>'; };
+        var lvCell = !f.level ? '' : Array.isArray(f.level) ? '<td><select data-k="' + esc(sp + 'level') + '" onchange="apfIn(this);render()"><option value="">- Select -</option>' + f.level.map(function (o) { return apfOpt(o, x.level); }).join('') + '</select></td>' : '<td>' + inp('level') + '</td>';
+        return '<tr>' + lvCell + '<td>' + inp('subject', lk(f.subj, q.exam, x.level), '목록에서 고르거나 직접 입력') + '</td><td>' + inp('result', lk(f.grades, q.exam, x.level), '시험 전이면 비움') + '</td>' +
+          '<td class="nw"><button type="button" class="apf-cp" title="과목·결과 복사" onclick="apfCopyText(' + js([x.level, x.subject, x.result].filter(Boolean).join(' · ')) + ')">📋</button><button type="button" class="ibtn" onclick="apfDel(' + js(p + 'subjects') + ',' + j + ')">✕</button></td></tr>';
+      }).join('') + '</tbody></table><button type="button" class="btn ghost sm apf-add2" onclick="apfAdd(' + js(p + 'subjects') + ')">＋ Add More Subject</button></div>';
+  }).join('') + '<button type="button" class="btn apf-add" onclick="apfAdd(' + js(f.k) + ')">＋ ' + esc(f.add) + '</button>';
+  return h + Object.keys(dl).map(function (id) { return '<datalist id="' + id + '">' + apfLookup(dl[id]).map(function (o) { return '<option value="' + esc(o) + '">'; }).join('') + '</datalist>'; }).join('') + '</div>';
+}
 function apfIn(el) {
   var k = el.getAttribute('data-k'), v = el.type === 'checkbox' ? el.checked : el.value;
   if (el.type === 'radio' && !el.checked) return;
   apfPut(k, v);
+  if (/\.exam$/.test(k) && el.tagName === 'SELECT') { apfTouch(); return render(); }
   var n = document.getElementById('apf-' + k.replace(/\./g, '_') + '-n');
   if (n) n.innerHTML = apfCount(v, { max: Number(el.getAttribute('data-max')) || 0, words: el.getAttribute('data-words') });
   apfTouch();
@@ -3911,7 +3936,7 @@ function apfSave() {
 /** 비어 있는 필수 칸 (반복·시험 칸은 제외) */
 function apfMissing(tab) {
   var out = [];
-  tab.sections.forEach(function (sec) { sec.fields.forEach(function (f) { if (f.req && f.k && ['repeat', 'quals'].indexOf(f.t) < 0 && !String(apfGet(f.k) == null ? '' : apfGet(f.k)).trim()) out.push(f.l); }); });
+  tab.sections.forEach(function (sec) { sec.fields.forEach(function (f) { if (f.req && f.k && ['repeat', 'quals', 'exams'].indexOf(f.t) < 0 && !String(apfGet(f.k) == null ? '' : apfGet(f.k)).trim()) out.push(f.l); }); });
   return out;
 }
 function apfCopy(k) { var v = apfGet(k); if (v == null || String(v) === '') return toast('비어 있는 칸입니다.', true); copyText(String(v)); }
@@ -3924,6 +3949,7 @@ function apfCopyAll() {
     t.sections.forEach(function (sec) { sec.fields.forEach(function (f) {
       if (f.t === 'info' || !f.k && f.t !== 'quals') return;
       if (f.t === 'repeat') { (apfGet(f.k) || []).forEach(function (r, i) { out.push('- ' + f.add + ' ' + (i + 1) + ': ' + f.cols.map(function (c) { return r[c.k] ? c.l + ' ' + r[c.k] : ''; }).filter(Boolean).join(' / ')); }); return; }
+      if (f.t === 'exams') { (apfGet(f.k) || []).forEach(function (q) { out.push('- ' + [q.exam].concat(f.cols.map(function (c) { return q[c.k] ? c.l + ' ' + q[c.k] : ''; })).filter(Boolean).join(' · ') + ': ' + (q.subjects || []).map(function (x) { return [x.level, x.subject, x.result].filter(Boolean).join(' '); }).join(', ')); }); return; }
       if (f.t === 'quals') { (apfGet('quals') || []).forEach(function (q) { out.push('- ' + [q.examType, q.exam, q.sitting].filter(Boolean).join(' · ') + ': ' + (q.subjects || []).map(function (x) { return [x.subject, x.achieved || x.predicted || (x.pending ? 'Pending' : '')].filter(Boolean).join(' '); }).join(', ')); }); return; }
       var v = apfGet(f.k); if (v === true) v = '✓'; if (v == null || v === '' || v === false) return;
       out.push('- ' + f.l + ': ' + v);
@@ -3953,6 +3979,30 @@ var APF_PREFILL = {
     mk('IB', 'International Baccalaureate', 'International Baccalaureate Diploma'); mk('TOEFL', 'IELTS/TOEFL', 'TOEFL'); mk('IELTS', 'IELTS/TOEFL', 'IELTS');
     return out;
   },
+  secSchools: function (s) { return childOf('schools', s.id).filter(apfSecondary).sort(byDate('startDate')).reverse().map(function (r) { var o = (S.options || []).filter(function (x) { return x.kind === 'school' && x.value === r.school; })[0]; return { name: (o && o.fullName) || r.school, country: apfCountry(r.country || (o && o.country)), from: apfMonth(r.startDate), to: apfMonth(r.endDate), mode: 'Full-time', gFrom: r.gradeFrom || '', gTo: r.gradeTo || '' }; }); },
+  usExams: function (s) {
+    var out = [], by = {};
+    childOf('scores', s.id).forEach(function (r) { if (['AP', 'SAT', 'ACT'].indexOf(r.kind) >= 0) { var key = r.kind + '|' + String(r.date || '').slice(0, 7); (by[key] = by[key] || []).push(r); } });
+    Object.keys(by).sort().forEach(function (key) {
+      var l = by[key], kind = key.split('|')[0];
+      out.push({ exam: { AP: 'Advanced Placement', SAT: 'SAT', ACT: 'ACT' }[kind], month: apfMonth(l[0].date), subjects: l.map(function (r) {
+        return { subject: kind === 'AP' ? 'AP ' + String(r.subject || '').replace(/^AP\s*/i, '') : kind === 'SAT' ? 'SAT Total' : 'Composite Score', result: r.score };
+      }) });
+    });
+    return out;
+  },
+  ielts: function (s) { return childOf('scores', s.id).filter(function (r) { return r.kind === 'IELTS'; }).map(function (r) { return { date: apfDate(r.date), o: r.score }; }); },
+  toefl: function (s) { return childOf('scores', s.id).filter(function (r) { return r.kind === 'TOEFL' && Number(r.score) <= 6; }).map(function (r) { return { date: apfDate(r.date), t: r.score }; }); },
+  toeflOld: function (s) { return childOf('scores', s.id).filter(function (r) { return r.kind === 'TOEFL' && Number(r.score) > 6; }).map(function (r) { return { date: apfDate(r.date), t: r.score }; }); },
+  parentSurname: function (s) { return apfNameSplit(apfParent(s).en, true)[0]; },
+  parentGiven: function (s) { return apfNameSplit(apfParent(s).en, true)[1]; },
+  parentRel: function (s) { return apfParent(s).rel; },
+  parentEmail: function (s) { return apfParent(s).email; },
+  parentPhone: function (s) { return apfParent(s).phone; },
+  refLast: function (s) { return apfNameSplit(apfRec(s, false).recName)[0]; }, refFirst: function (s) { return apfNameSplit(apfRec(s, false).recName)[1]; },
+  refTitle: function (s) { var r = apfRec(s, false); return [r.recTitle, r.recSubject].filter(Boolean).join(', '); }, refEmail: function (s) { return apfRec(s, false).recEmail; },
+  ccLast: function (s) { return apfNameSplit(apfRec(s, true).recName)[0]; }, ccFirst: function (s) { return apfNameSplit(apfRec(s, true).recName)[1]; },
+  ccTitle: function (s) { return apfRec(s, true).recTitle; }, ccEmail: function (s) { return apfRec(s, true).recEmail; },
   refs: function (s) { return childOf('appinfo', s.id).filter(function (r) { return REC_ITEM.test(r.item || '') && (r.recName || r.recEmail); }).map(function (r) { var c = /카운|counsel/i.test(r.item); return { rel: c ? 'School Counselor' : 'Referee', name: r.recName || '', email: r.recEmail || '', desc: c ? '' : [r.recTitle, r.recSubject].filter(Boolean).join(', ') }; }); },
 };
 /** 학생 정보 → 원서 칸. over: 이미 쓴 칸도 학생 정보로 바꿈 */
@@ -3968,6 +4018,24 @@ function apfPrefill(sid, over) {
   }); }); });
   if (!n) return toast(s.name + ' — 채울 칸이 없습니다. (이미 채워졌거나 Compass에 정보가 없음)');
   apfTouch(); render(); toast(s.name + ' 정보로 ' + n + '개 칸을 채웠습니다. 확인하고 고쳐주세요.');
+}
+/** 중·고등 과정만 (초등학교·G6 이하로 끝난 학교 제외) */
+function apfSecondary(r) { if (/초등|elementary|primary/i.test(r.school || '')) return false; var g = Number(String(r.gradeTo || '').replace(/\D/g, '')); return !g || g >= 7; }
+var APF_COUNTRY = { '중국': 'Chinese Mainland', '한국': 'Korea, Republic of', '대한민국': 'Korea, Republic of', '홍콩': 'Hong Kong, China', '대만': 'Taiwan, China', '마카오': 'Macao, China', '미국': 'United States', '캐나다': 'Canada', '영국': 'United Kingdom', '싱가포르': 'Singapore', '일본': 'Japan', '호주': 'Australia', '말레이시아': 'Malaysia', '태국': 'Thailand', '베트남': 'Viet Nam' };
+function apfCountry(c) { c = String(c || '').trim(); return APF_COUNTRY[c] || c; }
+/** 부모: 영문 이름이 있는 쪽 (아버님 먼저) */
+function apfParent(s) {
+  var g = s.fatherNameEn || !s.motherNameEn && (s.fatherEmail || s.fatherPhone) ? 'father' : 'mother';
+  return { en: String(s[g + 'NameEn'] || '').trim(), rel: s[g + 'NameEn'] || s[g + 'Name'] ? (g === 'father' ? 'Father' : 'Mother') : '', email: s[g + 'Email'] || '', phone: s[g + 'Phone'] || '' };
+}
+/** 추천인 (counselor=true면 카운슬러) */
+function apfRec(s, counselor) { return childOf('appinfo', s.id).filter(function (r) { return REC_ITEM.test(r.item || '') && (r.recName || r.recEmail) && /카운|counsel/i.test(r.item) === counselor; })[0] || {}; }
+/** 영문 이름 → [성, 이름]: "Smith, John"은 쉼표 앞이 성. 쉼표가 없으면 surFirst면 첫 단어(KIM MINSU), 아니면 마지막 단어(John Smith)가 성 */
+function apfNameSplit(n, surFirst) {
+  n = String(n || '').replace(/^(Mr|Ms|Mrs|Miss|Dr|Prof)\.?\s+/i, '').trim(); if (!n) return ['', ''];
+  if (n.indexOf(',') > 0) return [n.split(',')[0].trim(), n.split(',').slice(1).join(' ').trim()];
+  var w = n.split(/\s+/); if (w.length < 2) return [n, ''];
+  return surFirst ? [w[0], w.slice(1).join(' ')] : [w.pop(), w.join(' ')];
 }
 function apfLoadStu() {
   var A = UI.apf, own = !A.sid && A.owner === S.me.email;
