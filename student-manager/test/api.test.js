@@ -2868,3 +2868,70 @@ test('학년 자동 올림·졸업 연월·닉네임, 가격표 KRW', async () =
   d = await admin.ok('savePriceList', { rows: [{ name: 'HKU', price: '10,000', priceKrw: '1,900,000' }, { name: 'NUS', price: '12000', priceKrw: '' }] });
   assert.deepStrictEqual(d.prices.rows.map((r) => [r.price, r.priceKrw]), [['10000', '1900000'], ['12000', '']]);
 });
+
+test('수업 케어(시험 중): 테스터만 수강생·수업 기록을 보고 씀, 시험 종류·틀린 유형·수업 연결 검증', async () => {
+  process.env.CARE_EMAILS = 'caretest@revera.test';
+  const admin = client(); await admin.login('admin@revera.test', 'admin-pass-1');
+  const ct = await newUser(admin, 'caretest@revera.test', 'staff');
+  const other = await newUser(admin, 'carenot@revera.test', 'staff');
+  assert.strictEqual((await ct.ok('getAll')).me.care, true);
+  assert.strictEqual((await admin.ok('getAll')).me.care, false);
+  let d = await ct.saveOk('students', { name: '수강생테스트', kind: '수강생' });
+  const sid = d.savedId;
+  assert.ok(!(await admin.ok('getAll')).students.some((s) => s.id === sid), '수강생은 테스터가 아니면 관리자에게도 안 보임');
+  assert.strictEqual((await other.rpc('save', { table: 'followups', obj: { studentId: sid, title: 'x' } })).status, 403);
+  const lid = (await ct.saveOk('care_lessons', { studentId: sid, subject: 'Digital SAT RW', category: 'SAT', rate: '300000' })).savedId;
+  await ct.saveOk('care_sessions', { studentId: sid, lessonId: lid, date: '2026-11-03', status: '완료', attend: '지각', late: '10', remind: true });
+  assert.strictEqual((await ct.save('care_exams', { studentId: sid, kind: '모름', title: 'x' })).status, 400);
+  assert.strictEqual((await ct.save('care_exams', { studentId: sid, kind: 'SAT 모의고사', skills: '[1]' })).status, 400);
+  d = await ct.saveOk('care_exams', { studentId: sid, lessonId: lid, kind: 'SAT 모의고사', title: 'Form A', total: '1300', skills: JSON.stringify({ Inferences: 2 }) });
+  assert.strictEqual(d.care_exams.find((x) => x.id === d.savedId).total, '1300');
+  const sid2 = (await ct.saveOk('students', { name: '다른 수강생', kind: '수강생' })).savedId;
+  assert.strictEqual((await ct.save('care_sessions', { studentId: sid2, lessonId: lid, date: '2026-11-03' })).status, 400, '다른 학생의 수업에는 연결 못 함');
+  assert.strictEqual((await admin.rpc('save', { table: 'care_lessons', obj: { studentId: sid, subject: 'x' } })).status, 403);
+  assert.deepStrictEqual((await admin.ok('getAll')).care_lessons, []);
+  // 테스터가 아니면 구분을 못 바꿈
+  const cs = (await admin.saveOk('students', { name: '컨설팅학생' })).savedId;
+  d = await admin.saveOk('students', { id: cs, kind: '수강생' });
+  assert.strictEqual(d.students.find((s) => s.id === cs).kind, '');
+  delete process.env.CARE_EMAILS;
+});
+
+test('수업 케어 × track: 미리 보기 → 고른 시험만 저장(영역 점수·틀린 유형·수업 연결), 다시 가져오면 갱신, roster 가져오기', async () => {
+  process.env.CARE_EMAILS = 'trk@revera.test';
+  const track = require('../lib/track');
+  const real = track.studentSummary;
+  const calls = [];
+  track.studentSummary = async (sid, opts) => { calls.push([sid, opts.skipKeys]); return [
+    { key: 'track:g1', title: 'CBRT 24 Nov US A', trackTitle: 'Math Test 2', testType: 'SAT Math - Digital', section: 'math', date: '2026-10-31', modulesTotal: 2, full: true, complete: true, score: 720, perc: 90.9,
+      modules: [{ n: 1, score: 360, cor: 20, inc: 2, omit: 0 }, { n: 2, score: 360, cor: 20, inc: 2, omit: 0 }], wrong: { 'Advanced- Rational expressions and polynomials': 2 } },
+    { key: 'track:g2', title: 'Killing Remix 5', trackTitle: 'Remix', testType: 'SAT RW - Digital', section: 'rw', date: '2026-10-30', modulesTotal: 1, full: false, complete: true, score: 350, perc: 90,
+      modules: [{ n: 1, score: 350, cor: 27, inc: 3, omit: 0 }], wrong: { '[W] Transition': 2 } },
+    { key: 'track:g3', title: 'CBBP Sep A', trackTitle: 'Math Test 1', testType: 'SAT Math - Digital', section: 'math', date: '2026-11-01', modulesTotal: 2, full: true, complete: false, score: 380, perc: 95,
+      modules: [{ n: 1, score: 380, cor: 21, inc: 1, omit: 0 }], wrong: {} }]; };
+  try {
+    const admin = client(); await admin.login('admin@revera.test', 'admin-pass-1');
+    const t = await newUser(admin, 'trk@revera.test', 'staff');
+    let d = await t.ok('importCare', { students: [{ student: { name: '트랙학생', trackId: 'https://www.revera-track.com/tower/m/students/4542' }, lessons: [{ subject: 'Digital SAT Math', category: 'SAT', teacher: '허인행 선생님', sessions: [{ date: '2026-10-25', status: '완료', attend: '출석' }] }] }] });
+    assert.deepStrictEqual(d.imported, { added: ['트랙학생'], skipped: [] });
+    const s = d.students.find((x) => x.name === '트랙학생');
+    assert.deepStrictEqual([s.kind, s.trackId, s.branch], ['수강생', '4542', '압구정']);
+    assert.strictEqual(d.care_sessions.filter((x) => x.studentId === s.id).length, 1);
+    assert.deepStrictEqual((await t.ok('importCare', { students: [{ student: { name: '트랙학생' } }] })).imported.skipped, ['트랙학생']);
+    assert.strictEqual((await admin.rpc('trackPreview', { studentId: s.id })).status, 403);
+    const p = await t.ok('trackPreview', { studentId: s.id });
+    assert.strictEqual(p.items.length, 3);
+    d = await t.ok('trackImport', { studentId: s.id, keys: ['track:g1', 'track:g2', 'track:g3'] });
+    assert.strictEqual(d.trackSaved, 3);
+    const ex = d.care_exams.filter((x) => x.studentId === s.id), g1 = ex.find((x) => x.src === 'track:g1'), g2 = ex.find((x) => x.src === 'track:g2'), g3 = ex.find((x) => x.src === 'track:g3');
+    const lid = d.care_lessons.find((l) => l.studentId === s.id).id;
+    assert.deepStrictEqual([g1.math, g1.kind, g1.lessonId, JSON.parse(g1.skills)['Advanced- Rational expressions and polynomials']], ['720', 'SAT 모의고사', lid, 2]);
+    assert.deepStrictEqual([g2.rw, g2.score, g2.maxScore, g2.title], ['', '350', '400', 'Killing Remix 5 (1모듈)']);
+    assert.ok(g3.math === '' && /진행 중: 1\/2/.test(g3.memo), '모듈이 덜 끝난 시험은 영역 점수 없이 진행 중');
+    await t.ok('trackPreview', { studentId: s.id });
+    assert.deepStrictEqual(calls[1][1].sort(), ['track:g1', 'track:g2'], '끝까지 가져온 시험은 다시 받지 않고, 진행 중이던 것만 다시');
+    d = await t.ok('trackImport', { studentId: s.id, keys: ['track:g3'] });
+    assert.strictEqual(d.care_exams.filter((x) => x.studentId === s.id && x.src === 'track:g3').length, 1, '같은 시험은 한 줄로 갱신');
+    assert.strictEqual((await t.rpc('trackPreview', { studentId: (await t.saveOk('students', { name: '번호없음', kind: '수강생' })).savedId })).status, 400);
+  } finally { track.studentSummary = real; delete process.env.CARE_EMAILS; }
+});

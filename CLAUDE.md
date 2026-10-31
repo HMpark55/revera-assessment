@@ -35,7 +35,8 @@
   - `getAll(me)`가 화면 전체 데이터를 내려줌. 새 RPC 함수는 파일 끝 rpc 목록에 추가.
 - 화면: `public/index.html` 한 파일 (ES5 스타일 `var`·`function`, 주석·문구는 한국어). `api(fn, arg)`, `mutate(fn, arg, msg)` = api + load + 창 닫기, `render()`가 주소(`#/view/id/sub`)에 맞춰 다시 그림. 입력 창은 `FORMS` 정의 + `openForm`.
 - 주요 lib: `xlsx.js`(외부 라이브러리 없는 엑셀 작성), `studentsheet.js`(원서용 학생 정보 엑셀), `contract-template.js`·`pricelist.js`(계약서 양식·가격표), `rich.js`(서식 글 정리), `appforms/`(원서 연습 양식), `atlas*.js` + `private/atlas.html`(REVERA A — 학원 관리용 별도 화면).
-- 환경변수: `PORT`, `DB_PATH`, `ADMIN_EMAIL`·`ADMIN_PASSWORD`·`ADMIN_NAME`(첫 관리자), `COOKIE_SECURE`, `TRUST_PROXY`, `ATLAS_EMAILS`.
+- 환경변수: `PORT`, `DB_PATH`, `ADMIN_EMAIL`·`ADMIN_PASSWORD`·`ADMIN_NAME`(첫 관리자), `COOKIE_SECURE`, `TRUST_PROXY`, `ATLAS_EMAILS`, `CARE_EMAILS`(수업 케어 테스터 추가), `TRACK_EMAIL`·`TRACK_PASSWORD`(REVERA-TRACK 읽기용 계정, `TRACK_URL` 기본 https://www.revera-track.com).
+- `lib/track.js`: REVERA-TRACK(학원 SAT 모의고사, Score-Track) 읽기 전용 연동 — 로그인·학생 제출 목록(`/tower/m/students/submissions/loadtests`)·시험 결과(`/tower/t/results/load`, 문항별 정답·유형·환산표). 모듈 점수 = 환산표(틀린 개수→점수, 400 만점), 영역 점수 = 모듈 1+2 합(실제 SAT 기준). 이 클라우드 환경에서 직접 돌릴 때는 `NODE_USE_ENV_PROXY=1 NODE_EXTRA_CA_CERTS=/root/.ccr/ca-bundle.crt` 필요.
 - 기능 설명은 `student-manager/README.md`에 자세히 있음 (최근 PR 내용은 일부 반영 안 됐을 수 있음).
 
 ## 5. 확인 방법
@@ -76,10 +77,12 @@ DB_PATH=/tmp/x.db PORT=3151 node server.js    # admin@demo.test / staff@demo.tes
 - 원서 연습: 개인 연습은 만든 사람만 보고, 학생에 연결한 원서는 그 학생을 볼 수 있는 선생님 모두가 봄.
 - 답변한 사람 「나」 = 기록한 사람(예전 「관리팀」 기록도 같은 뜻으로 표시), 「컨설턴트」 = 그 학생의 담당 컨설턴트.
 - 로드맵·학부모 리포트 초안은 Compass가 아니라 REVERA A 쪽.
+- **수업 케어(시험 중)**: 압구정 학원 수강생 케어. 학생은 Compass 학생에 `kind`(''=컨설팅 / '수강생' / '둘 다')로 같이 두고, 팔로업·받은 연락·상담 기록·확인 요청은 Compass 것을 그대로 씀. 수업 관련은 `care_lessons`(개인 수업)·`care_sessions`(수업 기록: 출결·숙제·리마인드)·`care_exams`(SAT 공식·모의고사(College Board 유형별 틀린 개수)·단어 시험·학교 시험·과제). 테스트 동안 **박현모·김초영 두 계정만**(`CARE_NAMES`, 환경변수 `CARE_EMAILS`로 추가) 메뉴·데이터가 보이고, 「수강생」 학생은 다른 계정에는 학생 목록에도 안 보임. 결제·매출·강사 페이는 넣지 않음(REVERA A 쪽). 1차 = 개인 수업, 반(그룹) 수업·문의→등록 단계는 2차.
 
 ## 8. 남은 일·보류 항목
 
 - **보류(사용자가 나중에 다시 말할 것)**: 계약서 기능 추가 수정, 원서용 학생 정보 엑셀 추가 수정.
+- **수업 케어**: track 연동은 구현됨(학생 정보의 track 학생 번호 → 시험·점수 탭 「track에서 가져오기」 → 미리 보기 → 고른 것 저장, src='track:<module_group_id>'). roster→Compass 수강생 가져오기는 「수업 케어 › 📥 수강생 가져오기」(JSON, 개인정보라 저장소에 넣지 않음). 2차 범위(반 수업 출석표, 문의→선등록→확정 단계, 실제 roster 데이터 가져오기)는 사용자 확인 후.
 - **원서 연습**
   - 다른 대학 양식 추가 (NUS 등 — 이 환경에서 포털에 못 들어가면 사용자에게 스크린샷 요청).
   - HKUST: Australia·Canada·HKDSE·India 등 다른 시험 화면과 IB Certificate 아래 화면은 확인 안 함. SAT+AP·IB Diploma 외의 최고 학력에서 학과 목록이 다른지도 확인 안 함.

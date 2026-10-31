@@ -47,7 +47,7 @@ save('payments', { studentId: b, contractId: cb, date: d(-10), amount: '40000', 
 
 save('notes', { studentId: a, date: d(-5), time: 'PM 1:00', place: '상담실', attendees: '원장님, 학생, 어머님, 김컨설턴트',
   type: '대면상담', content: '1. HKU 심리학 단독 지원 확정\n2. 추천서 3인 확정', nextAction: '출입국사실증명서 수합 안내', nextDue: d(-1) });
-save('notes', { studentId: b, date: d(-2), type: '위챗·문자', content: '어머님 일정 문의 대응', nextAction: '에세이 타임라인 공유', nextDue: d(5) });
+save('notes', { studentId: b, date: d(-2), type: '위챗', content: '어머님 일정 문의 대응', nextAction: '에세이 타임라인 공유', nextDue: d(5) });
 
 const fuDoc = save('followups', { studentId: a, title: '출입국사실증명서 받기', assignee: 'staff@demo.test', due: d(-1), category: '서류', detail: '위챗: 출입국사실증명서 이번 주 안에 받아서 스캔해 줄래?' });
 save('fureplies', { studentId: a, followupId: fuDoc, who: '학생', date: d(0), content: '금요일에 어머니가 발급받아 주신대요' });
@@ -126,6 +126,33 @@ r.saveProgram(me, { name: 'Immerse Education Essay Competition (예시)', catego
   deadline: d(8), url: 'https://example.org/immerse', memo: '주제 중 하나를 골라 에세이 제출 (예시 메모)' });
 r.saveProgram(me, { name: '예시 서머 리서치 프로그램', category: '서머 프로그램', target: 'G10–G11', schedule: '봄 지원, 여름 진행', url: 'https://example.org/summer', memo: '추천서 1부 필요 (예시)' });
 
+// 수업 케어 (시험 중): 데모에서는 관리자·관리팀 계정을 테스터로 (실제 서버는 CARE_EMAILS 또는 정해진 이름)
+process.env.CARE_EMAILS = [process.env.CARE_EMAILS, 'admin@demo.test', 'staff@demo.test'].filter(Boolean).join(',');
+const k1 = save('students', { name: '데모 수강생 하늘', nickname: 'Sky', kind: '수강생', school: '홍콩 국제학교(예시)', grade: 'G10', branch: '압구정', manager: 'staff@demo.test', status: '진행중', motherName: '학부모(예시)' });
+const k2 = save('students', { name: '데모 수강생 도윤', kind: '수강생', school: '미국 서부 공립(예시)', grade: 'G11', curriculum: 'AP', branch: '압구정', manager: 'staff@demo.test', status: '진행중' });
+save('students', { id: a, kind: '둘 다', updatedAt: store.db.prepare('SELECT updatedAt FROM students WHERE id = ?').get(a).updatedAt });
+const l1 = save('care_lessons', { studentId: k1, subject: 'Digital SAT RW', category: 'SAT', teacher: 'Sarah 선생님', mode: 'ZOOM', schedule: '수·토 PM 6:00 - 8:00 (서울)', tz: 'Asia/Shanghai', rate: '300000', currency: 'KRW', startDate: d(-40), goal: 'SAT 1500 (RW 750)', traits: 'Vocab #2 매주 60개, cutline 85%. 지문 읽는 속도가 느림 — Craft and Structure 집중' });
+const l2 = save('care_lessons', { studentId: k2, subject: 'AP Chemistry', category: 'AP', teacher: 'Sarah 선생님', mode: '대면', schedule: '월·수·금 AM 11:00 - PM 1:00', rate: '340000', currency: 'KRW', startDate: d(-25), goal: 'AP 5 / 학교 기말 A', traits: '학교 교재 Zumdahl 10th. Unit 5 Kinetics 진행 중. 학교 선생님이 실험 보고서 비중이 큼' });
+const l3 = save('care_lessons', { studentId: k2, subject: 'Algebra 2', category: '학교 과목', teacher: '이선생님(예시)', mode: 'ZOOM', schedule: '화 PM 8:00 - 9:30', rate: '250000', currency: 'KRW', startDate: d(-10) });
+[[-35, '완료', '출석', 'Vocab #2 1-60', '제출'], [-28, '완료', '지각', 'Vocab #2 61-120', '제출', '15'], [-21, '취소', '', '', '', '', '학교 행사로 취소 → 다음 주 보충'], [-14, '보충', '출석', 'Vocab #2 121-180, CBBP Form A M1', '미제출'], [-7, '완료', '출석', 'CBBP Form B M1·M2', '제출'], [3, '예정', '', 'Vocab #2 181-240', ''], [6, '예정', '', '', '']].forEach((x) =>
+  save('care_sessions', { studentId: k1, lessonId: l1, date: d(x[0]), time: 'PM 6:00 - 8:00', status: x[1], attend: x[2], homework: x[3], hwStatus: x[4], late: x[5] || '', carry: x[6] || '', note: x[1] === '완료' ? 'Words in Context 정리, 오답 노트 확인' : '', remind: x[0] < 0 ? true : false }));
+[[-9, '완료', '출석', 'Unit 4 문제 1-20', '제출'], [-7, '완료', '출석', 'Lab report 초안', '제출'], [-2, '완료', '지각', 'Unit 5 FRQ 3문제', '내줌', '8'], [1, '예정', '', '', ''], [4, '예정', '', '', '']].forEach((x) =>
+  save('care_sessions', { studentId: k2, lessonId: l2, date: d(x[0]), time: 'AM 11:00 - PM 1:00', status: x[1], attend: x[2], homework: x[3], hwStatus: x[4], late: x[5] || '', note: x[1] === '완료' ? 'Kinetics rate law, 학교 퀴즈 대비' : '', remind: x[0] < 0 }));
+save('care_sessions', { studentId: k2, lessonId: l3, date: d(2), time: 'PM 8:00 - 9:30', status: '예정' });
+[[-60, 'CBBP Form A (진단)', 1210, 590, 620, { 'Words in Context': 4, 'Text Structure and Purpose': 3, 'Inferences': 3, 'Boundaries': 2, 'Nonlinear functions': 3, 'Percentages': 1 }],
+ [-45, 'CBBP Form B', 1280, 630, 650, { 'Words in Context': 3, 'Text Structure and Purpose': 3, 'Cross-Text Connections': 2, 'Boundaries': 2, 'Nonlinear functions': 2 }],
+ [-30, 'CBRT QAS Dec A', 1330, 650, 680, { 'Words in Context': 2, 'Text Structure and Purpose': 2, 'Inferences': 2, 'Circles': 1 }],
+ [-10, 'CBBP Form C', 1390, 690, 700, { 'Text Structure and Purpose': 2, 'Inferences': 2, 'Form, Structure, and Sense': 1 }]].forEach((x) =>
+  save('care_exams', { studentId: k1, lessonId: l1, kind: 'SAT 모의고사', title: x[1], date: d(x[0]), status: '완료', total: String(x[2]), rw: String(x[3]), math: String(x[4]), skills: JSON.stringify(x[5]) }));
+save('care_exams', { studentId: k1, kind: 'SAT 공식 시험', title: '12월 SAT (예시)', date: d(36), status: '예정', memo: '접수 완료, 시험장 홍콩' });
+save('care_exams', { studentId: k1, lessonId: l1, kind: '단어 시험', title: 'Vocab #2 61-120', date: d(-28), status: '완료', score: '52', maxScore: '60 (cutline 85%)' });
+save('care_exams', { studentId: k2, lessonId: l2, kind: '학교 시험', title: 'Unit 4 Test (학교)', date: d(-5), status: '완료', score: '88', maxScore: '100', memo: '서술형에서 단위 실수' });
+save('care_exams', { studentId: k2, lessonId: l2, kind: '과제', title: 'Lab Report: Reaction Rates', date: d(5), status: '예정' });
+save('care_exams', { studentId: k2, lessonId: l2, kind: '학교 시험', title: 'Unit 5 Quiz (학교)', date: d(9), status: '예정' });
+save('care_exams', { studentId: k2, lessonId: l3, kind: '과제', title: 'Ch.3 Worksheet', date: d(-3), status: '미제출' });
+save('followups', { studentId: k1, title: '12월 SAT 접수 확인증 받기', due: d(4), status: '할 일', assignee: 'staff@demo.test' });
+
 store.close();
 console.log('데모 DB 생성: ' + dbPath + '\n실행: DB_PATH=' + dbPath + ' npm start\n' +
-  '로그인(비밀번호 demo-pass-1): admin@demo.test 관리자 / staff@demo.test 관리팀 / kim@demo.test 컨설턴트');
+  '로그인(비밀번호 demo-pass-1): admin@demo.test 관리자 / staff@demo.test 관리팀 / kim@demo.test 컨설턴트\n' +
+  '수업 케어(시험 중)를 보려면 서버도 CARE_EMAILS=admin@demo.test,staff@demo.test 로 실행');
