@@ -744,7 +744,8 @@ var APP_ROUNDS = ['ED', 'ED2', 'EA', 'REA', 'RD', 'Rolling', 'UCAS', '홍콩 얼
 var APP_STATUS = ['준비중', '작성중', '보류', '제출완료', '대기', '합격', '불합격', '철회'];
 var APP_FINAL = ['제출완료', '대기', '합격', '불합격', '철회'];
 var ESSAY_STATUS = ['', '미착수', '브레인스토밍', '초안', '수정중', '완료'];
-var GRADES = ['G9', 'G10', 'G11', 'G12', 'Y10', 'Y11', 'Y12', 'Y13'];
+var GRADES = ['G9', 'G10', 'G11', 'G12', 'Y10', 'Y11', 'Y12', 'Y13', '중1', '중2', '중3', '고1', '고2', '고3']; // 해가 바뀌면 학교 학제(새 학년 시작 달)에 맞춰 서버가 자동으로 올림
+var PRE_IB = ['MYP', 'IGCSE', '학교 자체 과정', '기타'];
 var CURRICULA = ['IB', 'AP', 'A-Level', 'IGCSE', '국내 일반고', '국내 특목고', '기타'];
 var SCORE_KINDS = ['SAT', 'ACT', 'TOEFL', 'IELTS', 'AP', 'IB', 'IB Predicted', 'MYP', 'IGCSE', 'A-Level', 'GPA', 'TOPIK', 'HSK', '기타'];
 /* 과목 목록 (목록 관리 › 과목): 성적 종류·수강 과목 레벨 → 고를 커리큘럼 목록 (lib/subjects.js 와 같게) */
@@ -769,7 +770,7 @@ var GRADE_ALL = ['K'].concat([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(functio
 var MAJOR_STATUS = ['후보', '유력', '최종', '제외'];
 var MEETING_TYPES = ['대면', 'ZOOM', '전화', '위챗'];
 /** 답변한 사람 — 우리 쪽은 원장님·담당 선생님·컨설턴트·관리팀 */
-var REPLY_FROM = ['학생', '어머님', '아버님', '원장님', '담당 선생님', '컨설턴트', '관리팀', '기타'];
+var REPLY_FROM = ['학생', '어머님', '아버님', '원장님', '담당 선생님', '컨설턴트', '나', '기타']; // 나 = 기록한 본인 (예전 기록의 '관리팀'도 같은 뜻)
 var CONTACT_FROM = ['학생', '어머님', '아버님', '학부모', '학교', '기타'];
 var CONTACT_CHANNELS = ['위챗', '카톡', '왓츠앱', '전화', '대면', '기타'];
 var ACCOUNT_CATS = ['원서 포털', '시험', '학교 LMS', '기타'];
@@ -811,13 +812,13 @@ function termCols(t) {
 }
 var FORMS = {
   students: { title: '학생 정보', fields: [
-    { k: 'name', l: '이름', req: 1 }, { k: 'englishName', l: '영문 이름 (여권 기준)', ph: '예: HONG GILDONG' },
-    { k: 'dob', l: '생년월일', t: 'date' }, { k: 'studentPhone', l: '학생 연락처' },
-    { k: 'email', l: '학생 이메일', t: 'email' }, { h: '' },
-    { k: 'address', l: '주소', full: 1 }, { k: 'addressEn', l: '영문 주소', full: 1 },
-    { k: 'passportNo', l: '여권 번호 (여러 개면 줄을 나눠서)', t: 'textarea', full: 1, ph: '예: 한국 여권 M12345678\n중국 여권 E12345678' },
+    { k: 'name', l: '이름', req: 1 }, { k: 'nickname', l: '영어 이름 (닉네임)', ph: '예: Jason — 여권 영문 이름은 원서 정보 탭' },
+    { k: 'dob', l: '생년월일', t: 'date' }, { t: 'age' }, { k: 'studentPhone', l: '학생 연락처' },
+    { k: 'email', l: '학생 이메일', t: 'email' },
+    { k: 'address', l: '주소', full: 1 },
     { k: 'school', l: '학교', t: 'opt' }, { k: 'grade', l: '학년', t: 'select', o: [''].concat(GRADES) },
-    { k: 'curriculum', l: '커리큘럼', t: 'opt' }, { k: 'status', l: '상태', t: 'select', o: STUDENT_STATUS },
+    { k: 'curriculum', l: '커리큘럼', t: 'opt' }, { k: 'preIb', l: 'IB 이전 과정', t: 'preib' },
+    { k: 'gradDate', l: '졸업(예정) 연월', t: 'month' }, { k: 'status', l: '컨설팅 상태', t: 'select', o: STUDENT_STATUS },
     { k: 'branch', l: '지점', t: 'branch', mgr: 1 }, { h: '' },
     { k: 'manager', l: '담당 관리팀', t: 'teacher', roles: ['staff', 'admin'], mgr: 1 }, { k: 'counselor', l: '담당 컨설턴트', t: 'teacher', roles: ['consultant', 'admin', 'staff'], mgr: 1 },
     { k: 'tracks', l: '트랙 (여러 개 선택 가능)', t: 'multi', o: TRACKS, full: 1 },
@@ -833,6 +834,10 @@ var FORMS = {
     { k: 'motherWork', l: '근무 기간 (해외 근무 등)', ph: '예: 2015.03 – 현재' },
     { h: '' }, { k: 'memo', l: '메모', t: 'textarea', full: 1 }],
     defaults: function () { return { status: '상담중', counselor: '', manager: isMgr() && S.me.role === 'staff' ? S.me.email : '' }; } },
+  appbasic: { table: 'students', title: '원서용 기본 정보 (여권 기준)', noDelete: 1, fields: [
+    { k: 'englishName', l: '영문 이름 (여권과 똑같이)', full: 1, ph: '예: HONG GILDONG' },
+    { k: 'passportNo', l: '여권 번호 (여러 개면 줄을 나눠서)', t: 'textarea', full: 1, ph: '예: 한국 여권 M12345678\n중국 여권 E12345678' },
+    { k: 'addressEn', l: '영문 주소', full: 1 }] },
   manage: { table: 'students', title: '희망 대학·집중 과목', noDelete: 1, fields: [
     { k: 'hopeUnis', l: '희망 대학 / 특례 여부', t: 'textarea', full: 1, ph: '예: 1순위 싱가폴 NUS·SUTD (건축) / 12특: 서울대, 연대, 고대' },
     { k: 'focusArea', l: '집중 과목 / 집중 관리 영역', t: 'textarea', full: 1, ph: '예: G12 추천 AP — Calculus BC, Physics C' },
@@ -897,11 +902,11 @@ var FORMS = {
     { k: 'kind', l: '종류', t: 'select', o: CONTRACT_KINDS, req: 1 }, { k: 'tier', l: '등급', t: 'select', o: TIERS },
     { k: 'term', l: '기간 (연간 컨설팅)', t: 'select', o: TERMS }, { k: 'signedDate', l: '계약일', t: 'date' },
     { k: 'startDate', l: '시작일', t: 'date' }, { k: 'endDate', l: '종료일 (비우면 1학기 6개월·1년 12개월로 자동 계산)', t: 'date' },
-    { k: 'packages', l: '포함 국가·패키지 (원서 컨설팅 — 목록 관리 › 트랙)', t: 'multi', o: PACKAGES, full: 1 },
+    { k: 'packages', l: '포함 국가·패키지 (예전 기록 — 이제 아래 가격표 패키지로 고름)', t: 'multi', o: PACKAGES, full: 1, ifSet: 1 },
     { t: 'pricepick', full: 1, mgr: 1 },
     { k: 'currency', l: '통화', t: 'select', o: CURRENCIES, mgr: 1 }, { k: 'amount', l: '계약 금액 (할인 반영한 실제 금액, 비우면 정가 합계)', mgr: 1, ph: '예: 20000' },
     { k: 'payDue', l: '잔금 납부 기한', t: 'date', mgr: 1 },
-    { k: 'scope', l: '포함 범위 / 특약사항', t: 'textarea', full: 1, ph: '예: HKU+SMU+캐나다 3개 대학. 미국 에세이는 미포함(별도 계약)' },
+    { k: 'scope', l: '비용 특약 사항', t: 'textarea', full: 1, ph: '비용에 관한 특이 사항 — 예: 형제 할인 10% / 미국 에세이는 미포함(별도 계약) / 2회 분할 납부 · 계약서 특약 칸 처음 글로 들어감' },
     { k: 'memo', l: '메모', t: 'textarea', full: 1 }],
     defaults: function () { return { kind: '원서', tier: 'Standard', startDate: today(), currency: 'RMB' }; } },
   payments: { title: '입금 기록', fields: [
@@ -1446,7 +1451,7 @@ function applyBranch() {
     return Object.assign({}, e, { date: d, endDate: e.endDate && shift ? addDays(e.endDate, shift) : e.endDate, time: w.slice(11, 16), tz: myTZ(), origTime: tzName(e.tz) + ' ' + (shift ? fmtD(e.date) + ' ' : '') + e.time });
   });
 }
-function setBranch(b) { UI.br = b; try { sessionStorage.setItem('compass.br@' + S.me.email, b); } catch (e) {} applyBranch(); render(); }
+function setBranch(b) { UI.br = b; UI.calScBr = BRANCHES.indexOf(b) >= 0 ? b : ''; /* 달력의 원장님 미팅도 같은 지점으로 */ try { sessionStorage.setItem('compass.br@' + S.me.email, b); } catch (e) {} applyBranch(); render(); }
 function clearSession() { try { sessionStorage.clear(); } catch (e) {} } // 로그인·로그아웃 때 이번 접속 동안의 선택(지점 등)을 비움
 function branchPill(s) { return (isMgr() || isAllBranch()) && (viewBranch() === '전체' || branchOf(s) !== myBranch()) ? '<span class="pill br br-' + (BRANCHES.indexOf(branchOf(s)) + 1) + '" title="' + esc(branchOf(s)) + ' 지점 학생">' + esc(branchOf(s)) + '</span>' : ''; }
 /** 관리팀이 다른 지점 학생을 볼 때: 보기와 팔로업·상담기록 추가만 */
@@ -1478,6 +1483,15 @@ function teacherName(email) {
   var t = S.teachers.filter(function (x) { return x.email.toLowerCase() === String(email).toLowerCase(); })[0];
   return t ? t.name : String(email).split('@')[0];
 }
+/** 나이: 한국 나이(세는 나이) + 만 나이 */
+function ageText(dob) {
+  if (!/^\d{4}-\d{2}-\d{2}/.test(dob || '')) return '';
+  var t = today(), y = Number(dob.slice(0, 4)), man = Number(t.slice(0, 4)) - y - (t.slice(5, 10) < dob.slice(5, 10) ? 1 : 0);
+  return man < 0 ? '' : (Number(t.slice(0, 4)) - y + 1) + '세 (만 ' + man + '세)';
+}
+/** 졸업(예정) 연월이 지났으면 졸업 — 컨설팅 상태와 따로 (3년특례 등은 졸업 후에도 컨설팅 진행) */
+function graduated(s) { return !!(s && s.gradDate && s.gradDate < today().slice(0, 7)); }
+function gradBadge(s) { return graduated(s) ? ' <span class="pill" style="background:#eef2ff;color:#3b4aa0" title="졸업 ' + esc(s.gradDate) + '">🎓 졸업</span>' : ''; }
 /** 목록 화면에서는 고른 지점 학생만, 학생 화면·검색에서는 모든 지점 학생 (UI.brAll) */
 function studentById(id) { return (UI.brAll ? S.allStudents : S.students).filter(function (s) { return s.id === id; })[0]; }
 function anyStudent(id) { return S.allStudents.filter(function (s) { return s.id === id; })[0]; }
@@ -1523,7 +1537,9 @@ function isPremium(sid) { return childOf('contracts', sid).some(function (c) { r
 /** 학생 계약의 포함 국가·패키지 (원서 컨설팅) — 중복 없이 */
 function consultPackages(sid) {
   var out = [];
-  childOf('contracts', sid).forEach(function (c) { tags(c.packages).forEach(function (p) { if (out.indexOf(p) < 0) out.push(p); }); });
+  childOf('contracts', sid).forEach(function (c) { // 예전 「포함 국가·패키지」 + 가격표에서 고른 패키지의 지역 (홍콩·싱가폴·한국 …)
+    tags(c.packages).concat(cItems(c).map(function (x) { return x.region || ''; })).forEach(function (p) { if (p && out.indexOf(p) < 0) out.push(p); });
+  });
   return out;
 }
 function programBadge(sid) {
@@ -1660,7 +1676,19 @@ function pendingTodos() {
 }
 
 /* ============================== 라우팅 ============================== */
-function route() { var h = location.hash.replace(/^#\/?/, '').split('/'); return { view: h[0] === 'dashboard' ? 'home' : h[0] || 'home', id: h[1] }; }
+function route() { var h = location.hash.replace(/^#\/?/, '').split('/'); return { view: h[0] === 'dashboard' ? 'home' : h[0] || 'home', id: h[1], sub: h[2] }; }
+/** 새로고침해도 보던 탭 그대로: 주소 끝에 탭 이름을 붙여 둠 (#/student/ID/apps, #/apply/ID/3, #/unilist/-/fucat) */
+function hashSub(r) { return r.view === 'student' ? UI.tab || '' : r.view === 'apply' && r.id && UI.apf && UI.apf.form ? String(UI.apf.tab || 0) : r.view === 'unilist' ? UI.listTab || '' : ''; }
+function hashRestore(r) {
+  if (UI._hashDone || !r.sub) return; UI._hashDone = 1;
+  var sub = decodeURIComponent(r.sub);
+  if (r.view === 'student') UI.tab = sub; else if (r.view === 'apply') UI.apfTab0 = Number(sub) || 0; else if (r.view === 'unilist') UI.listTab = sub;
+}
+function hashSync(r) {
+  var sub = hashSub(r); if (!sub) return;
+  var want = '#/' + r.view + '/' + (r.id || '-') + '/' + encodeURIComponent(sub);
+  if (location.hash !== want) try { history.replaceState(null, '', want); } catch (e) { /* 일부 브라우저 */ }
+}
 window.addEventListener('hashchange', function () { if (UI.apf && UI.apf.dirty) apfSave(); render(); window.scrollTo(0, 0); });
 function go(hash) { if (location.hash === hash) render(); else location.hash = hash; }
 function openStudent(id, tab) { UI.tab = tab || ''; go('#/student/' + id); }
@@ -1691,7 +1719,9 @@ function render() {
   document.body.classList.toggle('wide', r.view === 'home');
   // 다시 그려도 안쪽 스크롤 칸(전공 목록 등 id 있는 칸)의 스크롤 위치는 그대로
   var keep = {}; Array.prototype.forEach.call($('app').querySelectorAll('[id]'), function (el) { if (el.scrollTop > 0) keep[el.id] = el.scrollTop; });
+  hashRestore(r);
   $('app').innerHTML = v(r.id);
+  hashSync(r);
   Object.keys(keep).forEach(function (id) { var el = document.getElementById(id); if (el) el.scrollTop = keep[id]; });
   decorateSearch();
   colResizeSetup();
@@ -2482,7 +2512,7 @@ function studentWork(sid) {
 }
 /** 학생 목록 칸 (관리 › 목록 관리 › 학생 목록 칸에서 보일 칸·순서를 정함 — 모두에게 같게). 이름 칸은 항상 맨 앞 */
 var STUDENT_COLS = [
-  { k: 'school', l: '학교 / 학년', cell: function (s) { return '<td class="nw">' + esc(s.school) + (s.grade ? ' <span class="muted">' + esc(s.grade) + '</span>' : '') + '</td>'; } },
+  { k: 'school', l: '학교 / 학년', cell: function (s) { return '<td class="nw">' + esc(s.school) + (s.grade ? ' <span class="muted">' + esc(s.grade) + '</span>' : '') + gradBadge(s) + '</td>'; } },
   { k: 'consult', l: '컨설턴트 · 컨설팅', cell: function (s) { return '<td class="prog"><b>' + esc(teacherName(s.counselor) || '컨설턴트 미정') + '</b> ' + programBadge(s.id) + (consultPackages(s.id).length ? '<div style="margin-top:2px">' + tagHtml(consultPackages(s.id)) + '</div>' : '') + '</td>'; } },
   { k: 'todo', l: '할 일', cell: function (s, c) { return '<td class="nw">' + (c.w.todo ? c.w.todo + '건' + (c.w.over ? ' <span class="dday over">기한 지남 ' + c.w.over + '</span>' : '') : '<span class="muted">-</span>') + '</td>'; } },
   { k: 'contacts', l: '답 안 한 연락', cell: function (s, c) { return '<td class="nw">' + (c.w.contacts ? '<span class="dday soon">📩 ' + c.w.contacts + '</span>' : '<span class="muted">-</span>') + '</td>'; } },
@@ -2929,8 +2959,9 @@ function viewStudent(id) {
   var h = '<div class="toolbar"><a href="#/students">← 학생 목록</a></div>';
   if (otherBranch(s)) h += '<div class="notice">📍 <b>' + esc(branchOf(s)) + ' 지점 학생</b>입니다. 내용은 모두 볼 수 있고, <b>팔로업·상담기록 추가</b>만 할 수 있습니다. 학생 정보 수정은 ' + esc(branchOf(s)) + ' 관리팀·관리자가 합니다.</div>';
   h += '<div class="card"><div class="toolbar" style="margin:0"><div style="margin-right:auto"><h2 style="margin:0">' + esc(s.name) +
-    ' <span class="pill s-' + esc(s.status) + '">' + esc(s.status || '-') + '</span> ' + programBadge(s.id) + ' ' + branchPill(s) + '</h2>' +
-    '<div class="muted" style="margin-top:4px">' + [s.school, s.grade, s.curriculum].filter(Boolean).map(esc).join(' · ') + ' <span class="owners"' + (teacherColor(s.manager) ? ' style="background:' + teacherColor(s.manager) + '"' : '') + '>' + esc(ownersText(s)) + '</span></div>' +
+    (s.nickname ? ' <span class="muted" style="font-size:.9rem;font-weight:400">' + esc(s.nickname) + '</span>' : '') +
+    ' <span class="pill s-' + esc(s.status) + '" title="컨설팅 상태">' + esc(s.status || '-') + '</span>' + gradBadge(s) + ' ' + programBadge(s.id) + ' ' + branchPill(s) + '</h2>' +
+    '<div class="muted" style="margin-top:4px">' + [s.school, s.grade, s.curriculum, s.dob && ageText(s.dob)].filter(Boolean).map(esc).join(' · ') + ' <span class="owners"' + (teacherColor(s.manager) ? ' style="background:' + teacherColor(s.manager) + '"' : '') + '>' + esc(ownersText(s)) + '</span></div>' +
     '<div style="margin-top:6px">' + tagHtml(trackTags(s)) + (countrySummary(s.id) ? ' <span class="muted">지원: ' + esc(countrySummary(s.id)) + '</span>' : '') + majorChip(s) + meetingLine(s) + breakChip(s) + '</div>' + hopeLine(s) + '</div>' +
     (resume ? '<a class="btn ghost" href="' + esc(resume) + '" target="_blank" rel="noopener">📄 Resume</a>' : '') +
     (drive ? '<a class="btn ghost" href="' + esc(drive) + '" target="_blank" rel="noopener">📁 Drive 폴더</a>' : '') +
@@ -3018,8 +3049,10 @@ function tabSummary(s) {
 /* ----- 원서 정보: 원서에 입력할 정보 (추천인·카운슬러·학교 정보 등) 자유 목록 ----- */
 function tabAppinfo(s) {
   var list = childOf('appinfo', s.id).sort(function (a, b) { return a.createdAt.localeCompare(b.createdAt); });
-  var h = '<div class="card">' + secHead('원서 정보 <span class="muted">원서에 입력해야 하는 정보를 모아두는 곳</span>', addBtn('appinfo', s.id, '+ 항목 추가'));
-  h += '<div class="muted" style="margin-bottom:10px">추천인·카운슬러 연락처, 학교 정보, 수상·활동 영문 표기처럼 원서에 들어갈 정보를 “항목 | 내용”으로 적어두세요. 학생 영문 이름·주소 같은 개인 정보는 <b>학생 정보</b> 탭에 있습니다. <b>추천인·카운슬러</b> 항목은 질문지 맞춰 이메일을 보냈으면 체크하세요(체크한 날짜·선생님이 남습니다). 특정 대학 원서에만 해당하면 대학을 고르면 그 대학 아래에 모입니다. 📋 로 내용을 복사해 원서에 붙여넣을 수 있습니다.</div>';
+  var h = '<div class="card">' + secHead('원서용 기본 정보 <span class="muted">여권과 똑같이 — 원서 연습·학생 정보 엑셀에 그대로 들어감</span>', '<button class="btn ghost sm" onclick="openForm(\'appbasic\',' + js(s.id) + ')">수정</button>') +
+    '<dl class="kv">' + kv('영문 이름 (여권)', s.englishName) + kv('여권 번호', s.passportNo) + kv('영문 주소', s.addressEn) + '</dl></div>';
+  h += '<div class="card">' + secHead('원서 정보 <span class="muted">원서에 입력해야 하는 정보를 모아두는 곳</span>', addBtn('appinfo', s.id, '+ 항목 추가'));
+  h += '<div class="muted" style="margin-bottom:10px">추천인·카운슬러 연락처, 학교 정보, 수상·활동 영문 표기처럼 원서에 들어갈 정보를 “항목 | 내용”으로 적어두세요. 여권 영문 이름·여권 번호·영문 주소는 위 <b>원서용 기본 정보</b>에서 고칩니다. <b>추천인·카운슬러</b> 항목은 질문지 맞춰 이메일을 보냈으면 체크하세요(체크한 날짜·선생님이 남습니다). 특정 대학 원서에만 해당하면 대학을 고르면 그 대학 아래에 모입니다. 📋 로 내용을 복사해 원서에 붙여넣을 수 있습니다.</div>';
   if (!list.length) return h + '<div class="empty">아직 기록된 원서 정보가 없습니다. “+ 항목 추가”로 시작하세요. (예: 추천인 1 — 이름·직책·과목·이메일)</div></div>';
   var appUnis = childOf('apps', s.id).map(function (a) { return a.universityId; });
   var groups = {}, keys = [];
@@ -3202,7 +3235,7 @@ function submitRequest(id) {
   }).catch(function (e) { toast(errMsg(e), true); });
 }
 /* ----- 답변 주고받은 기록: 팔로업·받은 연락 하나에 학생 → 우리 → 어머님 … 이어서 ----- */
-var OUR_SIDE = { '원장님': 1, '담당 선생님': 1, '컨설턴트': 1, '관리팀': 1, '담당자': 1 };
+var OUR_SIDE = { '원장님': 1, '담당 선생님': 1, '컨설턴트': 1, '관리팀': 1, '나': 1, '담당자': 1 };
 /** 이 답변(말풍선)에 붙은 파일 */
 function replyFiles(rid) { return S.files.filter(function (f) { return f.replyId === rid; }).sort(function (a, b) { return a.createdAt.localeCompare(b.createdAt); }); }
 /** 파일 올리기 (params: replyId 등) — 올린 수를 돌려줌 */
@@ -3247,8 +3280,13 @@ function repliesOf(fid) {
   return (S.fureplies || []).filter(function (x) { return x.followupId === fid; })
     .sort(function (a, b) { return (a.date || a.createdAt.slice(0, 10)).localeCompare(b.date || b.createdAt.slice(0, 10)) || a.createdAt.localeCompare(b.createdAt); });
 }
-/** 우리 쪽 답변은 쓴 선생님 이름도 같이 (원장님은 대신 적는 경우가 많아 이름 없이) */
-function replyWho(x) { return OUR_SIDE[x.who] && x.who !== '원장님' ? x.who + ' ' + teacherName(x.createdBy) : x.who; }
+/** 우리 쪽 답변은 이름도 같이 — 컨설턴트는 그 학생 담당 컨설턴트, 나(예전 '관리팀')는 기록한 사람 + 역할, 원장님은 대신 적는 경우가 많아 이름 없이 */
+function replyWho(x) {
+  if (!OUR_SIDE[x.who] || x.who === '원장님') return x.who;
+  if (x.who === '컨설턴트') { var s = (S.allStudents || S.students).filter(function (y) { return y.id === x.studentId; })[0]; return '컨설턴트 ' + teacherName(s && s.counselor || x.createdBy); }
+  if (x.who === '나' || x.who === '관리팀') { var t = S.teachers.filter(function (y) { return y.email.toLowerCase() === String(x.createdBy).toLowerCase(); })[0]; return (t ? (ROLE_LABEL[t.role] || '') + ' ' : '') + teacherName(x.createdBy); }
+  return x.who + ' ' + teacherName(x.createdBy);
+}
 function openThread(fid) {
   var f = findRow('followups', fid); if (!f) return toast('팔로업을 찾을 수 없습니다. 새로고침 해주세요.', true);
   var s = studentById(f.studentId), reps = repliesOf(fid), contact = f.kind === 'contact';
@@ -3664,7 +3702,9 @@ function tabContracts(s) {
       '<b>' + esc(c.tier) + ' ' + esc(c.kind) + ' 컨설팅</b>' + (c.term ? '<span class="pill">' + esc(c.term) + '</span>' : '') +
       (st ? '<span class="muted">' + esc(fmtD(st)) + (end ? ' ~ ' + esc(fmtD(end)) : '') + '</span>' : '') +
       (c.signedDate ? '<span class="muted">계약일 ' + esc(c.signedDate) + '</span>' : '') +
-      (p && p.total ? '<span style="margin-left:auto"><span class="money">' + money(p.total, p.cur) + '</span> ' + payPill(p.status) + '</span>' : '') + '</div>' +
+      (p && p.total ? '<span style="margin-left:auto"><span class="money">' + money(p.total, p.cur) + '</span> ' + payPill(p.status) + '</span>' : '') +
+      (isMgr() ? '<span class="nw" style="margin-left:' + (p && p.total ? '8px' : 'auto') + '"><button class="btn ghost sm" onclick="event.stopPropagation();openForm(\'contracts\',' + js(c.id) + ')">✏ 수정</button> ' +
+        '<button class="btn ghost sm danger" onclick="event.stopPropagation();delItem(\'contracts\',' + js(c.id) + ')">🗑 삭제</button></span>' : '') + '</div>' +
       (c.packages ? '<div style="margin-top:6px">' + tagHtml(tags(c.packages)) + '</div>' : '') +
       (isMgr() && cItems(c).length ? '<div class="c-items">' + cItems(c).map(function (x) { return '<span>' + esc(x.name) + (Number(x.qty) > 1 ? ' ×' + esc(x.qty) : '') + ' <span class="muted">' + esc(x.sessions || '') + ' · ' + Math.round(amt(x.price) * Number(x.qty || 1)).toLocaleString('ko-KR') + '</span></span>'; }).join('') +
         (discountOf(c) ? '<span class="c-disc">정가 ' + money(amt(c.listPrice), contractPay(c).cur) + ' → 할인 ' + money(discountOf(c), contractPay(c).cur) + '</span>' : '') + '</div>' : '') +
@@ -3677,7 +3717,8 @@ function tabContracts(s) {
         '<button class="btn ghost sm" onclick="openPayment(' + js(c.id) + ')">+ 입금 기록</button></div>' +
         (pays.length ? '<table><tbody>' + pays.map(function (pm) {
           return '<tr class="click" onclick="openForm(\'payments\',' + js(pm.id) + ')"><td class="nw">' + esc(pm.date) + '</td><td class="nw"><b>' + money(amt(pm.amount), pm.currency) + '</b></td>' +
-            '<td class="nw">' + esc(pm.method) + '</td><td class="muted">' + esc(pm.memo) + '</td><td class="nw muted">' + esc(teacherName(pm.createdBy)) + '</td></tr>';
+            '<td class="nw">' + esc(pm.method) + '</td><td class="muted">' + esc(pm.memo) + '</td><td class="nw muted">' + esc(teacherName(pm.createdBy)) + '</td>' +
+            '<td class="nw"><button class="ibtn" title="입금 기록 수정" onclick="event.stopPropagation();openForm(\'payments\',' + js(pm.id) + ')">✏</button><button class="ibtn" title="입금 기록 삭제 (휴지통)" onclick="event.stopPropagation();delItem(\'payments\',' + js(pm.id) + ')">🗑</button></td></tr>';
         }).join('') + '</tbody></table>' : '<div class="muted">입금 기록이 없습니다.</div>') + '</div>';
     }
     if (isMgr()) x += contractDocsBox(s, c);
@@ -3686,6 +3727,8 @@ function tabContracts(s) {
 }
 
 /* ----- 가격표 패키지: 계약 창에서 고르기 → 정가 합계·할인 → 계약서 비용 표·지도 횟수 안내 ----- */
+/** 계약에 들어간 것: 가격표에서 고른 패키지 이름 (없으면 예전 「포함 국가·패키지」) */
+function contractWhat(c) { var it = cItems(c).map(function (x) { return x.name + (Number(x.qty) > 1 ? ' ×' + x.qty : ''); }); return (it.length ? it : tags(c.packages)).join(', '); }
 function cItems(c) { try { var a = JSON.parse((c && c.items) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
 function priceRows() { return (S.prices && S.prices.rows) || []; }
 function pricePick(rec) {
@@ -3701,7 +3744,7 @@ function pricePick(rec) {
       return '<div class="pp-g"><b class="muted">' + esc(k) + '</b>' + gk[k].map(function (r) {
         var x = by[r.id] || by[r.name];
         return '<label class="pp-r"><input type="checkbox" data-pid="' + esc(r.id) + '"' + (x ? ' checked' : '') + ' onchange="ppSum()"> <span class="pp-n">' + esc(r.name) + '</span> <span class="muted">' + esc([r.sessions, r.schools && r.schools !== 'N/A' ? r.schools : ''].filter(Boolean).join(' · ')) + '</span>' +
-          '<span class="pp-p">' + Math.round(amt(r.price)).toLocaleString('ko-KR') + (/1명당/.test(r.sessions) ? ' × <input type="number" min="1" max="20" class="pp-q" data-q="' + esc(r.id) + '" value="' + esc(x ? x.qty : '1') + '" onclick="event.stopPropagation()" oninput="ppSum()">명' : '') + '</span></label>';
+          '<span class="pp-p">' + comma(r.price) + ' RMB' + (r.priceKrw ? ' · ' + comma(r.priceKrw) + ' KRW' : '') + (/1명당/.test(r.sessions) ? ' × <input type="number" min="1" max="20" class="pp-q" data-q="' + esc(r.id) + '" value="' + esc(x ? x.qty : '1') + '" onclick="event.stopPropagation()" oninput="ppSum()">명' : '') + '</span></label>';
       }).join('') + '</div>';
     }).join('') : '<div class="muted">가격표가 없습니다. 관리 › 계약서 › 가격표에서 넣어주세요.</div>') +
     '</div><div class="pp-sum" id="pp-sum"></div></div>';
@@ -3709,7 +3752,8 @@ function pricePick(rec) {
 function ppItems() {
   return Array.prototype.filter.call(document.querySelectorAll('#pp-box input[data-pid]'), function (c) { return c.checked; }).map(function (c) {
     var r = UI.ppRows.filter(function (x) { return x.id === c.getAttribute('data-pid'); })[0], q = document.querySelector('#pp-box input[data-q="' + c.getAttribute('data-pid') + '"]');
-    return { pid: r.id, region: r.region, kind: r.kind, name: r.name, sessions: r.sessions, schools: r.schools, price: String(r.price), notice: r.notice || '', qty: q ? String(Math.max(1, parseInt(q.value, 10) || 1)) : '1' };
+    var krw = ((document.querySelector('#mf [name=currency]') || {}).value === 'KRW') && amt(r.priceKrw) > 0; // KRW 계약이면 KRW 가격
+    return { pid: r.id, region: r.region, kind: r.kind, name: r.name, sessions: r.sessions, schools: r.schools, price: String(krw ? r.priceKrw : r.price), notice: r.notice || '', qty: q ? String(Math.max(1, parseInt(q.value, 10) || 1)) : '1' };
   });
 }
 function ppSum() {
@@ -3719,6 +3763,10 @@ function ppSum() {
   el.innerHTML = its.length ? '정가 합계 <b>' + money(list, cur) + '</b>' + (real < list ? ' → 계약 금액 ' + money(real, cur) + ' <b style="color:#b45309">(할인 ' + money(list - real, cur) + ')</b>' : real > list ? ' <span style="color:var(--error)">계약 금액이 정가보다 큽니다</span>' : '') : '<span class="muted">고른 패키지 없음 — 계약 금액만 적어도 됩니다</span>';
 }
 document.addEventListener('input', function (e) { if (e.target && e.target.name === 'amount' && $('pp-sum')) ppSum(); });
+document.addEventListener('change', function (e) { if (e.target && e.target.name === 'currency' && $('pp-sum')) ppSum(); });
+/** 금액 1,000 단위 쉼표 */
+function comma(v) { var n = amt(v); return n || String(v || '') === '0' ? Math.round(n).toLocaleString('ko-KR') : ''; }
+function commaInput(el) { var d = String(el.value).replace(/[^\d]/g, ''); el.value = d ? Number(d).toLocaleString('ko-KR') : ''; }
 /** 계약서 {지도 횟수 안내}: 횟수가 정해진(○회) 항목 + 항목별 안내 (같은 문구는 한 번만) */
 function guideHtml(c) {
   var its = cItems(c); if (!its.length) return '';
@@ -3786,7 +3834,7 @@ function viewApply(id) {
   if (!id) return apfHome();
   var A = UI.apf;
   if (!A || A.id !== id) {
-    UI.apf = A = { id: id, loading: true, tab: 0 };
+    UI.apf = A = { id: id, loading: true, tab: UI.apfTab0 || 0 }; UI.apfTab0 = 0;
     api('getAppDraft', { id: id }).then(function (r) {
       if (UI.apf !== A) return;
       A.form = r.form; A.loading = false; A.sid = r.draft.studentId; A.title = r.draft.title; A.owner = r.draft.createdBy;
@@ -3825,7 +3873,11 @@ function viewApply(id) {
   return h;
 }
 function apfStatus() { var A = UI.apf; return A.saving ? '저장 중…' : A.dirty ? '저장 전' : A.savedAt ? '저장됨 ' + fmtTime(A.savedAt).slice(5) : ''; }
-function apfList(f) { return f.o || (f.list && UI.apf.form.lists[f.list]) || []; }
+/** 선택 목록: f.o 또는 양식 lists 이름 ('usSubj.SAT'처럼 점으로 한 단계 아래) */
+function apfLookup(key) { if (!key) return []; var L = UI.apf.form.lists, i = key.indexOf('.'); return (i < 0 ? L[key] : (L[key.slice(0, i)] || {})[key.slice(i + 1)]) || []; }
+function apfList(f) { return f.o || apfLookup(f.list); }
+function apfOpt(o, val) { return /^--- /.test(o) ? '<option disabled>' + esc(o) + ' ---</option>' : '<option' + (o === val ? ' selected' : '') + '>' + esc(o) + '</option>'; }
+function apfMonth(d) { return /^\d{4}-\d{2}/.test(d || '') ? d.slice(5, 7) + '/' + d.slice(0, 4) : ''; }
 function apfGet(path) { var v = UI.apf.data; String(path).split('.').forEach(function (k) { v = v == null ? undefined : v[k]; }); return v; }
 function apfPut(path, val) { var ks = String(path).split('.'), o = UI.apf.data; ks.slice(0, -1).forEach(function (k, i) { if (o[k] == null) o[k] = /^\d+$/.test(ks[i + 1]) ? [] : {}; o = o[k]; }); o[ks[ks.length - 1]] = val; }
 /** 칸 하나: 포털과 같은 칸 이름·필수 표시·글자 수 + 📋 복사 */
@@ -3834,14 +3886,16 @@ function apfField(f, path) {
   if (f.t === 'info') return '<div class="apf-info full">' + (f.list ? '<ol>' + f.list.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ol>' : esc(f.text)) + '</div>';
   if (f.t === 'repeat') return apfRepeat(f);
   if (f.t === 'quals') return apfQuals();
+  if (f.t === 'exams') return apfExams(f);
   var v = apfGet(k), val = v == null ? '' : String(v), id = 'apf-' + k.replace(/\./g, '_'), lab = '<label for="' + esc(id) + '">' + esc(f.l || '') + (f.req ? ' <b>*</b>' : '') + '</label>';
   var on = ' oninput="apfIn(this)" onchange="apfIn(this)" data-k="' + esc(k) + '"' + (f.max ? ' data-max="' + f.max + '"' : '') + (f.words ? ' data-words="1"' : '');
   var c;
   if (f.t === 'check') return '<div class="apf-row full apf-chk"><label><input type="checkbox" id="' + esc(id) + '"' + (v ? ' checked' : '') + on + '> ' + esc(f.l) + (f.req ? ' <b>*</b>' : '') + '</label></div>';
   if (f.t === 'radio') c = '<div class="apf-radio">' + f.o.map(function (o) { return '<label><input type="radio" name="' + esc(id) + '" value="' + esc(o) + '"' + (val === o ? ' checked' : '') + on + '> ' + esc(o) + '</label>'; }).join('') + '</div>';
-  else if (f.t === 'select') c = '<select id="' + esc(id) + '"' + on + '><option value="">- Select -</option>' + apfList(f).map(function (o) { return '<option' + (o === val ? ' selected' : '') + '>' + esc(o) + '</option>'; }).join('') + (val && apfList(f).indexOf(val) < 0 ? '<option selected>' + esc(val) + '</option>' : '') + '</select>';
+  else if (f.t === 'select') c = '<select id="' + esc(id) + '"' + on + '><option value="">- Select -</option>' + apfList(f).map(function (o) { return apfOpt(o, val); }).join('') + (val && apfList(f).indexOf(val) < 0 ? '<option selected>' + esc(val) + '</option>' : '') + '</select>';
   else if (f.t === 'list') c = '<input id="' + esc(id) + '" list="' + esc(id) + '-dl" value="' + esc(val) + '" placeholder="목록에서 고르거나 직접 입력"' + on + '><datalist id="' + esc(id) + '-dl">' + apfList(f).map(function (o) { return '<option value="' + esc(o) + '">'; }).join('') + '</datalist>';
   else if (f.t === 'textarea') c = '<textarea id="' + esc(id) + '" rows="' + (f.big ? 16 : 4) + '"' + on + '>' + esc(val) + '</textarea>';
+  else if (f.t === 'month') c = '<input id="' + esc(id) + '" value="' + esc(val) + '" placeholder="mm/yyyy" maxlength="7"' + on + '>';
   else if (f.t === 'date') c = '<input id="' + esc(id) + '" value="' + esc(val) + '" placeholder="dd-mm-yyyy" maxlength="10"' + on + '>';
   else if (f.t === 'number') c = '<input id="' + esc(id) + '" type="number" min="0" step="0.5" value="' + esc(val) + '" style="max-width:120px"' + on + '>' + (f.suffix ? ' <span class="muted">' + esc(f.suffix) + '</span>' : '');
   else c = '<input id="' + esc(id) + '" value="' + esc(val) + '"' + (f.ph ? ' placeholder="' + esc(f.ph) + '"' : '') + on + '>';
@@ -3882,10 +3936,29 @@ function apfQuals() {
       }).join('') + '</tbody></table><button type="button" class="btn ghost sm apf-add2" onclick="apfAdd(' + js(p + 'subjects') + ')">＋ Subject</button></div>';
   }).join('') + '<button type="button" class="btn apf-add" onclick="apfAdd(\'quals\')">＋ Qualification</button></div>';
 }
+/** 시험 카드 (HKUST 등): 시험 고르기 + 칸들 + 과목표(레벨·과목·결과). 과목·결과는 목록에서 고르거나 직접 입력 */
+function apfExams(f) {
+  var Q = apfGet(f.k) || [], dl = {}, lk = function (spec, ex, lv) { if (!spec) return ''; if (typeof spec === 'string') return spec; return spec.map[spec.by === 'level' ? lv : ex] || ''; };
+  var dlId = function (key) { if (!key) return ''; var id = 'apf-dl-' + key.replace(/[^\w]/g, '_'); dl[id] = key; return id; };
+  var h = '<div class="full apf-rep">' + Q.map(function (q, i) {
+    var p = f.k + '.' + i + '.', subs = q.subjects || [];
+    var exF = f.exam.text ? { l: f.exam.l, req: 1, max: f.exam.max } : { l: f.exam.l, t: 'select', list: f.exam.list, req: 1 };
+    return '<div class="apf-item"><div class="apf-item-h"><b>' + esc(q.exam || f.add + ' ' + (i + 1)) + '</b><button type="button" class="btn ghost sm" onclick="apfDel(' + js(f.k) + ',' + i + ')">Clear this entry</button></div><div class="apf-grid">' +
+      apfField(exF, p + 'exam') + f.cols.map(function (c) { return apfField(c, p + c.k); }).join('') + '</div>' +
+      '<table class="apf-sub"><thead><tr>' + (f.level ? '<th>Level</th>' : '') + '<th>Subject</th><th>Results</th><th></th></tr></thead><tbody>' + subs.map(function (x, j) {
+        var sp = p + 'subjects.' + j + '.', inp = function (k, list, ph) { var id = dlId(list); return '<input value="' + esc(x[k] || '') + '" data-k="' + esc(sp + k) + '" oninput="apfIn(this)"' + (id ? ' list="' + id + '"' : '') + (ph ? ' placeholder="' + esc(ph) + '"' : '') + '>'; };
+        var lvCell = !f.level ? '' : Array.isArray(f.level) ? '<td><select data-k="' + esc(sp + 'level') + '" onchange="apfIn(this);render()"><option value="">- Select -</option>' + f.level.map(function (o) { return apfOpt(o, x.level); }).join('') + '</select></td>' : '<td>' + inp('level') + '</td>';
+        return '<tr>' + lvCell + '<td>' + inp('subject', lk(f.subj, q.exam, x.level), '목록에서 고르거나 직접 입력') + '</td><td>' + inp('result', lk(f.grades, q.exam, x.level), '시험 전이면 비움') + '</td>' +
+          '<td class="nw"><button type="button" class="apf-cp" title="과목·결과 복사" onclick="apfCopyText(' + js([x.level, x.subject, x.result].filter(Boolean).join(' · ')) + ')">📋</button><button type="button" class="ibtn" onclick="apfDel(' + js(p + 'subjects') + ',' + j + ')">✕</button></td></tr>';
+      }).join('') + '</tbody></table><button type="button" class="btn ghost sm apf-add2" onclick="apfAdd(' + js(p + 'subjects') + ')">＋ Add More Subject</button></div>';
+  }).join('') + '<button type="button" class="btn apf-add" onclick="apfAdd(' + js(f.k) + ')">＋ ' + esc(f.add) + '</button>';
+  return h + Object.keys(dl).map(function (id) { return '<datalist id="' + id + '">' + apfLookup(dl[id]).map(function (o) { return '<option value="' + esc(o) + '">'; }).join('') + '</datalist>'; }).join('') + '</div>';
+}
 function apfIn(el) {
   var k = el.getAttribute('data-k'), v = el.type === 'checkbox' ? el.checked : el.value;
   if (el.type === 'radio' && !el.checked) return;
   apfPut(k, v);
+  if (/\.exam$/.test(k) && el.tagName === 'SELECT') { apfTouch(); return render(); }
   var n = document.getElementById('apf-' + k.replace(/\./g, '_') + '-n');
   if (n) n.innerHTML = apfCount(v, { max: Number(el.getAttribute('data-max')) || 0, words: el.getAttribute('data-words') });
   apfTouch();
@@ -3911,7 +3984,7 @@ function apfSave() {
 /** 비어 있는 필수 칸 (반복·시험 칸은 제외) */
 function apfMissing(tab) {
   var out = [];
-  tab.sections.forEach(function (sec) { sec.fields.forEach(function (f) { if (f.req && f.k && ['repeat', 'quals'].indexOf(f.t) < 0 && !String(apfGet(f.k) == null ? '' : apfGet(f.k)).trim()) out.push(f.l); }); });
+  tab.sections.forEach(function (sec) { sec.fields.forEach(function (f) { if (f.req && f.k && ['repeat', 'quals', 'exams'].indexOf(f.t) < 0 && !String(apfGet(f.k) == null ? '' : apfGet(f.k)).trim()) out.push(f.l); }); });
   return out;
 }
 function apfCopy(k) { var v = apfGet(k); if (v == null || String(v) === '') return toast('비어 있는 칸입니다.', true); copyText(String(v)); }
@@ -3924,6 +3997,7 @@ function apfCopyAll() {
     t.sections.forEach(function (sec) { sec.fields.forEach(function (f) {
       if (f.t === 'info' || !f.k && f.t !== 'quals') return;
       if (f.t === 'repeat') { (apfGet(f.k) || []).forEach(function (r, i) { out.push('- ' + f.add + ' ' + (i + 1) + ': ' + f.cols.map(function (c) { return r[c.k] ? c.l + ' ' + r[c.k] : ''; }).filter(Boolean).join(' / ')); }); return; }
+      if (f.t === 'exams') { (apfGet(f.k) || []).forEach(function (q) { out.push('- ' + [q.exam].concat(f.cols.map(function (c) { return q[c.k] ? c.l + ' ' + q[c.k] : ''; })).filter(Boolean).join(' · ') + ': ' + (q.subjects || []).map(function (x) { return [x.level, x.subject, x.result].filter(Boolean).join(' '); }).join(', ')); }); return; }
       if (f.t === 'quals') { (apfGet('quals') || []).forEach(function (q) { out.push('- ' + [q.examType, q.exam, q.sitting].filter(Boolean).join(' · ') + ': ' + (q.subjects || []).map(function (x) { return [x.subject, x.achieved || x.predicted || (x.pending ? 'Pending' : '')].filter(Boolean).join(' '); }).join(', ')); }); return; }
       var v = apfGet(f.k); if (v === true) v = '✓'; if (v == null || v === '' || v === false) return;
       out.push('- ' + f.l + ': ' + v);
@@ -3953,6 +4027,36 @@ var APF_PREFILL = {
     mk('IB', 'International Baccalaureate', 'International Baccalaureate Diploma'); mk('TOEFL', 'IELTS/TOEFL', 'TOEFL'); mk('IELTS', 'IELTS/TOEFL', 'IELTS');
     return out;
   },
+  secSchools: function (s) { return childOf('schools', s.id).filter(apfSecondary).sort(byDate('startDate')).reverse().map(function (r) { var o = (S.options || []).filter(function (x) { return x.kind === 'school' && x.value === r.school; })[0]; return { name: (o && o.fullName) || r.school, country: apfCountry(r.country || (o && o.country)), from: apfMonth(r.startDate), to: apfMonth(r.endDate), mode: 'Full-time', gFrom: r.gradeFrom || '', gTo: r.gradeTo || '' }; }); },
+  usExams: function (s) {
+    var out = [], by = {};
+    childOf('scores', s.id).forEach(function (r) { if (['AP', 'SAT', 'ACT'].indexOf(r.kind) >= 0) { var key = r.kind + '|' + String(r.date || '').slice(0, 7); (by[key] = by[key] || []).push(r); } });
+    Object.keys(by).sort().forEach(function (key) {
+      var l = by[key], kind = key.split('|')[0];
+      out.push({ exam: { AP: 'Advanced Placement', SAT: 'SAT', ACT: 'ACT' }[kind], month: apfMonth(l[0].date), subjects: l.map(function (r) {
+        return { subject: kind === 'AP' ? 'AP ' + String(r.subject || '').replace(/^AP\s*/i, '') : kind === 'SAT' ? 'SAT Total' : 'Composite Score', result: r.score };
+      }) });
+    });
+    return out;
+  },
+  highestHk: function (s) { var c = String(s.curriculum || ''); return /\bIB\b|바칼로레아/i.test(c) ? 'International Baccalaureate Diploma' : /A-?Level|영국/i.test(c) ? 'GCE Advanced Level/International Advanced Level' : /\bAP\b|미국|American/i.test(c) ? 'SAT + AP Subjects/Subject Tests' : ''; },
+  ibExams: function (s) {
+    var l = childOf('scores', s.id).filter(function (r) { return r.kind === 'IB'; }); if (!l.length) return [];
+    var d = l.map(function (r) { return r.date || ''; }).sort().pop();
+    return [{ exam: 'IB Diploma', mon: /^\d{4}-(0[1-6])/.test(d) ? 'May' : /^\d{4}-/.test(d) ? 'November' : '', yr: d.slice(0, 4), subjects: l.map(function (r) { var lv = /HL|SL/i.exec([r.level, r.subject].join(' ')); return { level: lv ? lv[0].toUpperCase() : '', subject: String(r.subject || '').replace(/\s*\b(HL|SL)\b/i, '').trim(), result: r.score }; }) }];
+  },
+  ielts: function (s) { return childOf('scores', s.id).filter(function (r) { return r.kind === 'IELTS'; }).map(function (r) { return { date: apfDate(r.date), o: r.score }; }); },
+  toefl: function (s) { return childOf('scores', s.id).filter(function (r) { return r.kind === 'TOEFL' && Number(r.score) <= 6; }).map(function (r) { return { date: apfDate(r.date), t: r.score }; }); },
+  toeflOld: function (s) { return childOf('scores', s.id).filter(function (r) { return r.kind === 'TOEFL' && Number(r.score) > 6; }).map(function (r) { return { date: apfDate(r.date), t: r.score }; }); },
+  parentSurname: function (s) { return apfNameSplit(apfParent(s).en, true)[0]; },
+  parentGiven: function (s) { return apfNameSplit(apfParent(s).en, true)[1]; },
+  parentRel: function (s) { return apfParent(s).rel; },
+  parentEmail: function (s) { return apfParent(s).email; },
+  parentPhone: function (s) { return apfParent(s).phone; },
+  refLast: function (s) { return apfNameSplit(apfRec(s, false).recName)[0]; }, refFirst: function (s) { return apfNameSplit(apfRec(s, false).recName)[1]; },
+  refTitle: function (s) { var r = apfRec(s, false); return [r.recTitle, r.recSubject].filter(Boolean).join(', '); }, refEmail: function (s) { return apfRec(s, false).recEmail; },
+  ccLast: function (s) { return apfNameSplit(apfRec(s, true).recName)[0]; }, ccFirst: function (s) { return apfNameSplit(apfRec(s, true).recName)[1]; },
+  ccTitle: function (s) { return apfRec(s, true).recTitle; }, ccEmail: function (s) { return apfRec(s, true).recEmail; },
   refs: function (s) { return childOf('appinfo', s.id).filter(function (r) { return REC_ITEM.test(r.item || '') && (r.recName || r.recEmail); }).map(function (r) { var c = /카운|counsel/i.test(r.item); return { rel: c ? 'School Counselor' : 'Referee', name: r.recName || '', email: r.recEmail || '', desc: c ? '' : [r.recTitle, r.recSubject].filter(Boolean).join(', ') }; }); },
 };
 /** 학생 정보 → 원서 칸. over: 이미 쓴 칸도 학생 정보로 바꿈 */
@@ -3968,6 +4072,24 @@ function apfPrefill(sid, over) {
   }); }); });
   if (!n) return toast(s.name + ' — 채울 칸이 없습니다. (이미 채워졌거나 Compass에 정보가 없음)');
   apfTouch(); render(); toast(s.name + ' 정보로 ' + n + '개 칸을 채웠습니다. 확인하고 고쳐주세요.');
+}
+/** 중·고등 과정만 (초등학교·G6 이하로 끝난 학교 제외) */
+function apfSecondary(r) { if (/초등|elementary|primary/i.test(r.school || '')) return false; var g = Number(String(r.gradeTo || '').replace(/\D/g, '')); return !g || g >= 7; }
+var APF_COUNTRY = { '중국': 'Chinese Mainland', '한국': 'Korea, Republic of', '대한민국': 'Korea, Republic of', '홍콩': 'Hong Kong, China', '대만': 'Taiwan, China', '마카오': 'Macao, China', '미국': 'United States', '캐나다': 'Canada', '영국': 'United Kingdom', '싱가포르': 'Singapore', '일본': 'Japan', '호주': 'Australia', '말레이시아': 'Malaysia', '태국': 'Thailand', '베트남': 'Viet Nam' };
+function apfCountry(c) { c = String(c || '').trim(); return APF_COUNTRY[c] || c; }
+/** 부모: 영문 이름이 있는 쪽 (아버님 먼저) */
+function apfParent(s) {
+  var g = s.fatherNameEn || !s.motherNameEn && (s.fatherEmail || s.fatherPhone) ? 'father' : 'mother';
+  return { en: String(s[g + 'NameEn'] || '').trim(), rel: s[g + 'NameEn'] || s[g + 'Name'] ? (g === 'father' ? 'Father' : 'Mother') : '', email: s[g + 'Email'] || '', phone: s[g + 'Phone'] || '' };
+}
+/** 추천인 (counselor=true면 카운슬러) */
+function apfRec(s, counselor) { return childOf('appinfo', s.id).filter(function (r) { return REC_ITEM.test(r.item || '') && (r.recName || r.recEmail) && /카운|counsel/i.test(r.item) === counselor; })[0] || {}; }
+/** 영문 이름 → [성, 이름]: "Smith, John"은 쉼표 앞이 성. 쉼표가 없으면 surFirst면 첫 단어(KIM MINSU), 아니면 마지막 단어(John Smith)가 성 */
+function apfNameSplit(n, surFirst) {
+  n = String(n || '').replace(/^(Mr|Ms|Mrs|Miss|Dr|Prof)\.?\s+/i, '').trim(); if (!n) return ['', ''];
+  if (n.indexOf(',') > 0) return [n.split(',')[0].trim(), n.split(',').slice(1).join(' ').trim()];
+  var w = n.split(/\s+/); if (w.length < 2) return [n, ''];
+  return surFirst ? [w[0], w.slice(1).join(' ')] : [w.pop(), w.join(' ')];
 }
 function apfLoadStu() {
   var A = UI.apf, own = !A.sid && A.owner === S.me.email;
@@ -3999,7 +4121,7 @@ var CT_FIELDS = [
   ['보호자 이름', function (x) { return x.g === 'father' ? x.s.fatherName : x.s.motherName || x.s.parentName; }],
   ['보호자 연락처', function (x) { return x.g === 'father' ? x.s.fatherPhone : x.s.motherPhone || x.s.parentPhone; }],
   ['계약 종류', function (x) { return x.c.kind; }], ['등급', function (x) { return x.c.tier; }], ['기간', function (x) { return x.c.term; }],
-  ['포함 국가', function (x) { return tags(x.c.packages).join(', '); }],
+  ['포함 국가', function (x) { return contractWhat(x.c); }],
   ['계약 금액', function (x) { var p = contractPay(x.c); return p.total ? money(p.total, p.cur) : ''; }],
   ['잔금 납부 기한', function (x) { return korDate(x.c.payDue); }],
   ['납부 안내', function (x) { return x.c.payDue ? '잔금 납부 기한: ' + korDate(x.c.payDue) : ''; }],
@@ -4023,7 +4145,7 @@ function costTableHtml(c) {
       (d ? '<tr><th>정가 합계</th><td></td><td style="text-align: right">' + n(list) + '</td></tr><tr><th>할인</th><td></td><td style="text-align: right">-' + n(d) + '</td></tr>' : '') +
       '<tr><th>총 계약 금액</th><td></td><td style="text-align: right"><b>' + esc(cur + ' ' + (tot || n(list))) + '</b></td></tr></tbody></table>';
   }
-  var what = [c.tier, c.kind && c.kind + ' 컨설팅'].filter(Boolean).join(' ') + (tags(c.packages).length ? ' · ' + tags(c.packages).join(', ') : '');
+  var what = [c.tier, c.kind && c.kind + ' 컨설팅'].filter(Boolean).join(' ') + (contractWhat(c) ? ' · ' + contractWhat(c) : '');
   return '<table data-ct="cost"><thead><tr><th style="width: 22%">항목</th><th style="width: 53%">내용</th><th style="width: 25%">금액 (' + esc(cur) + ')</th></tr></thead><tbody>' +
     '<tr><td>선택 프로그램</td><td>' + esc(what) + '</td><td style="text-align: right">' + esc(tot) + '</td></tr>' +
     '<tr><th>총 계약 금액</th><td></td><td style="text-align: right"><b>' + esc(cur + ' ' + tot) + '</b></td></tr></tbody></table>';
@@ -4228,8 +4350,8 @@ function viewCtpl() {
     }).join('') + '</tbody></table></div>' : '<div class="empty">모든 계약에 계약서가 있습니다. 👍</div>') + '</div>';
   var pr = priceRows();
   h += '<div class="card">' + secHead('가격표 <span class="muted">계약 창에서 패키지를 고르면 정가 합계·할인과 계약서 비용 표·지도 횟수 안내가 자동으로</span>', '<button class="btn ghost" onclick="editPrices()">가격표 고치기</button>') +
-    '<div class="tbl-wrap"><table class="compact"><thead><tr><th>지역</th><th>컨설팅 종류</th><th>패키지</th><th>지도 횟수</th><th>학교 개수</th><th>RMB</th><th>계약서 안내</th></tr></thead><tbody>' +
-    pr.map(function (r) { return '<tr><td class="nw">' + esc(r.region) + '</td><td class="nw">' + esc(r.kind) + '</td><td>' + esc(r.name) + '</td><td class="nw">' + esc(r.sessions) + '</td><td class="nw">' + esc(r.schools) + '</td><td class="nw" style="text-align:right">' + Math.round(amt(r.price)).toLocaleString('ko-KR') + '</td><td class="muted" style="font-size:.78rem;white-space:pre-wrap">' + esc(r.notice) + '</td></tr>'; }).join('') +
+    '<div class="tbl-wrap"><table class="compact"><thead><tr><th>지역</th><th>컨설팅 종류</th><th>패키지</th><th>지도 횟수</th><th>학교 개수</th><th>RMB</th><th>KRW</th><th>계약서 안내</th></tr></thead><tbody>' +
+    pr.map(function (r) { return '<tr><td class="nw">' + esc(r.region) + '</td><td class="nw">' + esc(r.kind) + '</td><td>' + esc(r.name) + '</td><td class="nw">' + esc(r.sessions) + '</td><td class="nw">' + esc(r.schools) + '</td><td class="nw" style="text-align:right">' + comma(r.price) + '</td><td class="nw" style="text-align:right">' + (comma(r.priceKrw) || '<span class="muted">-</span>') + '</td><td class="muted" style="font-size:.78rem;white-space:pre-wrap">' + esc(r.notice) + '</td></tr>'; }).join('') +
     '</tbody></table></div>' + ((S.prices && S.prices.notes || []).length ? '<div class="muted" style="font-size:.8rem;margin-top:8px"><b>주의사항</b><br>' + S.prices.notes.map(function (n, i) { return (i + 1) + '. ' + esc(n); }).join('<br>') + '</div>' : '') + '</div>';
   h += '<div class="card">' + secHead('양식 <span class="muted">{학생 이름} 같은 칸은 계약서를 만들 때 계약·학생 정보로 채워집니다</span>') +
     (S.ctemplates.length ? '<table class="compact"><tbody>' + S.ctemplates.map(function (t) {
@@ -4240,15 +4362,15 @@ function viewCtpl() {
 }
 function editPrices() {
   var P = S.prices || { rows: [], notes: [], limitedNotice: '' };
-  var row = function (r) { return '<tr class="pr-row">' + ['region', 'kind', 'name', 'sessions', 'schools', 'price'].map(function (k) { return '<td><input data-k="' + k + '" value="' + esc(r[k] || '') + '"' + (k === 'price' ? ' style="text-align:right"' : '') + '></td>'; }).join('') +
+  var row = function (r) { return '<tr class="pr-row">' + ['region', 'kind', 'name', 'sessions', 'schools', 'price', 'priceKrw'].map(function (k) { var money = k === 'price' || k === 'priceKrw'; return '<td><input data-k="' + k + '" value="' + esc(money ? comma(r[k]) : r[k] || '') + '"' + (money ? ' style="text-align:right" inputmode="numeric" oninput="commaInput(this)"' : '') + '></td>'; }).join('') +
     '<td><textarea data-k="notice" rows="1">' + esc(r.notice || '') + '</textarea><input type="hidden" data-k="id" value="' + esc(r.id || '') + '"></td><td><button type="button" class="ibtn" title="줄 지우기" onclick="this.closest(\'tr\').remove()">✕</button></td></tr>'; };
   UI.prRow = row;
   modal('가격표 고치기',
-    '<div class="full tbl-wrap"><table class="compact pr-ed"><thead><tr><th>지역</th><th>컨설팅 종류</th><th>패키지</th><th>지도 횟수</th><th>학교 개수</th><th>RMB</th><th>계약서 안내 (그 항목을 고르면 계약서에 들어감)</th><th></th></tr></thead><tbody id="pr-body">' + P.rows.map(row).join('') + '</tbody></table>' +
+    '<div class="full tbl-wrap"><table class="compact pr-ed"><thead><tr><th>지역</th><th>컨설팅 종류</th><th>패키지</th><th>지도 횟수</th><th>학교 개수</th><th>RMB</th><th>KRW</th><th>계약서 안내 (그 항목을 고르면 계약서에 들어감)</th><th></th></tr></thead><tbody id="pr-body">' + P.rows.map(row).join('') + '</tbody></table>' +
       '<button type="button" class="btn ghost sm" style="margin-top:6px" onclick="$(\'pr-body\').insertAdjacentHTML(\'beforeend\', UI.prRow({}))">+ 줄 추가</button></div>' +
     fld('횟수 제한 안내 (지도 횟수에 "○회"가 있는 항목을 고르면 계약서에 들어감)', '<textarea name="limitedNotice" rows="2">' + esc(P.limitedNotice || '') + '</textarea>', true) +
     fld('주의사항 (한 줄에 하나, 가격표 아래 보기용)', '<textarea name="notes" rows="6">' + esc((P.notes || []).join('\n')) + '</textarea>', true) +
-    '<div class="full muted" style="font-size:.8rem">가격표를 바꿔도 이미 만든 계약의 패키지·금액은 그대로 남습니다.</div>',
+    '<div class="full muted" style="font-size:.8rem">가격표를 바꿔도 이미 만든 계약의 패키지·금액은 그대로 남습니다. KRW 금액을 넣어 두면 KRW 계약에서 그 금액으로 계산합니다 (비우면 RMB만).</div>',
     '<button class="btn ghost" onclick="closeModal()">취소</button><button class="btn" onclick="savePrices()">저장</button>');
   $('modal').querySelector('.modal').classList.add('wide');
 }
@@ -4799,7 +4921,7 @@ function openSchoolForm(id, name) {
     fld('나라', inp('country', o.country || '', 'text', ' list="dl-sch-country" placeholder="예: 중국"') + datalist('dl-sch-country', SCHOOL_COUNTRIES)) +
     fld('도시', inp('city', o.city || '', 'text', ' placeholder="예: 상해"')) +
     '<div class="full muted" style="font-size:.82rem;margin-top:4px"><b>원서용 상세 정보</b> — 한 번 적으면 이 학교 학생 모두의 「학생 정보 엑셀」 학력 칸에 들어갑니다.</div>' +
-    fld('학년제 / 학기제', inp('si_system', schoolInfo(o).system || '', 'text', ' placeholder="예: 12학년제 / 2학기제"')) +
+    fld('학제 (새 학년 시작 달 · 학기제)', schoolSystemSel(schoolInfo(o).system || '')) +
     fld('대표 전화', inp('si_phone', schoolInfo(o).phone || '', 'text', ' placeholder="예: 86-21-6476-5516"')) +
     fld('주소', inp('si_address', schoolInfo(o).address || '', 'text', ' placeholder="예: No. 989 Baise Road, Xuhui District, Shanghai"'), true) +
     fld('홈페이지', inp('si_homepage', schoolInfo(o).homepage || '', 'text', ' placeholder="예: https://www.shsid.org"')) +
@@ -4807,10 +4929,19 @@ function openSchoolForm(id, name) {
     (id ? '<div class="full muted" style="font-size:.82rem">짧은 이름을 바꾸면 그 학교로 입력된 학생 정보와 방학도 함께 바뀝니다.</div>' : ''),
     '<button class="btn ghost" onclick="closeModal()">취소</button><button class="btn" onclick="submitSchool(' + js(id || '') + ')">저장</button>');
 }
+/** 학교 학제: 고르는 목록 (학생 학년 자동 올림이 「8월」·「3월」을 읽음) + 기타는 직접 입력. 예전에 글로 적은 값은 그대로 보여줌 */
+var SCHOOL_SYSTEMS = ['국제학교 · 8월 새 학년 · 2학기제', '국제학교 · 8월 새 학년 · 3학기제(Trimester)', '국제학교 · 8월 새 학년 · 4학기제(Quarter)', '한국 학교 · 3월 새 학년 · 2학기제', '기타'];
+function schoolSystemSel(cur) {
+  var known = !cur || SCHOOL_SYSTEMS.indexOf(cur) >= 0;
+  return '<select name="si_system" onchange="var e=this.form.querySelector(\'[name=si_system_etc]\');e.style.display=this.value===\'기타\'?\'\':\'none\'">' + opts([''].concat(SCHOOL_SYSTEMS, known ? [] : [cur]), cur) + '</select>' +
+    '<input name="si_system_etc" placeholder="예: 국제학교 · 9월 새 학년 · 2학기제" style="margin-top:4px;display:none">' +
+    (known ? '' : '<div class="muted" style="font-size:.75rem;margin-top:2px">예전에 글로 적은 값 — 목록에서 다시 골라주세요 (학년 자동 올림은 「8월」·「3월」처럼 달이 있어야 정확)</div>');
+}
 function submitSchool(id) {
   var f = formData($('mf')); if (!String(f.value || '').trim()) return toast('짧은 이름을 입력하세요.', true);
   var o = id ? (S.options || []).filter(function (x) { return x.id === id; })[0] : null;
   var info = {}; ['system', 'phone', 'address', 'homepage', 'email'].forEach(function (k) { info[k] = f['si_' + k] || ''; });
+  if (info.system === '기타') info.system = String(f.si_system_etc || '').trim() || '기타';
   mutate('saveOption', Object.assign({ kind: 'school', value: f.value.trim(), fullName: f.fullName, country: f.country, city: f.city, info: info }, id ? { id: id, sortOrder: o && o.sortOrder } : {}), id ? '학교 정보를 저장했습니다.' : '학교를 추가했습니다.');
 }
 function renameOption(id) {
@@ -5249,10 +5380,11 @@ function tabProfile(s) {
       (u ? '<a href="' + esc(u) + '" target="_blank" rel="noopener">' + esc(u) + '</a>' : empty) + '</div></div></div>';
   };
   var h = '<div class="grid g2"><div class="card">' + secHead('학생 정보', '<button class="btn ghost sm" onclick="openForm(\'students\',' + js(s.id) + ')">수정</button>') + '<dl class="kv">' +
-    kv('이름', s.name) + kvc('영문 이름', s.englishName) + kv('생년월일', s.dob) + kvc('연락처', s.studentPhone) + kvc('이메일', s.email) +
+    kv('이름', s.name) + kvc('영어 이름', s.nickname) + kvc('영문 이름 (여권)', s.englishName) + kv('생년월일', s.dob ? s.dob + ' · ' + ageText(s.dob) : '') + kvc('연락처', s.studentPhone) + kvc('이메일', s.email) +
     kvc('주소', s.address) + kvc('영문 주소', s.addressEn) + kvc('여권 번호', s.passportNo) +
-    kv('학교', s.school) + kv('학년', s.grade) + kv('커리큘럼', s.curriculum) + kv('트랙', trackTags(s).join(', ')) +
-    kv('담당 관리팀', teacherName(s.manager) || '미정') + kv('담당 컨설턴트', teacherName(s.counselor) || '미정') + kv('상태', s.status) +
+    kv('학교', s.school) + kv('학년', s.grade) + kv('커리큘럼', s.curriculum + (s.preIb && /\bIB\b/i.test(s.curriculum || '') ? ' (IB 이전: ' + s.preIb + ')' : '')) +
+    kv('졸업(예정)', s.gradDate ? s.gradDate + (graduated(s) ? ' · 🎓 졸업' : ' · 재학 중') : '') + kv('트랙', trackTags(s).join(', ')) +
+    kv('담당 관리팀', teacherName(s.manager) || '미정') + kv('담당 컨설턴트', teacherName(s.counselor) || '미정') + kv('컨설팅 상태', s.status) +
     kv('태그', s.tags) + kv('메모', s.memo) +
     kv('등록', fmtTime(s.createdAt) + ' · ' + teacherName(s.createdBy)) + kv('마지막 수정', fmtTime(s.updatedAt) + ' · ' + teacherName(s.updatedBy)) +
     '</dl></div><div class="card"><h3>학부모 정보</h3><dl class="kv">' +
@@ -6655,6 +6787,10 @@ function readAppChoices() {
 }
 function field(f, rec) {
   if ('h' in f) return '<div class="full fh">' + esc(f.h) + '</div>';
+  if (f.ifSet && f.t !== 'mrich' && !String(rec[f.k] || '').trim()) return ''; // 예전 기록에 값이 있을 때만 보이는 칸
+  if (f.t === 'age') return '<div><label>나이 (자동)</label><div id="f-age" style="padding:7px 0">' + (ageText(rec.dob) || '<span class="muted">생년월일을 넣으면 계산</span>') + '</div></div>';
+  if (f.t === 'preib') { var pv = rec[f.k] || ''; return '<div data-ifib="1"' + (/\bIB\b/i.test(rec.curriculum || '') ? '' : ' style="display:none"') + '><label>' + esc(f.l) + '</label><select name="' + f.k + '">' + opts([''].concat(PRE_IB, pv && PRE_IB.indexOf(pv) < 0 ? [pv] : []), pv) + '</select></div>'; }
+  if (f.t === 'month') return fld(f.l, inp(f.k, rec[f.k] || '', 'month', ' placeholder="2027-06"') + '<div class="muted" style="font-size:.75rem;margin-top:2px">이 달이 지나면 「졸업」으로 표시 (컨설팅 상태는 그대로)</div>', f.full, f.req);
   if (f.t === 'hid') return hidden(f.k, rec[f.k] == null ? '' : rec[f.k]);
   if (f.t === 'opt') {
     var ol = f.kind === 'doccat' ? docCats() : optionList(f.kind || f.k), cv = rec[f.k] || '';
@@ -6788,6 +6924,12 @@ function openForm(key, id, studentId, extra) {
   modal((id ? F.title + ' 수정' : F.title + ' 추가') + (st ? ' — ' + st.name : '') + (uni ? ' — ' + uni.name : '') + sub, body, foot);
   if (table === 'apps') appFormSync();
 }
+// 학생 정보 창: 생년월일 → 나이, 커리큘럼에 IB → IB 이전 과정 칸
+document.addEventListener('input', function (e) { if (e.target.name === 'dob' && $('f-age')) $('f-age').innerHTML = ageText(e.target.value) || '<span class="muted">생년월일을 넣으면 계산</span>'; });
+document.addEventListener('change', function (e) {
+  if (e.target.name !== 'curriculum' || !e.target.form) return;
+  Array.prototype.forEach.call(e.target.form.querySelectorAll('[data-ifib]'), function (el) { el.style.display = /\bIB\b/i.test(e.target.value) ? '' : 'none'; });
+});
 /** data-showif="칸:값" 인 칸을 체크 상태에 맞춰 보이기/숨기기 */
 function showIfSync(form) {
   Array.prototype.forEach.call((form || document).querySelectorAll('[data-showif]'), function (el) {
@@ -7211,12 +7353,13 @@ function submitForm(key) {
     var lines = fuSplitLines(); delete o.title; delete o.titleHtml;
     return mutate('addFollowupLines', { obj: o, lines: lines }, '팔로업 ' + lines.length + '개를 만들었습니다.');
   }
-  var first = key === 'followups' && !o.id && $('fr-content') && $('fr-content').value.trim() ? { who: $('fr-who').value, date: $('fr-date').value, content: $('fr-content').value.trim(), pend: (UI.replyPend || []).filter(Boolean) } : null;
+  // 대화 칸에 적어 두고 「답변 추가」를 안 눌렀어도 저장하면 같이 기록
+  var first = $('fr-content') && $('fr-who') && $('fr-content').value.trim() ? { who: $('fr-who').value, date: $('fr-date').value, content: $('fr-content').value.trim(), pend: (UI.replyPend || []).filter(Boolean) } : null;
   (fus ? mutate('saveWithFollowups', { table: table, obj: o, followups: fus, review: rv }, (fus.length ? '저장했습니다. 팔로업 ' + fus.length + '건도 추가했습니다.' : '저장했습니다.') + rvMsg)
     : mutate('save', { table: table, obj: o, review: rv }, '저장했습니다.' + rvMsg)).then(function (d) {
     if (d && table === 'students' && !o.id && d.savedId) openStudent(d.savedId);
-    if (d && first && d.savedId) {
-      var nf = findRow('followups', d.savedId);
+    if (d && first && (o.id || d.savedId)) {
+      var nf = findRow('followups', o.id || d.savedId);
       api('save', { table: 'fureplies', obj: { studentId: nf.studentId, followupId: nf.id, who: first.who, date: first.date, content: first.content } })
         .then(function (d2) { load(d2); UI.replyPend = first.pend; replyPendUpload(nf.studentId, d2.savedId, nf.id); }).catch(function (e) { toast('첫 말풍선을 저장하지 못했습니다: ' + errMsg(e), true); });
     }

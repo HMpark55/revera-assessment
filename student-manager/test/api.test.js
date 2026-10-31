@@ -5,7 +5,7 @@ const assert = require('node:assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { openStore } = require('../lib/store');
+const { openStore, nextGrade, gradeMonth, yearsPassed } = require('../lib/store');
 const { createApp } = require('../server');
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'compass-test-'));
@@ -2820,6 +2820,10 @@ test('원서 연습(HKU 2027): 개인 연습은 만든 사람만, 학생에 연�
   let d = await kim.ok('getAll');
   const f = d.appforms.find((x) => x.id === 'hku-2027');
   assert.ok(f && f.tabs.length === 7 && f.tabs[0].key === 'personal');
+  const ust = d.appforms.find((x) => x.id === 'hkust-2027');
+  assert.ok(ust && ust.uni === 'HKUST' && ust.tabs.length === 13);
+  const u = await kim.ok('getAppDraft', { id: (await kim.ok('saveAppDraft', { formId: 'hkust-2027', title: 'UST' })).id });
+  assert.ok(u.form.lists.programmes.includes('BBA in Finance') && u.form.lists.usSubj['Advanced Placement'].includes('AP Calculus BC'));
   assert.strictEqual((await kim.rpc('saveAppDraft', { formId: 'nope' })).status, 404);
   // 개인 연습: 학생 없이
   const mine = await lee.ok('saveAppDraft', { formId: 'hku-2027', title: '혼자 연습', data: { familyName: 'LEE' } });
@@ -2848,4 +2852,19 @@ test('원서 연습(HKU 2027): 개인 연습은 만든 사람만, 학생에 연�
   assert.strictEqual((await kim.rpc('removeAppDraft', { id: mine.id })).status, 403);
   await lee.ok('removeAppDraft', { id: mine.id });
   assert.strictEqual((await lee.rpc('getAppDraft', { id: mine.id })).status, 404);
+});
+
+test('학년 자동 올림·졸업 연월·닉네임, 가격표 KRW', async () => {
+  // 새 학년 시작 달: 학교 학제의 「8월」·「3월」, 없으면 학년 표기로
+  assert.deepStrictEqual([gradeMonth('G10', ''), gradeMonth('고1', ''), gradeMonth('G10', '한국 학교 · 3월 새 학년 · 2학기제'), gradeMonth('?', '')], [8, 3, 3, 0]);
+  assert.deepStrictEqual([nextGrade('G10', 1), nextGrade('G12', 2), nextGrade('Y12', 3), nextGrade('중3', 1), nextGrade('고3', 1), nextGrade('기타', 1)], ['G11', 'G12', 'Y13', '고1', '고3', '기타']);
+  assert.deepStrictEqual([yearsPassed('2026-10-31', '2027-07-31', 8), yearsPassed('2026-10-31', '2027-08-01', 8), yearsPassed('2025-07-01', '2027-08-01', 8), yearsPassed('2026-03-01', '2026-10-31', 3)], [0, 1, 3, 0]);
+  const admin = client(); await admin.login('admin@revera.test', 'admin-pass-1');
+  let d = await admin.saveOk('students', { name: '학년학생', grade: 'G10', nickname: 'Jay', gradDate: '2028-06', gradeAt: '2000-01-01' });
+  let s = d.students.find((x) => x.id === d.savedId);
+  assert.ok(/^\d{4}-\d{2}-\d{2}$/.test(s.gradeAt) && s.gradeAt !== '2000-01-01', '학년 기준일은 서버가 정함');
+  assert.deepStrictEqual([s.nickname, s.gradDate], ['Jay', '2028-06']);
+  assert.strictEqual((await admin.save('students', { id: s.id, gradDate: '2028-13' })).status, 400);
+  d = await admin.ok('savePriceList', { rows: [{ name: 'HKU', price: '10,000', priceKrw: '1,900,000' }, { name: 'NUS', price: '12000', priceKrw: '' }] });
+  assert.deepStrictEqual(d.prices.rows.map((r) => [r.price, r.priceKrw]), [['10000', '1900000'], ['12000', '']]);
 });
