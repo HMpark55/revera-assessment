@@ -183,7 +183,7 @@ function createApp(store, opts) {
       try {
         let name = '';
         try { name = decodeURIComponent(req.get('X-File-Name') || ''); } catch (e) { name = ''; }
-        res.json(store.addFile(req.me, { studentId: req.query.studentId, category: req.query.category, docId: req.query.docId, meetingId: req.query.meetingId, followupId: req.query.followupId, scoreId: req.query.scoreId, replyId: req.query.replyId, name,
+        res.json(store.addFile(req.me, { studentId: req.query.studentId, category: req.query.category, docId: req.query.docId, meetingId: req.query.meetingId, followupId: req.query.followupId, scoreId: req.query.scoreId, replyId: req.query.replyId, contractId: req.query.contractId, name,
           buffer: Buffer.isBuffer(req.body) ? req.body : null }));
       } catch (e) {
         sendError(res, e);

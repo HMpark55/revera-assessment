@@ -11,7 +11,9 @@
  */
 const Database = require('better-sqlite3');
 const crypto = require('crypto');
-const { sanitizeRich, richToText, hasFormatting } = require('./rich');
+const { sanitizeRich, richToText, hasFormatting, sanitizeDoc } = require('./rich');
+const { DEFAULT_TEMPLATES } = require('./contract-template');
+const { DEFAULT_PRICES } = require('./pricelist');
 const schedule = require('./schedule');
 const fs = require('fs');
 const path = require('path');
@@ -61,7 +63,7 @@ const TABLES = {
   contracts: {
     label: '계약',
     fields: ['studentId', 'kind', 'tier', 'term', 'packages', 'startDate', 'endDate', 'startMonth', 'endMonth', 'signedDate', 'currency', 'amount',
-      'payDue', 'scope', 'memo'],
+      'payDue', 'scope', 'memo', 'items', 'listPrice'], // items: 가격표에서 고른 패키지(JSON) — listPrice = 정가 합계, amount = 실제 계약 금액(할인 반영)
     summary: (r) => [r.kind, r.tier, r.term, r.packages].filter(Boolean).join(' '),
   },
   apps: {
@@ -116,6 +118,11 @@ const TABLES = {
     label: '학력',
     fields: ['studentId', 'school', 'country', 'city', 'gradeFrom', 'termFrom', 'gradeTo', 'termTo', 'startDate', 'endDate', 'memo'],
     summary: (r) => [r.school, [[r.gradeFrom, r.termFrom].filter(Boolean).join(' '), [r.gradeTo, r.termTo].filter(Boolean).join(' ')].filter(Boolean).join('~'), [r.startDate, r.endDate || '재학 중'].join('~')].filter(Boolean).join(' '),
+  },
+  cdocs: { // 계약서: 양식으로 자동 채운 뒤 고친 본문(HTML) + 보냄·서명 기록. 서명본 파일은 files.contractId 로 계약에 붙음
+    label: '계약서',
+    fields: ['studentId', 'contractId', 'templateId', 'title', 'body', 'status', 'signMethod', 'sentAt', 'sentVia', 'signedAt', 'signUrl', 'memo'],
+    summary: (r) => [r.title, r.status].filter(Boolean).join(' · '),
   },
   semesters: { // 학기별 재학: 학기 시작일~종료일로 실제 재학 일수를 계산 (3년특례 등 재학기간 증빙)
     label: '학기별 재학',
@@ -274,7 +281,10 @@ const FIELD_LABELS = {
   nextDate: '다음 미팅 날짜', meetingId: '미팅', noteId: '상담기록', contentHtml: '내용 서식', item: '항목',
 };
 /** 관리자/관리팀만 다룰 수 있는 테이블 */
-const MANAGER_ONLY = ['notes', 'contracts', 'payments'];
+const MANAGER_ONLY = ['notes', 'contracts', 'payments', 'cdocs'];
+/** 계약서: 상태와 서명 방식 (방문 서명 = 종이 서명 후 스캔, 안내형 = 안내문으로 보내고 회신, 전자서명 = 외부 전자서명) */
+const CDOC_STATUS = ['초안', '보냄', '서명 완료'];
+const SIGN_METHODS = ['방문 서명', '안내형', '전자서명'];
 /** 컨설턴트에게 숨기는 계약 필드 */
 const HIDDEN_FOR_CONSULTANT = { contracts: ['amount', 'paid', 'currency', 'payDue'], meetings: ['parentNote'] };
 
@@ -396,6 +406,7 @@ function migrate(db) {
   db.exec('CREATE INDEX IF NOT EXISTS unimajors_uni ON unimajors(universityId)');
   ensureColumns(db, 'files', ['mime', 'size', 'storedName', 'docId', 'meetingId', 'followupId', 'scoreId']);
   ensureColumns(db, 'files', ['replyId']);
+  ensureColumns(db, 'files', ['contractId']); // 계약서 서명본·스캔 (관리자·관리팀만 보임)
   ensureColumns(db, 'teachers', ['fuOrder']);
   ensureColumns(db, 'teachers', ['uiPrefs']); // 그 밖의 개인 화면 설정(JSON): 표 칸 너비·접기·정렬·달력 체크·REVERA A 화면 등 — 어느 PC에서나 같게 // 메인 위젯에서 끌어서 정한 내 팔로업 순서 (팔로업 id JSON 배열, 계정마다 따로) // 팔로업·연락의 어느 답변(말풍선)에 붙은 파일인지
   ensureColumns(db, 'docs', ['receivedAt', 'receivedBy']);
@@ -651,6 +662,23 @@ function migrate(db) {
         .run(crypto.randomUUID(), 'fucat', v, String(i + 1), ts, 'system', ts, 'system');
     });
     db.prepare("INSERT INTO meta VALUES ('v37_fucats', ?)").run(ts);
+  }
+  // 계약서 양식 (학생과 무관, 관리자·관리팀이 고침)
+  db.exec("CREATE TABLE IF NOT EXISTS ctemplates (id TEXT PRIMARY KEY, name TEXT NOT NULL DEFAULT '', kind TEXT NOT NULL DEFAULT '', body TEXT NOT NULL DEFAULT '', sortOrder TEXT NOT NULL DEFAULT '', createdAt TEXT NOT NULL DEFAULT '', createdBy TEXT NOT NULL DEFAULT '', updatedAt TEXT NOT NULL DEFAULT '', updatedBy TEXT NOT NULL DEFAULT '', deletedAt TEXT NOT NULL DEFAULT '')");
+  if (!db.prepare("SELECT 1 FROM meta WHERE key = 'v38_ctemplates'").get()) { // 이전에 쓰던 원서 컨설팅 계약서를 기본 양식으로
+    const ts = now();
+    DEFAULT_TEMPLATES.forEach((t, i) => db.prepare('INSERT INTO ctemplates (id, name, kind, body, sortOrder, createdAt, createdBy, updatedAt, updatedBy) VALUES (?,?,?,?,?,?,?,?,?)')
+      .run(crypto.randomUUID(), t.name, t.kind, sanitizeDoc(t.body), String(i + 1), ts, 'system', ts, 'system'));
+    db.prepare("INSERT INTO meta VALUES ('v38_ctemplates', ?)").run(ts);
+  }
+  if (!db.prepare("SELECT 1 FROM meta WHERE key = 'v39_annual_ctemplate'").get()) { // 연간 컨설팅 계약서 양식 추가 (같은 이름이 없을 때만)
+    const ts = now();
+    DEFAULT_TEMPLATES.forEach((t, i) => {
+      if (db.prepare("SELECT 1 FROM ctemplates WHERE name = ? AND deletedAt = ''").get(t.name)) return;
+      db.prepare('INSERT INTO ctemplates (id, name, kind, body, sortOrder, createdAt, createdBy, updatedAt, updatedBy) VALUES (?,?,?,?,?,?,?,?,?)')
+        .run(crypto.randomUUID(), t.name, t.kind, sanitizeDoc(t.body), String(i + 1), ts, 'system', ts, 'system');
+    });
+    db.prepare("INSERT INTO meta VALUES ('v39_annual_ctemplate', ?)").run(ts);
   }
   ensureColumns(db, 'programs', ['name', 'category', 'target', 'schedule', 'deadline', 'url', 'memo', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy']);
   // v23: "성적·재학·졸업 증명서" 칸을 서류 목록으로 합침 — 서류 줄에 안 묶인 학생 파일을 학생·분류별 서류 줄(수합 완료)로.
@@ -1115,8 +1143,10 @@ function openStore(dbPath, opts) {
     for (const t of CHILD_TABLES) {
       if (MANAGER_ONLY.includes(t) && t !== 'contracts' && !isManager(me)) { out[t] = []; continue; }
       out[t] = db.prepare(`SELECT * FROM ${t} WHERE deletedAt = ''`).all()
-        .filter((r) => ids.has(r.studentId)).map((r) => publicRow(t, r, me));
+        .filter((r) => ids.has(r.studentId) && !(t === 'files' && r.contractId && !isManager(me))).map((r) => publicRow(t, r, me)); // 계약서 파일은 관리자·관리팀만
     }
+    out.prices = isManager(me) ? getPriceList() : null;
+    out.ctemplates = isManager(me) ? db.prepare("SELECT * FROM ctemplates WHERE deletedAt = '' ORDER BY CAST(sortOrder AS INTEGER), name").all() : [];
     out.options = db.prepare('SELECT id, kind, value, sortOrder, url, category, color, fullName, country, city, info FROM options').all();
     out.programs = db.prepare('SELECT * FROM programs ORDER BY name').all();
     out.breaks = db.prepare('SELECT id, school, name, startDate, endDate FROM schoolbreaks ORDER BY startDate').all();
@@ -1151,6 +1181,18 @@ function openStore(dbPath, opts) {
       if (rec.packages) rec.packages = [...new Set(String(rec.packages).split(',').map((x) => x.trim()).filter(Boolean).map((x) => OLD_PACKAGES[x] || x))].join(', ');
       for (const k of ['startDate', 'endDate']) if (v(k) && !DATE_RE.test(v(k))) throw new UserError('계약 날짜 형식이 올바르지 않습니다. (YYYY-MM-DD)');
       if (v('startDate') && v('endDate') && v('endDate') < v('startDate')) throw new UserError('계약 종료일이 시작일보다 빠릅니다.');
+      if ('items' in rec) { // 가격표 패키지: 정해진 칸만, 정가 합계는 여기서 계산
+        let a; try { a = JSON.parse(rec.items || '[]'); } catch (e) { a = null; }
+        if (!Array.isArray(a) || a.length > 40) throw new UserError('패키지 선택이 올바르지 않습니다.');
+        const items = a.map((x) => {
+          const o = {}; ['pid', 'region', 'kind', 'name', 'sessions', 'schools', 'notice'].forEach((k) => { o[k] = clean(x && x[k]).slice(0, 500); });
+          o.price = String(Number(String(x && x.price).replace(/[^\d.]/g, '')) || 0); o.qty = String(Math.max(1, Math.min(20, parseInt(x && x.qty, 10) || 1)));
+          if (!o.name) throw new UserError('패키지 이름이 비어 있습니다.');
+          return o;
+        });
+        rec.items = items.length ? JSON.stringify(items) : '';
+        rec.listPrice = items.length ? String(items.reduce((t, x) => t + Number(x.price) * Number(x.qty), 0)) : '';
+      }
     }
     if (table === 'meetings' && v('nextDate') && !DATE_RE.test(v('nextDate'))) throw new UserError('다음 미팅 날짜 형식이 올바르지 않습니다.');
     if (table === 'followups') {
@@ -1178,6 +1220,14 @@ function openStore(dbPath, opts) {
       need('item', '항목 이름을 입력하세요. (예: 추천인 1)');
       if (!['content', 'recName', 'recTitle', 'recSubject', 'recEmail'].some((k) => String(v(k) || '').trim())) throw new UserError('내용을 입력하세요.');
       if (v('recEmail') && !isEmail(String(v('recEmail')).trim())) throw new UserError('추천인 이메일 형식이 올바르지 않습니다.');
+    }
+    if (table === 'cdocs') {
+      if (!v('contractId') || !getRow('contracts', v('contractId')) || getRow('contracts', v('contractId')).deletedAt || getRow('contracts', v('contractId')).studentId !== v('studentId')) throw new UserError('계약을 찾을 수 없습니다. 새로고침 해주세요.', 404);
+      need('title', '계약서 제목을 입력하세요.');
+      if (v('status') && !CDOC_STATUS.includes(v('status'))) throw new UserError('계약서 상태가 올바르지 않습니다.');
+      if (v('signMethod') && !SIGN_METHODS.includes(v('signMethod'))) throw new UserError('서명 방식이 올바르지 않습니다.');
+      for (const k of ['sentAt', 'signedAt']) if (v(k) && !DATE_RE.test(v(k))) throw new UserError('날짜 형식이 올바르지 않습니다. (YYYY-MM-DD)');
+      checkUrl(v('signUrl'), '전자서명 링크');
     }
     if (table === 'semesters') {
       for (const k of ['startDate', 'endDate']) if (v(k) && !DATE_RE.test(v(k))) throw new UserError('학기 날짜 형식이 올바르지 않습니다. (YYYY-MM-DD)');
@@ -1297,6 +1347,7 @@ function openStore(dbPath, opts) {
           rec[hk] = hasFormatting(html) ? html : '';
         } else if (hk !== 'contentHtml' && tk in obj) rec[hk] = ''; // 일반 글만 고치면(빠른 추가·체크 등) 예전 서식은 버림
       }
+      if (table === 'cdocs' && 'body' in obj) rec.body = sanitizeDoc(String(obj.body || '')); // 계약서 본문: 표·제목·정렬까지 허용 (clean 의 2만 자 제한 대신)
       if ('counselor' in rec) rec.counselor = lower(rec.counselor);
       // 컨설턴트에게 숨겨진 칸은 새로 쓰거나 고칠 수도 없음
       if (!isManager(me)) (HIDDEN_FOR_CONSULTANT[table] || []).forEach((k) => delete rec[k]);
@@ -2275,6 +2326,55 @@ function openStore(dbPath, opts) {
     db.prepare('UPDATE teachers SET uiPrefs = ? WHERE email = ?').run(json, me.email);
     return { ok: true };
   }
+  /** 가격표 (관리자·관리팀이 고침, 처음엔 기본 가격표) */
+  function getPriceList() {
+    try { const o = JSON.parse(getMeta('site.prices') || 'null'); if (o && Array.isArray(o.rows)) return o; } catch (e) { /* 기본값 */ }
+    return DEFAULT_PRICES;
+  }
+  function savePriceList(me, arg) {
+    requireManager(me, '가격표');
+    const src = arg || {};
+    if (!Array.isArray(src.rows) || src.rows.length > 200) throw new UserError('가격표 형식이 올바르지 않습니다.');
+    const s = (v, n) => clean(v).trim().slice(0, n || 200);
+    const rows = src.rows.map((r) => ({ id: s(r.id, 40) || newId(), region: s(r.region, 40), kind: s(r.kind, 40), name: s(r.name), sessions: s(r.sessions, 60), schools: s(r.schools, 40),
+      price: String(Number(String(r.price || '').replace(/[^\d.]/g, '')) || 0), notice: s(r.notice, 1000) })).filter((r) => r.name);
+    const notes = (Array.isArray(src.notes) ? src.notes : []).map((x) => s(x, 500)).filter(Boolean).slice(0, 30);
+    setMeta('site.prices', JSON.stringify({ rows, notes, limitedNotice: s(src.limitedNotice, 500) }));
+    log(me.email, 'update', 'settings', 'prices', '가격표 수정 (' + rows.length + '개 항목)');
+    return getAll(me);
+  }
+  /** 계약서 양식: 추가·고치기 (관리자·관리팀), 지우기는 숨김 처리 */
+  function saveCTemplate(me, arg) {
+    requireManager(me, '계약서 양식');
+    arg = arg || {};
+    const name = clean(arg.name).trim().slice(0, 100);
+    if (!name) throw new UserError('양식 이름을 입력하세요.');
+    const kind = clean(arg.kind).trim().slice(0, 40), body = sanitizeDoc(String(arg.body || ''));
+    if (!body.trim()) throw new UserError('양식 내용을 입력하세요.');
+    const t = now();
+    let id = arg.id;
+    if (id) {
+      const cur = db.prepare("SELECT * FROM ctemplates WHERE id = ? AND deletedAt = ''").get(id);
+      if (!cur) throw new UserError('양식을 찾을 수 없습니다. 새로고침 해주세요.', 404);
+      if (arg.updatedAt && arg.updatedAt !== cur.updatedAt) throw new UserError('그 사이 다른 분이 이 양식을 고쳤습니다. 새로고침 후 다시 입력해주세요.', 409);
+      db.prepare('UPDATE ctemplates SET name = ?, kind = ?, body = ?, updatedAt = ?, updatedBy = ? WHERE id = ?').run(name, kind, body, t, me.email, id);
+      log(me.email, 'update', 'ctemplates', id, '계약서 양식 ' + name);
+    } else {
+      id = newId();
+      const so = String((db.prepare('SELECT MAX(CAST(sortOrder AS INTEGER)) n FROM ctemplates').get().n || 0) + 1);
+      db.prepare('INSERT INTO ctemplates (id, name, kind, body, sortOrder, createdAt, createdBy, updatedAt, updatedBy) VALUES (?,?,?,?,?,?,?,?,?)').run(id, name, kind, body, so, t, me.email, t, me.email);
+      log(me.email, 'create', 'ctemplates', id, '계약서 양식 ' + name);
+    }
+    return Object.assign(getAll(me), { savedId: id });
+  }
+  function removeCTemplate(me, arg) {
+    requireManager(me, '계약서 양식');
+    const cur = db.prepare("SELECT * FROM ctemplates WHERE id = ? AND deletedAt = ''").get(String(arg && arg.id || ''));
+    if (!cur) throw new UserError('양식을 찾을 수 없습니다.', 404);
+    db.prepare('UPDATE ctemplates SET deletedAt = ?, updatedBy = ? WHERE id = ?').run(now(), me.email, cur.id);
+    log(me.email, 'delete', 'ctemplates', cur.id, '계약서 양식 ' + cur.name);
+    return getAll(me);
+  }
   /** 원서용 학생 정보 엑셀에 들어갈 한 학생의 기록 (볼 수 있는 학생만) */
   function studentSheetData(me, id) {
     const st = requireStudent(me, id);
@@ -2544,7 +2644,12 @@ function openStore(dbPath, opts) {
   }
   /** 파일 1개 저장 + 기록 (트랜잭션 안에서 호출, 저장한 경로는 stored 에 추가) */
   function storeFile(me, s, info, stored) {
-    let doc = null, meeting = null, fu = null, score = null, reply = null;
+    let doc = null, meeting = null, fu = null, score = null, reply = null, contract = null;
+    if (info.contractId) { // 계약서 서명본·스캔
+      requireManager(me, '계약서 올리기');
+      contract = getRow('contracts', info.contractId);
+      if (!contract || contract.deletedAt || contract.studentId !== s.id) throw new UserError('계약을 찾을 수 없습니다. 새로고침 해주세요.', 404);
+    }
     if (info.replyId) { // 답변 말풍선에 붙이는 파일 → 그 답변의 팔로업에도 묶임
       reply = getRow('fureplies', info.replyId);
       if (!reply || reply.deletedAt || reply.studentId !== s.id) throw new UserError('답변을 찾을 수 없습니다. 새로고침 해주세요.', 404);
@@ -2577,8 +2682,8 @@ function openStore(dbPath, opts) {
     fs.writeFileSync(path.join(filesDir, storedName), info.buffer);
     stored.push(path.join(filesDir, storedName));
     const t = now();
-    const rec = { id, studentId: s.id, category: doc ? doc.category || guessDocCat(doc.name) : meeting ? '미팅' : fu ? '연락' : score ? scoreDocCat(score.kind) : fileCat(info.category), name, memo: clean(info.memo || ''), mime: type,
-      size: String(info.buffer.length), storedName, docId: doc ? doc.id : '', meetingId: meeting ? meeting.id : '', followupId: fu ? fu.id : '', scoreId: score ? score.id : '', replyId: reply ? reply.id : '',
+    const rec = { id, studentId: s.id, category: contract ? '계약서' : doc ? doc.category || guessDocCat(doc.name) : meeting ? '미팅' : fu ? '연락' : score ? scoreDocCat(score.kind) : fileCat(info.category), name, memo: clean(info.memo || ''), mime: type,
+      size: String(info.buffer.length), storedName, docId: doc ? doc.id : '', meetingId: meeting ? meeting.id : '', followupId: fu ? fu.id : '', scoreId: score ? score.id : '', replyId: reply ? reply.id : '', contractId: contract ? contract.id : '',
       createdAt: t, createdBy: me.email, updatedAt: t, updatedBy: me.email };
     const keys = Object.keys(rec);
     db.prepare(`INSERT INTO files (${keys.join(', ')}) VALUES (${keys.map((k) => '@' + k).join(', ')})`).run(rec);
@@ -2587,7 +2692,7 @@ function openStore(dbPath, opts) {
       db.prepare("UPDATE docs SET status = '수합 완료', receivedAt = ?, receivedBy = ?, updatedAt = ?, updatedBy = ? WHERE id = ?")
         .run(t, me.email, t, me.email, doc.id);
     }
-    log(me.email, 'upload', 'files', id, s.name + ' · ' + (doc ? doc.name + ' · ' : meeting ? '미팅 ' + meeting.date + ' · ' : fu ? '연락 ' + fu.title.slice(0, 30) + ' · ' : '') + name);
+    log(me.email, 'upload', 'files', id, s.name + ' · ' + (contract ? '계약서 · ' : doc ? doc.name + ' · ' : meeting ? '미팅 ' + meeting.date + ' · ' : fu ? '연락 ' + fu.title.slice(0, 30) + ' · ' : '') + name);
     return rec;
   }
 
@@ -2706,6 +2811,7 @@ function openStore(dbPath, opts) {
     const f = getRow('files', id);
     if (!f || f.deletedAt) throw new UserError('파일을 찾을 수 없습니다.', 404);
     requireStudent(me, f.studentId);
+    if (f.contractId) requireManager(me, '계약서 파일 보기');
     return { path: path.join(filesDir, f.storedName), name: f.name, mime: f.mime || 'application/octet-stream' };
   }
 
@@ -2960,7 +3066,7 @@ function openStore(dbPath, opts) {
     db, filesDir, dbPath, listFiles, pendingSync, markSync, replaceSchedule, restoreFromDb, countTeachers, upsertAdmin, login, loginAs, logout, authenticate, addFile, getFile, addUniFile, getUniFile,
     rpc: { getAll: (me) => getAll(me), save, remove, restore, purge, getTrash, getLog, saveTeacher, changePassword, importData, copyCycle, getActivity, saveMany, updateMe,
       saveOption, removeOption, deleteTeacher, getAutomation, saveAutomation, saveEvent, removeEvent,
-      saveWithFollowups, requestFollowup, saveOrder, saveUniFile, removeUniFile, saveProgram, removeProgram, getStorage, retrySync, saveHomeLayout, saveStudentCols, saveBreak, removeBreak, requestReview, doneReview, cancelReview, excludeSched, unexcludeSched, saveAutoCat, getNotices, noticeAct, fixSubjects, saveViewPref, savePref, getPrefs, removeMany, restoreMany, purgeMany, addFollowupMany, addFollowupLines, saveSite, addMajorsMany, renameFaculty },
+      saveWithFollowups, requestFollowup, saveOrder, saveUniFile, removeUniFile, saveProgram, removeProgram, getStorage, retrySync, saveHomeLayout, saveStudentCols, saveBreak, removeBreak, requestReview, doneReview, cancelReview, excludeSched, unexcludeSched, saveAutoCat, getNotices, noticeAct, fixSubjects, saveViewPref, savePref, getPrefs, saveCTemplate, removeCTemplate, savePriceList, removeMany, restoreMany, purgeMany, addFollowupMany, addFollowupLines, saveSite, addMajorsMany, renameFaculty },
     studentSheetData, backup, getConfig, getMeta, recordRun, listTeachers, close: () => db.close(),
   };
 }

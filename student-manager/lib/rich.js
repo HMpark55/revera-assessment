@@ -104,4 +104,60 @@ function hasFormatting(html) { return /<(b|u|s|span)\b|<div style=/.test(html); 
 /** 예전 일반 글 → 편집기에 넣을 HTML */
 function textToRich(t) { return escText(String(t || '').replace(/&/g, '&amp;')).split('\n').join('<br>'); }
 
-module.exports = { sanitizeRich, richToText, hasFormatting, textToRich };
+/**
+ * 계약서처럼 "문서" 모양이 필요한 글: 제목(h1~h3)·표·목록·가운데/오른쪽 정렬까지 허용.
+ * 화면·인쇄에 그대로 넣는 값이므로 저장할 때 반드시 이 함수를 거침 (스크립트·링크·이미지·이벤트 속성은 모두 지움).
+ */
+const DOC_TAGS = new Set(['div', 'p', 'h1', 'h2', 'h3', 'b', 'strong', 'u', 's', 'strike', 'span', 'i', 'em', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'ul', 'ol', 'li']);
+const DOC_STYLE = Object.assign({}, STYLE_OK, {
+  'text-align': (v) => /^(left|center|right|justify)$/i.test(v),
+  width: (v) => /^\d{1,3}(\.\d+)?%$/.test(v),
+});
+function cleanDocStyle(attrs) {
+  const m = /\bstyle\s*=\s*("([^"]*)"|'([^']*)')/i.exec(attrs || '');
+  if (!m) return '';
+  const raw = (m[2] != null ? m[2] : m[3]).replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+  return raw.split(';').map((decl) => {
+    const i = decl.indexOf(':'); if (i < 0) return '';
+    const k = decl.slice(0, i).trim().toLowerCase(), v = decl.slice(i + 1).trim();
+    return DOC_STYLE[k] && DOC_STYLE[k](v) ? k + ': ' + v.toLowerCase() : '';
+  }).filter(Boolean).join('; ');
+}
+function sanitizeDoc(html) {
+  const src = String(html || '').slice(0, 400000);
+  const stack = [];
+  let out = '';
+  const re = /<!--[\s\S]*?(-->|$)|<\/?([a-zA-Z][a-zA-Z0-9]*)\b((?:[^>"']|"[^"]*"|'[^']*')*)>|<|[^<]+/g;
+  let m, skip = 0;
+  while ((m = re.exec(src))) {
+    const tok = m[0];
+    if (tok.startsWith('<!--')) continue;
+    if (m[2]) {
+      const name = m[2].toLowerCase(), closing = tok[1] === '/';
+      if (name === 'script' || name === 'style') { skip += closing ? (skip ? -1 : 0) : 1; continue; }
+      if (skip) continue;
+      if (name === 'br') { if (!closing) out += '<br>'; continue; }
+      if (!DOC_TAGS.has(name)) continue;
+      const tag = name === 'strong' ? 'b' : name === 'strike' ? 's' : name === 'em' ? 'i' : name;
+      if (closing) {
+        const at = stack.lastIndexOf(tag);
+        if (at < 0) continue;
+        while (stack.length > at) out += '</' + stack.pop() + '>';
+      } else {
+        const st = cleanDocStyle(m[3]);
+        let extra = '';
+        if (tag === 'td' || tag === 'th') ['colspan', 'rowspan'].forEach((a) => { const x = new RegExp('\\b' + a + '\\s*=\\s*["\']?(\\d{1,2})', 'i').exec(m[3] || ''); if (x) extra += ' ' + a + '="' + x[1] + '"'; });
+        if (tag === 'table' && /\bdata-ct\s*=\s*["']?cost/i.test(m[3] || '')) extra += ' data-ct="cost"'; // 계약서의 비용 표 (줄 추가 버튼이 찾는 표시)
+        out += '<' + tag + extra + (st ? ' style="' + st + '"' : '') + '>';
+        stack.push(tag);
+      }
+      continue;
+    }
+    if (skip) continue;
+    out += escText(tok);
+  }
+  while (stack.length) out += '</' + stack.pop() + '>';
+  return out;
+}
+
+module.exports = { sanitizeRich, richToText, hasFormatting, textToRich, sanitizeDoc };
