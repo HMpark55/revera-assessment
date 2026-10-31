@@ -3879,7 +3879,7 @@ function docKeepTogether(html) {
     if (n.nodeType === 1 && n.tagName === 'H3') { cur = document.createElement('div'); cur.className = 'art'; out.appendChild(cur); }
     (cur || out).appendChild(n);
   });
-  // 날짜·서명란은 따로 한 덩어리 (특약사항까지는 앞에 이어서, 서명란만 그 장 맨 아래로 — signToBottom)
+  // 날짜·서명란은 따로 한 덩어리 (특약사항까지는 앞에 이어서, 서명란만 그 장 맨 아래로 — paginateDoc)
   var last = out.lastElementChild, sig = last && last.lastElementChild;
   if (last && sig && sig.tagName === 'TABLE' && !sig.hasAttribute('data-ct')) {
     var box = document.createElement('div'); box.className = 'sigbox';
@@ -3888,31 +3888,43 @@ function docKeepTogether(html) {
   }
   return out.innerHTML;
 }
-/** 인쇄 창: 날짜·서명란을 그 장 맨 아래로.
- *  인쇄와 같은 크기(171×259mm)의 다단(column) 상자에 문서를 한 번 흘려 보면, 브라우저가 인쇄할 때와 같은 방식으로 쪽을 나눔
- *  → 서명란이 놓이는 쪽과 그 쪽의 남는 높이를 그대로 재서, 그만큼 서명란 위를 띄움 */
-function signToBottom(w) {
-  var d = w.document, box = d.querySelector('.sigbox'); if (!box) return;
-  var m = d.createElement('div');
-  m.style.cssText = 'position:absolute;left:-30000px;top:0;width:171mm;height:259mm;column-width:171mm;column-gap:0;column-fill:auto;';
-  m.innerHTML = d.body.innerHTML; d.body.appendChild(m);
-  var mb = m.querySelector('.sigbox'), top = m.getBoundingClientRect().top, H = m.getBoundingClientRect().height;
-  var bottom = mb.getBoundingClientRect().bottom - top;
-  m.remove();
-  var gap = H - bottom - 6;
-  if (gap > 4) box.style.paddingTop = Math.floor(gap) + 'px';
+/** 인쇄 창에서 Compass가 직접 A4 페이지를 만듦: 페이지마다 여백(19/20mm)을 안에 넣고 @page 여백은 0
+ *  → 인쇄 창의 여백 설정(기본값·없음)과 상관없이 같은 모양. 묶음(조항·서명란)을 한 장씩 실제 글꼴로 채워 보며 넘치면 다음 장으로 */
+function paginateDoc(w) {
+  var d = w.document, src = d.getElementById('src'), pages = d.getElementById('pages'), cur;
+  var newPage = function () { var pg = d.createElement('div'); pg.className = 'page'; var b = d.createElement('div'); b.className = 'pbody'; pg.appendChild(b); pages.appendChild(pg); cur = b; return b; };
+  var fits = function () { return cur.scrollHeight <= cur.clientHeight + 1; };
+  var place = function (b) {
+    cur.appendChild(b);
+    if (fits()) return;
+    if (cur.childNodes.length > 1) { cur.removeChild(b); newPage(); cur.appendChild(b); if (fits()) return; }
+    // 한 장보다 긴 묶음: 안의 문단 단위로 나눠서 이어 붙임
+    if (b.children.length > 1) { cur.removeChild(b); Array.prototype.slice.call(b.children).forEach(place); }
+  };
+  newPage();
+  Array.prototype.slice.call(src.childNodes).forEach(function (n) { if (n.nodeType === 1) place(n); else if (n.textContent.trim()) { var p = d.createElement('p'); p.textContent = n.textContent; place(p); } });
+  src.remove();
+  // 날짜·서명란: 그 장의 남는 높이만큼 위를 띄워 맨 아래로
+  var box = pages.querySelector('.sigbox');
+  if (box) {
+    var body = box.parentNode, room = body.getBoundingClientRect().bottom - box.getBoundingClientRect().bottom - 2;
+    if (room > 2) box.style.paddingTop = Math.floor(room) + 'px';
+  }
 }
-/** 새 창에 A4 문서로 띄우고 인쇄 창 열기 (인쇄 창에서 "PDF로 저장" 가능) */
+/** 새 창에 A4 문서로 띄우고 인쇄 창 열기 */
 function printHtml(title, html) {
   var w = window.open('', '_blank'); if (!w) return toast('팝업이 막혀 있습니다. 이 사이트의 팝업을 허용해주세요.', true);
   w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>' + esc(title || '계약서') + '</title><style>' +
-    '@page { size:A4; margin:19mm 19mm 19mm 20mm; } body { margin:0; } ' + docCss('') +
-    ' @media screen { body { max-width:171mm; margin:12mm auto; } } * { -webkit-print-color-adjust:exact; print-color-adjust:exact; }' +
-    ' .art { break-inside:avoid; page-break-inside:avoid; }' +
-    ' .art, .sigbox { padding:0.5px 0; } .sigbox { break-inside:avoid; page-break-inside:avoid; }' +
-    '</style></head><body>' + docKeepTogether(html) + '</body></html>');
+    '@page { size:A4; margin:0; } html, body { margin:0; padding:0; } ' + docCss('') +
+    ' * { -webkit-print-color-adjust:exact; print-color-adjust:exact; }' +
+    ' .page { width:210mm; height:296.5mm; box-sizing:border-box; padding:19mm 19mm 19mm 20mm; background:#fff; overflow:hidden; break-after:page; page-break-after:always; }' +
+    ' .page:last-child { break-after:auto; page-break-after:auto; } .pbody { height:100%; } #src { width:171mm; }' +
+    ' .art, .sigbox { padding:0.5px 0; }' +
+    ' @media screen { body { background:#e9ecf1; padding:8mm 0; } .page { margin:0 auto 8mm; box-shadow:0 1px 6px rgba(0,0,0,.25); } }' +
+    '</style></head><body><div id="src">' + docKeepTogether(html) + '</div><div id="pages"></div></body></html>');
   w.document.close(); w.focus();
-  setTimeout(function () { try { signToBottom(w); } catch (e) { /* 계산이 안 되면 그대로 인쇄 */ } w.print(); }, 300);
+  var go = function () { try { paginateDoc(w); } catch (e) { /* 나누기 실패 시 그대로 */ } setTimeout(function () { w.print(); }, 200); };
+  if (w.document.fonts && w.document.fonts.ready) w.document.fonts.ready.then(go, go); else setTimeout(go, 300); // 글꼴이 다 불러와진 뒤에 재야 정확
 }
 /* ----- 관리 › 계약서: 계약서 없는 계약 + 양식 ----- */
 function viewCtpl() {
